@@ -1,9 +1,11 @@
+from dataclasses import dataclass
+from datetime import datetime
+from app.dto.facilityManagement_dto import FacilityManagementDTO
+
 @dataclass
-class AssetDTO:
-    id: int
-    name: str
+class AssetDTO(FacilityManagementDTO):
     type: str
     status: str
-    description: Optional[str]
+    description: str
     isOutdoor: bool
     maintenanceDate: datetime
