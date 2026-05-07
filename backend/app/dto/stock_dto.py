@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from app.dto import FacilityManagementDTO
+from app.dto.facilityManagement_dto import FacilityManagementDTO
 
 @dataclass
 class StockDTO(FacilityManagementDTO):
