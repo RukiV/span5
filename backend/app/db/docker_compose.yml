@@ -1,5 +1,6 @@
 version: "3.9"
-
+#Install PostgreSQL, Dev Containers en Container Tools extention van microsoft, maak seker jy het Docker Desktop geinstalleer.
+#Daar sal n "Run All Services" opsie wees bo services hier onder, klik daarop en dit sal die postgres image download en die container skep.
 services:
   postgres:
     image: postgres:16
