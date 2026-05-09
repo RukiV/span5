@@ -3,7 +3,7 @@ from typing import Optional, List
 from .facilityManagement_dto import FacilityManagementDTO
 from .asset_dto import AssetDTO
 from .stock_dto import StockDTO
-from models.enums import RoomType
+from backend.app.models.enums import RoomType
 
 @dataclass
 class RoomDTO(FacilityManagementDTO):
