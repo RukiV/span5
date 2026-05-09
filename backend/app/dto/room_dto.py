@@ -1,12 +1,13 @@
 from dataclasses import dataclass, field
 from typing import Optional, List
-from app.dto.facilityManagement_dto import FacilityManagementDTO
-from app.dto.asset_dto import AssetDTO
-from app.dto.stock_dto import StockDTO
+from .facilityManagement_dto import FacilityManagementDTO
+from .asset_dto import AssetDTO
+from .stock_dto import StockDTO
+from models.enums import RoomType
 
 @dataclass
 class RoomDTO(FacilityManagementDTO):
-    type: str
+    type: RoomType
     status: str
     description: str
     capacity: int

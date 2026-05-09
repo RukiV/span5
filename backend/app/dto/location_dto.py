@@ -10,4 +10,4 @@ class LocationDTO(FacilityManagementDTO):
     description: str
     #adres how
     
-    assets: Optional[List[RoomDTO]] = field(default_factory=list)
+    rooms: Optional[List[RoomDTO]] = field(default_factory=list)
