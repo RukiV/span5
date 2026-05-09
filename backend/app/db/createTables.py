@@ -2,11 +2,10 @@ from typing import Optional
 from datetime import datetime, date
 from decimal import Decimal
 from sqlmodel import SQLModel
-
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, create_engine
-
+#Run net die File om die Tabelle te skep.
 DATABASE_URL = "postgresql+psycopg2://admin:1234@localhost:5432/FMS"
 
 engine = create_engine(DATABASE_URL, echo=True)
