@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-from backend.app.models.enums import Priority, Type, FaultStatus
+from app.models.enums import Priority, Type, FaultStatus
 from app.dto.location_dto import LocationDTO
 from app.dto.user_dto import UserDTO
 from app.dto.asset_dto import AssetDTO
