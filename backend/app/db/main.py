@@ -1,6 +1,6 @@
 from sqlmodel import Session, select, delete
 from datetime import datetime
-
+#run "pip install sqlmodel psycopg2-binary" sodat dit werk.
 from database import engine
 from models import (
     Role, User, Asset, Assettype, Room,
