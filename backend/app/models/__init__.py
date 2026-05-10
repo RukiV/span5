@@ -4,6 +4,7 @@ from .role import *
 from .user import *
 from .audit import *
 from .location import *
+from .mappoint import *
 from .asset import *
 from .fault import *
 from .job import *

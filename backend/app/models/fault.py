@@ -1,21 +1,46 @@
 from typing import Optional
 from datetime import datetime
-from sqlmodel import Field
+from sqlmodel import SQLModel, Field
 from .base import Base
-from .enums import FaultStatus, Priority
+from .enums import FaultStatus, Priority, Type
 
-class Faultcard(Base, table=True):
+class FaultcardBase(SQLModel):
+    fault_description: str
+    fault_type: Optional[Type] = None
+    fault_status: FaultStatus = Field(default=FaultStatus.WAIT)
+    fault_priority: Priority = Field(default=Priority.MEDIUM)
+    fault_reportdatetime: Optional[datetime] = None
+    fault_updatedatetime: Optional[datetime] = None
+
+
+class Faultcard(FaultcardBase, Base, table=True):
     fault_id: Optional[int] = Field(default=None, primary_key=True)
-
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
 
-    fault_description: Optional[str] = None
-    fault_type: Optional[str] = Field(default=None, max_length=50)   # Can be changed to Type enum later
-    fault_status: FaultStatus = Field(default=FaultStatus.WAIT)
-    fault_priority: Priority = Field(default=Priority.MEDIUM)
 
+class FaultcardCreate(FaultcardBase):
+    pass
+
+
+class FaultcardRead(FaultcardBase):
+    fault_id: int
+    user_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    mappoint_id: Optional[int] = None
+
+
+class FaultcardUpdate(SQLModel):
+    fault_description: Optional[str] = None
+    fault_type: Optional[Type] = None
+    fault_status: Optional[FaultStatus] = None
+    fault_priority: Optional[Priority] = None
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+    user_id: Optional[int] = None
+    asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    mappoint_id: Optional[int] = None

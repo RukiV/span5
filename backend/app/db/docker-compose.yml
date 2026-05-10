@@ -1,28 +1,21 @@
 version: "3.9"
-#Install PostgreSQL, Dev Containers en Container Tools extention van microsoft, maak seker jy het Docker Desktop geinstalleer.
-#Daar sal n "Run All Services" opsie wees bo services hier onder, klik daarop en dit sal die postgres image download en die container skep.
 services:
   postgres:
     image: postgres:16
     container_name: FMS
     restart: unless-stopped
-
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: 1234
       POSTGRES_DB: FMS
-
     ports:
       - "5432:5432"
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U admin"]
       interval: 10s
       timeout: 5s
       retries: 5
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
 volumes:
   postgres_data:
