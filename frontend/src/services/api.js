@@ -33,7 +33,7 @@ export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
   getById: (id) => apiClient.get(`/assets/${id}`),
   create: (data) => apiClient.post('/assets', data),
-  update: (id, data) => apiClient.put(`/assets/${id}`, data),
+  update: (id, data) => apiClient.patch(`/assets/${id}`, data),
   delete: (id) => apiClient.delete(`/assets/${id}`),
 };
 
