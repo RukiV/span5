@@ -29,32 +29,32 @@ class ZipcodeUpdate(SQLModel):
     zipcode_country: Optional[str] = None
 
 
-class TerrainBase(SQLModel):
-    terrain_name: str = Field(max_length=100)
-    terrain_type: str = Field(max_length=50)
-    terrain_streetnum: str = Field(max_length=20)
-    terrain_streetname: str = Field(max_length=100)
+class LocationBase(SQLModel):
+    location_name: str = Field(max_length=100)
+    location_type: str = Field(max_length=50)
+    location_streetnum: str = Field(max_length=20)
+    location_streetname: str = Field(max_length=100)
 
 
-class Terrain(TerrainBase, Base, table=True):
-    terrain_id: Optional[int] = Field(default=None, primary_key=True)
+class Location(LocationBase, Base, table=True):
+    location_id: Optional[int] = Field(default=None, primary_key=True)
     zipcode_id: int = Field(foreign_key="zipcode.zipcode_id")
 
 
-class TerrainCreate(TerrainBase):
+class JobcardCreate(LocationBase):
     zipcode_id: int
 
 
-class TerrainRead(TerrainBase):
-    terrain_id: int
+class JobcardRead(LocationBase):
+    location_id: int
     zipcode_id: int
 
 
-class TerrainUpdate(SQLModel):
-    terrain_name: Optional[str] = None
-    terrain_type: Optional[str] = None
-    terrain_streetnum: Optional[str] = None
-    terrain_streetname: Optional[str] = None
+class JobcardUpdate(SQLModel):
+    location_name: Optional[str] = None
+    location_type: Optional[str] = None
+    location_streetnum: Optional[str] = None
+    location_streetname: Optional[str] = None
     zipcode_id: Optional[int] = None
 
 
@@ -66,20 +66,20 @@ class RoomBase(SQLModel):
 
 class Room(RoomBase, Base, table=True):
     room_id: Optional[int] = Field(default=None, primary_key=True)
-    terrain_id: int = Field(foreign_key="terrain.terrain_id")
+    location_id: int = Field(foreign_key="location.location_id")
 
 
-class RoomCreate(RoomBase):
-    terrain_id: int
+class JobcardCreate(RoomBase):
+    location_id: int
 
 
-class RoomRead(RoomBase):
+class JobcardRead(RoomBase):
     room_id: int
-    terrain_id: int
+    location_id: int
 
 
-class RoomUpdate(SQLModel):
+class JobcardUpdate(SQLModel):
     room_name: Optional[str] = None
     room_capacity: Optional[int] = None
     room_type: Optional[RoomType] = None
-    terrain_id: Optional[int] = None
+    location_id: Optional[int] = None
