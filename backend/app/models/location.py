@@ -41,16 +41,16 @@ class Location(LocationBase, Base, table=True):
     zipcode_id: int = Field(foreign_key="zipcode.zipcode_id")
 
 
-class JobcardCreate(LocationBase):
+class LocationCreate(LocationBase):
     zipcode_id: int
 
 
-class JobcardRead(LocationBase):
+class LocationRead(LocationBase):
     location_id: int
     zipcode_id: int
 
 
-class JobcardUpdate(SQLModel):
+class LocationUpdate(SQLModel):
     location_name: Optional[str] = None
     location_type: Optional[str] = None
     location_streetnum: Optional[str] = None
@@ -69,16 +69,16 @@ class Room(RoomBase, Base, table=True):
     location_id: int = Field(foreign_key="location.location_id")
 
 
-class JobcardCreate(RoomBase):
+class RoomCreate(RoomBase):
     location_id: int
 
 
-class JobcardRead(RoomBase):
+class RoomRead(RoomBase):
     room_id: int
     location_id: int
 
 
-class JobcardUpdate(SQLModel):
+class RoomUpdate(SQLModel):
     room_name: Optional[str] = None
     room_capacity: Optional[int] = None
     room_type: Optional[RoomType] = None
