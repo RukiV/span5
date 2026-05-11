@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from .v1.endpoints import assets, room, location, fault, job
 
-api_router = APIRouter
+api_router = APIRouter()
 
 api_router.include_router(assets.router, prefix="/assets", tags=["Assets"])
 api_router.include_router(room.router, prefix="/room", tags=["Room"])

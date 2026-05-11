@@ -1,6 +1,6 @@
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Location, Room, RoomType
+from ..models.location import Location, Room, RoomType, Zipcode
 from ..models.asset import Asset, AssetStatus
 
 def seed_data():
@@ -9,20 +9,31 @@ def seed_data():
         if session.exec(select(Location)).first():
             return
 
-        # 2. Add Dummy Locations
+        # 2. Add one Zipcode first so locations can reference it
+        zipcode = Zipcode(
+            zipcode_suburb="Central",
+            zipcode_city="Techville",
+            zipcode_province="State",
+            zipcode_country="Country"
+        )
+        session.add(zipcode)
+        session.commit()
+        session.refresh(zipcode)
+
+        # 3. Add Dummy Locations
         loc1 = Location(
             location_name="Main Campus", 
             location_type="Education", 
             location_streetnum="123", 
             location_streetname="University Way",
-            zipcode_id=1 # Ignoring zip as requested, but FK requires a value
+            zipcode_id=zipcode.zipcode_id
         )
         loc2 = Location(
             location_name="Tech Hub", 
             location_type="Office", 
             location_streetnum="45", 
             location_streetname="Innovation Blvd",
-            zipcode_id=1
+            zipcode_id=zipcode.zipcode_id
         )
         session.add(loc1)
         session.add(loc2)

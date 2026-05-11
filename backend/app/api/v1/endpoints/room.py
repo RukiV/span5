@@ -3,17 +3,17 @@ from sqlmodel import Session
 from typing import List
 
 from ....db.database import getSession
-from ....models.location import JobcardRead, JobcardCreate, JobcardUpdate
-from ....services.location_service import room_service
+from ....models.location import RoomRead, RoomCreate, RoomUpdate
+from ....services.room_service import room_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[JobcardRead])
+@router.get("/", response_model=List[RoomRead])
 def readRooms(session: Session = Depends(getSession)):
     #Fetch all rooms
     return room_service.getAll(Session)
 
-@router.get("/{roomID}", response_model=JobcardRead)
+@router.get("/{roomID}", response_model=RoomRead)
 def readRoom(roomID: int, session: Session = Depends(getSession)):
     #Fetch single room by id
     room = room_service.getByID(session, roomID)
@@ -22,13 +22,13 @@ def readRoom(roomID: int, session: Session = Depends(getSession)):
     
     return room
 
-@router.post("/", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
-def addRoom(roomIn: JobcardCreate, session: Session = Depends(getSession)):
+@router.post("/", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
+def addRoom(roomIn: RoomCreate, session: Session = Depends(getSession)):
     #Create new room
     return room_service.create(session, roomIn)
 
-@router.patch("/{roomID}", response_model=JobcardRead)
-def patchRoom(roomID: int, roomIn: JobcardUpdate, session: Session = Depends(getSession)):
+@router.patch("/{roomID}", response_model=RoomRead)
+def patchRoom(roomID: int, roomIn: RoomUpdate, session: Session = Depends(getSession)):
     #Update existing room
     room = room_service.update(session, roomID, roomIn)
     if not room:
