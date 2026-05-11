@@ -78,10 +78,10 @@ function AssetPage() {
   const filteredAssets = assets.filter((asset) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch =
-      asset.name.toLowerCase().includes(query) ||
-      asset.asset_type.toLowerCase().includes(query) ||
+      asset.name?.toLowerCase().includes(query) ||
+      asset.asset_type?.toLowerCase().includes(query) ||
       (asset.description && asset.description.toLowerCase().includes(query)) ||
-      (asset.room && asset.room.name.toLowerCase().includes(query));
+      (asset.room && asset.room?.name?.toLowerCase().includes(query));
     const matchesFilter = filter === "" || asset.status === filter;
     const matchesType = asset.type === assetType;
     return matchesSearch && matchesFilter && matchesType;

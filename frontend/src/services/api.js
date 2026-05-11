@@ -30,20 +30,20 @@ apiClient.interceptors.request.use(
 
 // Assets API
 export const assetsAPI = {
-  getAll: () => apiClient.get('/assets'),
-  getById: (id) => apiClient.get(`/assets/${id}`),
-  create: (data) => apiClient.post('/assets', data),
-  update: (id, data) => apiClient.patch(`/assets/${id}`, data),
-  delete: (id) => apiClient.delete(`/assets/${id}`),
+  getAll: () => apiClient.get('/assets/'),
+  getById: (id) => apiClient.get(`/assets/${id}/`),
+  create: (data) => apiClient.post('/assets/', data),
+  update: (id, data) => apiClient.patch(`/assets/${id}/`, data),
+  delete: (id) => apiClient.delete(`/assets/${id}/`),
 };
 
 // Rooms API
 export const roomsAPI = {
-  getAll: () => apiClient.get('/rooms'),
-  getById: (id) => apiClient.get(`/rooms/${id}`),
-  create: (data) => apiClient.post('/rooms', data),
-  update: (id, data) => apiClient.put(`/rooms/${id}`, data),
-  delete: (id) => apiClient.delete(`/rooms/${id}`),
+  getAll: () => apiClient.get('/rooms/'),
+  getById: (id) => apiClient.get(`/rooms/${id}/`),
+  create: (data) => apiClient.post('/rooms/', data),
+  update: (id, data) => apiClient.patch(`/rooms/${id}/`, data),
+  delete: (id) => apiClient.delete(`/rooms/${id}/`),
 };
 
 // Tickets API
