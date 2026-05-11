@@ -19,8 +19,12 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         obj = self.model.model_validate(data)
 
         session.add(obj)
-        session.commit()
-        session.refresh(obj)
+        try:
+            session.commit()
+            session.refresh(obj)
+        except Exception:
+            session.rollback()
+            raise
 
         return obj
     
@@ -28,6 +32,10 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         obj = session.get(self.model, id)
         if not obj:
             return None
+        
+        updateData = data.model_dump(exclude_unset=True)
+
+        obj.sqlmodel_update(updateData)
         
         session.add(obj)
         session.commit()
