@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 import '../models/asset.dart';
 import 'api_client.dart';
 
@@ -28,6 +29,13 @@ class AssetService {
     } catch (_) {
       return null;
     }
+  }
+
+  static String generateUniqueId(String category, String campus) {
+    final prefix = category.substring(0, min(3, category.length)).toUpperCase();
+    final campusPrefix = campus.substring(0, min(3, campus.length)).toUpperCase();
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(7);
+    return "$prefix-$campusPrefix-$timestamp";
   }
 
   static Future<bool> addAsset(Asset asset) async {

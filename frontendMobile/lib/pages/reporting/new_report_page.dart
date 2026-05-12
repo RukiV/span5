@@ -114,7 +114,11 @@ class _NewReportPageState extends State<NewReportPage> {
                         actionText: isUnknownLocation ? "Kies Uit Lys" : "Nie Gelys Nie", 
                         onAction: () => setState(() {
                           isUnknownLocation = !isUnknownLocation;
-                          if (isUnknownLocation) selectedLocation = null; else gpsCoords = null;
+                          if (isUnknownLocation) {
+                            selectedLocation = null;
+                          } else {
+                            gpsCoords = null;
+                          }
                         })
                       ),
                       const SizedBox(height: labelGap), // Verander na labelGap vir konsekwentheid
