@@ -7,13 +7,19 @@ from .db.seed import seed_data
 
 app = FastAPI(
     title="FBS Facility Management API", 
-    version="1.0.0", 
-    redirect_slashes=False
+    version="1.0.0"
 )
+
+@app.on_event("startup")
+def onStartup():
+    createDBandTables()
+
+    seed_data()
 #ports
+
 origins = [ 
     "http://localhost:3001", 
-    "http://localhost:3000"
+    "http://frontend:3001"
 ]
 
 # CORS middleware
@@ -24,12 +30,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def onStartup():
-    createDBandTables()
-
-    seed_data()
 
 app.include_router(api_router, prefix="/api/v1")
 

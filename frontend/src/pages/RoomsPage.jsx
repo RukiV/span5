@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI } from "../services/api";
+import { assetsAPI, roomsAPI, locationAPI } from "../services/api";
 import "../styles/Rooms.css";
 
 function RoomsPage() {
@@ -15,12 +15,18 @@ function RoomsPage() {
   const [roomType, setRoomType] = useState("room"); // "room" or "terrain"
   const [terrains, setTerrains] = useState([]);
   const [newRoom, setNewRoom] = useState({
-    name: "",
-    description: "",
-    terrain_id: "",
-    capacity: "",
-    type: "room",
-    status: "active",
+    room_name: "",
+    room_capacity: "",
+    room_type: "OTHER",
+    location_id: "",
+  });
+
+  const [newTerrain, setNewTerrain] = useState({
+    location_name: "",
+    location_type: "",
+    location_streetnum: "",
+    location_streetname: "",
+    zipcode_id: "",
   });
 
   useEffect(() => {
@@ -52,8 +58,8 @@ function RoomsPage() {
 
   const fetchTerrains = async () => {
     try {
-      const response = await roomsAPI.getAll();
-      setTerrains(response.data.filter(room => room.type === "terrain"));
+      const response = await locationAPI.getAll();
+      setTerrains(response.data);
     } catch (error) {
       console.error("Error fetching terrains:", error);
     }
@@ -61,17 +67,44 @@ function RoomsPage() {
 
   const handleAddRoom = async () => {
     try {
-      await roomsAPI.create({
-        ...newRoom,
-        type: roomType,
-        terrain_id: newRoom.terrain_id ? Number(newRoom.terrain_id) : undefined,
-        capacity: newRoom.capacity ? Number(newRoom.capacity) : undefined,
-      });
+      if (roomType === "room") {
+        if (!newRoom.room_name || !newRoom.location_id) {
+          alert("Voer asseblief die roomnaam en terrein in");
+          return;
+        }
+        await roomsAPI.create({
+          room_name: newRoom.room_name,
+          room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : null,
+          room_type: newRoom.room_type,
+          location_id: Number(newRoom.location_id),
+        });
+        setNewRoom({
+          room_name: "",
+          room_capacity: "",
+          room_type: "OTHER",
+          location_id: "",
+        });
+      } else {
+        await locationAPI.create({
+          location_name: newTerrain.location_name,
+          location_type: newTerrain.location_type,
+          location_streetnum: newTerrain.location_streetnum,
+          location_streetname: newTerrain.location_streetname,
+          zipcode_id: 1, // Using the zipcode we created in seed data
+        });
+        setNewTerrain({
+          location_name: "",
+          location_type: "",
+          location_streetnum: "",
+          location_streetname: "",
+          zipcode_id: "",
+        });
+      }
       setShowModal(false);
-      setNewRoom({ name: "", description: "", terrain_id: "", capacity: "", type: roomType, status: "active" });
       fetchRooms();
+      fetchTerrains();
     } catch (error) {
-      console.error("Error creating room:", error);
+      console.error("Error creating:", error);
     }
   };
 
@@ -84,32 +117,40 @@ function RoomsPage() {
     return assets.filter(asset => asset.room_id === roomId);
   };
 
-  const handleDeleteRoom = async (roomId) => {
+  const getTerrainName = (locationId) => {
+    const terrain = terrains.find(t => t.location_id === locationId);
+    return terrain ? terrain.location_name : '-';
+  };
+
+  const handleDeleteItem = async (itemId) => {
     try {
-      await roomsAPI.delete(roomId);
-      fetchRooms();
+      if (roomType === "room") {
+        await roomsAPI.delete(itemId);
+        fetchRooms();
+      } else {
+        await locationAPI.delete(itemId);
+        fetchTerrains();
+      }
     } catch (error) {
-      console.error('Error deleting room:', error);
+      console.error('Error deleting item:', error);
     }
   };
 
-  const filteredRooms = rooms.filter((room) => {
+  const filteredItems = roomType === "room" ? rooms.filter((room) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch =
-      room.name.toLowerCase().includes(query) ||
-      (room.terrain && room.terrain.name && room.terrain.name.toLowerCase().includes(query)) ||
-      room.status.toLowerCase().includes(query);
-    const matchesFilter = statusFilter === '' || room.status === statusFilter;
-    const matchesType = room.type === roomType;
-    return matchesSearch && matchesFilter && matchesType;
+      room.room_name?.toLowerCase().includes(query) ||
+      room.room_capacity?.toString().includes(query);
+    return matchesSearch;
+  }) : terrains.filter((terrain) => {
+    const query = searchTerm.toLowerCase();
+    const matchesSearch =
+      terrain.location_name?.toLowerCase().includes(query) ||
+      terrain.location_type?.toLowerCase().includes(query);
+    return matchesSearch;
   });
 
-  const getStatusClass = (status) => {
-    if (status === 'active') return 'status-aktief';
-    if (status === 'maintenance') return 'status-onderhoud';
-    if (status === 'closed') return 'status-gesluit';
-    return 'status-waarskuwing';
-  };
+
 
   if (loading) {
     return (
@@ -192,7 +233,7 @@ function RoomsPage() {
                 {roomType === "room" && <th>ID Lokaal</th>}
                 {roomType === "terrain" && <th>ID Terrein</th>}
                 <th>Naam</th>
-                <th>Beskrywing</th>
+                <th>Tipe</th>
                 {roomType === "room" && <th>Terrein</th>}
                 {roomType === "room" && <th>Kapasiteit</th>}
                 <th>Status</th>
@@ -200,23 +241,21 @@ function RoomsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredRooms.map((room) => (
-                <tr key={room.id}>
-                  <td>{room.id}</td>
-                  <td>{room.name}</td>
-                  <td>{room.description || '-'}</td>
-                  {roomType === "room" && <td>{room.terrain ? room.terrain.name : '-'}</td>}
-                  {roomType === "room" && <td>{room.capacity ?? '-'}</td>}
+              {filteredItems.map((item) => (
+                <tr key={roomType === "room" ? item.room_id : item.location_id}>
+                  <td>{roomType === "room" ? item.room_id : item.location_id}</td>
+                  <td>{roomType === "room" ? item.room_name : item.location_name}</td>
+                  <td>{roomType === "room" ? (item.room_type || '-') : (item.location_type || '-')}</td>
+                  {roomType === "room" && <td>{getTerrainName(item.location_id)}</td>}
+                  {roomType === "room" && <td>{item.room_capacity ?? '-'}</td>}
+                  <td>Aktief</td>
                   <td>
-                    <span className={`status ${getStatusClass(room.status)}`}>
-                      {room.status}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-view" onClick={() => handleViewAssets(room)}>
-                      View Bates
-                    </button>
-                    <button className="btn-delete" onClick={() => handleDeleteRoom(room.id)}>
+                    {roomType === "room" && (
+                      <button className="btn-view" onClick={() => handleViewAssets(item)}>
+                        Besigtig Bates
+                      </button>
+                    )}
+                    <button className="btn-delete" onClick={() => handleDeleteItem(roomType === "room" ? item.room_id : item.location_id)}>
                       Verwyder
                     </button>
                   </td>
@@ -239,20 +278,22 @@ function RoomsPage() {
                 <label>Naam</label>
                 <input
                   type="text"
-                  value={newRoom.name}
-                  onChange={(e) => setNewRoom({ ...newRoom, name: e.target.value })}
+                  value={roomType === "room" ? newRoom.room_name : newTerrain.location_name}
+                  onChange={(e) => roomType === "room" 
+                    ? setNewRoom({ ...newRoom, room_name: e.target.value })
+                    : setNewTerrain({ ...newTerrain, location_name: e.target.value })}
                 />
               </div>
               {roomType === "room" && (
                 <div className="input-group">
                   <label>Terrein</label>
                   <select
-                    value={newRoom.terrain_id}
-                    onChange={(e) => setNewRoom({ ...newRoom, terrain_id: e.target.value })}
+                    value={newRoom.location_id}
+                    onChange={(e) => setNewRoom({ ...newRoom, location_id: e.target.value })}
                   >
                     <option value="">Kies 'n terrein</option>
                     {terrains.map((terrain) => (
-                      <option key={terrain.id} value={terrain.id}>{terrain.name}</option>
+                      <option key={terrain.location_id} value={terrain.location_id}>{terrain.location_name}</option>
                     ))}
                   </select>
                 </div>
@@ -264,33 +305,48 @@ function RoomsPage() {
                   <label>Kapasiteit</label>
                   <input
                     type="number"
-                    value={newRoom.capacity}
-                    onChange={(e) => setNewRoom({ ...newRoom, capacity: e.target.value })}
+                    value={newRoom.room_capacity}
+                    onChange={(e) => setNewRoom({ ...newRoom, room_capacity: e.target.value })}
                   />
                 </div>
               </div>
             )}
-            <div className="input-row">
-              <div className="input-group">
-                <label>Status</label>
-                <select
-                  value={newRoom.status}
-                  onChange={(e) => setNewRoom({ ...newRoom, status: e.target.value })}
-                >
-                  <option value="active">Aktief</option>
-                  <option value="maintenance">Onderhoud</option>
-                  <option value="closed">Gesluit</option>
-                </select>
+            {roomType === "terrain" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Straatnommer</label>
+                  <input
+                    type="text"
+                    value={newTerrain.location_streetnum}
+                    onChange={(e) => setNewTerrain({ ...newTerrain, location_streetnum: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Straatnaam</label>
+                  <input
+                    type="text"
+                    value={newTerrain.location_streetname}
+                    onChange={(e) => setNewTerrain({ ...newTerrain, location_streetname: e.target.value })}
+                  />
+                </div>
               </div>
-              <div className="input-group">
-                <label>Beskrywing</label>
-                <input
-                  type="text"
-                  value={newRoom.description}
-                  onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
-                />
+            )}
+            {roomType === "room" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Tipe</label>
+                  <select
+                    value={newRoom.room_type}
+                    onChange={(e) => setNewRoom({ ...newRoom, room_type: e.target.value })}
+                  >
+                    <option value="CLASSROOM">Klaslokaal</option>
+                    <option value="LAB">Laboratorium</option>
+                    <option value="OFFICE">Kantoor</option>
+                    <option value="OTHER">Ander</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
               <button className="btn-save" onClick={handleAddRoom}>Stoor</button>
@@ -303,31 +359,25 @@ function RoomsPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Bates in {selectedRoom.terrain ? `${selectedRoom.terrain} - ` : ""}{selectedRoom.name}</h3>
+              <h3>Bates in {getTerrainName(selectedRoom.location_id)} - {selectedRoom.room_name}</h3>
               <span className="close" onClick={() => setShowAssetsModal(false)}>&times;</span>
             </div>
             <div className="modal-body">
-              {getAssetsForRoom(selectedRoom.id).length > 0 ? (
+              {getAssetsForRoom(selectedRoom.room_id).length > 0 ? (
                 <table className="assets-table">
                   <thead>
                     <tr>
                       <th>Naam</th>
                       <th>Tipe</th>
-                      <th>Beskrywing</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {getAssetsForRoom(selectedRoom.id).map((asset) => (
-                      <tr key={asset.id}>
-                        <td>{asset.name}</td>
+                    {getAssetsForRoom(selectedRoom.room_id).map((asset) => (
+                      <tr key={asset.asset_id}>
+                        <td>{asset.asset_name}</td>
                         <td>{asset.asset_type}</td>
-                        <td>{asset.description || "-"}</td>
-                        <td>
-                          <span className={`status ${getStatusClass(asset.status)}`}>
-                            {asset.status}
-                          </span>
-                        </td>
+                        <td>{asset.asset_status}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI } from "../services/api";
+import { assetsAPI, roomsAPI, stockAPI } from "../services/api";
 import "../styles/Asset.css";
 
 function AssetPage() {
   const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,20 +13,23 @@ function AssetPage() {
   const [showModal, setShowModal] = useState(false);
   const [assetType, setAssetType] = useState("asset"); // "asset" or "inventory"
   const [newAsset, setNewAsset] = useState({
-    name: "",
-    asset_type: "",
-    description: "",
-    serial_number: "",
-    brand: "",
-    quantity: "",
-    is_outside: false,
-    type: "asset",
-    status: "active",
+    asset_name: "",
+    asset_isoutdoor: false,
+    asset_status: "active",
+    assettype_id: 1,
+    room_id: "",
+  });
+  const [newStock, setNewStock] = useState({
+    stock_brand: "",
+    stock_amount: 0,
+    stock_type: "",
+    stock_desc: "",
     room_id: "",
   });
 
   useEffect(() => {
     fetchAssets();
+    fetchStock();
     fetchRooms();
   }, []);
 
@@ -40,6 +44,15 @@ function AssetPage() {
     }
   };
 
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
+    }
+  };
+
   const fetchRooms = async () => {
     try {
       const response = await roomsAPI.getAll();
@@ -51,40 +64,66 @@ function AssetPage() {
 
   const handleAddAsset = async () => {
     try {
-      const assetData = {
-        ...newAsset,
-        type: assetType,
-        room_id: newAsset.room_id ? Number(newAsset.room_id) : null,
-        quantity: newAsset.quantity ? Number(newAsset.quantity) : null,
-      };
-      await assetsAPI.create(assetData);
+      if (assetType === "asset") {
+        const assetData = {
+          asset_name: newAsset.asset_name,
+          asset_status: newAsset.asset_status,
+          asset_isoutdoor: newAsset.asset_isoutdoor,
+          assettype_id: 1,
+          room_id: newAsset.room_id ? Number(newAsset.room_id) : null,
+        };
+        await assetsAPI.create(assetData);
+        setNewAsset({ asset_name: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
+      } else {
+        const stockData = {
+          stock_brand: newStock.stock_brand,
+          stock_amount: Number(newStock.stock_amount),
+          stock_type: newStock.stock_type,
+          stock_desc: newStock.stock_desc,
+          room_id: newStock.room_id ? Number(newStock.room_id) : null,
+        };
+        await stockAPI.create(stockData);
+        setNewStock({ stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+      }
       setShowModal(false);
-      setNewAsset({ name: "", asset_type: "", description: "", serial_number: "", brand: "", quantity: "", is_outside: false, type: assetType, status: "active", room_id: "" });
-      fetchAssets();
+      if (assetType === "asset") {
+        fetchAssets();
+      } else {
+        fetchStock();
+      }
     } catch (error) {
-      console.error("Error adding asset:", error);
+      console.error("Error adding item:", error);
     }
   };
 
-  const handleDeleteAsset = async (assetId) => {
+  const handleDeleteAsset = async (id) => {
     try {
-      await assetsAPI.delete(assetId);
-      fetchAssets();
+      if (assetType === "asset") {
+        await assetsAPI.delete(id);
+        fetchAssets();
+      } else {
+        await stockAPI.delete(id);
+        fetchStock();
+      }
     } catch (error) {
-      console.error("Error deleting asset:", error);
+      console.error("Error deleting item:", error);
     }
   };
 
-  const filteredAssets = assets.filter((asset) => {
+  const filteredItems = assetType === "asset" ? assets.filter((asset) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch =
-      asset.name?.toLowerCase().includes(query) ||
-      asset.asset_type?.toLowerCase().includes(query) ||
-      (asset.description && asset.description.toLowerCase().includes(query)) ||
-      (asset.room && asset.room?.name?.toLowerCase().includes(query));
-    const matchesFilter = filter === "" || asset.status === filter;
-    const matchesType = asset.type === assetType;
-    return matchesSearch && matchesFilter && matchesType;
+      asset.asset_name?.toLowerCase().includes(query) ||
+      String(asset.assettype_id).includes(query);
+    const matchesFilter = filter === "" || asset.asset_status === filter;
+    return matchesSearch && matchesFilter;
+  }) : stock.filter((item) => {
+    const query = searchTerm.toLowerCase();
+    const matchesSearch =
+      item.stock_brand?.toLowerCase().includes(query) ||
+      item.stock_type?.toLowerCase().includes(query) ||
+      item.stock_desc?.toLowerCase().includes(query);
+    return matchesSearch;
   });
 
   const getStatusClass = (status) => {
@@ -113,11 +152,8 @@ function AssetPage() {
     }
   };
 
-  const getRoomName = (asset) => {
-    if (asset.room) {
-      return `${asset.room.building || ""} ${asset.room.name}`.trim();
-    }
-    return "-";
+  const getRoomName = (item) => {
+    return item.room_id ? `Room ${item.room_id}` : "-";
   };
 
   if (loading) {
@@ -196,34 +232,33 @@ function AssetPage() {
                 {assetType === "asset" && <th>ID Bate</th>}
                 {assetType === "inventory" && <th>ID Voorraad</th>}
                 <th>Naam</th>
-                <th>Tipe</th>
                 {assetType === "inventory" && <th>Merk</th>}
-                <th>Serienommer</th>
+                {assetType === "inventory" && <th>Tipe</th>}
                 {assetType === "inventory" && <th>Hoeveelheid</th>}
                 {assetType === "asset" && <th>Buite</th>}
                 <th>Lokaal</th>
-                <th>Status</th>
+                {assetType === "asset" && <th>Status</th>}
                 <th>Aksies</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAssets.map((asset) => (
-                <tr key={asset.id}>
-                  <td>{asset.id}</td>
-                  <td>{asset.name}</td>
-                  <td>{asset.asset_type}</td>
-                  {assetType === "inventory" && <td>{asset.brand || "-"}</td>}
-                  <td>{asset.serial_number || "-"}</td>
-                  {assetType === "inventory" && <td>{asset.quantity || "-"}</td>}
-                  {assetType === "asset" && <td>{asset.is_outside ? "Ja" : "Nee"}</td>}
-                  <td>{getRoomName(asset)}</td>
+              {filteredItems.map((item) => (
+                <tr key={assetType === "asset" ? item.asset_id : item.stock_id}>
+                  <td>{assetType === "asset" ? item.asset_id : item.stock_id}</td>
+                  <td>{assetType === "asset" ? item.asset_name : item.stock_brand}</td>
+                  {assetType === "inventory" && <td>{item.stock_type}</td>}
+                  {assetType === "inventory" && <td>{item.stock_amount}</td>}
+                  {assetType === "asset" && <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>}
+                  <td>{getRoomName(item)}</td>
+                  {assetType === "asset" && (
+                    <td>
+                      <span className={`status ${getStatusClass(item.asset_status)}`}>
+                        {getStatusLabel(item.asset_status)}
+                      </span>
+                    </td>
+                  )}
                   <td>
-                    <span className={`status ${getStatusClass(asset.status)}`}>
-                      {getStatusLabel(asset.status)}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-delete" onClick={() => handleDeleteAsset(asset.id)}>
+                    <button className="btn-delete" onClick={() => handleDeleteAsset(assetType === "asset" ? item.asset_id : item.stock_id)}>
                       Verwyder
                     </button>
                   </td>
@@ -243,40 +278,22 @@ function AssetPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Naam</label>
+                <label>{assetType === "asset" ? "Naam" : "Merk"}</label>
                 <input
                   type="text"
-                  value={newAsset.name}
-                  onChange={(e) => setNewAsset({ ...newAsset, name: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Tipe</label>
-                <input
-                  type="text"
-                  value={newAsset.asset_type}
-                  onChange={(e) => setNewAsset({ ...newAsset, asset_type: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>{assetType === "asset" ? "Serienommer (Bate ID)" : "Serienommer (Voorraad ID)"}</label>
-                <input
-                  type="text"
-                  value={newAsset.serial_number}
-                  onChange={(e) => setNewAsset({ ...newAsset, serial_number: e.target.value })}
-                  placeholder={assetType === "asset" ? "Unieke bate identifikasie" : "Unieke voorraad identifikasie"}
-                  required
+                  value={assetType === "asset" ? newAsset.asset_name : newStock.stock_brand}
+                  onChange={(e) => assetType === "asset" 
+                    ? setNewAsset({ ...newAsset, asset_name: e.target.value })
+                    : setNewStock({ ...newStock, stock_brand: e.target.value })}
                 />
               </div>
               {assetType === "inventory" && (
                 <div className="input-group">
-                  <label>Merk</label>
+                  <label>Tipe</label>
                   <input
                     type="text"
-                    value={newAsset.brand}
-                    onChange={(e) => setNewAsset({ ...newAsset, brand: e.target.value })}
+                    value={newStock.stock_type}
+                    onChange={(e) => setNewStock({ ...newStock, stock_type: e.target.value })}
                   />
                 </div>
               )}
@@ -287,8 +304,8 @@ function AssetPage() {
                   <label>Hoeveelheid</label>
                   <input
                     type="number"
-                    value={newAsset.quantity}
-                    onChange={(e) => setNewAsset({ ...newAsset, quantity: e.target.value })}
+                    value={newStock.stock_amount}
+                    onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
                   />
                 </div>
               </div>
@@ -299,8 +316,8 @@ function AssetPage() {
                   <label>
                     <input
                       type="checkbox"
-                      checked={newAsset.is_outside}
-                      onChange={(e) => setNewAsset({ ...newAsset, is_outside: e.target.checked })}
+                      checked={newAsset.asset_isoutdoor}
+                      onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
                     />
                     Buite
                   </label>
@@ -309,40 +326,48 @@ function AssetPage() {
             )}
             <div className="input-row">
               <div className="input-group">
-                <label>Beskrywing</label>
-                <textarea
-                  value={newAsset.description}
-                  onChange={(e) => setNewAsset({ ...newAsset, description: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
                 <label>Lokaal</label>
                 <select
-                  value={newAsset.room_id}
-                  onChange={(e) => setNewAsset({ ...newAsset, room_id: e.target.value })}
+                  value={assetType === "asset" ? newAsset.room_id : newStock.room_id}
+                  onChange={(e) => assetType === "asset"
+                    ? setNewAsset({ ...newAsset, room_id: e.target.value })
+                    : setNewStock({ ...newStock, room_id: e.target.value })}
                 >
                   <option value="">Geen lokaal</option>
                   {rooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                      {room.building ? `${room.building} - ` : ""}{room.name}
+                    <option key={room.room_id} value={room.room_id}>
+                      {room.room_name}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Status</label>
-                <select
-                  value={newAsset.status}
-                  onChange={(e) => setNewAsset({ ...newAsset, status: e.target.value })}
-                >
-                  <option value="active">Aktief</option>
-                  <option value="maintenance">Onderhoud</option>
-                  <option value="retired">Afgedank</option>
-                </select>
+            {assetType === "asset" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Status</label>
+                  <select
+                    value={newAsset.asset_status}
+                    onChange={(e) => setNewAsset({ ...newAsset, asset_status: e.target.value })}
+                  >
+                    <option value="active">Aktief</option>
+                    <option value="maintenance">Onderhoud</option>
+                    <option value="retired">Afgedank</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
+            {assetType === "inventory" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Beskrywing</label>
+                  <textarea
+                    value={newStock.stock_desc}
+                    onChange={(e) => setNewStock({ ...newStock, stock_desc: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
             <div className="modal-footer">
               <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
               <button className="btn-save" onClick={handleAddAsset}>Stoor</button>

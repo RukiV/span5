@@ -8,10 +8,10 @@ from ....services.location_service import location_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[LocationRead])
+@router.get("", response_model=List[LocationRead])
 def readLocations(session: Session = Depends(getSession)):
     #Fetch all locations
-    return location_service.getAll(Session)
+    return location_service.getAll(session)
 
 @router.get("/{locationID}", response_model=LocationRead)
 def readLocation(locationID: int, session: Session = Depends(getSession)):
@@ -22,7 +22,7 @@ def readLocation(locationID: int, session: Session = Depends(getSession)):
     
     return location
 
-@router.post("/", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
 def addLocation(locationIn: LocationCreate, session: Session = Depends(getSession)):
     #Create new location
     return location_service.create(session, locationIn)

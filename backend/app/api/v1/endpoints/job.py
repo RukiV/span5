@@ -8,10 +8,10 @@ from ....services.job_service import job_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[JobcardRead])
+@router.get("", response_model=List[JobcardRead])
 def readJobs(session: Session = Depends(getSession)):
     #Fetch all jobs
-    return job_service.getAll(Session)
+    return job_service.getAll(session)
 
 @router.get("/{jobID}", response_model=JobcardRead)
 def readJob(jobID: int, session: Session = Depends(getSession)):
@@ -22,7 +22,7 @@ def readJob(jobID: int, session: Session = Depends(getSession)):
     
     return job
 
-@router.post("/", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
 def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession)):
     #Create new job
     return job_service.create(session, jobIn)
