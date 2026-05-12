@@ -1,8 +1,12 @@
-﻿from sqlmodel import Session, select
+﻿from datetime import datetime
+from typing import Optional
+from sqlmodel import Session, select
 from .database import engine
 from ..models.location import Location, Room, RoomType, Zipcode
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
+from ..models.job import Jobcard, JobStatus
+from ..models.fault import Faultcard, FaultStatus, Priority, Type
 
 
 def _get_or_create_zipcode(session: Session) -> Zipcode:
@@ -111,6 +115,72 @@ def _get_or_create_stock(session: Session, brand: str, amount: int, stock_type: 
     return stock
 
 
+def _get_or_create_job(
+    session: Session,
+    desc: str,
+    status: JobStatus,
+    job_type: Optional[str],
+    created_dt: Optional[datetime],
+    asset_id: Optional[int] = None,
+    fault_id: Optional[int] = None,
+    quote_id: Optional[int] = None,
+) -> Jobcard:
+    job = session.exec(
+        select(Jobcard)
+        .where(Jobcard.job_desc == desc, Jobcard.asset_id == asset_id)
+    ).first()
+    if job:
+        return job
+
+    job = Jobcard(
+        job_desc=desc,
+        job_status=status,
+        job_type=job_type,
+        job_createddatetime=created_dt,
+        asset_id=asset_id,
+        fault_id=fault_id,
+        quote_id=quote_id,
+    )
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return job
+
+
+def _get_or_create_fault(
+    session: Session,
+    description: str,
+    status: FaultStatus,
+    priority: Priority,
+    fault_type: Optional[Type],
+    report_dt: Optional[datetime],
+    asset_id: Optional[int] = None,
+    room_id: Optional[int] = None,
+    mappoint_id: Optional[int] = None,
+) -> Faultcard:
+    fault = session.exec(
+        select(Faultcard)
+        .where(Faultcard.fault_description == description, Faultcard.asset_id == asset_id)
+    ).first()
+    if fault:
+        return fault
+
+    fault = Faultcard(
+        fault_description=description,
+        fault_status=status,
+        fault_priority=priority,
+        fault_type=fault_type,
+        fault_reportdatetime=report_dt,
+        asset_id=asset_id,
+        room_id=room_id,
+        mappoint_id=mappoint_id,
+    )
+    session.add(fault)
+    session.commit()
+    session.refresh(fault)
+    return fault
+
+
 def seed_data():
     print("Seed function called")
     with Session(engine) as session:
@@ -204,6 +274,47 @@ def seed_data():
             stock_type="Office License",
             desc="Microsoft Office 365 licenses",
             room_id=None,
+        )
+
+        projector_asset = session.exec(select(Asset).where(Asset.asset_name == "Projector 4K")).first()
+        camera_asset = session.exec(select(Asset).where(Asset.asset_name == "Outdoor Security Camera")).first()
+
+        _get_or_create_job(
+            session,
+            desc="Replace projector lamp in Lecture Hall A",
+            status=JobStatus.WAIT,
+            job_type="maintenance",
+            created_dt=datetime.now(),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+        )
+
+        _get_or_create_job(
+            session,
+            desc="Inspect outdoor security camera alignment",
+            status=JobStatus.OPEN,
+            job_type="inspection",
+            created_dt=datetime.now(),
+            asset_id=camera_asset.asset_id if camera_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Security camera offline due to power interruption",
+            status=FaultStatus.WAIT,
+            priority=Priority.HIGH,
+            fault_type=Type.REPAIR,
+            report_dt=datetime.now(),
+            asset_id=camera_asset.asset_id if camera_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Projector bulb flickering during lectures",
+            status=FaultStatus.OPEN,
+            priority=Priority.MEDIUM,
+            fault_type=Type.MAINTENANCE,
+            report_dt=datetime.now(),
+            asset_id=projector_asset.asset_id if projector_asset else None,
         )
 
         session.commit()

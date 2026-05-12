@@ -43,7 +43,7 @@ class Jobcard(JobcardBase, Base, table=True):
 
 
 class JobcardCreate(JobcardBase):
-    pass
+    asset_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):

@@ -35,7 +35,21 @@ function TicketPage() {
 
   const handleAddTicket = async () => {
     try {
-      await apiClient.tickets.create(newTicket);
+      if (!newTicket.title && !newTicket.description) {
+        alert("Voer asseblief 'n titel of beskrywing vir die foutkaartjie in.");
+        return;
+      }
+
+      const payload = {
+        fault_description: newTicket.title
+          ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
+          : newTicket.description,
+        fault_type: newTicket.category || null,
+        fault_status: newTicket.status,
+        fault_priority: newTicket.priority,
+      };
+
+      await apiClient.tickets.create(payload);
       setShowModal(false);
       setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
       fetchTickets();
@@ -55,10 +69,11 @@ function TicketPage() {
 
   const filteredTickets = tickets.filter((ticket) => {
     const query = searchTerm.toLowerCase();
+    const description = ticket.fault_description || "";
     const matchesSearch =
-      ticket.title.toLowerCase().includes(query) ||
-      ticket.description.toLowerCase().includes(query);
-    const matchesFilter = statusFilter === "" || ticket.status === statusFilter;
+      description.toLowerCase().includes(query) ||
+      (ticket.fault_type || "").toLowerCase().includes(query);
+    const matchesFilter = statusFilter === "" || ticket.fault_status === statusFilter;
     return matchesSearch && matchesFilter;
   });
 
@@ -148,7 +163,6 @@ function TicketPage() {
             <thead>
               <tr>
                 <th>ID Kaartjie</th>
-                <th>Titel</th>
                 <th>Beskrywing</th>
                 <th>Kategorie</th>
                 <th>Prioriteit</th>
@@ -158,19 +172,18 @@ function TicketPage() {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr key={ticket.id}>
-                  <td>{ticket.id}</td>
-                  <td>{ticket.title}</td>
-                  <td>{ticket.description}</td>
-                  <td>{ticket.category || '-'}</td>
-                  <td>{ticket.priority}</td>
+                <tr key={ticket.fault_id}>
+                  <td>{ticket.fault_id}</td>
+                  <td>{ticket.fault_description}</td>
+                  <td>{ticket.fault_type || '-'}</td>
+                  <td>{ticket.fault_priority}</td>
                   <td>
-                    <span className={`status ${getStatusClass(ticket.status)}`}>
-                      {ticket.status}
+                    <span className={`status ${getStatusClass(ticket.fault_status)}`}>
+                      {ticket.fault_status}
                     </span>
                   </td>
                   <td>
-                    <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.id)}>
+                    <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>
                       Verwyder
                     </button>
                   </td>
@@ -217,7 +230,6 @@ function TicketPage() {
                   <option value="low">Laag</option>
                   <option value="medium">Medium</option>
                   <option value="high">Hoog</option>
-                  <option value="urgent">Dringend</option>
                 </select>
               </div>
             </div>
@@ -236,9 +248,9 @@ function TicketPage() {
                   onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
                 >
                   <option value="open">Oop</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="resolved">Opgelost</option>
-                  <option value="closed">Gesluit</option>
+                  <option value="besig">Besig</option>
+                  <option value="opgelos">Opgelost</option>
+                  <option value="verwerp">Gesluit</option>
                 </select>
               </div>
             </div>

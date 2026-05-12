@@ -1,10 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiClient } from "../services/api";
+import { assetsAPI, workOrdersAPI } from "../services/api";
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
   const [workOrders, setWorkOrders] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -14,18 +15,20 @@ function WorkOrderPage() {
     description: "",
     work_type: "",
     scheduled_date: "",
-    status: "pending",
+    status: "wag",
     priority: "medium",
+    asset_id: "",
   });
 
   useEffect(() => {
     fetchWorkOrders();
+    fetchAssets();
   }, []);
 
   const fetchWorkOrders = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.workOrders.getAll();
+      const response = await workOrdersAPI.getAll();
       setWorkOrders(response.data);
     } catch (error) {
       console.error("Error fetching work orders:", error);
@@ -34,11 +37,35 @@ function WorkOrderPage() {
     }
   };
 
+  const fetchAssets = async () => {
+    try {
+      const response = await assetsAPI.getAll();
+      setAssets(response.data);
+    } catch (error) {
+      console.error("Error fetching assets:", error);
+    }
+  };
+
   const handleAddWorkOrder = async () => {
     try {
-      await apiClient.workOrders.create(newWorkOrder);
+      if (!newWorkOrder.title && !newWorkOrder.description) {
+        alert("Voer asseblief 'n titel of beskrywing vir die werksopdrag in.");
+        return;
+      }
+
+      const payload = {
+        job_desc: newWorkOrder.title
+          ? `${newWorkOrder.title}${newWorkOrder.description ? `: ${newWorkOrder.description}` : ''}`
+          : newWorkOrder.description,
+        job_type: newWorkOrder.work_type || null,
+        job_status: newWorkOrder.status,
+        job_createddatetime: newWorkOrder.scheduled_date || null,
+        asset_id: newWorkOrder.asset_id ? Number(newWorkOrder.asset_id) : null,
+      };
+
+      await workOrdersAPI.create(payload);
       setShowModal(false);
-      setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "pending", priority: "medium" });
+      setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "" });
       fetchWorkOrders();
     } catch (error) {
       console.error("Error creating work order:", error);
@@ -47,7 +74,7 @@ function WorkOrderPage() {
 
   const handleDeleteWorkOrder = async (workOrderId) => {
     try {
-      await apiClient.workOrders.delete(workOrderId);
+      await workOrdersAPI.delete(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Error deleting work order:", error);
@@ -56,22 +83,26 @@ function WorkOrderPage() {
 
   const filteredWorkOrders = workOrders.filter((order) => {
     const query = searchTerm.toLowerCase();
+    const description = order.job_desc || "";
     const matchesSearch =
-      order.title.toLowerCase().includes(query) ||
-      order.description.toLowerCase().includes(query);
-    const matchesFilter = statusFilter === "" || order.status === statusFilter;
+      description.toLowerCase().includes(query) ||
+      (order.job_type || "").toLowerCase().includes(query) ||
+      String(order.asset_id || "").includes(query);
+    const matchesFilter = statusFilter === "" || order.job_status === statusFilter;
     return matchesSearch && matchesFilter;
   });
 
   const getStatusClass = (status) => {
     switch (status) {
-      case "pending":
+      case "wag":
         return "status-pending";
-      case "in_progress":
+      case "open":
         return "status-in-progress";
-      case "completed":
+      case "besig":
+        return "status-in-progress";
+      case "voltooid":
         return "status-completed";
-      case "cancelled":
+      case "geannuleerd":
         return "status-cancelled";
       default:
         return "status-default";
@@ -136,10 +167,11 @@ function WorkOrderPage() {
             />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">Filter: Alle</option>
-              <option value="pending">Hangende</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Voltooi</option>
-              <option value="cancelled">Gekanselleer</option>
+              <option value="wag">Hangende</option>
+              <option value="open">Oop</option>
+              <option value="besig">Besig</option>
+              <option value="voltooid">Voltooi</option>
+              <option value="geannuleerd">Gekanselleer</option>
             </select>
             <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Werksopdrag</button>
           </div>
@@ -148,9 +180,9 @@ function WorkOrderPage() {
             <thead>
               <tr>
                 <th>ID Werksopdrag</th>
-                <th>Titel</th>
+                <th>Beskrywing</th>
+                <th>Asset ID</th>
                 <th>Werksoort</th>
-                <th>Prioriteit</th>
                 <th>Geskeduleerde Datum</th>
                 <th>Status</th>
                 <th>Aksies</th>
@@ -158,19 +190,19 @@ function WorkOrderPage() {
             </thead>
             <tbody>
               {filteredWorkOrders.map((order) => (
-                <tr key={order.id}>
-                  <td>{order.id}</td>
-                  <td>{order.title}</td>
-                  <td>{order.work_type || '-'}</td>
-                  <td>{order.priority}</td>
-                  <td>{order.scheduled_date ? new Date(order.scheduled_date).toLocaleDateString('af-ZA') : '-'}</td>
+                <tr key={order.jobcard_id}>
+                  <td>{order.jobcard_id}</td>
+                  <td>{order.job_desc}</td>
+                  <td>{order.asset_id ?? '-'}</td>
+                  <td>{order.job_type || '-'}</td>
+                  <td>{order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleDateString('af-ZA') : '-'}</td>
                   <td>
-                    <span className={`status ${getStatusClass(order.status)}`}>
-                      {order.status}
+                    <span className={`status ${getStatusClass(order.job_status)}`}>
+                      {order.job_status}
                     </span>
                   </td>
                   <td>
-                    <button className="btn-delete" onClick={() => handleDeleteWorkOrder(order.id)}>
+                    <button className="btn-delete" onClick={() => handleDeleteWorkOrder(order.jobcard_id)}>
                       Verwyder
                     </button>
                   </td>
@@ -210,6 +242,20 @@ function WorkOrderPage() {
                   <option value="inspection">Inspeksie</option>
                 </select>
               </div>
+              <div className="input-group">
+                <label>Asset</label>
+                <select
+                  value={newWorkOrder.asset_id}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, asset_id: e.target.value })}
+                >
+                  <option value="">Geen asset gekies</option>
+                  {assets.map((asset) => (
+                    <option key={asset.asset_id} value={asset.asset_id}>
+                      {asset.asset_id} - {asset.asset_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -247,10 +293,11 @@ function WorkOrderPage() {
                   value={newWorkOrder.status}
                   onChange={(e) => setNewWorkOrder({ ...newWorkOrder, status: e.target.value })}
                 >
-                  <option value="pending">Hangende</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Voltooi</option>
-                  <option value="cancelled">Gekanselleer</option>
+                  <option value="wag">Hangende</option>
+                  <option value="open">Oop</option>
+                  <option value="besig">Besig</option>
+                  <option value="voltooid">Voltooi</option>
+                  <option value="geannuleerd">Gekanselleer</option>
                 </select>
               </div>
             </div>
