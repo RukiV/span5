@@ -8,10 +8,10 @@ from ....services.room_service import room_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[RoomRead])
+@router.get("", response_model=List[RoomRead])
 def readRooms(session: Session = Depends(getSession)):
     #Fetch all rooms
-    return room_service.getAll(Session)
+    return room_service.getAll(session)
 
 @router.get("/{roomID}", response_model=RoomRead)
 def readRoom(roomID: int, session: Session = Depends(getSession)):
@@ -22,7 +22,7 @@ def readRoom(roomID: int, session: Session = Depends(getSession)):
     
     return room
 
-@router.post("/", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=RoomRead, status_code=status.HTTP_201_CREATED)
 def addRoom(roomIn: RoomCreate, session: Session = Depends(getSession)):
     #Create new room
     return room_service.create(session, roomIn)
