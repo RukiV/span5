@@ -79,13 +79,14 @@ def _get_or_create_assettype(session: Session) -> Assettype:
     return assettype
 
 
-def _get_or_create_asset(session: Session, name: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int) -> Asset:
+def _get_or_create_asset(session: Session, name: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int) -> Asset:
     asset = session.exec(select(Asset).where(Asset.asset_name == name)).first()
     if asset:
         return asset
 
     asset = Asset(
         asset_name=name,
+        asset_serial=serial,
         asset_status=status,
         asset_isoutdoor=is_outdoor,
         room_id=room_id,
@@ -225,6 +226,7 @@ def seed_data():
         _get_or_create_asset(
             session,
             name="Projector 4K",
+            serial="AK-MT000001",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
@@ -234,6 +236,7 @@ def seed_data():
         _get_or_create_asset(
             session,
             name="Outdoor Security Camera",
+            serial="AK-MT000002",
             status=AssetStatus.ACTIVE,
             is_outdoor=True,
             room_id=room2.room_id,

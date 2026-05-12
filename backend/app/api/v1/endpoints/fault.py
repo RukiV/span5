@@ -27,7 +27,7 @@ def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession)):
     #Create new fault
     return fault_service.create(session, faultIn)
     
-@router.patch("/{faultD}", response_model=FaultcardRead)
+@router.patch("/{faultID}", response_model=FaultcardRead)
 def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depends(getSession)):
     #Update existing fault
     fault = fault_service.update(session, faultID, faultIn)

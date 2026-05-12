@@ -14,6 +14,8 @@ function RoomsPage() {
   const [showAssetsModal, setShowAssetsModal] = useState(false);
   const [roomType, setRoomType] = useState("room"); // "room" or "terrain"
   const [terrains, setTerrains] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newRoom, setNewRoom] = useState({
     room_name: "",
     room_capacity: "",
@@ -72,12 +74,17 @@ function RoomsPage() {
           alert("Voer asseblief die roomnaam en terrein in");
           return;
         }
-        await roomsAPI.create({
+        const roomData = {
           room_name: newRoom.room_name,
           room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : null,
           room_type: newRoom.room_type,
           location_id: Number(newRoom.location_id),
-        });
+        };
+        if (isEditing) {
+          await roomsAPI.update(editingId, roomData);
+        } else {
+          await roomsAPI.create(roomData);
+        }
         setNewRoom({
           room_name: "",
           room_capacity: "",
@@ -85,13 +92,18 @@ function RoomsPage() {
           location_id: "",
         });
       } else {
-        await locationAPI.create({
+        const terrainData = {
           location_name: newTerrain.location_name,
           location_type: newTerrain.location_type,
           location_streetnum: newTerrain.location_streetnum,
           location_streetname: newTerrain.location_streetname,
-          zipcode_id: 1, // Using the zipcode we created in seed data
-        });
+          zipcode_id: 1,
+        };
+        if (isEditing) {
+          await locationAPI.update(editingId, terrainData);
+        } else {
+          await locationAPI.create(terrainData);
+        }
         setNewTerrain({
           location_name: "",
           location_type: "",
@@ -100,12 +112,72 @@ function RoomsPage() {
           zipcode_id: "",
         });
       }
-      setShowModal(false);
+      handleCloseModal();
       fetchRooms();
       fetchTerrains();
     } catch (error) {
-      console.error("Error creating:", error);
+      console.error("Error saving:", error);
     }
+  };
+
+  const handleEditRoom = (item) => {
+    setIsEditing(true);
+    setEditingId(roomType === "room" ? item.room_id : item.location_id);
+    if (roomType === "room") {
+      setNewRoom({
+        room_name: item.room_name,
+        room_capacity: item.room_capacity || "",
+        room_type: item.room_type || "other",
+        location_id: item.location_id || "",
+      });
+    } else {
+      setNewTerrain({
+        location_name: item.location_name || "",
+        location_type: item.location_type || "",
+        location_streetnum: item.location_streetnum || "",
+        location_streetname: item.location_streetname || "",
+        zipcode_id: item.zipcode_id || "",
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewRoom({
+      room_name: "",
+      room_capacity: "",
+      room_type: "other",
+      location_id: "",
+    });
+    setNewTerrain({
+      location_name: "",
+      location_type: "",
+      location_streetnum: "",
+      location_streetname: "",
+      zipcode_id: "",
+    });
+  };
+
+  const handleNewRoom = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewRoom({
+      room_name: "",
+      room_capacity: "",
+      room_type: "other",
+      location_id: "",
+    });
+    setNewTerrain({
+      location_name: "",
+      location_type: "",
+      location_streetnum: "",
+      location_streetname: "",
+      zipcode_id: "",
+    });
+    setShowModal(true);
   };
 
   const handleViewAssets = (room) => {
@@ -224,7 +296,7 @@ function RoomsPage() {
               <option value="maintenance">Onderhoud</option>
               <option value="closed">Gesluit</option>
             </select>
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe {roomType === "room" ? "lokaal" : "terrein"}</button>
+            <button className="btn-add" onClick={handleNewRoom}>+ Nuwe {roomType === "room" ? "lokaal" : "terrein"}</button>
           </div>
 
           <table className="rooms-table">
@@ -255,6 +327,9 @@ function RoomsPage() {
                         Besigtig Bates
                       </button>
                     )}
+                    <button className="btn-edit" onClick={() => handleEditRoom(item)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteItem(roomType === "room" ? item.room_id : item.location_id)}>
                       Verwyder
                     </button>
@@ -270,8 +345,8 @@ function RoomsPage() {
         <div className="modal-overlay" style={{ display: 'flex' }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe {roomType === "room" ? "lokaal (ID Lokaal sal outomaties gegenereer word)" : "terrein (ID Terrein sal outomaties gegenereer word)"}</h3>
-              <button className="close" onClick={() => setShowModal(false)}>×</button>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} {roomType === "room" ? "lokaal" : "terrein"} {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+              <button className="close" onClick={handleCloseModal}>×</button>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -314,6 +389,19 @@ function RoomsPage() {
             {roomType === "terrain" && (
               <div className="input-row">
                 <div className="input-group">
+                  <label>Tipe</label>
+                  <input
+                    type="text"
+                    value={newTerrain.location_type}
+                    onChange={(e) => setNewTerrain({ ...newTerrain, location_type: e.target.value })}
+                    placeholder="bv. Kantoor, Fasiliteit, ens"
+                  />
+                </div>
+              </div>
+            )}
+            {roomType === "terrain" && (
+              <div className="input-row">
+                <div className="input-group">
                   <label>Straatnommer</label>
                   <input
                     type="text"
@@ -348,8 +436,8 @@ function RoomsPage() {
               </div>
             )}
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddRoom}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

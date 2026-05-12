@@ -10,6 +10,8 @@ function WorkOrderPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newWorkOrder, setNewWorkOrder] = useState({
     title: "",
     description: "",
@@ -63,13 +65,50 @@ function WorkOrderPage() {
         asset_id: newWorkOrder.asset_id ? Number(newWorkOrder.asset_id) : null,
       };
 
-      await workOrdersAPI.create(payload);
-      setShowModal(false);
-      setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "" });
+      if (isEditing) {
+        await workOrdersAPI.update(editingId, payload);
+      } else {
+        await workOrdersAPI.create(payload);
+      }
+      handleCloseModal();
       fetchWorkOrders();
     } catch (error) {
-      console.error("Error creating work order:", error);
+      console.error("Error saving work order:", error);
     }
+  };
+
+  const handleEditWorkOrder = (order) => {
+    setIsEditing(true);
+    setEditingId(order.jobcard_id);
+    const description = order.job_desc || "";
+    const colonIndex = description.indexOf(":");
+    const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+    
+    setNewWorkOrder({
+      title: title,
+      description: details,
+      work_type: order.job_type || "",
+      scheduled_date: order.job_createddatetime || "",
+      status: order.job_status || "wag",
+      priority: "medium",
+      asset_id: order.asset_id || "",
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "" });
+  };
+
+  const handleNewWorkOrder = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "" });
+    setShowModal(true);
   };
 
   const handleDeleteWorkOrder = async (workOrderId) => {
@@ -173,7 +212,7 @@ function WorkOrderPage() {
               <option value="voltooid">Voltooi</option>
               <option value="geannuleerd">Gekanselleer</option>
             </select>
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Werksopdrag</button>
+            <button className="btn-add" onClick={handleNewWorkOrder}>+ Nuwe Werksopdrag</button>
           </div>
 
           <table className="work-orders-table">
@@ -202,6 +241,9 @@ function WorkOrderPage() {
                     </span>
                   </td>
                   <td>
+                    <button className="btn-edit" onClick={() => handleEditWorkOrder(order)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteWorkOrder(order.jobcard_id)}>
                       Verwyder
                     </button>
@@ -217,8 +259,8 @@ function WorkOrderPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe Werksopdrag (ID Werksopdrag sal outomaties gegenereer word)</h3>
-              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} Werksopdrag {!isEditing && "(ID Werksopdrag sal outomaties gegenereer word)"}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -302,8 +344,8 @@ function WorkOrderPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddWorkOrder}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddWorkOrder}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

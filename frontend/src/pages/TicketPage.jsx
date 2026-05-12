@@ -9,6 +9,8 @@ function TicketPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -25,9 +27,11 @@ function TicketPage() {
     setLoading(true);
     try {
       const response = await apiClient.tickets.getAll();
+      console.log("Tickets fetched:", response.data);
       setTickets(response.data);
     } catch (error) {
       console.error("Error fetching tickets:", error);
+      alert("Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -44,18 +48,63 @@ function TicketPage() {
         fault_description: newTicket.title
           ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
           : newTicket.description,
-        fault_type: newTicket.category || null,
+        fault_type: newTicket.category && newTicket.category.trim() ? newTicket.category : null,
         fault_status: newTicket.status,
         fault_priority: newTicket.priority,
       };
 
-      await apiClient.tickets.create(payload);
-      setShowModal(false);
-      setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
+
+      if (isEditing) {
+        await apiClient.tickets.update(editingId, payload);
+        alert("Foutkaartjie suksesvol opgedateer!");
+      } else {
+        await apiClient.tickets.create(payload);
+        alert("Foutkaartjie suksesvol geskep!");
+      }
+      handleCloseModal();
       fetchTickets();
     } catch (error) {
-      console.error("Error creating ticket:", error);
+      console.error("Error saving ticket:", error);
+      console.error("Error response data:", error.response?.data);
+      const errorDetail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(errorDetail) 
+        ? errorDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join('\n')
+        : errorDetail || error.message;
+      alert("Fout by besparing:\n" + errorMsg);
     }
+  };
+
+  const handleEditTicket = (ticket) => {
+    setIsEditing(true);
+    setEditingId(ticket.fault_id);
+    const description = ticket.fault_description || "";
+    const colonIndex = description.indexOf(":");
+    const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+    
+    setNewTicket({
+      title: title,
+      description: details,
+      category: ticket.fault_type || "",
+      status: ticket.fault_status || "open",
+      priority: ticket.fault_priority || "medium",
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+  };
+
+  const handleNewTicket = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+    setShowModal(true);
   };
 
   const handleDeleteTicket = async (ticketId) => {
@@ -79,13 +128,17 @@ function TicketPage() {
 
   const getStatusClass = (status) => {
     switch (status) {
+      case "wag":
+        return "status-wait";
       case "open":
         return "status-open";
-      case "in_progress":
+      case "bevestig":
+        return "status-confirmed";
+      case "besig":
         return "status-in-progress";
-      case "resolved":
+      case "opgelos":
         return "status-resolved";
-      case "closed":
+      case "verwerp":
         return "status-closed";
       default:
         return "status-default";
@@ -151,12 +204,14 @@ function TicketPage() {
             />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">Filter: Alle</option>
+              <option value="wag">Wag</option>
               <option value="open">Oop</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Opgelost</option>
-              <option value="closed">Gesluit</option>
+              <option value="bevestig">Bevestig</option>
+              <option value="besig">Besig</option>
+              <option value="opgelos">Opgelost</option>
+              <option value="verwerp">Verwerp</option>
             </select>
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Foutkaartjie</button>
+            <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
           </div>
 
           <table className="tickets-table">
@@ -183,6 +238,9 @@ function TicketPage() {
                     </span>
                   </td>
                   <td>
+                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>
                       Verwyder
                     </button>
@@ -198,8 +256,8 @@ function TicketPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe Foutkaartjie (ID Kaartjie sal outomaties gegenereer word)</h3>
-              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} Foutkaartjie {!isEditing && "(ID Kaartjie sal outomaties gegenereer word)"}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -247,16 +305,18 @@ function TicketPage() {
                   value={newTicket.status}
                   onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
                 >
+                  <option value="wag">Wag</option>
                   <option value="open">Oop</option>
+                  <option value="bevestig">Bevestig</option>
                   <option value="besig">Besig</option>
                   <option value="opgelos">Opgelost</option>
-                  <option value="verwerp">Gesluit</option>
+                  <option value="verwerp">Verwerp</option>
                 </select>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddTicket}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>
