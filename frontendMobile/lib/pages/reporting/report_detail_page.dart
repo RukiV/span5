@@ -85,6 +85,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
+  Widget _imagePlaceholder() {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      color: Colors.grey[200],
+      child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 50),
+    );
+  }
+
   Widget _buildStatusCard(BuildContext context) {
     String phase = _currentReport.phase;
     String priority = _currentReport.priority;
