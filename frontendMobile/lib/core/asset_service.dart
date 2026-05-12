@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/asset.dart';
 import 'api_client.dart';
-import 'campus_service.dart';
 
 class AssetService {
   static final List<Asset> _assets = [];
@@ -31,44 +30,12 @@ class AssetService {
     }
   }
 
-  static String generateUniqueId(String category, String campusName) {
-    String campusCode = _getCampusCode(campusName);
-    String catCode = _getCategoryCode(category);
-    String year = DateTime.now().year.toString().substring(2);
-    
-    int count = _assets.where((a) => 
-      a.id.startsWith("$campusCode-$catCode-$year")
-    ).length + 1;
-    
-    String sequence = count.toString().padLeft(3, '0');
-    return "$campusCode-$catCode-$year-$sequence";
-  }
-
-  static String _getCampusCode(String name) {
-    final campus = CampusService.getCampusByName(name);
-    if (campus != null) {
-      return campus.code;
-    }
-    return name.length >= 3 ? name.substring(0, 3).toUpperCase() : name.toUpperCase();
-  }
-
-  static String _getCategoryCode(String cat) {
-    switch (cat) {
-      case "Meubels": return "MEU";
-      case "IT Toerusting": return "ITT";
-      case "Elektronika": return "ELC";
-      case "Kombuis": return "KOM";
-      case "Ander": return "AND";
-      default: return "GEN";
-    }
-  }
-
   static Future<bool> addAsset(Asset asset) async {
     try {
       final response = await ApiClient.dio.post('/assets', data: asset.toJson());
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _assets.add(asset);
-        assetsNotifier.value = List.from(_assets);
+        // Herlaai bates om seker te maak ons het die nuwe ID vanaf die DB
+        await fetchAssets();
         return true;
       }
     } catch (e) {
@@ -79,13 +46,9 @@ class AssetService {
 
   static Future<void> updateAsset(Asset updatedAsset) async {
     try {
-      final response = await ApiClient.dio.put('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
+      final response = await ApiClient.dio.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
       if (response.statusCode == 200) {
-        int index = _assets.indexWhere((a) => a.id == updatedAsset.id);
-        if (index != -1) {
-          _assets[index] = updatedAsset;
-          assetsNotifier.value = List.from(_assets);
-        }
+        await fetchAssets();
       }
     } catch (e) {
       debugPrint("Fout met opdatering van bate: $e");
@@ -93,14 +56,7 @@ class AssetService {
   }
 
   static Future<void> linkReportToAsset(String assetId, String reportId) async {
-    Asset? asset = getAssetById(assetId);
-    if (asset != null) {
-      if (!asset.reportIds.contains(reportId)) {
-        final updatedAsset = asset.copyWith(
-          reportIds: [...asset.reportIds, reportId]
-        );
-        await updateAsset(updatedAsset);
-      }
-    }
+    // Backend hanteer gewoonlik hierdie verwantskap via foreign keys in die Faultcard
+    debugPrint("Koppel verslag $reportId aan bate $assetId");
   }
 }

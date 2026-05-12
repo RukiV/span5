@@ -86,16 +86,20 @@ class _LoginPageState extends State<LoginPage> {
         if (user == "admin") {
           UserSession.role = UserRole.admin;
           UserSession.userName = "Admin Gebruiker";
+          UserSession.userId = 1;
         } else if (user == "bestuurder") {
           UserSession.role = UserRole.manager;
           UserSession.userName = "Kampus Bestuurder";
-          UserSession.userCampus = "Hoofkampus (Centurion)"; // Simuleer 'n spesifieke kampus
+          UserSession.userCampus = "Hoofkampus (Centurion)";
+          UserSession.userId = 2;
         } else if (user == "kontrakteur") {
           UserSession.role = UserRole.contractor;
           UserSession.userName = "Piet Pompies (Loodgieter)";
+          UserSession.userId = 3;
         } else {
           UserSession.role = UserRole.student;
           UserSession.userName = user.isEmpty ? "Student Demo" : user;
+          UserSession.userId = 99;
         }
       } else {
         // Indien wagwoord verkeerd is (vir demo doeleindes aanvaar ons alles anders as student)

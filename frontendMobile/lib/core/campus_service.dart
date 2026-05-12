@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../models/campus.dart';
 import 'api_client.dart';
 
@@ -8,56 +9,40 @@ class CampusService {
 
   static Future<void> fetchCampuses() async {
     try {
-      final response = await ApiClient.dio.get('/campuses');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
+      // 1. Laai alle Locations (wat ons as Kampusse sien)
+      final locResponse = await ApiClient.dio.get('/location');
+      // 2. Laai alle Rooms
+      final roomResponse = await ApiClient.dio.get('/rooms');
+
+      if (locResponse.statusCode == 200 && roomResponse.statusCode == 200) {
+        final List<dynamic> locData = locResponse.data;
+        final List<dynamic> roomData = roomResponse.data;
+
         _campuses.clear();
-        _campuses.addAll(data.map((json) => Campus.fromJson(json)).toList());
-        campusesNotifier.value = List.from(_campuses);
-      }
-    } catch (e) {
-      debugPrint("Fout met laai van kampusse: $e");
-    }
-  }
 
-  static Future<bool> addCampus(Campus campus) async {
-    try {
-      final response = await ApiClient.dio.post('/campuses', data: campus.toJson());
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _campuses.add(campus);
-        campusesNotifier.value = List.from(_campuses);
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Fout met byvoeg van kampus: $e");
-    }
-    return false;
-  }
+        for (var locJson in locData) {
+          int locId = locJson['location_id'];
+          
+          // Filtreer kamers wat aan hierdie ligging behoort
+          List<String> locationRooms = roomData
+              .where((r) => r['location_id'] == locId)
+              .map((r) => r['room_name'].toString())
+              .toList();
 
-  static Future<void> removeCampus(String id) async {
-    try {
-      final response = await ApiClient.dio.delete('/campuses/$id');
-      if (response.statusCode == 200) {
-        _campuses.removeWhere((c) => c.id == id);
-        campusesNotifier.value = List.from(_campuses);
-      }
-    } catch (e) {
-      debugPrint("Fout met verwydering van kampus: $e");
-    }
-  }
-
-  static Future<void> updateRooms(String campusId, List<String> newRooms) async {
-    try {
-      final response = await ApiClient.dio.put('/campuses/$campusId/rooms', data: {'rooms': newRooms});
-      if (response.statusCode == 200) {
-        final index = _campuses.indexWhere((c) => c.id == campusId);
-        if (index != -1) {
-          _campuses[index] = _campuses[index].copyWith(rooms: newRooms);
-          campusesNotifier.value = List.from(_campuses);
+          _campuses.add(Campus(
+            id: locId.toString(),
+            name: locJson['location_name'],
+            code: locJson['location_type'] ?? 'KAMPUS',
+            address: "${locJson['location_streetnum']} ${locJson['location_streetname']}",
+            location: const LatLng(-25.8480, 28.2366), // Dummy koördinate, backend het dit nog nie
+            rooms: locationRooms,
+          ));
         }
+        
+        campusesNotifier.value = List.from(_campuses);
       }
     } catch (e) {
-      debugPrint("Fout met opdatering van lokale: $e");
+      debugPrint("Fout met laai van kampusse/lokale: $e");
     }
   }
 
