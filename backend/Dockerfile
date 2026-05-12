@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir fastapi uvicorn[standard] sqlmodel psycopg2-binary
 
-COPY app /app
+COPY app .
 
 EXPOSE 8000
 
