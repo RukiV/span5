@@ -81,7 +81,7 @@ function RoomsPage() {
         setNewRoom({
           room_name: "",
           room_capacity: "",
-          room_type: "OTHER",
+          room_type: "",
           location_id: "",
         });
       } else {

@@ -1,8 +1,10 @@
 # Span5
-#hello
+#Run commands
+docker compose up -d
 
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000 
 
-#test
+npm start
 
 ## Getting started
 
