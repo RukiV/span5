@@ -8,7 +8,7 @@ from ....services.assets_service import assets_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[AssetRead])
+@router.get("", response_model=List[AssetRead])
 def readAssets(session: Session = Depends(getSession)):
     #Fetch all assets
     return assets_service.getAll(session)
@@ -22,7 +22,7 @@ def readAsset(assetID: int, session: Session = Depends(getSession)):
     
     return asset
 
-@router.post("/", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AssetRead, status_code=status.HTTP_201_CREATED)
 def addAsset(assetIn: AssetCreate, session: Session = Depends(getSession)):
     #Create new asset
     return assets_service.create(session, assetIn)
