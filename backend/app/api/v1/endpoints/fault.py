@@ -8,7 +8,7 @@ from ....services.fault_service import fault_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[FaultcardRead])
+@router.get("", response_model=List[FaultcardRead])
 def readFaults(session: Session = Depends(getSession)):
     #Fetch all faults
     return fault_service.getAll(session)
@@ -22,7 +22,7 @@ def readFault(faultID: int, session: Session = Depends(getSession)):
     
     return fault
 
-@router.post("/", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
 def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession)):
     #Create new fault
     return fault_service.create(session, faultIn)

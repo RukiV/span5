@@ -3,17 +3,17 @@ from sqlmodel import Session
 from typing import List
 
 from ....db.database import getSession
-from ....models.location import JobcardRead, JobcardCreate, JobcardUpdate
+from ....models.location import LocationRead, LocationCreate, LocationUpdate
 from ....services.location_service import location_service
 
 router = APIRouter()
 
-@router.get("/", response_model=List[JobcardRead])
+@router.get("", response_model=List[LocationRead])
 def readLocations(session: Session = Depends(getSession)):
     #Fetch all locations
-    return location_service.getAll(Session)
+    return location_service.getAll(session)
 
-@router.get("/{locationID}", response_model=JobcardRead)
+@router.get("/{locationID}", response_model=LocationRead)
 def readLocation(locationID: int, session: Session = Depends(getSession)):
     #Fetch single location by id
     location = location_service.getByID(session, locationID)
@@ -22,13 +22,13 @@ def readLocation(locationID: int, session: Session = Depends(getSession)):
     
     return location
 
-@router.post("/", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
-def addLocation(locationIn: JobcardCreate, session: Session = Depends(getSession)):
+@router.post("", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
+def addLocation(locationIn: LocationCreate, session: Session = Depends(getSession)):
     #Create new location
     return location_service.create(session, locationIn)
 
-@router.patch("/{locationID}", response_model=JobcardRead)
-def patchLocation(locationID: int, locationIn: JobcardUpdate, session: Session = Depends(getSession)):
+@router.patch("/{locationID}", response_model=LocationRead)
+def patchLocation(locationID: int, locationIn: LocationUpdate, session: Session = Depends(getSession)):
     #Update existing location
     location = location_service.update(session, locationID, locationIn)
     if not location:

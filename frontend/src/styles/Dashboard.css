@@ -1,0 +1,326 @@
+/* --- Globale Instellings --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+:root {
+    --wit: #ffffff;
+    --bruin: #935e28;
+    --blou: #0e1e3b;
+    --blou-lig: #1a2e54;
+    --grys-agtergrond: #f8fafc;
+    --border: #e2e8f0;
+}
+
+body {
+    display: flex;
+    height: 100vh;
+    background-color: var(--grys-agtergrond);
+}
+
+/* --- Kantbalk (Sidebar) --- */
+.sidebar {
+    width: 250px;
+    background-color: var(--blou);
+    color: var(--wit);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: fixed;
+}
+
+.sidebar h2 {
+    margin-bottom: 30px;
+    text-align: center;
+    color: var(--wit);
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.sidebar ul {
+    list-style: none;
+}
+
+.sidebar ul li {
+    margin: 5px 0;
+    border-radius: 6px;
+    transition: background 0.3s;
+}
+
+.sidebar a {
+    padding: 12px 15px;
+    text-decoration: none;
+    color: var(--wit);
+    display: block;
+}
+
+.sidebar ul li:hover, .sidebar a:hover {
+    background-color: var(--blou-lig);
+    color: var(--bruin);
+}
+
+.logout-container {
+    padding: 0 20px;
+    margin-top: auto;
+}
+
+.btn-logout-sidebar {
+    display: block;
+    background-color: var(--bruin);
+    color: var(--wit);
+    padding: 12px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.btn-logout-sidebar:hover {
+    background-color: #a0522d;
+}
+
+/* --- Hoofgedeelte --- */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: 250px;
+    width: calc(100vw - 250px);
+    overflow: hidden;
+}
+
+/* --- Bo-navigasie (Navbar) --- */
+.navbar {
+    background-color: var(--wit);
+    padding: 15px 20px;
+    border-bottom: 3px solid var(--bruin);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.navbar h3 {
+    color: var(--blou);
+}
+
+.navbar .user {
+    font-size: 14px;
+    color: var(--blou);
+    font-weight: bold;
+}
+
+/* --- Algemene Inhoud --- */
+.content {
+    padding: 10px 25px 25px 25px;
+    overflow-y: auto;
+    background-color: var(--wit);
+    flex: 1;
+    width: 100%;
+}
+
+/* --- Kaartjies (Dashboard) --- */
+.card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.card {
+    background: var(--wit);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border-left: 5px solid var(--bruin);
+}
+
+.card h4 {
+    margin-bottom: 10px;
+    color: var(--blou);
+}
+
+/* Verbeterde Kaartjies */
+.stat-card {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border-left: 5px solid #ddd;
+}
+
+.stat-card.blue { border-left-color: #3b82f6; }
+.stat-card.orange { border-left-color: #f59e0b; }
+.stat-card.red { border-left-color: #ef4444; }
+.stat-card.green { border-left-color: #10b981; }
+
+.card-icon {
+    font-size: 2rem;
+}
+
+.card-info h4 {
+    font-size: 0.85rem;
+    color: #64748b;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.card-info p {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin: 5px 0 0 0;
+}
+
+/* Tabel Default*/
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+table th {
+    background-color: var(--bruin);
+    color: white;
+    padding: 15px;
+    text-align: left;
+}
+
+table td {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+table tbody tr:hover {
+    background-color: #f9f4ef;
+    cursor: pointer;
+}
+
+/* Herstelwerk Tabel */
+.repair-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.repair-table th {
+    text-align: left;
+    font-size: 0.85rem;
+    color: var(--wit);
+    padding: 10px;
+    border-bottom: 2px solid #f1f5f9;
+}
+
+.repair-table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.9rem;
+}
+
+/* Prioriteit Badges */
+.prio {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+.prio.high { background: #fee2e2; color: #ef4444; }
+.prio.med { background: #fef3c7; color: #d97706; }
+
+/* Aktiwiteit Lys */
+.activity-list {
+    list-style: none;
+}
+
+.activity-list li {
+    padding: 10px 0;
+    border-bottom: 1px solid #f8fafc;
+    position: relative;
+    padding-left: 20px;
+}
+
+.activity-list li p {
+    font-size: 0.9rem;
+    margin-bottom: 3px;
+}
+
+.activity-list h4 {
+    color: var(--blou);
+    border-bottom: 2px solid var(--bruin);
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.activity-list li small {
+    color: #94a3b8;
+}
+
+.dot {
+    height: 8px;
+    width: 8px;
+    border-radius: 50%;
+    position: absolute;
+    left: 0;
+    top: 15px;
+}
+.dot.blue { background: #3b82f6; }
+.dot.green { background: #10b981; }
+.dot.orange { background: #f59e0b; }
+
+/* Rooster vir Tabel en Aktiwiteit */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+/* Grafiek ry uitleg */
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 25px;
+}
+
+.chart-container {
+    position: relative;
+    height: 250px;
+    width: 100%;
+    margin-top: 15px;
+}
+
+.data-panel {
+    background: var(--wit);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.panel-header h3, .panel-header h4 {
+    color: var(--blou);
+    margin: 0;
+}
+
+.view-all {
+    color: var(--bruin);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 1024px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+}
