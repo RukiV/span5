@@ -45,6 +45,7 @@ class Asset(AssetBase, Base, table=True):
 
 class AssetCreate(AssetBase):
     assettype_id: int
+    room_id: Optional[int] = None
 
 
 class AssetRead(AssetBase):

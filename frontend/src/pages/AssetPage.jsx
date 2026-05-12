@@ -153,7 +153,16 @@ function AssetPage() {
   };
 
   const getRoomName = (item) => {
-    return item.room_id ? `Room ${item.room_id}` : "-";
+    if (!item.room_id) {
+      return "-";
+    }
+
+    const room = rooms.find((roomItem) => roomItem.room_id === item.room_id);
+    if (room) {
+      return room.room_name;
+    }
+
+    return `Room ${item.room_id}`;
   };
 
   if (loading) {
