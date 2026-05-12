@@ -22,7 +22,7 @@ class Faultcard(FaultcardBase, Base, table=True):
 
 
 class FaultcardCreate(FaultcardBase):
-    pass
+    asset_id: Optional[int] = None
 
 
 class FaultcardRead(FaultcardBase):

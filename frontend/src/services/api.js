@@ -66,20 +66,20 @@ export const locationAPI = {
 
 // Tickets API
 export const ticketsAPI = {
-  getAll: () => apiClient.get('/tickets'),
-  getById: (id) => apiClient.get(`/tickets/${id}`),
-  create: (data) => apiClient.post('/tickets', data),
-  update: (id, data) => apiClient.put(`/tickets/${id}`, data),
-  delete: (id) => apiClient.delete(`/tickets/${id}`),
+  getAll: () => apiClient.get('/fault'),
+  getById: (id) => apiClient.get(`/fault/${id}`),
+  create: (data) => apiClient.post('/fault', data),
+  update: (id, data) => apiClient.patch(`/fault/${id}`, data),
+  delete: (id) => apiClient.delete(`/fault/${id}`),
 };
 
 // Work Orders API
 export const workOrdersAPI = {
-  getAll: () => apiClient.get('/work-orders'),
-  getById: (id) => apiClient.get(`/work-orders/${id}`),
-  create: (data) => apiClient.post('/work-orders', data),
-  update: (id, data) => apiClient.put(`/work-orders/${id}`, data),
-  delete: (id) => apiClient.delete(`/work-orders/${id}`),
+  getAll: () => apiClient.get('/job'),
+  getById: (id) => apiClient.get(`/job/${id}`),
+  create: (data) => apiClient.post('/job', data),
+  update: (id, data) => apiClient.patch(`/job/${id}`, data),
+  delete: (id) => apiClient.delete(`/job/${id}`),
 };
 
 // Auth API

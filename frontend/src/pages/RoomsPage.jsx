@@ -17,7 +17,7 @@ function RoomsPage() {
   const [newRoom, setNewRoom] = useState({
     room_name: "",
     room_capacity: "",
-    room_type: "OTHER",
+    room_type: "other",
     location_id: "",
   });
 
@@ -339,10 +339,10 @@ function RoomsPage() {
                     value={newRoom.room_type}
                     onChange={(e) => setNewRoom({ ...newRoom, room_type: e.target.value })}
                   >
-                    <option value="CLASSROOM">Klaslokaal</option>
-                    <option value="LAB">Laboratorium</option>
-                    <option value="OFFICE">Kantoor</option>
-                    <option value="OTHER">Ander</option>
+                    <option value="classroom">Klaslokaal</option>
+                    <option value="laboratory">Laboratorium</option>
+                    <option value="office">Kantoor</option>
+                    <option value="other">Ander</option>
                   </select>
                 </div>
               </div>
