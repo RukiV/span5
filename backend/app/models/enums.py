@@ -32,7 +32,7 @@ class AssetStatus(Enum):
     DECOMMISSIONED = "decommissioned"   
 
 class RoomType(Enum):
-    OFFICE = "office"
+    OFFICE = "Kantoor"
     CONFERENCE = "conference"
     LABORATORY = "laboratory"
     WAREHOUSE = "warehouse"
