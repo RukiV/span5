@@ -187,12 +187,23 @@ class _JobCardsPageState extends State<JobCardsPage> {
   }
 
   Future<void> _markAsCompleted(Report report) async {
+    // Ons verander die fase na "Voltooi". 
+    // Die Report.toJson() sal dit outomaties map na 'fault_status': 'opgelos' vir die backend.
     final updatedReport = report.copyWith(phase: "Voltooi");
-    await ReportService.updateReport(updatedReport);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Werkkaart as voltooi gemerk"), backgroundColor: Colors.green),
-      );
+    
+    try {
+      await ReportService.updateReport(updatedReport);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Werkkaart suksesvol opgedateer in databasis"), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kon nie status opdateer nie. Is die backend aan?"), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 }
