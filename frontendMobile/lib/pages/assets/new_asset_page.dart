@@ -20,7 +20,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
 
   // Veranderlikes wat voorheen ontbreek het:
   String name = "";
-  String? generatedId;
+  String serialCode = "";
   bool isFixed = false;
   String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
   final List<String> categories = ["Meubels", "IT Toerusting", "Elektronika", "Kombuis", "Ander"];
@@ -53,15 +53,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
     } catch (_) {
       return [];
     }
-  }
-
-  // Verbeterde ID generasie
-  String _generateAndSetId() {
-    final newId = AssetService.generateUniqueId(category, selectedCampus ?? "GEN");
-    setState(() {
-      generatedId = newId;
-    });
-    return newId;
   }
 
   Widget _buildCustomTextField({
@@ -122,6 +113,14 @@ class _NewAssetPageState extends State<NewAssetPage> {
               ),
               const SizedBox(height: 20),
 
+              _buildCustomTextField(
+                label: "Serial Kode *",
+                hint: "bv. AK-MT000001",
+                onChanged: (v) => serialCode = v,
+                validator: (v) => (v == null || v.isEmpty) ? "Serial kode word vereis" : null,
+              ),
+              const SizedBox(height: 20),
+
               Row(
                 children: [
                   Expanded(
@@ -142,8 +141,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                           onChanged: (v) {
                             setState(() {
                               category = v!;
-                              // Moenie ID hier genereer nie, wag tot die knoppie gedruk word of genereer net as dit klaar gewys word
-                              if (generatedId != null) _generateAndSetId();
                             });
                           },
                         ),
@@ -238,7 +235,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                 ),
               ),
 
-              if (generatedId != null) ...[
+              if (serialCode != "") ...[
                 const SizedBox(height: 25),
                 Center(
                   child: Container(
@@ -251,11 +248,11 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     ),
                     child: Column(
                       children: [
-                        Text("BATE ID: $generatedId", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 15)),
+                        Text("BATE SERIAL: ${serialCode.isNotEmpty ? serialCode : 'Voer serial kode in'}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 15)),
                         const SizedBox(height: 15),
                         isFixed
-                            ? QrImageView(data: generatedId!, size: 150)
-                            : BarcodeWidget(barcode: Barcode.code128(), data: generatedId!, width: 220, height: 80),
+                            ? QrImageView(data: serialCode.isNotEmpty ? serialCode : 'Voer serial kode in', size: 150)
+                            : BarcodeWidget(barcode: Barcode.code128(), data: serialCode.isNotEmpty ? serialCode : 'Voer serial kode in', width: 220, height: 80),
                         const SizedBox(height: 12),
                         const Text("Druk hierdie kode uit vir die bate", style: TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic)),
                       ],
@@ -271,10 +268,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                 child: ElevatedButton(
                   onPressed: () async {
                     if (_formKey.currentState!.validate()) {
-                      // REGSTELLING: Genereer die ID onmiddellik in 'n plaaslike variable
-                      // sodat dit nie NULL is wanneer die Asset gebou word nie.
-                      final finalId = _generateAndSetId();
-
                       // Trek Room ID uit
                       String roomId = "1";
                       if (selectedLocation != null && selectedLocation!.contains(":")) {
@@ -283,11 +276,12 @@ class _NewAssetPageState extends State<NewAssetPage> {
 
                       final newAsset = Asset(
                         campus: selectedCampus ?? "Onbekend",
-                        id: finalId,
+                        id: '',
+                        serialCode: serialCode,
                         name: name,
                         category: category,
                         location: roomId,
-                        status: "Aktief",
+                        status: "active",
                         purchaseDate: DateTime.now(),
                         campusStartDate: DateTime.now(),
                       );

@@ -56,12 +56,38 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
     );
 
     if (scannedCode != null) {
-      final asset = AssetService.getAssetById(scannedCode);
+      final asset = await AssetService.getAssetBySerialCode(scannedCode);
       if (mounted) {
         if (asset != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)),
+          // TODO: Navigate to asset detail page or show asset info
+          // Navigator.push(
+          //   context,
+          //   MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)),
+          // );
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: const Text('Bate Gevind'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Naam: ${asset.name}'),
+                    const SizedBox(height: 8),
+                    Text('ID: ${asset.id}'),
+                    const SizedBox(height: 8),
+                    Text('Serial: ${asset.serialCode}'),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              );
+            },
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -198,7 +224,7 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
 
   Widget _buildAssetRow(Asset asset) {
     return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
+      // onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         child: Row(
