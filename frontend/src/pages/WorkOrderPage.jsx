@@ -87,6 +87,7 @@ function WorkOrderPage() {
       fetchWorkOrders();
     } catch (error) {
       console.error("Error saving work order:", error);
+      alert("Fout tydens besparing van werksopdrag. Probeer asseblief weer.");
     }
   };
 
@@ -126,11 +127,15 @@ function WorkOrderPage() {
   };
 
   const handleDeleteWorkOrder = async (workOrderId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie werksopdrag verwyder?")) {
+      return;
+    }
     try {
       await workOrdersAPI.delete(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Error deleting work order:", error);
+      alert("Fout tydens verwydering van werksopdrag. Probeer asseblief weer.");
     }
   };
 
@@ -383,7 +388,7 @@ function WorkOrderPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Beschrywing</label>
+                <label>Beskrywing</label>
                 <textarea
                   value={newWorkOrder.description}
                   onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })}

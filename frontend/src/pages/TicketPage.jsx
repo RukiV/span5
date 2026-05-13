@@ -71,7 +71,7 @@ function TicketPage() {
       const errorMsg = Array.isArray(errorDetail) 
         ? errorDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join('\n')
         : errorDetail || error.message;
-      alert("Fout by besparing:\n" + errorMsg);
+      alert("Fout by besparing van foutkaartjie:\n" + errorMsg);
     }
   };
 
@@ -108,11 +108,15 @@ function TicketPage() {
   };
 
   const handleDeleteTicket = async (ticketId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie foutkaartjie verwyder?")) {
+      return;
+    }
     try {
       await apiClient.tickets.delete(ticketId);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
+      alert("Fout tydens verwydering van foutkaartjie. Probeer asseblief weer.");
     }
   };
 

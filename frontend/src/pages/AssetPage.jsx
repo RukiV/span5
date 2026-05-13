@@ -69,6 +69,16 @@ function AssetPage() {
   const handleAddAsset = async () => {
     try {
       if (assetType === "asset") {
+        // Validation for assets
+        if (!newAsset.asset_name || !newAsset.asset_name.trim()) {
+          alert("Voer asseblief 'n batenaam in");
+          return;
+        }
+        if (!newAsset.asset_serial || !newAsset.asset_serial.trim()) {
+          alert("Voer asseblief 'n serienommer in");
+          return;
+        }
+        
         const assetData = {
           asset_name: newAsset.asset_name,
           asset_serial: newAsset.asset_serial,
@@ -84,6 +94,20 @@ function AssetPage() {
         }
         setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
       } else {
+        // Validation for inventory
+        if (!newStock.stock_name || !newStock.stock_name.trim()) {
+          alert("Voer asseblief 'n voorraadnaam in");
+          return;
+        }
+        if (!newStock.stock_brand || !newStock.stock_brand.trim()) {
+          alert("Voer asseblief 'n merk in");
+          return;
+        }
+        if (!newStock.stock_type || !newStock.stock_type.trim()) {
+          alert("Voer asseblief 'n tipe in");
+          return;
+        }
+        
         const stockData = {
           stock_name: newStock.stock_name,
           stock_brand: newStock.stock_brand,
@@ -107,10 +131,14 @@ function AssetPage() {
       }
     } catch (error) {
       console.error("Error saving item:", error);
+      alert("Fout tydens besparing. Probeer asseblief weer.");
     }
   };
 
   const handleDeleteAsset = async (id) => {
+    if (!window.confirm("Is jy seker jy wil hierdie item verwyder?")) {
+      return;
+    }
     try {
       if (assetType === "asset") {
         await assetsAPI.delete(id);
@@ -121,6 +149,7 @@ function AssetPage() {
       }
     } catch (error) {
       console.error("Error deleting item:", error);
+      alert("Fout tydens verwydering. Probeer asseblief weer.");
     }
   };
 
