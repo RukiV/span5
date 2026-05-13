@@ -15,10 +15,10 @@ def _get_or_create_zipcode(session: Session) -> Zipcode:
         return zipcode
 
     zipcode = Zipcode(
-        zipcode_suburb="Central",
-        zipcode_city="Techville",
-        zipcode_province="State",
-        zipcode_country="Country"
+        zipcode_suburb="Sentraal",
+        zipcode_city="Tegnopolis",
+        zipcode_province="Provinsie",
+        zipcode_country="Land"
     )
     session.add(zipcode)
     session.commit()
@@ -67,7 +67,7 @@ def _get_or_create_assettype(session: Session) -> Assettype:
         return assettype
 
     assettype = Assettype(
-        assettype_name="General Equipment",
+        assettype_name="Algemene Toerusting",
         assettype_avg_lifespan=5,
         assettype_min_lifespan=3,
         assettype_max_lifespan=7,
@@ -98,12 +98,13 @@ def _get_or_create_asset(session: Session, name: str, serial: str, status: Asset
     return asset
 
 
-def _get_or_create_stock(session: Session, brand: str, amount: int, stock_type: str, desc: str, room_id: int | None) -> Stock:
+def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, stock_type: str, desc: str, room_id: int | None) -> Stock:
     stock = session.exec(select(Stock).where(Stock.stock_brand == brand, Stock.stock_type == stock_type)).first()
     if stock:
         return stock
 
     stock = Stock(
+        stock_name=name,
         stock_brand=brand,
         stock_amount=amount,
         stock_type=stock_type,
@@ -189,25 +190,25 @@ def seed_data():
 
         loc1 = _get_or_create_location(
             session,
-            name="Main Campus",
-            location_type="Education",
+            name="Hoofkampus",
+            location_type="Onderwys",
             streetnum="123",
-            streetname="University Way",
+            streetname="Universiteitweg",
             zipcode_id=zipcode.zipcode_id,
         )
 
         loc2 = _get_or_create_location(
             session,
-            name="Tech Hub",
-            location_type="Office",
+            name="Tegnologiesentrum",
+            location_type="Kantoor",
             streetnum="45",
-            streetname="Innovation Blvd",
+            streetname="Innovasieblvd",
             zipcode_id=zipcode.zipcode_id,
         )
 
         room1 = _get_or_create_room(
             session,
-            name="Lecture Hall A",
+            name="Aula A",
             capacity=100,
             room_type=RoomType.OTHER,
             location_id=loc1.location_id,
@@ -215,7 +216,7 @@ def seed_data():
 
         room2 = _get_or_create_room(
             session,
-            name="Server Room",
+            name="Bedienervertrek",
             capacity=5,
             room_type=RoomType.OTHER,
             location_id=loc2.location_id,
@@ -225,7 +226,7 @@ def seed_data():
 
         _get_or_create_asset(
             session,
-            name="Projector 4K",
+            name="Projektor 4K",
             serial="AK-MT000001",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
@@ -235,7 +236,7 @@ def seed_data():
 
         _get_or_create_asset(
             session,
-            name="Outdoor Security Camera",
+            name="Buitetoeveiliingskamera",
             serial="AK-MT000002",
             status=AssetStatus.ACTIVE,
             is_outdoor=True,
@@ -245,46 +246,50 @@ def seed_data():
 
         _get_or_create_stock(
             session,
+            name="Dell Latitude",
             brand="Dell",
             amount=50,
-            stock_type="Laptop",
-            desc="Dell Latitude laptops for staff use",
+            stock_type="Skootrekenaar",
+            desc="Dell Latitude skootrekenaars vir personeelgebruik",
             room_id=room2.room_id,
         )
 
         _get_or_create_stock(
             session,
+            name="HP LaserJet",
             brand="HP",
             amount=25,
-            stock_type="Printer",
-            desc="HP LaserJet printers for office use",
+            stock_type="Drukker",
+            desc="HP LaserJet-drukkers vir kantoorgebruik",
             room_id=room1.room_id,
         )
 
         _get_or_create_stock(
             session,
+            name="Cisco Switch",
             brand="Cisco",
             amount=10,
-            stock_type="Network Switch",
-            desc="Cisco network switches for IT infrastructure",
+            stock_type="Netwerkskakelaars",
+            desc="Cisco-netwerkskakelaars vir IT-infrastruktuur",
             room_id=room2.room_id,
         )
 
         _get_or_create_stock(
             session,
+            name="Microsoft Office",
             brand="Microsoft",
             amount=100,
-            stock_type="Office License",
-            desc="Microsoft Office 365 licenses",
+            stock_type="Lisensie",
+            desc="Microsoft Office 365-lisensies",
             room_id=None,
         )
 
-        projector_asset = session.exec(select(Asset).where(Asset.asset_name == "Projector 4K")).first()
-        camera_asset = session.exec(select(Asset).where(Asset.asset_name == "Outdoor Security Camera")).first()
+        projector_asset = session.exec(select(Asset).where(Asset.asset_name == "Projektor 4K")).first()
+        camera_asset = session.exec(select(Asset).where(Asset.asset_name == "Buitetoeveiliingskamera")).first()
 
         _get_or_create_job(
             session,
-            desc="Replace projector lamp in Lecture Hall A",
+            desc="Vervang projektorbólpe in Aula A",
             status=JobStatus.WAIT,
             job_type="maintenance",
             created_dt=datetime.now(),
@@ -293,7 +298,7 @@ def seed_data():
 
         _get_or_create_job(
             session,
-            desc="Inspect outdoor security camera alignment",
+            desc="Inspekteer buitetoeveiliingskamerarigting",
             status=JobStatus.OPEN,
             job_type="inspection",
             created_dt=datetime.now(),
@@ -302,7 +307,7 @@ def seed_data():
 
         _get_or_create_fault(
             session,
-            description="Security camera offline due to power interruption",
+            description="Beveiliingskamera af-lêer vanweë stroomonderbreking",
             status=FaultStatus.WAIT,
             priority=Priority.HIGH,
             fault_type=Type.REPAIR,
@@ -312,7 +317,7 @@ def seed_data():
 
         _get_or_create_fault(
             session,
-            description="Projector bulb flickering during lectures",
+            description="Projektorbólpe flikkering tydens lesings",
             status=FaultStatus.OPEN,
             priority=Priority.MEDIUM,
             fault_type=Type.MAINTENANCE,

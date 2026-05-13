@@ -67,6 +67,16 @@ function RoomsPage() {
     }
   };
 
+  const translateRoomType = (type) => {
+    const translations = {
+      "classroom": "Klaslokaal",
+      "laboratory": "Laboratorium",
+      "office": "Kantoor",
+      "other": "Ander",
+    };
+    return translations[type] || type;
+  };
+
   const handleAddRoom = async () => {
     try {
       if (roomType === "room") {
@@ -317,7 +327,7 @@ function RoomsPage() {
                 <tr key={roomType === "room" ? item.room_id : item.location_id}>
                   <td>{roomType === "room" ? item.room_id : item.location_id}</td>
                   <td>{roomType === "room" ? item.room_name : item.location_name}</td>
-                  <td>{roomType === "room" ? (item.room_type || '-') : (item.location_type || '-')}</td>
+                  <td>{roomType === "room" ? translateRoomType(item.room_type || 'other') : (item.location_type || '-')}</td>
                   {roomType === "room" && <td>{getTerrainName(item.location_id)}</td>}
                   {roomType === "room" && <td>{item.room_capacity ?? '-'}</td>}
                   <td>Aktief</td>

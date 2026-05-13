@@ -145,6 +145,42 @@ function TicketPage() {
     }
   };
 
+  const translateCategory = (category) => {
+    const translations = {
+      maintenance: "Onderhoud",
+      repair: "Herstel",
+      upgrade: "Upgrade"
+    };
+    return translations[category] || category || "-";
+  };
+
+  const extractTitle = (faultDescription) => {
+    if (!faultDescription) return "-";
+    const parts = faultDescription.split(":");
+    return parts[0].trim();
+  };
+
+  const translateStatus = (status) => {
+    const translations = {
+      wag: "Hangende",
+      open: "Oop",
+      bevestig: "Bevestig",
+      besig: "Besig",
+      opgelos: "Opgelost",
+      verwerp: "Verwerp"
+    };
+    return translations[status] || status || "-";
+  };
+
+  const translatePriority = (priority) => {
+    const translations = {
+      low: "Laag",
+      medium: "Medium",
+      high: "Hoog"
+    };
+    return translations[priority] || priority || "-";
+  };
+
   if (loading) {
     return (
       <div style={{ display: "flex" }}>
@@ -218,7 +254,7 @@ function TicketPage() {
             <thead>
               <tr>
                 <th>ID Kaartjie</th>
-                <th>Beskrywing</th>
+                <th>Titel</th>
                 <th>Kategorie</th>
                 <th>Prioriteit</th>
                 <th>Status</th>
@@ -229,12 +265,12 @@ function TicketPage() {
               {filteredTickets.map((ticket) => (
                 <tr key={ticket.fault_id}>
                   <td>{ticket.fault_id}</td>
-                  <td>{ticket.fault_description}</td>
-                  <td>{ticket.fault_type || '-'}</td>
-                  <td>{ticket.fault_priority}</td>
+                  <td>{extractTitle(ticket.fault_description)}</td>
+                  <td>{translateCategory(ticket.fault_type)}</td>
+                  <td>{translatePriority(ticket.fault_priority)}</td>
                   <td>
                     <span className={`status ${getStatusClass(ticket.fault_status)}`}>
-                      {ticket.fault_status}
+                      {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
                   <td>
@@ -270,12 +306,15 @@ function TicketPage() {
               </div>
               <div className="input-group">
                 <label>Kategorie</label>
-                <input
-                  type="text"
+                <select
                   value={newTicket.category}
                   onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
-                  placeholder="bv. Elektries, Klemplerij, ens"
-                />
+                >
+                  <option value="">Kies kategorie</option>
+                  <option value="maintenance">Onderhoud</option>
+                  <option value="repair">Herstel</option>
+                  <option value="upgrade">Upgrade</option>
+                </select>
               </div>
             </div>
             <div className="input-row">
