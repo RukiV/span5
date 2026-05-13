@@ -23,6 +23,7 @@ function AssetPage() {
     room_id: "",
   });
   const [newStock, setNewStock] = useState({
+    stock_name: "",
     stock_brand: "",
     stock_amount: 0,
     stock_type: "",
@@ -84,6 +85,7 @@ function AssetPage() {
         setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
       } else {
         const stockData = {
+          stock_name: newStock.stock_name,
           stock_brand: newStock.stock_brand,
           stock_amount: Number(newStock.stock_amount),
           stock_type: newStock.stock_type,
@@ -95,7 +97,7 @@ function AssetPage() {
         } else {
           await stockAPI.create(stockData);
         }
-        setNewStock({ stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+        setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
       }
       handleCloseModal();
       if (assetType === "asset") {
@@ -136,6 +138,7 @@ function AssetPage() {
       });
     } else {
       setNewStock({
+        stock_name: item.stock_name || "",
         stock_brand: item.stock_brand || "",
         stock_amount: item.stock_amount || 0,
         stock_type: item.stock_type || "",
@@ -172,6 +175,7 @@ function AssetPage() {
   }) : stock.filter((item) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch =
+      item.stock_name?.toLowerCase().includes(query) ||
       item.stock_brand?.toLowerCase().includes(query) ||
       item.stock_type?.toLowerCase().includes(query) ||
       item.stock_desc?.toLowerCase().includes(query);
@@ -307,8 +311,9 @@ function AssetPage() {
               {filteredItems.map((item) => (
                 <tr key={assetType === "asset" ? item.asset_id : item.stock_id}>
                   <td>{assetType === "asset" ? item.asset_id : item.stock_id}</td>
-                  <td>{assetType === "asset" ? item.asset_name : item.stock_brand}</td>
+                  <td>{assetType === "asset" ? item.asset_name : item.stock_name}</td>
                   {assetType === "asset" && <td>{item.asset_serial}</td>}
+                  {assetType === "inventory" && <td>{item.stock_brand}</td>}
                   {assetType === "inventory" && <td>{item.stock_type}</td>}
                   {assetType === "inventory" && <td>{item.stock_amount}</td>}
                   {assetType === "asset" && <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>}
@@ -342,18 +347,16 @@ function AssetPage() {
               <h3>{isEditing ? "Wysig" : "Nuwe"} {assetType === "asset" ? "Bate" : "Voorraad"} {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
               <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>{assetType === "asset" ? "Naam" : "Merk"}</label>
-                <input
-                  type="text"
-                  value={assetType === "asset" ? newAsset.asset_name : newStock.stock_brand}
-                  onChange={(e) => assetType === "asset" 
-                    ? setNewAsset({ ...newAsset, asset_name: e.target.value })
-                    : setNewStock({ ...newStock, stock_brand: e.target.value })}
-                />
-              </div>
-              {assetType === "asset" && (
+            {assetType === "asset" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam</label>
+                  <input
+                    type="text"
+                    value={newAsset.asset_name}
+                    onChange={(e) => setNewAsset({ ...newAsset, asset_name: e.target.value })}
+                  />
+                </div>
                 <div className="input-group">
                   <label>Serienommer</label>
                   <input
@@ -363,8 +366,30 @@ function AssetPage() {
                     placeholder="bv. AK-MT000001"
                   />
                 </div>
-              )}
-              {assetType === "inventory" && (
+              </div>
+            )}
+            {assetType === "inventory" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_name}
+                    onChange={(e) => setNewStock({ ...newStock, stock_name: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Merk</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_brand}
+                    onChange={(e) => setNewStock({ ...newStock, stock_brand: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+            {assetType === "inventory" && (
+              <div className="input-row">
                 <div className="input-group">
                   <label>Tipe</label>
                   <input
@@ -373,8 +398,8 @@ function AssetPage() {
                     onChange={(e) => setNewStock({ ...newStock, stock_type: e.target.value })}
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             {assetType === "inventory" && (
               <div className="input-row">
                 <div className="input-group">
