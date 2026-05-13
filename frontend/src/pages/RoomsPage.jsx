@@ -80,8 +80,12 @@ function RoomsPage() {
   const handleAddRoom = async () => {
     try {
       if (roomType === "room") {
-        if (!newRoom.room_name || !newRoom.location_id) {
-          alert("Voer asseblief die roomnaam en terrein in");
+        if (!newRoom.room_name || !newRoom.room_name.trim()) {
+          alert("Voer asseblief 'n lokaalnaam in");
+          return;
+        }
+        if (!newRoom.location_id) {
+          alert("Voer asseblief 'n terrein in");
           return;
         }
         const roomData = {
@@ -102,6 +106,14 @@ function RoomsPage() {
           location_id: "",
         });
       } else {
+        if (!newTerrain.location_name || !newTerrain.location_name.trim()) {
+          alert("Voer asseblief 'n terreinnaam in");
+          return;
+        }
+        if (!newTerrain.location_type || !newTerrain.location_type.trim()) {
+          alert("Voer asseblief 'n terreintype in");
+          return;
+        }
         const terrainData = {
           location_name: newTerrain.location_name,
           location_type: newTerrain.location_type,
@@ -127,6 +139,7 @@ function RoomsPage() {
       fetchTerrains();
     } catch (error) {
       console.error("Error saving:", error);
+      alert("Fout tydens besparing. Probeer asseblief weer.");
     }
   };
 
@@ -205,6 +218,9 @@ function RoomsPage() {
   };
 
   const handleDeleteItem = async (itemId) => {
+    if (!window.confirm(`Is jy seker jy wil hierdie ${roomType === "room" ? "lokaal" : "terrein"} verwyder?`)) {
+      return;
+    }
     try {
       if (roomType === "room") {
         await roomsAPI.delete(itemId);
@@ -215,6 +231,7 @@ function RoomsPage() {
       }
     } catch (error) {
       console.error('Error deleting item:', error);
+      alert("Fout tydens verwydering. Probeer asseblief weer.");
     }
   };
 
