@@ -28,14 +28,14 @@ class ForgotPasswordPage extends StatelessWidget {
               style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 30),
-            TextField(
-              style: const TextStyle(color: Colors.white),
+            const TextField(
+              style: TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 labelText: "E-posadres",
-                labelStyle: const TextStyle(color: Colors.white70),
-                prefixIcon: const Icon(Icons.email, color: AppColors.lightGold),
-                enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
+                labelStyle: TextStyle(color: Colors.white70),
+                prefixIcon: Icon(Icons.email, color: AppColors.lightGold),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: AppColors.gold)),
               ),
             ),
             const SizedBox(height: 30),
