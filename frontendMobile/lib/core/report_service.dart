@@ -11,7 +11,7 @@ class ReportService {
 
   static Future<void> fetchReports() async {
     try {
-      final response = await ApiClient.dio.get('/reports');
+      final response = await ApiClient.dio.get('/fault');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _reports.clear();
@@ -25,18 +25,11 @@ class ReportService {
 
   static Future<bool> addReport(Report report, File? imageFile) async {
     try {
-      Map<String, dynamic> data = report.toJson();
+      // Vir nou stuur ons net die JSON data aangesien die backend dalk nie 
+      // Multipart/Form-data vir FaultcardCreate ondersteun nie (dit gebruik Pydantic model)
+      final response = await ApiClient.dio.post('/fault', data: report.toJson());
       
-      if (imageFile != null) {
-        String fileName = imageFile.path.split('/').last;
-        data['image'] = await MultipartFile.fromFile(imageFile.path, filename: fileName);
-      }
-
-      FormData formData = FormData.fromMap(data);
-
-      final response = await ApiClient.dio.post('/reports', data: formData);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Indien die backend die nuwe verslag met die regte imageUrl terugstuur
         final newReport = Report.fromJson(response.data);
         _reports.insert(0, newReport);
         reportsNotifier.value = List.from(_reports);
@@ -50,7 +43,8 @@ class ReportService {
 
   static Future<void> updateReport(Report updatedReport) async {
     try {
-      final response = await ApiClient.dio.put('/reports/${updatedReport.id}', data: updatedReport.toJson());
+      // Gebruik PATCH soos per backend endpoint
+      final response = await ApiClient.dio.patch('/fault/${updatedReport.id}', data: updatedReport.toJson());
       if (response.statusCode == 200) {
         final index = _reports.indexWhere((r) => r.id == updatedReport.id);
         if (index != -1) {

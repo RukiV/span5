@@ -1,6 +1,7 @@
 enum UserRole { admin, manager, student, contractor }
 
 class UserSession {
+  static int userId = 1; // By verstek, sal opgedateer word tydens login
   static UserRole role = UserRole.student;
   static String userName = "Simeon";
   static String userEmail = "";
