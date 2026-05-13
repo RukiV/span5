@@ -39,6 +39,28 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           children: [
             _buildStatusCard(context),
             const SizedBox(height: 25),
+            if (_currentReport.imageUrl != null || widget.screenshot != null) ...[
+              _buildSectionHeader("Foto van Probleem"),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: _currentReport.imageUrl != null 
+                  ? Image.network(
+                      _currentReport.imageUrl!,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => _imagePlaceholder(),
+                    )
+                  : Image.memory(
+                      widget.screenshot!,
+                      height: 200,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+              ),
+              const SizedBox(height: 25),
+            ],
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
             _buildDetailRow("Lokaal", _currentReport.location),
@@ -60,6 +82,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _imagePlaceholder() {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      color: Colors.grey[200],
+      child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 50),
     );
   }
 
