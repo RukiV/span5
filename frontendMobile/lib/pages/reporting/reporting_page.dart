@@ -93,7 +93,7 @@ class _ReportingPageState extends State<ReportingPage> {
         }
 
         // Studente sien net hul eie lys (GEEN TABS)
-        final studentReports = allReports.where((r) => r.user == UserSession.userName).toList();
+        final studentReports = allReports.where((r) => r.user == UserSession.userId.toString()).toList();
         
         final filteredStudentReports = studentReports.where((r) {
           final matchesSearch = _searchQuery.isEmpty || 
