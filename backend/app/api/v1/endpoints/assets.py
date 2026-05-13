@@ -15,8 +15,17 @@ def readAssets(session: Session = Depends(getSession)):
 
 @router.get("/{assetID}", response_model=AssetRead)
 def readAsset(assetID: int, session: Session = Depends(getSession)):
-    #Fetch single asset
+    #Fetch single asset by id
     asset = assets_service.getByID(session, assetID)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    
+    return asset
+
+@router.get("/serial/{serial}", response_model=AssetRead)
+def readAssetBySerial(serial: str, session: Session = Depends(getSession)):
+    #Fetch asset by serial code
+    asset = assets_service.getBySerial(session, serial)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     

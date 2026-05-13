@@ -31,6 +31,18 @@ class AssetService {
     }
   }
 
+  static Future<Asset?> getAssetBySerialCode(String serialCode) async {
+    try {
+      final response = await ApiClient.dio.get('/assets/serial/$serialCode');
+      if (response.statusCode == 200) {
+        return Asset.fromJson(response.data);
+      }
+    } catch (e) {
+      debugPrint("Fout met laai van bate by serial: $e");
+    }
+    return null;
+  }
+
   static String generateUniqueId(String category, String campus) {
     final prefix = category.substring(0, min(3, category.length)).toUpperCase();
     final campusPrefix = campus.substring(0, min(3, campus.length)).toUpperCase();

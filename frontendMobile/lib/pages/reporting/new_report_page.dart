@@ -10,6 +10,7 @@ import 'scan_page.dart';
 import '../../core/report_service.dart';
 import '../../models/report.dart';
 import '../../models/campus.dart';
+import '../../core/asset_service.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -24,7 +25,7 @@ class _NewReportPageState extends State<NewReportPage> {
   File? problemImage;
   String? gpsCoords;
   Uint8List? mapScreenshot;
-  final TextEditingController idController = TextEditingController();
+  final TextEditingController serialController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descController = TextEditingController();
 
@@ -61,12 +62,12 @@ class _NewReportPageState extends State<NewReportPage> {
     if (result == null) return;
     setState(() {
       isInvisibleCode = false;
-      idController.text = result;
+      serialController.text = result;
     });
   }
 
   bool get _canSubmit {
-    bool hasAsset = isInvisibleCode ? (selectedCategory != null) : idController.text.isNotEmpty;
+    bool hasAsset = isInvisibleCode ? (selectedCategory != null) : serialController.text.isNotEmpty;
     bool hasLocation = isUnknownLocation ? (gpsCoords != null) : (selectedLocation != null);
     bool hasDescription = titleController.text.trim().isNotEmpty && descController.text.trim().length > 3;
     return hasAsset && hasLocation && hasDescription;
@@ -95,11 +96,11 @@ class _NewReportPageState extends State<NewReportPage> {
                     children: [
                       if (!isInvisibleCode) ...[
                         _buildLabelWithAction(
-                            "Bate Kode (Sigbare Kode) *",
+                            "Bate Serial Kode (Sigbare Kode) *",
                             "Kode Onsigbaar",
                                 () => setState(() {
                               isInvisibleCode = true;
-                              idController.clear();
+                              serialController.clear();
                             })
                         ),
                         const SizedBox(height: labelGap),
@@ -181,8 +182,19 @@ class _NewReportPageState extends State<NewReportPage> {
                               return;
                             }
 
+                            // Validate asset serial
+                            if (!isInvisibleCode) {
+                              final asset = await AssetService.getAssetBySerialCode(serialController.text);
+                              if (asset == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: Colors.red),
+                                );
+                                return;
+                              }
+                            }
+
                             // 3. Bou die verslag veilig
-                            final String finalAssetId = isInvisibleCode ? "0" : idController.text;
+                            final String finalAssetId = isInvisibleCode ? "0" : serialController.text;
 
                             // Trek die Room ID uit die "ID:Name" string
                             String roomId = "1"; // Default
@@ -263,9 +275,9 @@ class _NewReportPageState extends State<NewReportPage> {
       children: [
         Expanded(
           child: _buildCustomTextField(
-            controller: idController,
-            hint: "Tik Kode of Skandeer...",
-            hasError: showValidationErrors && idController.text.isEmpty,
+            controller: serialController,
+            hint: "Tik Serial Kode of Skandeer...",
+            hasError: showValidationErrors && serialController.text.isEmpty,
           ),
         ),
         const SizedBox(width: 8),
