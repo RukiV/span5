@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/campus_service.dart';
+import '../../models/campus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:barcode_widget/barcode_widget.dart';
 import '../../core/app_colors.dart';
