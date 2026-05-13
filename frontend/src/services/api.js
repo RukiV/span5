@@ -108,4 +108,14 @@ export const usersAPI = {
   delete: (id) => apiClient.delete(`/users/${id}`),
 };
 
+// Attach all API collections to apiClient
+apiClient.assets = assetsAPI;
+apiClient.stock = stockAPI;
+apiClient.rooms = roomsAPI;
+apiClient.location = locationAPI;
+apiClient.tickets = ticketsAPI;
+apiClient.workOrders = workOrdersAPI;
+apiClient.auth = authAPI;
+apiClient.users = usersAPI;
+
 export { apiClient };
