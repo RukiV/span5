@@ -4,6 +4,7 @@ from .base import Base
 
 
 class StockBase(SQLModel):
+    stock_name: Optional[str] = Field(max_length=100)
     stock_brand: str = Field(max_length=100)
     stock_amount: int = Field(default=0)
     stock_type: str = Field(max_length=100)
@@ -25,6 +26,7 @@ class StockRead(StockBase):
 
 
 class StockUpdate(SQLModel):
+    stock_name: Optional[str] = None
     stock_brand: Optional[str] = None
     stock_amount: Optional[int] = None
     stock_type: Optional[str] = None
