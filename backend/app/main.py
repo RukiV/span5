@@ -18,8 +18,8 @@ def onStartup():
 #ports
 
 origins = [ 
-    "http://localhost:3001", 
-    "http://frontend:3001"
+    "http://localhost:3000", 
+    "http://frontend:3000"
 ]
 
 # CORS middleware

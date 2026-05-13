@@ -88,19 +88,19 @@ const DashboardPage = () => {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>Air Conditioner Unit 1</td>
+                    <td>Lug versorger</td>
                     <td>Filter vervanging</td>
                     <td><span className="status completed">Voltooi</span></td>
                     <td>2023-10-01</td>
                   </tr>
                   <tr>
-                    <td>Generator Backup</td>
+                    <td>Kragopwerker</td>
                     <td>Brandstof pomp herstel</td>
                     <td><span className="status in-progress">Besig</span></td>
                     <td>2023-10-02</td>
                   </tr>
                   <tr>
-                    <td>Elevator Main</td>
+                    <td>Huisbak Hoof</td>
                     <td>Kabel inspeksie</td>
                     <td><span className="status pending">Hangende</span></td>
                     <td>2023-10-03</td>
