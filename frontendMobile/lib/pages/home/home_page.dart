@@ -101,8 +101,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     String roleTitle = "";
-    if (UserSession.isAdmin) roleTitle = "Admin Mode";
-    else if (UserSession.isManager) roleTitle = "Bestuurder: ${UserSession.userCampus}";
+    if (UserSession.isAdmin) {
+      roleTitle = "Admin Mode";
+    } else if (UserSession.isManager) roleTitle = "Bestuurder: ${UserSession.userCampus}";
     else if (UserSession.isContractor) roleTitle = "Kontrakteur";
 
     return Scaffold(

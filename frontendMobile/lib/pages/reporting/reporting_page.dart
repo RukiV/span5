@@ -18,6 +18,13 @@ class _ReportingPageState extends State<ReportingPage> {
   final String _priorityFilter = "Alles";
 
   @override
+  void initState() {
+    super.initState();
+    // Laai vars data van die backend af wanneer die bladsy oopmaak
+    ReportService.fetchReports();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<Report>>(
       valueListenable: ReportService.reportsNotifier,
@@ -86,7 +93,7 @@ class _ReportingPageState extends State<ReportingPage> {
         }
 
         // Studente sien net hul eie lys (GEEN TABS)
-        final studentReports = allReports.where((r) => r.user == UserSession.userName).toList();
+        final studentReports = allReports.where((r) => r.user == UserSession.userId.toString()).toList();
         
         final filteredStudentReports = studentReports.where((r) {
           final matchesSearch = _searchQuery.isEmpty || 

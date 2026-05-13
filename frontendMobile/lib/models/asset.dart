@@ -6,9 +6,9 @@ class Asset {
   final String status;
   final DateTime purchaseDate;
   final DateTime campusStartDate;
-  final String campus; // Nuwe veld vir campus-filtering
+  final String campus; 
   final List<String> warrantyReceipts;
-  final List<String> reportIds; // IDs van alle verslae gekoppel aan hierdie bate
+  final List<String> reportIds;
 
   Asset({
     required this.campus,
@@ -50,30 +50,39 @@ class Asset {
     );
   }
 
-
   Map<String, dynamic> toJson() => {
-    'campus': campus,
-    'id': id,
-    'name': name,
-    'category': category,
-    'location': location,
-    'status': status,
-    'purchaseDate': purchaseDate.toIso8601String(),
-    'campusStartDate': campusStartDate.toIso8601String(),
-    'warrantyReceipts': warrantyReceipts,
-    'reportIds': reportIds,
+    'asset_name': name,
+    'asset_status': status.toLowerCase(),
+    'room_id': int.tryParse(location) ?? 1,
+    'assettype_id': _getCategoryId(category),
   };
 
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
-    campus: json['campus'] ?? 'Hoofkampus (Centurion)',
-    id: json['id'],
-    name: json['name'],
-    category: json['category'],
-    location: json['location'],
-    status: json['status'],
-    purchaseDate: DateTime.parse(json['purchaseDate']),
-    campusStartDate: DateTime.parse(json['campusStartDate']),
-    warrantyReceipts: List<String>.from(json['warrantyReceipts'] ?? []),
-    reportIds: List<String>.from(json['reportIds'] ?? []),
+    campus: 'Hoofkampus (Centurion)', // Backend het nie 'n direkte campus veld op asset nie
+    id: json['asset_id']?.toString() ?? '',
+    name: json['asset_name'] ?? 'Onbekende Bate',
+    category: _getCategoryName(json['assettype_id']),
+    location: json['room_id']?.toString() ?? '1',
+    status: json['asset_status'] ?? 'Active',
+    purchaseDate: DateTime.now(), // Backend stoor nie tans aankoopdatum nie
+    campusStartDate: DateTime.now(),
+    warrantyReceipts: [],
+    reportIds: [],
   );
+
+  static int _getCategoryId(String cat) {
+    switch (cat) {
+      case "Meubels": return 1;
+      case "IT Toerusting": return 2;
+      default: return 3;
+    }
+  }
+
+  static String _getCategoryName(int? id) {
+    switch (id) {
+      case 1: return "Meubels";
+      case 2: return "IT Toerusting";
+      default: return "Ander";
+    }
+  }
 }
