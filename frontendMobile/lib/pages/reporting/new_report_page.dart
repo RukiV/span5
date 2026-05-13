@@ -9,6 +9,7 @@ import 'scan_page.dart';
 
 import '../../core/report_service.dart';
 import '../../models/report.dart';
+import '../../models/campus.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -278,22 +279,22 @@ class _NewReportPageState extends State<NewReportPage> {
 
   Widget _buildCategoryDropdown() {
     final categories = ["Instandhouding", "Herstel", "Opgradering", "Ander"];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEFBEA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: (showValidationErrors && selectedCategory == null) ? Colors.red : Colors.grey[400]!),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: selectedCategory,
-          hint: const Text("Kies Kategorie", style: TextStyle(fontSize: 14)),
-          items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-          onChanged: (v) => setState(() => selectedCategory = v),
+    return DropdownButtonFormField<String>(
+      value: selectedCategory,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: const Color(0xFFFEFBEA),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
         ),
       ),
+      hint: const Text("Kies Kategorie", style: TextStyle(fontSize: 14)),
+      items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+      onChanged: (v) => setState(() => selectedCategory = v),
+      validator: (v) => v == null ? "Kategorie word vereis" : null,
     );
   }
 
@@ -301,25 +302,25 @@ class _NewReportPageState extends State<NewReportPage> {
     return ValueListenableBuilder<List<Campus>>(
       valueListenable: CampusService.campusesNotifier,
       builder: (context, campuses, _) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFEFBEA),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: (showValidationErrors && selectedCampus == null) ? Colors.red : Colors.grey[400]!),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              isExpanded: true,
-              value: selectedCampus,
-              hint: const Text("Kies Kampus", style: TextStyle(fontSize: 14)),
-              items: campuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
-              onChanged: (v) => setState(() {
-                selectedCampus = v;
-                selectedLocation = null; // Reset lokaal as kampus verander
-              }),
+        return DropdownButtonFormField<String>(
+          value: selectedCampus,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFFFEFBEA),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
           ),
+          hint: const Text("Kies Kampus", style: TextStyle(fontSize: 14)),
+          items: campuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+          onChanged: (v) => setState(() {
+            selectedCampus = v;
+            selectedLocation = null; // Reset lokaal as kampus verander
+          }),
+          validator: (v) => v == null ? "Kampus word vereis" : null,
         );
       },
     );
@@ -344,25 +345,25 @@ class _NewReportPageState extends State<NewReportPage> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEFBEA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: (showValidationErrors && selectedLocation == null) ? Colors.red : Colors.grey[400]!),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: selectedLocation,
-          hint: Text(selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal", style: const TextStyle(fontSize: 14)),
-          items: filteredRooms.map((r) {
-            final name = r.contains(":") ? r.split(":").last : r;
-            return DropdownMenuItem(value: r, child: Text(name));
-          }).toList(),
-          onChanged: (v) => setState(() => selectedLocation = v),
+    return DropdownButtonFormField<String>(
+      value: selectedLocation,
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: const Color(0xFFFEFBEA),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: Colors.grey[300]!),
         ),
       ),
+      hint: Text(selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal", style: const TextStyle(fontSize: 14)),
+      items: filteredRooms.map((r) {
+        final name = r.contains(":") ? r.split(":").last : r;
+        return DropdownMenuItem(value: r, child: Text(name));
+      }).toList(),
+      onChanged: (v) => setState(() => selectedLocation = v),
+      validator: (v) => v == null ? "Lokaal word vereis" : null,
     );
   }
 
