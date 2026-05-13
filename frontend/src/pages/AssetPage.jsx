@@ -12,14 +12,18 @@ function AssetPage() {
   const [filter, setFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [assetType, setAssetType] = useState("asset"); // "asset" or "inventory"
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
+    asset_serial: "",
     asset_isoutdoor: false,
     asset_status: "active",
     assettype_id: 1,
     room_id: "",
   });
   const [newStock, setNewStock] = useState({
+    stock_name: "",
     stock_brand: "",
     stock_amount: 0,
     stock_type: "",
@@ -65,38 +69,76 @@ function AssetPage() {
   const handleAddAsset = async () => {
     try {
       if (assetType === "asset") {
+        // Validation for assets
+        if (!newAsset.asset_name || !newAsset.asset_name.trim()) {
+          alert("Voer asseblief 'n batenaam in");
+          return;
+        }
+        if (!newAsset.asset_serial || !newAsset.asset_serial.trim()) {
+          alert("Voer asseblief 'n serienommer in");
+          return;
+        }
+        
         const assetData = {
           asset_name: newAsset.asset_name,
+          asset_serial: newAsset.asset_serial,
           asset_status: newAsset.asset_status,
           asset_isoutdoor: newAsset.asset_isoutdoor,
           assettype_id: 1,
           room_id: newAsset.room_id ? Number(newAsset.room_id) : null,
         };
-        await assetsAPI.create(assetData);
-        setNewAsset({ asset_name: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
+        if (isEditing) {
+          await assetsAPI.update(editingId, assetData);
+        } else {
+          await assetsAPI.create(assetData);
+        }
+        setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
       } else {
+        // Validation for inventory
+        if (!newStock.stock_name || !newStock.stock_name.trim()) {
+          alert("Voer asseblief 'n voorraadnaam in");
+          return;
+        }
+        if (!newStock.stock_brand || !newStock.stock_brand.trim()) {
+          alert("Voer asseblief 'n merk in");
+          return;
+        }
+        if (!newStock.stock_type || !newStock.stock_type.trim()) {
+          alert("Voer asseblief 'n tipe in");
+          return;
+        }
+        
         const stockData = {
+          stock_name: newStock.stock_name,
           stock_brand: newStock.stock_brand,
           stock_amount: Number(newStock.stock_amount),
           stock_type: newStock.stock_type,
           stock_desc: newStock.stock_desc,
           room_id: newStock.room_id ? Number(newStock.room_id) : null,
         };
-        await stockAPI.create(stockData);
-        setNewStock({ stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+        if (isEditing) {
+          await stockAPI.update(editingId, stockData);
+        } else {
+          await stockAPI.create(stockData);
+        }
+        setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
       }
-      setShowModal(false);
+      handleCloseModal();
       if (assetType === "asset") {
         fetchAssets();
       } else {
         fetchStock();
       }
     } catch (error) {
-      console.error("Error adding item:", error);
+      console.error("Error saving item:", error);
+      alert("Fout tydens besparing. Probeer asseblief weer.");
     }
   };
 
   const handleDeleteAsset = async (id) => {
+    if (!window.confirm("Is jy seker jy wil hierdie item verwyder?")) {
+      return;
+    }
     try {
       if (assetType === "asset") {
         await assetsAPI.delete(id);
@@ -107,7 +149,49 @@ function AssetPage() {
       }
     } catch (error) {
       console.error("Error deleting item:", error);
+      alert("Fout tydens verwydering. Probeer asseblief weer.");
     }
+  };
+
+  const handleEditAsset = (item) => {
+    setIsEditing(true);
+    setEditingId(assetType === "asset" ? item.asset_id : item.stock_id);
+    if (assetType === "asset") {
+      setNewAsset({
+        asset_name: item.asset_name,
+        asset_serial: item.asset_serial || "",
+        asset_isoutdoor: item.asset_isoutdoor || false,
+        asset_status: item.asset_status || "active",
+        assettype_id: item.assettype_id || 1,
+        room_id: item.room_id || "",
+      });
+    } else {
+      setNewStock({
+        stock_name: item.stock_name || "",
+        stock_brand: item.stock_brand || "",
+        stock_amount: item.stock_amount || 0,
+        stock_type: item.stock_type || "",
+        stock_desc: item.stock_desc || "",
+        room_id: item.room_id || "",
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
+    setNewStock({ stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+  };
+
+  const handleNewAsset = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
+    setNewStock({ stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+    setShowModal(true);
   };
 
   const filteredItems = assetType === "asset" ? assets.filter((asset) => {
@@ -120,6 +204,7 @@ function AssetPage() {
   }) : stock.filter((item) => {
     const query = searchTerm.toLowerCase();
     const matchesSearch =
+      item.stock_name?.toLowerCase().includes(query) ||
       item.stock_brand?.toLowerCase().includes(query) ||
       item.stock_type?.toLowerCase().includes(query) ||
       item.stock_desc?.toLowerCase().includes(query);
@@ -232,7 +317,7 @@ function AssetPage() {
               <option value="maintenance">Onderhoud</option>
               <option value="retired">Afgedank</option>
             </select>
-            <button className="btn-add-bate" onClick={() => setShowModal(true)}>+ Nuwe {assetType === "asset" ? "Bate" : "Voorraad"}</button>
+            <button className="btn-add-bate" onClick={handleNewAsset}>+ Nuwe {assetType === "asset" ? "Bate" : "Voorraad"}</button>
           </div>
 
           <table className="bates-table">
@@ -241,6 +326,7 @@ function AssetPage() {
                 {assetType === "asset" && <th>ID Bate</th>}
                 {assetType === "inventory" && <th>ID Voorraad</th>}
                 <th>Naam</th>
+                {assetType === "asset" && <th>Serienommer</th>}
                 {assetType === "inventory" && <th>Merk</th>}
                 {assetType === "inventory" && <th>Tipe</th>}
                 {assetType === "inventory" && <th>Hoeveelheid</th>}
@@ -254,7 +340,9 @@ function AssetPage() {
               {filteredItems.map((item) => (
                 <tr key={assetType === "asset" ? item.asset_id : item.stock_id}>
                   <td>{assetType === "asset" ? item.asset_id : item.stock_id}</td>
-                  <td>{assetType === "asset" ? item.asset_name : item.stock_brand}</td>
+                  <td>{assetType === "asset" ? item.asset_name : item.stock_name}</td>
+                  {assetType === "asset" && <td>{item.asset_serial}</td>}
+                  {assetType === "inventory" && <td>{item.stock_brand}</td>}
                   {assetType === "inventory" && <td>{item.stock_type}</td>}
                   {assetType === "inventory" && <td>{item.stock_amount}</td>}
                   {assetType === "asset" && <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>}
@@ -267,6 +355,9 @@ function AssetPage() {
                     </td>
                   )}
                   <td>
+                    <button className="btn-edit" onClick={() => handleEditAsset(item)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteAsset(assetType === "asset" ? item.asset_id : item.stock_id)}>
                       Verwyder
                     </button>
@@ -282,21 +373,52 @@ function AssetPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe {assetType === "asset" ? "Bate" : "Voorraad"} (ID sal outomaties gegenereer word)</h3>
-              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} {assetType === "asset" ? "Bate" : "Voorraad"} {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>{assetType === "asset" ? "Naam" : "Merk"}</label>
-                <input
-                  type="text"
-                  value={assetType === "asset" ? newAsset.asset_name : newStock.stock_brand}
-                  onChange={(e) => assetType === "asset" 
-                    ? setNewAsset({ ...newAsset, asset_name: e.target.value })
-                    : setNewStock({ ...newStock, stock_brand: e.target.value })}
-                />
+            {assetType === "asset" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam</label>
+                  <input
+                    type="text"
+                    value={newAsset.asset_name}
+                    onChange={(e) => setNewAsset({ ...newAsset, asset_name: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Serienommer</label>
+                  <input
+                    type="text"
+                    value={newAsset.asset_serial}
+                    onChange={(e) => setNewAsset({ ...newAsset, asset_serial: e.target.value })}
+                    placeholder="bv. AK-MT000001"
+                  />
+                </div>
               </div>
-              {assetType === "inventory" && (
+            )}
+            {assetType === "inventory" && (
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_name}
+                    onChange={(e) => setNewStock({ ...newStock, stock_name: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Merk</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_brand}
+                    onChange={(e) => setNewStock({ ...newStock, stock_brand: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+            {assetType === "inventory" && (
+              <div className="input-row">
                 <div className="input-group">
                   <label>Tipe</label>
                   <input
@@ -305,8 +427,8 @@ function AssetPage() {
                     onChange={(e) => setNewStock({ ...newStock, stock_type: e.target.value })}
                   />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
             {assetType === "inventory" && (
               <div className="input-row">
                 <div className="input-group">
@@ -378,8 +500,8 @@ function AssetPage() {
               </div>
             )}
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddAsset}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

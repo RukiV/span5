@@ -9,6 +9,8 @@ function TicketPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -25,9 +27,11 @@ function TicketPage() {
     setLoading(true);
     try {
       const response = await apiClient.tickets.getAll();
+      console.log("Tickets fetched:", response.data);
       setTickets(response.data);
     } catch (error) {
       console.error("Error fetching tickets:", error);
+      alert("Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message));
     } finally {
       setLoading(false);
     }
@@ -44,26 +48,75 @@ function TicketPage() {
         fault_description: newTicket.title
           ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
           : newTicket.description,
-        fault_type: newTicket.category || null,
+        fault_type: newTicket.category && newTicket.category.trim() ? newTicket.category : null,
         fault_status: newTicket.status,
         fault_priority: newTicket.priority,
       };
 
-      await apiClient.tickets.create(payload);
-      setShowModal(false);
-      setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+      console.log("Payload being sent:", JSON.stringify(payload, null, 2));
+
+      if (isEditing) {
+        await apiClient.tickets.update(editingId, payload);
+        alert("Foutkaartjie suksesvol opgedateer!");
+      } else {
+        await apiClient.tickets.create(payload);
+        alert("Foutkaartjie suksesvol geskep!");
+      }
+      handleCloseModal();
       fetchTickets();
     } catch (error) {
-      console.error("Error creating ticket:", error);
+      console.error("Error saving ticket:", error);
+      console.error("Error response data:", error.response?.data);
+      const errorDetail = error.response?.data?.detail;
+      const errorMsg = Array.isArray(errorDetail) 
+        ? errorDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join('\n')
+        : errorDetail || error.message;
+      alert("Fout by besparing van foutkaartjie:\n" + errorMsg);
     }
   };
 
+  const handleEditTicket = (ticket) => {
+    setIsEditing(true);
+    setEditingId(ticket.fault_id);
+    const description = ticket.fault_description || "";
+    const colonIndex = description.indexOf(":");
+    const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+    
+    setNewTicket({
+      title: title,
+      description: details,
+      category: ticket.fault_type || "",
+      status: ticket.fault_status || "open",
+      priority: ticket.fault_priority || "medium",
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+  };
+
+  const handleNewTicket = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewTicket({ title: "", description: "", category: "", status: "open", priority: "medium" });
+    setShowModal(true);
+  };
+
   const handleDeleteTicket = async (ticketId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie foutkaartjie verwyder?")) {
+      return;
+    }
     try {
       await apiClient.tickets.delete(ticketId);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
+      alert("Fout tydens verwydering van foutkaartjie. Probeer asseblief weer.");
     }
   };
 
@@ -79,17 +132,57 @@ function TicketPage() {
 
   const getStatusClass = (status) => {
     switch (status) {
+      case "wag":
+        return "status-wait";
       case "open":
         return "status-open";
-      case "in_progress":
+      case "bevestig":
+        return "status-confirmed";
+      case "besig":
         return "status-in-progress";
-      case "resolved":
+      case "opgelos":
         return "status-resolved";
-      case "closed":
+      case "verwerp":
         return "status-closed";
       default:
         return "status-default";
     }
+  };
+
+  const translateCategory = (category) => {
+    const translations = {
+      maintenance: "Onderhoud",
+      repair: "Herstel",
+      upgrade: "Upgrade"
+    };
+    return translations[category] || category || "-";
+  };
+
+  const extractTitle = (faultDescription) => {
+    if (!faultDescription) return "-";
+    const parts = faultDescription.split(":");
+    return parts[0].trim();
+  };
+
+  const translateStatus = (status) => {
+    const translations = {
+      wag: "Hangende",
+      open: "Oop",
+      bevestig: "Bevestig",
+      besig: "Besig",
+      opgelos: "Opgelost",
+      verwerp: "Verwerp"
+    };
+    return translations[status] || status || "-";
+  };
+
+  const translatePriority = (priority) => {
+    const translations = {
+      low: "Laag",
+      medium: "Medium",
+      high: "Hoog"
+    };
+    return translations[priority] || priority || "-";
   };
 
   if (loading) {
@@ -151,19 +244,21 @@ function TicketPage() {
             />
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">Filter: Alle</option>
+              <option value="wag">Wag</option>
               <option value="open">Oop</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Opgelost</option>
-              <option value="closed">Gesluit</option>
+              <option value="bevestig">Bevestig</option>
+              <option value="besig">Besig</option>
+              <option value="opgelos">Opgelost</option>
+              <option value="verwerp">Verwerp</option>
             </select>
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Foutkaartjie</button>
+            <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
           </div>
 
           <table className="tickets-table">
             <thead>
               <tr>
                 <th>ID Kaartjie</th>
-                <th>Beskrywing</th>
+                <th>Titel</th>
                 <th>Kategorie</th>
                 <th>Prioriteit</th>
                 <th>Status</th>
@@ -174,15 +269,18 @@ function TicketPage() {
               {filteredTickets.map((ticket) => (
                 <tr key={ticket.fault_id}>
                   <td>{ticket.fault_id}</td>
-                  <td>{ticket.fault_description}</td>
-                  <td>{ticket.fault_type || '-'}</td>
-                  <td>{ticket.fault_priority}</td>
+                  <td>{extractTitle(ticket.fault_description)}</td>
+                  <td>{translateCategory(ticket.fault_type)}</td>
+                  <td>{translatePriority(ticket.fault_priority)}</td>
                   <td>
                     <span className={`status ${getStatusClass(ticket.fault_status)}`}>
-                      {ticket.fault_status}
+                      {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
                   <td>
+                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>
                       Verwyder
                     </button>
@@ -198,8 +296,8 @@ function TicketPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe Foutkaartjie (ID Kaartjie sal outomaties gegenereer word)</h3>
-              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} Foutkaartjie {!isEditing && "(ID Kaartjie sal outomaties gegenereer word)"}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -212,12 +310,15 @@ function TicketPage() {
               </div>
               <div className="input-group">
                 <label>Kategorie</label>
-                <input
-                  type="text"
+                <select
                   value={newTicket.category}
                   onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}
-                  placeholder="bv. Elektries, Klemplerij, ens"
-                />
+                >
+                  <option value="">Kies kategorie</option>
+                  <option value="maintenance">Onderhoud</option>
+                  <option value="repair">Herstel</option>
+                  <option value="upgrade">Upgrade</option>
+                </select>
               </div>
             </div>
             <div className="input-row">
@@ -247,16 +348,18 @@ function TicketPage() {
                   value={newTicket.status}
                   onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}
                 >
+                  <option value="wag">Wag</option>
                   <option value="open">Oop</option>
+                  <option value="bevestig">Bevestig</option>
                   <option value="besig">Besig</option>
                   <option value="opgelos">Opgelost</option>
-                  <option value="verwerp">Gesluit</option>
+                  <option value="verwerp">Verwerp</option>
                 </select>
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddTicket}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

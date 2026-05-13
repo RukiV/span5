@@ -1,15 +1,18 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, workOrdersAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, apiClient } from "../services/api";
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [assets, setAssets] = useState([]);
+  const [faultTickets, setFaultTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newWorkOrder, setNewWorkOrder] = useState({
     title: "",
     description: "",
@@ -18,11 +21,13 @@ function WorkOrderPage() {
     status: "wag",
     priority: "medium",
     asset_id: "",
+    fault_id: "",
   });
 
   useEffect(() => {
     fetchWorkOrders();
     fetchAssets();
+    fetchFaultTickets();
   }, []);
 
   const fetchWorkOrders = async () => {
@@ -46,6 +51,15 @@ function WorkOrderPage() {
     }
   };
 
+  const fetchFaultTickets = async () => {
+    try {
+      const response = await apiClient.tickets.getAll();
+      setFaultTickets(response.data);
+    } catch (error) {
+      console.error("Error fetching fault tickets:", error);
+    }
+  };
+
   const handleAddWorkOrder = async () => {
     try {
       if (!newWorkOrder.title && !newWorkOrder.description) {
@@ -61,23 +75,67 @@ function WorkOrderPage() {
         job_status: newWorkOrder.status,
         job_createddatetime: newWorkOrder.scheduled_date || null,
         asset_id: newWorkOrder.asset_id ? Number(newWorkOrder.asset_id) : null,
+        fault_id: newWorkOrder.fault_id ? Number(newWorkOrder.fault_id) : null,
       };
 
-      await workOrdersAPI.create(payload);
-      setShowModal(false);
-      setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "" });
+      if (isEditing) {
+        await workOrdersAPI.update(editingId, payload);
+      } else {
+        await workOrdersAPI.create(payload);
+      }
+      handleCloseModal();
       fetchWorkOrders();
     } catch (error) {
-      console.error("Error creating work order:", error);
+      console.error("Error saving work order:", error);
+      alert("Fout tydens besparing van werksopdrag. Probeer asseblief weer.");
     }
   };
 
+  const handleEditWorkOrder = (order) => {
+    setIsEditing(true);
+    setEditingId(order.jobcard_id);
+    const description = order.job_desc || "";
+    const colonIndex = description.indexOf(":");
+    const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+    
+    setNewWorkOrder({
+      title: title,
+      description: details,
+      work_type: order.job_type || "",
+      scheduled_date: order.job_createddatetime || "",
+      status: order.job_status || "wag",
+      priority: "medium",
+      asset_id: order.asset_id || "",
+      fault_id: order.fault_id || "",
+    });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setIsEditing(false);
+    setEditingId(null);
+    setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "", fault_id: "" });
+  };
+
+  const handleNewWorkOrder = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setNewWorkOrder({ title: "", description: "", work_type: "", scheduled_date: "", status: "wag", priority: "medium", asset_id: "", fault_id: "" });
+    setShowModal(true);
+  };
+
   const handleDeleteWorkOrder = async (workOrderId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie werksopdrag verwyder?")) {
+      return;
+    }
     try {
       await workOrdersAPI.delete(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Error deleting work order:", error);
+      alert("Fout tydens verwydering van werksopdrag. Probeer asseblief weer.");
     }
   };
 
@@ -107,6 +165,33 @@ function WorkOrderPage() {
       default:
         return "status-default";
     }
+  };
+
+  const translateWorkType = (workType) => {
+    const translations = {
+      maintenance: "Onderhoud",
+      repair: "Herstel",
+      inspection: "Inspeksie",
+      installation: "Installasie"
+    };
+    return translations[workType] || workType || "-";
+  };
+
+  const extractTitle = (jobDesc) => {
+    if (!jobDesc) return "-";
+    const parts = jobDesc.split(":");
+    return parts[0].trim();
+  };
+
+  const translateStatus = (status) => {
+    const translations = {
+      wag: "Hangende",
+      open: "Oop",
+      besig: "Besig",
+      voltooid: "Voltooi",
+      geannuleerd: "Gekanselleer"
+    };
+    return translations[status] || status || "-";
   };
 
   if (loading) {
@@ -173,41 +258,49 @@ function WorkOrderPage() {
               <option value="voltooid">Voltooi</option>
               <option value="geannuleerd">Gekanselleer</option>
             </select>
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Werksopdrag</button>
+            <button className="btn-add" onClick={handleNewWorkOrder}>+ Nuwe Werksopdrag</button>
           </div>
 
           <table className="work-orders-table">
             <thead>
               <tr>
                 <th>ID Werksopdrag</th>
-                <th>Beskrywing</th>
-                <th>Asset ID</th>
+                <th>Titel</th>
+                <th>Bate ID</th>
                 <th>Werksoort</th>
+                <th>Foutkaartjie</th>
                 <th>Geskeduleerde Datum</th>
                 <th>Status</th>
                 <th>Aksies</th>
               </tr>
             </thead>
             <tbody>
-              {filteredWorkOrders.map((order) => (
+              {filteredWorkOrders.map((order) => {
+                const faultTicket = faultTickets.find(t => t.fault_id === order.fault_id);
+                return (
                 <tr key={order.jobcard_id}>
                   <td>{order.jobcard_id}</td>
-                  <td>{order.job_desc}</td>
+                  <td>{extractTitle(order.job_desc)}</td>
                   <td>{order.asset_id ?? '-'}</td>
-                  <td>{order.job_type || '-'}</td>
-                  <td>{order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleDateString('af-ZA') : '-'}</td>
+                  <td>{translateWorkType(order.job_type)}</td>
+                  <td>{faultTicket ? `${faultTicket.fault_id}: ${extractTitle(faultTicket.fault_description)}` : '-'}</td>
+                  <td>{order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : '-'}</td>
                   <td>
                     <span className={`status ${getStatusClass(order.job_status)}`}>
-                      {order.job_status}
+                      {translateStatus(order.job_status)}
                     </span>
                   </td>
                   <td>
+                    <button className="btn-edit" onClick={() => handleEditWorkOrder(order)}>
+                      Wysig
+                    </button>
                     <button className="btn-delete" onClick={() => handleDeleteWorkOrder(order.jobcard_id)}>
                       Verwyder
                     </button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
@@ -217,8 +310,8 @@ function WorkOrderPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Nuwe Werksopdrag (ID Werksopdrag sal outomaties gegenereer word)</h3>
-              <span className="close" onClick={() => setShowModal(false)}>&times;</span>
+              <h3>{isEditing ? "Wysig" : "Nuwe"} Werksopdrag {!isEditing && "(ID Werksopdrag sal outomaties gegenereer word)"}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -256,6 +349,20 @@ function WorkOrderPage() {
                   ))}
                 </select>
               </div>
+              <div className="input-group">
+                <label>Foutkaartjie</label>
+                <select
+                  value={newWorkOrder.fault_id}
+                  onChange={(e) => setNewWorkOrder({ ...newWorkOrder, fault_id: e.target.value })}
+                >
+                  <option value="">Geen foutkaartjie gekies</option>
+                  {faultTickets.map((ticket) => (
+                    <option key={ticket.fault_id} value={ticket.fault_id}>
+                      {ticket.fault_id} - {ticket.fault_description}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="input-row">
               <div className="input-group">
@@ -281,7 +388,7 @@ function WorkOrderPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Beschrywing</label>
+                <label>Beskrywing</label>
                 <textarea
                   value={newWorkOrder.description}
                   onChange={(e) => setNewWorkOrder({ ...newWorkOrder, description: e.target.value })}
@@ -302,8 +409,8 @@ function WorkOrderPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn-cancel" onClick={() => setShowModal(false)}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddWorkOrder}>Stoor</button>
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-save" onClick={handleAddWorkOrder}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>
