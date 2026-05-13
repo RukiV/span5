@@ -43,11 +43,14 @@ class _NewReportPageState extends State<NewReportPage> {
 
   List<String> get filteredRooms {
     if (selectedCampus == null) return [];
-    final campus = CampusService.campusesNotifier.value.firstWhere(
-      (c) => c.name == selectedCampus,
-      orElse: () => Campus(id: '0', name: '', code: '', address: '', location: const LatLng(0,0), rooms: []),
-    );
-    return campus.rooms;
+    try {
+      final campus = CampusService.campusesNotifier.value.firstWhere(
+        (c) => c.name == selectedCampus,
+      );
+      return campus.rooms;
+    } catch (_) {
+      return [];
+    }
   }
   bool isInvisibleCode = false;
   bool isUnknownLocation = false;
