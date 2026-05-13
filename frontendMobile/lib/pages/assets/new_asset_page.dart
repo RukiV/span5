@@ -17,6 +17,13 @@ class NewAssetPage extends StatefulWidget {
 class _NewAssetPageState extends State<NewAssetPage> {
   final _formKey = GlobalKey<FormState>();
 
+  // Veranderlikes wat voorheen ontbreek het:
+  String name = "";
+  String? generatedId;
+  bool isFixed = false;
+  String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
+  final List<String> categories = ["Meubels", "IT Toerusting", "Elektronika", "Kombuis", "Ander"];
+
   String? selectedCampus;
   String? selectedLocation;
   String category = "Meubels";
@@ -27,7 +34,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     } else {
-      // Probeer om die verstek kampus te stel
       try {
         selectedCampus = CampusService.campusesNotifier.value
             .firstWhere((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name))
@@ -48,9 +54,9 @@ class _NewAssetPageState extends State<NewAssetPage> {
     }
   }
 
-  // Verbeterde ID generasie wat 'n string terugstuur vir onmiddellike gebruik
+  // Verbeterde ID generasie
   String _generateAndSetId() {
-    final newId = AssetService.generateUniqueId(category, campus);
+    final newId = AssetService.generateUniqueId(category, selectedCampus ?? "GEN");
     setState(() {
       generatedId = newId;
     });
