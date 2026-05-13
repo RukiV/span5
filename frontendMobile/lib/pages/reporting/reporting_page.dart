@@ -18,6 +18,13 @@ class _ReportingPageState extends State<ReportingPage> {
   final String _priorityFilter = "Alles";
 
   @override
+  void initState() {
+    super.initState();
+    // Laai vars data van die backend af wanneer die bladsy oopmaak
+    ReportService.fetchReports();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<Report>>(
       valueListenable: ReportService.reportsNotifier,

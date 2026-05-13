@@ -23,18 +23,19 @@ class CampusService {
         for (var locJson in locData) {
           int locId = locJson['location_id'];
           
-          // Filtreer kamers wat aan hierdie ligging behoort
+          // Filtreer kamers en stoor as "ID:Naam" vir maklike parsing later, 
+          // of ons kan die model opdateer. Vir vinnige integrasie gebruik ons 'n string mapping.
           List<String> locationRooms = roomData
               .where((r) => r['location_id'] == locId)
-              .map((r) => r['room_name'].toString())
+              .map((r) => "${r['room_id']}:${r['room_name']}")
               .toList();
 
           _campuses.add(Campus(
             id: locId.toString(),
             name: locJson['location_name'],
             code: locJson['location_type'] ?? 'KAMPUS',
-            address: "${locJson['location_streetnum']} ${locJson['location_streetname']}",
-            location: const LatLng(-25.8480, 28.2366), // Dummy koördinate, backend het dit nog nie
+            address: "${locJson['location_streetnum'] ?? ''} ${locJson['location_streetname'] ?? ''}",
+            location: const LatLng(-25.8480, 28.2366),
             rooms: locationRooms,
           ));
         }

@@ -20,6 +20,8 @@ class _AssetsPageState extends State<AssetsPage> {
   @override
   void initState() {
     super.initState();
+    // Laai vars bates van die backend af
+    AssetService.fetchAssets();
     _searchController.addListener(() {
       setState(() {
         _query = _searchController.text.toLowerCase();
