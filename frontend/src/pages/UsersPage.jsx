@@ -63,33 +63,7 @@ function UsersPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex' }}>
-        <div className="sidebar">
-          <h2>FBS</h2>
-          <ul>
-            <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
-            <li><Link to="/calendar">Kalender</Link></li>
-            <li><Link to="/analysis">Analise</Link></li>
-            <li><Link to="/reports">Verslae</Link></li>
-            <li><Link to="/reporting">Rapportering</Link></li>
-            <li><Link to="/rooms">Lokale</Link></li>
-            <li><Link to="/work-orders">Werksopdragte</Link></li>
-          </ul>
-          <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
-          </div>
-        </div>
-        <div className="main">
-          <div className="navbar">
-            <h3>Gebruikers Bestuur</h3>
-            <div className="user">Admin</div>
-          </div>
-          <div className="content">Laai gebruikers...</div>
-        </div>
-      </div>
-    );
+    
   }
 
   return (
@@ -99,12 +73,10 @@ function UsersPage() {
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/calendar">Kalender</Link></li>
-          <li><Link to="/analysis">Analise</Link></li>
-          <li><Link to="/reports">Verslae</Link></li>
-          <li><Link to="/reporting">Rapportering</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
+          <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
@@ -193,9 +165,9 @@ function UsersPage() {
                 value={newUser.role}
                 onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
               >
-                <option value="Student">Student</option>
-                <option value="Personeel">Personeel</option>
-                <option value="Fasiliteit">Fasiliteit</option>
+                <option value="Gebruiker">Gebruiker</option>
+                <option value="Fasiliteit_koördineerder">Fasiliteit koördineerder</option>
+                <option value="Administrateur">Administrateur</option>
               </select>
             </div>
             <div className="form-group">

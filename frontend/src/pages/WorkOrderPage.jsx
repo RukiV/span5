@@ -195,30 +195,7 @@ function WorkOrderPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: "flex" }}>
-        <div className="sidebar">
-          <h2>FBS</h2>
-          <ul>
-            <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
-            <li><Link to="/rooms">Lokale</Link></li>
-            <li><Link to="/work-orders" style={{ background: "#935e28" }}>Werksopdragte</Link></li>
-            <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          </ul>
-          <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
-          </div>
-        </div>
-        <div className="main">
-          <div className="navbar">
-            <h3>Werksopdragte Bestuur</h3>
-            <div className="user">Admin</div>
-          </div>
-          <div className="content">Laai werksopdragte...</div>
-        </div>
-      </div>
-    );
+    
   }
 
   return (
@@ -229,8 +206,9 @@ function WorkOrderPage() {
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/work-orders" style={{ background: "#935e28" }}>Werksopdragte</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
+          <li><Link to="/work-orders"style={{ background: "#935e28" }}>Werksopdragte</Link></li>
+          <li><Link to="/users">Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
