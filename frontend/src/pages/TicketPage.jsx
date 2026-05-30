@@ -186,30 +186,7 @@ function TicketPage() {
   };
 
   if (loading) {
-    return (
-      <div style={{ display: "flex" }}>
-        <div className="sidebar">
-          <h2>FBS</h2>
-          <ul>
-            <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
-            <li><Link to="/rooms">Lokale</Link></li>
-            <li><Link to="/work-orders">Werksopdragte</Link></li>
-            <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>  
-          </ul>
-          <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
-          </div>
-        </div>
-        <div className="main">
-          <div className="navbar">
-            <h3>Foutkaartjies Bestuur</h3>
-            <div className="user">Admin</div>
-          </div>
-          <div className="content">Laai foutkaartjies...</div>
-        </div>
-      </div>
-    );
+    
   }
 
   return (
@@ -220,8 +197,9 @@ function TicketPage() {
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
+          <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/users">Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
