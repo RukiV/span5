@@ -7,6 +7,7 @@ from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
+from ..models.role import Role
 
 
 def _get_or_create_zipcode(session: Session) -> Zipcode:
@@ -183,9 +184,22 @@ def _get_or_create_fault(
     return fault
 
 
+def _get_or_create_default_role(session: Session) -> Role:
+    role = session.exec(select(Role).where(Role.role_name == "User")).first()
+    if role:
+        return role
+
+    role = Role(role_name="User")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def seed_data():
     print("Seed function called")
     with Session(engine) as session:
+        _get_or_create_default_role(session)
         zipcode = _get_or_create_zipcode(session)
 
         loc1 = _get_or_create_location(

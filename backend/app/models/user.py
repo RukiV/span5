@@ -23,8 +23,15 @@ class UserCreate(UserBase):
     role_id: int
 
 
-class UserRead(UserBase):
+class UserRead(SQLModel):
     user_id: int
+    user_name: str
+    user_surname: str
+    user_email: str
+    user_number: Optional[str] = None
+    user_lastlogintime: Optional[datetime] = None
+    user_lastlogouttime: Optional[datetime] = None
+    user_status: str
     role_id: int
 
 
