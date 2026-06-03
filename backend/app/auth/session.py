@@ -7,8 +7,6 @@ from datetime import datetime, timedelta, timezone
 
 SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "please-change-this-secret")
 SESSION_DURATION_SECONDS = int(os.getenv("SESSION_DURATION_SECONDS", "7200"))
-COOKIE_NAME = "fbs_session"
-STATE_COOKIE_NAME = "fbs_oauth_state"
 
 
 def _sign_message(message: bytes) -> str:
@@ -16,6 +14,7 @@ def _sign_message(message: bytes) -> str:
 
 
 def create_session_token(user_id: int) -> str:
+    #Moet not role add en dalk rights
     payload = {
         "user_id": user_id,
         "exp": int((datetime.now(timezone.utc) + timedelta(seconds=SESSION_DURATION_SECONDS)).timestamp()),
