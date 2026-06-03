@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import '../styles/Login.css';
 
 function LoginPage() {
   const [username, setUsername] = useState('');
@@ -64,11 +65,19 @@ function LoginPage() {
             required
             disabled={loading}
           />
+          <a href="/forgot-password" className="forgot-password-link">Vergeet wagwoord?</a>
         </div>
         <button type="submit" className="btn-primary" disabled={loading}>
           {loading ? 'Besig...' : 'Teken In'}
         </button>
       </form>
+      <div className="divider">of</div>
+      <button className="btn-microsoft" disabled={loading}>
+        <svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+          <path fill="currentColor" d="M11 11h9v9h-9zm-10 0h9v9H1zm10-10h9v9h-9zm-10 0h9v9H1z"/>
+        </svg>
+        Teken in met Microsoft
+      </button>
     </div>
   );
 }
