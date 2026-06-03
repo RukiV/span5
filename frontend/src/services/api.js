@@ -85,7 +85,7 @@ export const workOrdersAPI = {
 
 // Auth API
 export const authAPI = {
-  login: (username, password) => apiClient.post('/auth/login', { username, password }),
+  login: (user_email, user_password) => apiClient.post('/auth/login', { user_email, user_password }),
   me: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout')
 };
