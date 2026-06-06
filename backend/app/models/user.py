@@ -23,7 +23,7 @@ class UserCreate(UserBase):
     role_id: int
 
 
-class UserRead(SQLModel):
+class UserRead(UserBase):
     user_id: int
     user_name: str
     user_surname: str
