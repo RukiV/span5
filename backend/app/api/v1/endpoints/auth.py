@@ -1,6 +1,9 @@
 from typing import Optional
+import os
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlmodel import Session
 
 from ....auth.session import SESSION_DURATION_SECONDS, create_session_token, verify_session_token
@@ -9,6 +12,10 @@ from ....models.user import UserRead, User
 from ....services.user_service import user_service
 
 router = APIRouter()
+
+
+class MicrosoftTokenRequest(BaseModel):
+    microsoft_token: str
 
 
 def _get_bearer_token(request: Request) -> Optional[str]:
@@ -75,3 +82,71 @@ def refresh_session(request: Request, session: Session = Depends(getSession)):
 @router.post("/revoke")
 def revoke_session():
     return {"detail": "session revoked"}
+
+
+@router.post("/microsoft")
+async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Depends(getSession)):
+    """Validate Microsoft token via Graph API and create/return app session token."""
+    try:
+        # Use the Microsoft token to get user info from Graph API
+        async with httpx.AsyncClient() as client:
+            graph_response = await client.get(
+                "https://graph.microsoft.com/v1.0/me",
+                headers={"Authorization": f"Bearer {request.microsoft_token}"}
+            )
+            
+            if graph_response.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"Invalid Microsoft token: {graph_response.text}"
+                )
+            
+            user_data = graph_response.json()
+
+        # Extract user info from Microsoft Graph
+        user_email = user_data.get("userPrincipalName") or user_data.get("mail")
+        user_name = user_data.get("givenName", "User")
+        user_surname = user_data.get("surname", "Account")
+
+        if not user_email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Could not extract email from Microsoft"
+            )
+
+        # Find or create user in our database
+        existing_user = user_service.get_by_email(session, user_email)
+        if existing_user:
+            user = existing_user
+        else:
+            # Create new user with default role (ID 1 = User role)
+            user = User(
+                user_name=user_name,
+                user_surname=user_surname,
+                user_email=user_email,
+                user_password="microsoft_oauth",  # Placeholder for OAuth users
+                user_status="active",
+                role_id=1  # Default role
+            )
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+        # Create our app's session token (not Microsoft's token)
+        app_token = create_session_token(user.user_id)
+        return {
+            "access_token": app_token,
+            "token_type": "bearer",
+            "user_id": user.user_id
+        }
+
+    except httpx.HTTPError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not validate with Microsoft: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Microsoft authentication failed: {str(e)}"
+        )
