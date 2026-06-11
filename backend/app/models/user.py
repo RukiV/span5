@@ -1,18 +1,24 @@
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text   # ← Import here
 
 class UserBase(SQLModel):
-    user_name: str = Field(max_length=100)
-    user_surname: str = Field(max_length=100)
-    user_email: str = Field(max_length=150)
+    user_name: str = Field(min_length=1, max_length=100)
+    user_surname: str = Field(min_length=1, max_length=100)
+    user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
     user_number: Optional[str] = Field(default=None, max_length=20)
     user_password: str
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
-
+    
+    @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
+    @classmethod
+    def sanitize_input(cls, v: Any, info) -> Any:
+        return sanitize_text(v)
 
 class User(UserBase, Base, table=True):
     user_id: Optional[int] = Field(default=None, primary_key=True)
@@ -25,6 +31,13 @@ class UserCreate(UserBase):
 
 class UserRead(UserBase):
     user_id: int
+    user_name: str
+    user_surname: str
+    user_email: str
+    user_number: Optional[str] = None
+    user_lastlogintime: Optional[datetime] = None
+    user_lastlogouttime: Optional[datetime] = None
+    user_status: str
     role_id: int
 
 

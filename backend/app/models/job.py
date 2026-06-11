@@ -1,11 +1,18 @@
 from typing import Optional
 from datetime import datetime
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
 from .enums import JobStatus
+from .validators import sanitize_text, validate_positive_int
 
 class JobrecurringBase(SQLModel):
     job_recurringinterval: Optional[int] = None
+
+    @field_validator('job_recurringinterval', mode='before')
+    @classmethod
+    def _positive_interval(cls, v, info):
+        return validate_positive_int(v)
 
 
 class Jobrecurring(JobrecurringBase, Base, table=True):
@@ -30,6 +37,11 @@ class JobcardBase(SQLModel):
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
     job_finisheddatetime: Optional[datetime] = None
+
+    @field_validator('job_desc', 'job_type', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
 
 
 class Jobcard(JobcardBase, Base, table=True):
