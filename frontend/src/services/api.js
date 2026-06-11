@@ -84,19 +84,11 @@ export const workOrdersAPI = {
 
 // Auth API
 export const authAPI = {
-  login: (username, password) => {
-    const formData = new URLSearchParams();
-    formData.append('username', username);
-    formData.append('password', password);
-    return apiClient.post('/auth/login', formData, {
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-    });
-  },
-  register: (data) => apiClient.post('/auth/register', data),
+  login: (user_email, user_password) => apiClient.post('/auth/login', { user_email, user_password }),
   me: () => apiClient.get('/auth/me'),
-  getCurrentUser: () => apiClient.get('/auth/me'),
+  logout: () => apiClient.post('/auth/logout'),
+  validateMicrosoftToken: (token) => apiClient.post('/auth/microsoft', { microsoft_token: token })
+
 };
 
 // Users API

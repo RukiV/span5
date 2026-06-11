@@ -38,6 +38,7 @@ const DashboardPage = () => {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/users">Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>

@@ -252,30 +252,6 @@ function RoomsPage() {
 
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex' }}>
-        <div className="sidebar">
-          <h2>FBS</h2>
-          <ul>
-            <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
-            <li><Link to="/rooms" style={{ background: '#935e28' }}>Lokale</Link></li>
-            <li><Link to="/work-orders">Werksopdragte</Link></li>
-            <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          </ul>
-          <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
-          </div>
-        </div>
-        <div className="main">
-          <div className="navbar">
-            <h3>Lokale Bestuur</h3>
-            <div className="user">Admin</div>
-          </div>
-          <div className="content">Laai lokale...</div>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -286,8 +262,9 @@ function RoomsPage() {
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
           <li><Link to="/rooms" style={{ background: '#935e28' }}>Lokale</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
+          <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/users">Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>

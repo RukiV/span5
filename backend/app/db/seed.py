@@ -7,7 +7,29 @@ from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
+from ..models.role import Role
+from ..models.user import User
 
+def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
+    user = session.exec(select(User).where(User.user_email == user_email)).first()
+    if user:
+        return user
+
+    user = User(
+        user_name="Test",
+        user_surname="User",
+        user_email=user_email,
+        user_password=user_password,
+        user_number="0000000000",
+        user_lastlogintime=None,
+        user_lastlogouttime=None,
+        user_status="active",
+        role_id=role_id,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
 
 def _get_or_create_zipcode(session: Session) -> Zipcode:
     zipcode = session.exec(select(Zipcode)).first()
@@ -183,9 +205,32 @@ def _get_or_create_fault(
     return fault
 
 
+def _get_or_create_default_role(session: Session) -> Role:
+    role = session.exec(select(Role).where(Role.role_name == "User")).first()
+    if role:
+        return role
+
+    role = Role(role_name="User")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def seed_data():
     print("Seed function called")
     with Session(engine) as session:
+        _get_or_create_default_role(session)
+
+        default_role = _get_or_create_default_role(session)
+
+        _get_or_create_test_user(
+            session,
+            user_email="test@example.com",
+            user_password="password123",
+            role_id=default_role.role_id,
+        )
+
         zipcode = _get_or_create_zipcode(session)
 
         loc1 = _get_or_create_location(
