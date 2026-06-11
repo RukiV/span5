@@ -1,5 +1,4 @@
 import axios from 'axios';
-import authService from './AuthService';
 
 const API_PATH = '/api/v1';
 const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -87,7 +86,9 @@ export const workOrdersAPI = {
 export const authAPI = {
   login: (user_email, user_password) => apiClient.post('/auth/login', { user_email, user_password }),
   me: () => apiClient.get('/auth/me'),
-  logout: () => apiClient.post('/auth/logout')
+  logout: () => apiClient.post('/auth/logout'),
+  validateMicrosoftToken: (token) => apiClient.post('/auth/microsoft', { microsoft_token: token })
+
 };
 
 // Users API
