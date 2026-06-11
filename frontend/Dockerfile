@@ -3,6 +3,18 @@ FROM node:18-alpine AS build
 
 WORKDIR /app
 
+# Accept build arguments for environment variables
+ARG REACT_APP_API_URL=http://localhost:8000
+ARG REACT_APP_MICROSOFT_CLIENT_ID=your_client_id_here
+ARG REACT_APP_MICROSOFT_TENANT_ID=your_tenant_id_here
+ARG REACT_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+
+# Set environment variables from build args
+ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_MICROSOFT_CLIENT_ID=$REACT_APP_MICROSOFT_CLIENT_ID
+ENV REACT_APP_MICROSOFT_TENANT_ID=$REACT_APP_MICROSOFT_TENANT_ID
+ENV REACT_APP_REDIRECT_URI=$REACT_APP_REDIRECT_URI
+
 # Copy package files
 COPY package*.json ./
 
