@@ -1,9 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../services/api";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Ticket.css";
 
 function TicketPage() {
+  const { isAdmin } = useCurrentUser();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -199,7 +201,7 @@ function TicketPage() {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
-          <li><Link to="/users">Gebruikers</Link></li>
+          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>

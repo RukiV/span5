@@ -13,9 +13,6 @@ from ....services.user_service import user_service
 
 router = APIRouter()
 
-class LoginRequest(BaseModel):
-    user_email: str
-    user_password: str
 
 class MicrosoftTokenRequest(BaseModel):
     microsoft_token: str
@@ -37,16 +34,19 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
         return None
     return user_service.getByID(session, payload.get("user_id"))
 
-@router.post("/login")
-def login(login: LoginRequest, session: Session = Depends(getSession)):
-    user = user_service.get_by_email(session, login.user_email)
-    if not user or user.user_password != login.user_password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
 
-    user = user_service.last_login(session, user)
-    token = create_session_token(user.user_id)
+def _check_system_access(user: User):
+    """
+    Check if user has access to the FBS system.
+    Only role_id >= 2 (FK and Admin) can access.
+    Regular users (role_id=1) are blocked.
+    """
+    if user.role_id == 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Jy het nie toegang tot die FBS stelsel nie. Kontak Administrasie asseblief: admin@akademia.co.za"
+        )
 
-    return {"access_token": token, "token_type": "bearer"}
 
 @router.get("/me", response_model=UserRead)
 def current_user(request: Request, session: Session = Depends(getSession)):
@@ -59,6 +59,34 @@ def current_user(request: Request, session: Session = Depends(getSession)):
 @router.post("/logout")
 def logout():
     return {"detail": "Logged out."}
+
+
+class LoginRequest(BaseModel):
+    user_email: str
+    user_password: str
+
+
+@router.post("/login")
+def login(request: LoginRequest, session: Session = Depends(getSession)):
+    """Local login with email and password."""
+    user = user_service.get_by_email(session, request.user_email)
+    
+    if not user or user.user_password != request.user_password:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    # Check if user has access to the FBS system
+    _check_system_access(user)
+    
+    # Create app session token
+    app_token = create_session_token(user.user_id)
+    return {
+        "access_token": app_token,
+        "token_type": "bearer",
+        "user_id": user.user_id
+    }
 
 
 @router.get("/validate")
@@ -77,6 +105,7 @@ def validate_session(request: Request, session: Session = Depends(getSession)):
 
 @router.post("/refresh")
 def refresh_session(request: Request, session: Session = Depends(getSession)):
+    """Refresh the session expiry by issuing a new session token."""
     token = _get_bearer_token(request)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
@@ -141,6 +170,9 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
             session.add(user)
             session.commit()
             session.refresh(user)
+
+        # Check if user has access to the FBS system
+        _check_system_access(user)
 
         # Create our app's session token (not Microsoft's token)
         app_token = create_session_token(user.user_id)
