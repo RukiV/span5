@@ -1,9 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { assetsAPI, workOrdersAPI, apiClient } from "../services/api";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
+  const { isAdmin } = useCurrentUser();
   const [workOrders, setWorkOrders] = useState([]);
   const [assets, setAssets] = useState([]);
   const [faultTickets, setFaultTickets] = useState([]);
@@ -208,7 +210,7 @@ function WorkOrderPage() {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders"style={{ background: "#935e28" }}>Werksopdragte</Link></li>
-          <li><Link to="/users">Gebruikers</Link></li>
+          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>

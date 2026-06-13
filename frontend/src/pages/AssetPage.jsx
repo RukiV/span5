@@ -1,9 +1,11 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { assetsAPI, roomsAPI, stockAPI } from "../services/api";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 
 function AssetPage() {
+  const { isAdmin } = useCurrentUser();
   const [assets, setAssets] = useState([]);
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -264,7 +266,7 @@ function AssetPage() {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
-          <li><Link to="/users">Gebruikers</Link></li>
+          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
           
         </ul>
         <div className="logout-container">
