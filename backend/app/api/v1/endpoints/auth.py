@@ -1,9 +1,9 @@
 from typing import Optional
 import os
 import httpx
+from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
 from sqlmodel import Session
 
 from ....auth.session import SESSION_DURATION_SECONDS, create_session_token, verify_session_token
@@ -135,13 +135,11 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
                 "https://graph.microsoft.com/v1.0/me",
                 headers={"Authorization": f"Bearer {request.microsoft_token}"}
             )
-            
             if graph_response.status_code != 200:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=f"Invalid Microsoft token: {graph_response.text}"
                 )
-            
             user_data = graph_response.json()
 
         # Extract user info from Microsoft Graph
