@@ -1,11 +1,18 @@
 from typing import Optional
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text
 
 class ReportsBase(SQLModel):
     report_name: str = Field(max_length=100)
     report_desc: str
     report_file: Optional[str] = None
+
+    @field_validator('report_name', 'report_desc', 'report_file', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
 
 
 class Reports(ReportsBase, Base, table=True):

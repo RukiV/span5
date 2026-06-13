@@ -2,14 +2,21 @@
 from typing import Optional
 from datetime import date
 from decimal import Decimal
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text
 
 class QuoteBase(SQLModel):
     quote_price: Decimal = Field(decimal_places=2)
     quote_desc: str
     quote_date: date
     quote_status: str = Field(max_length=50)
+
+    @field_validator('quote_desc', 'quote_status', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
 
 
 class Quote(QuoteBase, Base, table=True):

@@ -88,7 +88,6 @@ export const authAPI = {
   me: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
   validateMicrosoftToken: (token) => apiClient.post('/auth/microsoft', { microsoft_token: token })
-
 };
 
 // Users API
