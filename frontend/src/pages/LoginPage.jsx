@@ -35,7 +35,12 @@ function LoginPage() {
         setError('Login failed. No access token returned.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      // Handle 403 Forbidden (no access to system)
+      if (err.response?.status === 403) {
+        setError(err.response?.data?.detail || 'Jy het nie toegang tot die FBS stelsel nie. Kontak Administrasie asseblief: admin@akademia.co.za');
+      } else {
+        setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      }
       console.error('Login error:', err);
     } finally {
       setLoading(false);

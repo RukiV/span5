@@ -2,11 +2,14 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import '../styles/Dashboard.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 const DashboardPage = () => {
+  const { isAdmin } = useCurrentUser();
+
   const repairTrendData = {
     labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa', 'So'],
     datasets: [{
@@ -38,7 +41,7 @@ const DashboardPage = () => {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
-          <li><Link to="/users">Gebruikers</Link></li>
+          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
