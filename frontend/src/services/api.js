@@ -1,5 +1,4 @@
 import axios from 'axios';
-import authService from './AuthService';
 
 const API_PATH = '/api/v1';
 const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
