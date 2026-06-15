@@ -5,12 +5,14 @@ import '../styles/Analysis.css';
 function AnalysisPage() {
   return (
     <div style={{ display: 'flex' }}>
+      {/* LINKERBAAD - Navigasie-menu */}
       <div className="sidebar">
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
+          {/* Markeer huidige blad as aktief met bruin agtergrond */}
           <li><Link to="/analysis" style={{ background: '#935e28' }}>Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>
           <li><Link to="/reporting">Rapportering</Link></li>
@@ -22,17 +24,21 @@ function AnalysisPage() {
         </div>
       </div>
 
+      {/* HOOFINHOUD */}
       <div className="main">
+        {/* Top balk met titel en gebruiker-info */}
         <div className="navbar">
           <h3>Analise</h3>
           <div className="user">Admin</div>
         </div>
 
         <div className="content">
+          {/* Hoofstatistieke met sleutelmetrieke */}
           <div className="stats-grid">
             <div className="stat-card">
               <h4>Totale Bates</h4>
               <p className="stat-number">1,248</p>
+              {/* Tendensvy met persentasie-verandering */}
               <span className="stat-change positive">+4.5% nuwe bates</span>
             </div>
             <div className="stat-card">
@@ -43,6 +49,7 @@ function AnalysisPage() {
             <div className="stat-card">
               <h4>Onderhoud Benodig</h4>
               <p className="stat-number">12</p>
+              {/* Waarskuwing vir kritieke sake */}
               <span className="stat-change negative">3 Kritieke herstelwerk</span>
             </div>
             <div className="stat-card">
@@ -52,15 +59,18 @@ function AnalysisPage() {
             </div>
           </div>
 
+          {/* Grafieke vir visuele analise */}
           <div className="charts-container">
             <div className="chart-box">
               <h3>Bate-benutting per Maand</h3>
+              {/* Plekganger vir trendlyn-grafiek */}
               <div style={{ height: '250px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 Grafiek Plekganger
               </div>
             </div>
             <div className="chart-box">
               <h3>Bates per Kategorie</h3>
+              {/* Plekganger vir tergepastei-grafiek */}
               <div style={{ height: '250px', background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 Grafiek Plekganger
               </div>

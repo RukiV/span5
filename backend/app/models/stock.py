@@ -1,6 +1,8 @@
 from typing import Optional
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text, validate_positive_int
 
 
 class StockBase(SQLModel):
@@ -9,6 +11,16 @@ class StockBase(SQLModel):
     stock_amount: int = Field(default=0)
     stock_type: str = Field(max_length=100)
     stock_desc: Optional[str] = Field(max_length=500)
+
+    @field_validator('stock_name', 'stock_brand', 'stock_type', 'stock_desc', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
+
+    @field_validator('stock_amount', mode='before')
+    @classmethod
+    def _positive_amount(cls, v, info):
+        return validate_positive_int(v)
 
 
 class Stock(StockBase, Base, table=True):

@@ -5,19 +5,30 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Rooms.css";
 
 function RoomsPage() {
+  // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
+  
+  // State vir kamers, bates, en terrein/lokasies
   const [rooms, setRooms] = useState([]);
-  const [assets, setAssets] = useState([]);
+  const [assets, setAssets] = useState([]);        // Bates in kamers
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(""); // Soek op kamernaam
   const [statusFilter, setStatusFilter] = useState("");
+  
+  // Modal-state vir kamers en bates-toning
   const [showModal, setShowModal] = useState(false);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [showAssetsModal, setShowAssetsModal] = useState(false);
-  const [roomType, setRoomType] = useState("room"); // "room" or "terrain"
-  const [terrains, setTerrains] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);    // Gekose kamer
+  const [showAssetsModal, setShowAssetsModal] = useState(false);  // Toon bates in kamer
+  
+  // Tipe kies - kamers of terreine/lokasies
+  const [roomType, setRoomType] = useState("room");  // "room" of "terrain"
+  const [terrains, setTerrains] = useState([]);      // Lokasies/terreine
+  
+  // Redigerings-state
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Vorm-data vir kamers
   const [newRoom, setNewRoom] = useState({
     room_name: "",
     room_capacity: "",
@@ -25,6 +36,7 @@ function RoomsPage() {
     location_id: "",
   });
 
+  // Vorm-data vir terreine/lokasies
   const [newTerrain, setNewTerrain] = useState({
     location_name: "",
     location_type: "",
@@ -33,12 +45,14 @@ function RoomsPage() {
     zipcode_id: "",
   });
 
+  // Haal almal data wanneer blad laai
   useEffect(() => {
     fetchRooms();
     fetchAssets();
     fetchTerrains();
   }, []);
 
+  // Haal kamers-lys van backend
   const fetchRooms = async () => {
     setLoading(true);
     try {
@@ -51,6 +65,7 @@ function RoomsPage() {
     }
   };
 
+  // Haal bates-lys (vir bates-in-kamer-weergawe)
   const fetchAssets = async () => {
     try {
       const response = await assetsAPI.getAll();
@@ -60,6 +75,7 @@ function RoomsPage() {
     }
   };
 
+  // Haal terreine/lokasies van backend
   const fetchTerrains = async () => {
     try {
       const response = await locationAPI.getAll();
@@ -69,6 +85,7 @@ function RoomsPage() {
     }
   };
 
+  // Vertaal kamer-tipe na Afrikaans vir UI-weergawe
   const translateRoomType = (type) => {
     const translations = {
       "classroom": "Klaslokaal",
@@ -79,9 +96,11 @@ function RoomsPage() {
     return translations[type] || type;
   };
 
+  // Hanteer toevoeging van nuwe kamer of redigering van bestaande
   const handleAddRoom = async () => {
     try {
       if (roomType === "room") {
+        // Validasie vir kamers
         if (!newRoom.room_name || !newRoom.room_name.trim()) {
           alert("Voer asseblief 'n lokaalnaam in");
           return;
@@ -96,6 +115,7 @@ function RoomsPage() {
           room_type: newRoom.room_type,
           location_id: Number(newRoom.location_id),
         };
+        // Opdateer of skep kamer
         if (isEditing) {
           await roomsAPI.update(editingId, roomData);
         } else {

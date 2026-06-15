@@ -5,17 +5,24 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 
 function AssetPage() {
+  // Haal admin-status vir voorwaardse render van beheer-opsies
   const { isAdmin } = useCurrentUser();
+  
+  // State vir bates-lys en bates-filter
   const [assets, setAssets] = useState([]);
-  const [stock, setStock] = useState([]);
-  const [rooms, setRooms] = useState([]);
+  const [stock, setStock] = useState([]);        // Voorraad-items
+  const [rooms, setRooms] = useState([]);        // Kamers vir toekenning
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");       // Soek-inset
+  const [filter, setFilter] = useState("");               // Status-filter
+  
+  // Modal en vorm-state
   const [showModal, setShowModal] = useState(false);
-  const [assetType, setAssetType] = useState("asset"); // "asset" or "inventory"
+  const [assetType, setAssetType] = useState("asset");   // "asset" of "inventory"
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Vorm-data vir bate-toevoeging/redigering
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_serial: "",
@@ -24,6 +31,8 @@ function AssetPage() {
     assettype_id: 1,
     room_id: "",
   });
+  
+  // Vorm-data vir voorraad-toevoeging/redigering
   const [newStock, setNewStock] = useState({
     stock_name: "",
     stock_brand: "",
@@ -33,12 +42,14 @@ function AssetPage() {
     room_id: "",
   });
 
+  // Haal almal data wanneer blad laai
   useEffect(() => {
     fetchAssets();
     fetchStock();
     fetchRooms();
   }, []);
 
+  // Haal bates-lys van backend
   const fetchAssets = async () => {
     try {
       const response = await assetsAPI.getAll();
@@ -50,6 +61,7 @@ function AssetPage() {
     }
   };
 
+  // Haal voorraad-items van backend
   const fetchStock = async () => {
     try {
       const response = await stockAPI.getAll();
@@ -59,6 +71,7 @@ function AssetPage() {
     }
   };
 
+  // Haal kamers vir dropdown-keuses
   const fetchRooms = async () => {
     try {
       const response = await roomsAPI.getAll();
@@ -68,10 +81,11 @@ function AssetPage() {
     }
   };
 
+  // Hanteer toevoeging van nuwe bate of redigering van bestaande
   const handleAddAsset = async () => {
     try {
       if (assetType === "asset") {
-        // Validation for assets
+        // Validasie vir bates
         if (!newAsset.asset_name || !newAsset.asset_name.trim()) {
           alert("Voer asseblief 'n batenaam in");
           return;
@@ -89,6 +103,7 @@ function AssetPage() {
           assettype_id: 1,
           room_id: newAsset.room_id ? Number(newAsset.room_id) : null,
         };
+        // Opdateer as redigeer, andersins skep nuwe
         if (isEditing) {
           await assetsAPI.update(editingId, assetData);
         } else {
@@ -96,7 +111,7 @@ function AssetPage() {
         }
         setNewAsset({ asset_name: "", asset_serial: "", asset_isoutdoor: false, asset_status: "active", assettype_id: 1, room_id: "" });
       } else {
-        // Validation for inventory
+        // Validasie vir voorraad
         if (!newStock.stock_name || !newStock.stock_name.trim()) {
           alert("Voer asseblief 'n voorraadnaam in");
           return;
@@ -118,6 +133,7 @@ function AssetPage() {
           stock_desc: newStock.stock_desc,
           room_id: newStock.room_id ? Number(newStock.room_id) : null,
         };
+        // Opdateer of skep voorraad-item
         if (isEditing) {
           await stockAPI.update(editingId, stockData);
         } else {
@@ -126,6 +142,7 @@ function AssetPage() {
         setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
       }
       handleCloseModal();
+      // Herlaai die ooreenstemmende lys
       if (assetType === "asset") {
         fetchAssets();
       } else {
@@ -137,6 +154,7 @@ function AssetPage() {
     }
   };
 
+  // Verwyder bate of voorraad-item
   const handleDeleteAsset = async (id) => {
     if (!window.confirm("Is jy seker jy wil hierdie item verwyder?")) {
       return;

@@ -1,10 +1,17 @@
 from typing import Optional
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text
 
 class RightsBase(SQLModel):
     right_name: str = Field(max_length=100)
     right_description: Optional[str] = None
+
+    @field_validator('right_name', 'right_description', mode='before')
+    @classmethod
+    def _sanitize_rights(cls, v, info):
+        return sanitize_text(v)
 
 
 class Rights(RightsBase, Base, table=True):
@@ -26,6 +33,11 @@ class RightsUpdate(SQLModel):
 
 class RoleBase(SQLModel):
     role_name: str = Field(max_length=100)
+
+    @field_validator('role_name', mode='before')
+    @classmethod
+    def _sanitize_role(cls, v, info):
+        return sanitize_text(v)
 
 
 class Role(RoleBase, Base, table=True):

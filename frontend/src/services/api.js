@@ -1,12 +1,23 @@
+/**
+ * API Service - Sentraliseerde API-klien en eindpunte
+ * 
+ * Gebruik Axios vir HTTP-versoeke na FastAPI-backend.
+ * Token-based authenticatie met Bearer-tokens.
+ */
+
 import axios from 'axios';
 
+// API-pad vir alle versoeke
 const API_PATH = '/api/v1';
+
+// Haal backend-URL van omgewings-veranderlikes (default localhost:8000)
 const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 const normalizedApiUrl = rawApiUrl.replace(/\/+$/, '');
 const baseURL = normalizedApiUrl.endsWith(API_PATH)
   ? normalizedApiUrl
   : `${normalizedApiUrl}${API_PATH}`;
 
+// Skep Axios-klien met basis-konfigurasie
 const apiClient = axios.create({
   baseURL,
   headers: {
@@ -14,9 +25,10 @@ const apiClient = axios.create({
   },
 });
 
-// Add request interceptor for authentication
+// Voeg versoek-interceptor vir outentikasie-token by
 apiClient.interceptors.request.use(
   (config) => {
+    // Haal token uit localStorage en voeg by Authorization-header
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -28,16 +40,16 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Assets API
+// ===== BATES-API =====
 export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
   getById: (id) => apiClient.get(`/assets/${id}`),
   create: (data) => apiClient.post('/assets', data),
-  update: (id, data) => apiClient.patch(`/assets/${id}`, data),
+  update: (id, data) => apiClient.patch(`/assets/${id}`, data),  // Gebruik PATCH nie PUT
   delete: (id) => apiClient.delete(`/assets/${id}`),
 };
 
-// Stock API
+// ===== VOORRAAD-API =====
 export const stockAPI = {
   getAll: () => apiClient.get('/stock'),
   getById: (id) => apiClient.get(`/stock/${id}`),
@@ -46,7 +58,7 @@ export const stockAPI = {
   delete: (id) => apiClient.delete(`/stock/${id}`),
 };
 
-// Rooms API
+// ===== KAMERS-API =====
 export const roomsAPI = {
   getAll: () => apiClient.get('/rooms'),
   getById: (id) => apiClient.get(`/rooms/${id}`),
@@ -55,7 +67,7 @@ export const roomsAPI = {
   delete: (id) => apiClient.delete(`/rooms/${id}`),
 };
 
-// Location API
+// ===== LOKASIES/TERREINE-API =====
 export const locationAPI = {
   getAll: () => apiClient.get('/location'),
   getById: (id) => apiClient.get(`/location/${id}`),
@@ -64,7 +76,7 @@ export const locationAPI = {
   delete: (id) => apiClient.delete(`/location/${id}`),
 };
 
-// Tickets API
+// ===== FOUTKAARTJIES-API =====
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
@@ -73,7 +85,7 @@ export const ticketsAPI = {
   delete: (id) => apiClient.delete(`/fault/${id}`),
 };
 
-// Work Orders API
+// ===== WERKSOPDRAGTE-API =====
 export const workOrdersAPI = {
   getAll: () => apiClient.get('/job'),
   getById: (id) => apiClient.get(`/job/${id}`),
@@ -82,16 +94,32 @@ export const workOrdersAPI = {
   delete: (id) => apiClient.delete(`/job/${id}`),
 };
 
-// Auth API
+// ===== OUTENTIKASIE-API =====
+/**
+ * authAPI - Outentikasie-eindpunte
+ * 
+ * - login: Plaaslike aanmelding met e-pos en wagwoord
+ * - me: Haal huidige gebruiker se inligting
+ * - logout: Meld af
+ * - validateMicrosoftToken: Valideer Microsoft-token en skep app-token
+ */
 export const authAPI = {
   login: (user_email, user_password) => apiClient.post('/auth/login', { user_email, user_password }),
   me: () => apiClient.get('/auth/me'),
   logout: () => apiClient.post('/auth/logout'),
   validateMicrosoftToken: (token) => apiClient.post('/auth/microsoft', { microsoft_token: token })
-
 };
 
-// Users API
+// ===== GEBRUIKERS-API =====
+/**
+ * usersAPI - Gebruiker-beheer (admin-alleen)
+ * 
+ * - getAll: Haal alle gebruikers
+ * - getById: Haal spesifieke gebruiker
+ * - create: Skep nuwe gebruiker
+ * - update: Opdateer gebruiker-data
+ * - delete: Verwyder gebruiker
+ */
 export const usersAPI = {
   getAll: () => apiClient.get('/users'),
   getById: (id) => apiClient.get(`/users/${id}`),
@@ -100,7 +128,7 @@ export const usersAPI = {
   delete: (id) => apiClient.delete(`/users/${id}`),
 };
 
-// Attach all API collections to apiClient
+// Heg alle API-versamelings aan apiClient vir maklike toegang
 apiClient.assets = assetsAPI;
 apiClient.stock = stockAPI;
 apiClient.rooms = roomsAPI;
@@ -110,4 +138,5 @@ apiClient.workOrders = workOrdersAPI;
 apiClient.auth = authAPI;
 apiClient.users = usersAPI;
 
+// Voer apiClient uit vir gebruik in komponente
 export { apiClient };

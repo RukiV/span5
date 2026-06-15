@@ -1,7 +1,9 @@
 # models/contractor.py
 from typing import Optional
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
+from .validators import sanitize_text, validate_email, validate_phone
 
 class ContractorBase(SQLModel):
     contractor_name: str = Field(max_length=100)
@@ -9,6 +11,17 @@ class ContractorBase(SQLModel):
     contractor_email: str = Field(max_length=150)
     contractor_number: Optional[str] = Field(default=None, max_length=20)
     contractor_type: Optional[str] = Field(default=None, max_length=50)
+
+    @field_validator('contractor_name', 'contractor_surname', 'contractor_number', 'contractor_type', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
+
+    @field_validator('contractor_email', mode='before')
+    @classmethod
+    def _validate_email(cls, v, info):
+        v = sanitize_text(v)
+        return validate_email(v)
 
 
 class Contractor(ContractorBase, Base, table=True):
