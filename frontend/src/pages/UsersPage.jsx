@@ -30,26 +30,29 @@ function UsersPage() {
     { id: 3, name: 'Administrateur' }
   ];
 
-  // Check if user is authorized (Admin role)
+  // Kontroleer of huidige gebruiker 'n Administrateur is
+  // Slegs Administrateure (role_id=3) kan die Gebruikersblad sien
   useEffect(() => {
     const checkAuthorization = async () => {
       try {
+        // Haal huidige gebruiker se inligting van backend
         const response = await apiClient.get('/auth/me');
         setCurrentUser(response.data);
         
-        // Only allow access if role_id is 3 (Administrateur)
+        // Kontroleer of rol-ID 3 is (Administrateur)
         if (response.data.role_id === 3) {
           setIsAuthorized(true);
         } else {
+          // As nie administrateur nie, magtig-status sal vals wees
           setIsAuthorized(false);
-          // Redirect to dashboard after 2 seconds
+          // Navigeer terug na dashboard na 2 sekondes
           setTimeout(() => {
             navigate('/dashboard');
           }, 2000);
         }
       } catch (error) {
         console.error('Error checking authorization:', error);
-        // Redirect to login if not authenticated
+        // As fout, navigeer na login-blad
         navigate('/login');
       }
     };
@@ -57,12 +60,14 @@ function UsersPage() {
     checkAuthorization();
   }, [navigate]);
 
+  // Haal almal gebruikers van backend wanneer magtiging bevestig is
   useEffect(() => {
     if (isAuthorized) {
       fetchUsers();
     }
   }, [isAuthorized]);
 
+  // Haal almal gebruikers-lys van backend-API
   const fetchUsers = async () => {
     try {
       const response = await apiClient.users.getAll();
@@ -74,16 +79,19 @@ function UsersPage() {
     }
   };
 
+  // Hanteer toevoeging van nuwe gebruiker of opdatering van bestaande
   const handleAddUser = async () => {
     try {
       setError('');
       setSuccess('');
       
+      // Valideer dat vereiste velde ingevul is
       if (!formUser.user_name || !formUser.user_email) {
         setError('Naam en e-pos is vereist');
         return;
       }
 
+      // Vir nuwe gebruikers, wagwoord is vereist
       if (!editingUser && !formUser.user_password) {
         setError('Wagwoord is vereist vir nuwe gebruikers');
         return;
@@ -91,21 +99,21 @@ function UsersPage() {
 
       let dataToSend = { ...formUser };
       
-      // When editing, don't send empty password
+      // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
         delete dataToSend.user_password;
       }
 
+      // As ons redigeer, stuur PATCH-versoek, anders POST vir nuwe gebruiker
       if (editingUser) {
-        // Update existing user
         await apiClient.users.update(editingUser.user_id, dataToSend);
         setSuccess('Gebruiker het succesvol opgedateer');
       } else {
-        // Create new user
         await apiClient.users.create(dataToSend);
         setSuccess('Gebruiker het succesvol geskep');
       }
       
+      // Sluit modale na 1.5 sekondes en herlaai gebruikerlys
       setTimeout(() => {
         setShowModal(false);
         setEditingUser(null);
@@ -126,30 +134,34 @@ function UsersPage() {
     }
   };
 
+  // Laai gebruiker-data in vorm vir redigering
   const handleEditUser = (user) => {
     setEditingUser(user);
     setFormUser({
       user_name: user.user_name,
       user_surname: user.user_surname || '',
       user_email: user.user_email,
-      user_password: '',
+      user_password: '', // Laat leeg sodat bestaande wagwoord nie oorskryf word
       user_status: user.user_status,
       role_id: user.role_id
     });
     setShowModal(true);
   };
 
+  // Verwyder gebruiker na bevestiging
   const handleDeleteUser = async (userId) => {
+    // Vra bevestiging voordat verwyder word
     if (window.confirm('Is jy seker jy wil hierdie gebruiker verwyder?')) {
       try {
         await apiClient.users.delete(userId);
-        fetchUsers();
+        fetchUsers(); // Herlaai lys na suksesvol verwyder
       } catch (error) {
         console.error('Error deleting user:', error);
       }
     }
   };
 
+  // Sluit modal en stel vorm terug
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingUser(null);
@@ -163,13 +175,17 @@ function UsersPage() {
     });
   };
 
+  // Filter gebruikers op soekterm EN status
   const filteredUsers = users.filter(user => {
+    // Soek in naam of e-pos veld
     const matchesSearch = (user.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.user_email || '').toLowerCase().includes(searchTerm.toLowerCase());
+    // Filter op status (almal, aktief, onaktief)
     const matchesFilter = filter === 'almal' || user.user_status === filter;
     return matchesSearch && matchesFilter;
   });
 
+  // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
     switch (roleId) {
       case 1: return 'rol-user';
