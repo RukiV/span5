@@ -5,33 +5,42 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
+  // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
+  
+  // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
-  const [assets, setAssets] = useState([]);
-  const [faultTickets, setFaultTickets] = useState([]);
+  const [assets, setAssets] = useState([]);               // Bates vir toekenning
+  const [faultTickets, setFaultTickets] = useState([]);   // Foutkaartjies vir verwysing
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
+  const [statusFilter, setStatusFilter] = useState("");    // Filter op status
+  
+  // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Vorm-data vir werksopdrag
   const [newWorkOrder, setNewWorkOrder] = useState({
-    title: "",
-    description: "",
-    work_type: "",
-    scheduled_date: "",
-    status: "wag",
-    priority: "medium",
-    asset_id: "",
-    fault_id: "",
+    title: "",                      // Hoofsaak/titel
+    description: "",                // Volledige beskrywing
+    work_type: "",                  // Tipe werk
+    scheduled_date: "",             // Geplande datum
+    status: "wag",                  // Status (open, wag, working, completed)
+    priority: "medium",             // Prioriteit
+    asset_id: "",                   // Geassosieerde bate
+    fault_id: "",                   // Geassosieerde foutkaartjie
   });
 
+  // Haal almal data wanneer blad laai
   useEffect(() => {
     fetchWorkOrders();
     fetchAssets();
     fetchFaultTickets();
   }, []);
 
+  // Haal werksopdragte-lys van backend
   const fetchWorkOrders = async () => {
     setLoading(true);
     try {
@@ -44,6 +53,7 @@ function WorkOrderPage() {
     }
   };
 
+  // Haal bates-lys vir dropdown-keuse
   const fetchAssets = async () => {
     try {
       const response = await assetsAPI.getAll();
@@ -53,6 +63,7 @@ function WorkOrderPage() {
     }
   };
 
+  // Haal foutkaartjies-lys vir dropdown-keuse
   const fetchFaultTickets = async () => {
     try {
       const response = await apiClient.tickets.getAll();
@@ -62,13 +73,16 @@ function WorkOrderPage() {
     }
   };
 
+  // Hanteer toevoeging van nuwe werksopdrag of redigering van bestaande
   const handleAddWorkOrder = async () => {
     try {
+      // Valideer dat ten minste titel of beskrywing ingevul is
       if (!newWorkOrder.title && !newWorkOrder.description) {
         alert("Voer asseblief 'n titel of beskrywing vir die werksopdrag in.");
         return;
       }
 
+      // Bou payload vir backend - kombineer titel en beskrywing
       const payload = {
         job_desc: newWorkOrder.title
           ? `${newWorkOrder.title}${newWorkOrder.description ? `: ${newWorkOrder.description}` : ''}`
@@ -80,6 +94,7 @@ function WorkOrderPage() {
         fault_id: newWorkOrder.fault_id ? Number(newWorkOrder.fault_id) : null,
       };
 
+      // Opdateer of skep nuwe werksopdrag
       if (isEditing) {
         await workOrdersAPI.update(editingId, payload);
       } else {
@@ -93,9 +108,11 @@ function WorkOrderPage() {
     }
   };
 
+  // Laai werksopdrag-data in vorm vir redigering
   const handleEditWorkOrder = (order) => {
     setIsEditing(true);
     setEditingId(order.jobcard_id);
+    // Ontleed beskrywing om titel en details te skei
     const description = order.job_desc || "";
     const colonIndex = description.indexOf(":");
     const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
