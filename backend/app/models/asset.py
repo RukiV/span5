@@ -1,7 +1,9 @@
 from typing import Optional
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
 from .enums import AssetStatus
+from .validators import sanitize_text, validate_positive_int
 
 class AssettypeBase(SQLModel):
     assettype_name: str = Field(max_length=100)
@@ -9,6 +11,16 @@ class AssettypeBase(SQLModel):
     assettype_min_lifespan: Optional[int] = None
     assettype_max_lifespan: Optional[int] = None
     assettype_service_interval: Optional[int] = None
+
+    @field_validator('assettype_name', mode='before')
+    @classmethod
+    def _sanitize_name(cls, v, info):
+        return sanitize_text(v)
+
+    @field_validator('assettype_avg_lifespan', 'assettype_min_lifespan', 'assettype_max_lifespan', 'assettype_service_interval', mode='before')
+    @classmethod
+    def _positive_ints(cls, v, info):
+        return validate_positive_int(v)
 
 
 class Assettype(AssettypeBase, Base, table=True):
@@ -36,6 +48,11 @@ class AssetBase(SQLModel):
     asset_serial: Optional[str] = Field(default=None, max_length=20)
     asset_status: AssetStatus = Field(default=AssetStatus.ACTIVE)
     asset_isoutdoor: Optional[bool] = None
+
+    @field_validator('asset_name', 'asset_serial', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
 
 
 class Asset(AssetBase, Base, table=True):

@@ -1,8 +1,10 @@
 from typing import Optional
 from datetime import datetime
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
 from .enums import FaultStatus, Priority, Type
+from .validators import sanitize_text
 
 class FaultcardBase(SQLModel):
     fault_description: str
@@ -11,6 +13,11 @@ class FaultcardBase(SQLModel):
     fault_priority: Priority = Field(default=Priority.MEDIUM)
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+
+    @field_validator('fault_description', mode='before')
+    @classmethod
+    def _sanitize_desc(cls, v, info):
+        return sanitize_text(v)
 
 
 class Faultcard(FaultcardBase, Base, table=True):

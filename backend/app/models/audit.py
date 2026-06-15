@@ -1,8 +1,10 @@
 from typing import Optional, Dict
 from datetime import datetime
+from pydantic import field_validator
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy.dialects.postgresql import JSONB
 from .base import Base
+from .validators import sanitize_text
 
 class AuditlogBase(SQLModel):
     action: str = Field(max_length=100)
@@ -10,6 +12,11 @@ class AuditlogBase(SQLModel):
     affectedcolumn: Optional[str] = Field(default=None, max_length=100)
     json_data: Optional[Dict] = Field(default=None, sa_column=Column(JSONB))
     actiondatetime: Optional[datetime] = None
+
+    @field_validator('action', 'affectedtable', 'affectedcolumn', mode='before')
+    @classmethod
+    def _sanitize_strings(cls, v, info):
+        return sanitize_text(v)
 
 
 class Auditlog(AuditlogBase, Base, table=True):
