@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:barcode_widget/barcode_widget.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/campus_service.dart';
+import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../core/report_service.dart';
@@ -135,7 +137,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                       contentPadding: EdgeInsets.zero,
                       title: Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       subtitle: Text("${r.timestamp} - ${r.user}", style: const TextStyle(fontSize: 12)),
-                      trailing: _statusBadge(r.phase),
+                      trailing: StatusBadge(status: r.phase),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -166,7 +168,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(_currentAsset.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.navy)),
-              _statusBadge(_currentAsset.status),
+              StatusBadge(status: _currentAsset.status, fontSize: 13),
             ],
           ),
           const SizedBox(height: 5),
@@ -176,7 +178,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
             children: [
               const Icon(Icons.location_on, size: 16, color: AppColors.gold),
               const SizedBox(width: 5),
-              Text(_currentAsset.location, style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(CampusService.getRoomName(_currentAsset.location),
+                  style: const TextStyle(fontWeight: FontWeight.w500)),
             ],
           ),
         ],
@@ -250,18 +253,5 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     );
   }
 
-  Widget _statusBadge(String status) {
-    Color color;
-    switch (status) {
-      case "Aktief": case "Voltooi": color = Colors.green; break;
-      case "Onderhoud": case "Besig": color = Colors.orange; break;
-      case "Geweier": color = Colors.red; break;
-      default: color = Colors.grey;
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-      child: Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
-    );
-  }
+  // _statusBadge verwyder aangesien ons nou die herbruikbare StatusBadge widget gebruik
 }

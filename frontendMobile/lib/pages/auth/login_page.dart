@@ -3,9 +3,11 @@ import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dio/dio.dart';
 import '../../main.dart';
 import '../../core/app_colors.dart';
 import '../../models/user_session.dart';
+import '../../core/api_client.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -77,54 +79,102 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _navigateToHome({bool isBioAuth = false}) async {
     setState(() => _isLoading = true);
     
-    // Check vir spesifieke credentials
     if (!isBioAuth) {
-      String user = _userControl.text.toLowerCase();
-      String pass = _passControl.text;
+      String email = _userControl.text.trim();
+      String password = _passControl.text;
 
-      if (pass == "1234") {
-        if (user == "admin") {
+      if (email.isEmpty || password.isEmpty) {
+        _showError("Vul asseblief alle velde in.");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      try {
+        // Gebruik 'n timeout vir beter sekuriteit en UX
+        final response = await ApiClient.dio.post(
+          '/auth/login',
+          data: {
+            'user_email': email,
+            'user_password': password,
+          },
+          options: Options(
+            sendTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 10),
+          ),
+        );
+
+        if (response.statusCode == 200) {
+          final token = response.data['access_token'];
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+          
+          await _fetchProfileAndNavigate();
+          return;
+        }
+      } on DioException catch (e) {
+        String msg = "Aanmelding het misluk.";
+        if (e.response?.statusCode == 401) {
+          msg = "Ongeldige e-pos of wagwoord.";
+        } else if (e.response?.statusCode == 403) {
+          msg = e.response?.data['detail'] ?? "Jy het nie toegang tot hierdie stelsel nie.";
+        }
+        _showError(msg);
+        setState(() => _isLoading = false);
+        return;
+      } catch (e) {
+        _showError("Fout: $e");
+        setState(() => _isLoading = false);
+        return;
+      }
+    } else {
+      // Biometriese login - ons neem aan die token is reeds daar
+      await _fetchProfileAndNavigate();
+    }
+  }
+
+  Future<void> _fetchProfileAndNavigate() async {
+    try {
+      final response = await ApiClient.dio.get('/auth/me');
+      if (response.statusCode == 200) {
+        final data = response.data;
+        UserSession.userId = data['user_id'];
+        UserSession.userName = "${data['user_name']} ${data['user_surname']}";
+        UserSession.userEmail = data['user_email'];
+        
+        // Map role_id na UserRole
+        int roleId = data['role_id'];
+        if (roleId == 3) {
           UserSession.role = UserRole.admin;
-          UserSession.userName = "Admin Gebruiker";
-          UserSession.userId = 1;
-        } else if (user == "bestuurder") {
+        } else if (roleId == 2) {
           UserSession.role = UserRole.manager;
-          UserSession.userName = "Kampus Bestuurder";
-          UserSession.userCampus = "Hoofkampus (Centurion)";
-          UserSession.userId = 2;
-        } else if (user == "kontrakteur") {
-          UserSession.role = UserRole.contractor;
-          UserSession.userName = "Piet Pompies (Loodgieter)";
-          UserSession.userId = 3;
         } else {
           UserSession.role = UserRole.student;
-          UserSession.userName = user.isEmpty ? "Student Demo" : user;
-          UserSession.userId = 99;
         }
-      } else {
-        // Indien wagwoord verkeerd is (vir demo doeleindes aanvaar ons alles anders as student)
-        UserSession.role = UserRole.student;
-        UserSession.userName = "Gaste Gebruiker";
-      }
-    }
 
-    // Simuleer login vertraging
-    await Future.delayed(const Duration(milliseconds: 800));
-    
+        if (!mounted) return;
+        
+        // Biometrie check as dit die eerste keer is
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
+          bool? wantBio = await _showBiometricPrompt();
+          await prefs.setBool('use_biometrics', wantBio ?? false);
+        }
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      }
+    } catch (e) {
+      _showError("Kon nie profiel laai nie.");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
     if (!mounted) return;
-
-    // As dit nie admin/manager is nie, en biometrie is nog nie gestel nie, vra die gebruiker
-    if (!UserSession.hasAdminPrivileges && !isBioAuth) {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
-        bool? wantBio = await _showBiometricPrompt();
-        await prefs.setBool('use_biometrics', wantBio ?? false);
-      }
-    }
-
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Future<bool?> _showBiometricPrompt() {
@@ -148,14 +198,25 @@ class _LoginPageState extends State<LoginPage> {
       await oauth.login();
       String? accessToken = await oauth.getAccessToken();
       if (accessToken != null && mounted) {
-        UserSession.role = UserRole.student; // Outlook users is gewoonlik nie admin nie
-        _navigateToHome();
+        // Stuur Microsoft token na backend
+        final response = await ApiClient.dio.post(
+          '/auth/microsoft',
+          data: {'microsoft_token': accessToken},
+        );
+
+        if (response.statusCode == 200) {
+          final token = response.data['access_token'];
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+          
+          await _fetchProfileAndNavigate();
+        }
       } else {
         setState(() => _isLoading = false);
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Outlook Fout: $e")));
+      _showError("Outlook Fout: $e");
     }
   }
 
@@ -199,11 +260,12 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       const Text("Teken In", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.navy)),
                       const SizedBox(height: 35),
-                      _buildInputLabel("Gebruikersnaam"),
+                      _buildInputLabel("E-pos Adres"),
                       TextField(
                         controller: _userControl,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
-                          hintText: "admin of student_nr",
+                          hintText: "admin@akademia.co.za",
                           fillColor: AppColors.inputFill,
                           filled: true,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
@@ -216,7 +278,7 @@ class _LoginPageState extends State<LoginPage> {
                         controller: _passControl,
                         obscureText: true,
                         decoration: InputDecoration(
-                          hintText: "admin: 1234",
+                          hintText: "••••••••",
                           fillColor: AppColors.inputFill,
                           filled: true,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),

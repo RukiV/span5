@@ -1,4 +1,5 @@
 import 'user_session.dart';
+import '../core/api_client.dart';
 
 class Report {
   final String id;
@@ -12,7 +13,7 @@ class Report {
   final String user;
   final DateTime timestamp;
   final String? adminNotes;
-  final String? imageUrl;
+  final List<String> imageUrls;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
 
   Report({
@@ -27,7 +28,7 @@ class Report {
     required this.user,
     required this.timestamp,
     this.adminNotes,
-    this.imageUrl,
+    this.imageUrls = const [],
     this.gpsCoords,
   });
 
@@ -56,11 +57,11 @@ class Report {
       'fault_priority': backendPriority,
       'fault_status': backendStatus,
       'fault_reportdatetime': timestamp.toIso8601String(),
-      // Backend verwag IDs as integers
-      'asset_id': int.tryParse(assetId),
+      'asset_id': assetId == "0" ? null : int.tryParse(assetId),
       'user_id': UserSession.userId,
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
+      'admin_notes': adminNotes,
     };
   }
 
@@ -95,6 +96,28 @@ class Report {
       description = parts.sublist(1).join(": ");
     }
 
+    // Handhaaf ondersteuning vir enkel imageUrl (vir nou) of 'n lys van urls
+    List<String> urls = [];
+    String baseUrl = ApiClient.serverBaseUrl;
+
+    void addUrl(String? path) {
+      if (path == null) return;
+      if (path.startsWith('http')) {
+        urls.add(path);
+      } else {
+        urls.add('$baseUrl$path');
+      }
+    }
+
+    addUrl(json['fault_image_url']);
+    addUrl(json['image_url']);
+    
+    if (json['image_urls'] != null && json['image_urls'] is List) {
+      for (var url in json['image_urls']) {
+        addUrl(url.toString());
+      }
+    }
+
     return Report(
       id: json['fault_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
       assetId: json['asset_id']?.toString() ?? 'Geen Bate',
@@ -109,7 +132,7 @@ class Report {
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
       adminNotes: json['admin_notes'],
-      imageUrl: json['image_url'],
+      imageUrls: urls,
       gpsCoords: json['mappoint_id']?.toString(),
     );
   }
@@ -126,7 +149,7 @@ class Report {
     String? user,
     DateTime? timestamp,
     String? adminNotes,
-    String? imageUrl,
+    List<String>? imageUrls,
     String? gpsCoords,
   }) {
     return Report(
@@ -141,7 +164,7 @@ class Report {
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
       adminNotes: adminNotes ?? this.adminNotes,
-      imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       gpsCoords: gpsCoords ?? this.gpsCoords,
     );
   }

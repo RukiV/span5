@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
+import 'manage_rooms_page.dart';
 
 class CampusManagementPage extends StatefulWidget {
   const CampusManagementPage({super.key});
@@ -85,9 +86,14 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                         ),
                       ],
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
                     onTap: () {
-                      // Toekomstige funksie: Sien spesifieke lokale
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ManageRoomsPage(),
+                        ),
+                      );
                     },
                   ),
                 );

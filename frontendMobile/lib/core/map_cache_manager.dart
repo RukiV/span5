@@ -1,14 +1,16 @@
 import 'package:dio_cache_interceptor/dio_cache_interceptor.dart';
 
+// MapCacheManager: Handles the caching of map tiles to improve performance and reduce data usage.
 class MapCacheManager {
   static CacheStore? _store;
 
+  // Returns the cache store, initializing it as a MemCacheStore if not already set.
   static Future<CacheStore> getCacheStore() async {
     if (_store != null) return _store!;
     
-    // Vir nou gebruik ons MemCacheStore om die build te herstel.
-    // Vir permanente berging op skyf, kan 'DbCacheStore' gebruik word
-    // mits die 'dio_cache_interceptor_db_store' pakket bygevoeg is.
+    // NOTE: Currently using MemCacheStore for memory-only caching.
+    // FUTURE IMPROVEMENT: Switch to 'DbCacheStore' (from dio_cache_interceptor_db_store)
+    // for permanent disk-based caching so maps work even after app restarts.
     _store = MemCacheStore();
     return _store!;
   }
