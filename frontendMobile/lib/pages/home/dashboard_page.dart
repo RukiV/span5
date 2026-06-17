@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../../core/report_service.dart';
 import '../../models/report.dart';
 
+import '../reporting/report_detail_page.dart';
+
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
@@ -56,6 +58,10 @@ class DashboardPage extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ReportDetailPage(report: r)),
+                      ),
                       leading: CircleAvatar(
                         backgroundColor: AppColors.gold.withValues(alpha: 0.1),
                         child: const Icon(Icons.report, color: AppColors.gold),

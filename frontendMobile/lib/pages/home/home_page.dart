@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../reporting/reporting_page.dart';
 import '../assets/assets_page.dart';
+import '../assets/stock_page.dart';
 import '../admin/campus_management_page.dart';
 import '../admin/manage_rooms_page.dart';
 import '../contractor/job_cards_page.dart';
@@ -70,22 +71,29 @@ class _HomePageState extends State<HomePage> {
         'roles': [UserRole.admin, UserRole.manager, UserRole.student]
       },
       {
-        'title': 'Bates',
+        'title': 'Bate',
         'icon': Icons.inventory_2_outlined,
         'page': const AssetsPage(),
         'roles': [UserRole.admin, UserRole.manager]
       },
       {
-        'title': 'Lokale',
-        'icon': Icons.room_outlined,
-        'page': const ManageRoomsPage(),
-        'roles': [UserRole.manager]
+        'title': 'Toerusting',
+        'icon': Icons.construction_outlined,
+        'page': const StockPage(),
+        'roles': [UserRole.admin, UserRole.manager],
+        'isSubItem': true
       },
       {
-        'title': 'Kampusse',
+        'title': 'Lokaal',
+        'icon': Icons.room_outlined,
+        'page': const ManageRoomsPage(),
+        'roles': [UserRole.admin, UserRole.manager]
+      },
+      {
+        'title': 'Kampus',
         'icon': Icons.map_outlined,
         'page': const CampusManagementPage(),
-        'roles': [UserRole.admin]
+        'roles': [UserRole.admin, UserRole.manager]
       },
     ];
 
@@ -150,7 +158,8 @@ class _HomePageState extends State<HomePage> {
               return _drawerItem(
                 menu[index]['icon'], 
                 menu[index]['title'], 
-                index
+                index,
+                isSubItem: menu[index]['isSubItem'] ?? false
               );
             }),
 
@@ -176,22 +185,24 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Helper om spyskaart items te bou met die regte kleure
-  Widget _drawerItem(IconData icon, String title, int index) {
+  Widget _drawerItem(IconData icon, String title, int index, {bool isSubItem = false}) {
     bool isSelected = _selectedIndex == index;
 
     return ListTile(
+      contentPadding: EdgeInsets.only(left: isSubItem ? 40.0 : 16.0),
       selected: isSelected,
-      // Die goud kleur as 'n item gekies is (soos jou web-skets)
       selectedTileColor: AppColors.gold.withValues(alpha: 0.2),
       leading: Icon(
           icon,
-          color: isSelected ? AppColors.gold : Colors.white70
+          color: isSelected ? AppColors.gold : (isSubItem ? Colors.white54 : Colors.white70),
+          size: isSubItem ? 20 : 24,
       ),
       title: Text(
         title,
         style: TextStyle(
           color: isSelected ? AppColors.gold : Colors.white,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: isSubItem ? 14 : 16,
         ),
       ),
       onTap: () {
