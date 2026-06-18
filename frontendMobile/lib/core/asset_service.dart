@@ -3,10 +3,13 @@ import 'dart:math';
 import '../models/asset.dart';
 import 'api_client.dart';
 
+// AssetService: Manages the lifecycle and state of assets (equipment/hardware) in the app.
 class AssetService {
+  // Static list to store assets and a notifier to trigger UI updates when the list changes.
   static final List<Asset> _assets = [];
   static final ValueNotifier<List<Asset>> assetsNotifier = ValueNotifier(_assets);
 
+  // Fetches all assets from the backend.
   static Future<void> fetchAssets() async {
     try {
       final response = await ApiClient.dio.get('/assets');
@@ -17,12 +20,11 @@ class AssetService {
         assetsNotifier.value = List.from(_assets);
       }
     } catch (e) {
-      debugPrint("Fout met laai van bates: $e");
+      debugPrint("Error loading assets: $e");
     }
   }
 
-  static List<Asset> getAllAssets() => _assets;
-
+  // Local helper to find a specific asset by its ID.
   static Asset? getAssetById(String id) {
     try {
       return _assets.firstWhere((a) => a.id == id);
@@ -31,6 +33,7 @@ class AssetService {
     }
   }
 
+  // Used by the reporting system to identify an asset from a scanned QR or barcode.
   static Future<Asset?> getAssetBySerialCode(String serialCode) async {
     try {
       final response = await ApiClient.dio.get('/assets/serial/$serialCode');
@@ -38,11 +41,12 @@ class AssetService {
         return Asset.fromJson(response.data);
       }
     } catch (e) {
-      debugPrint("Fout met laai van bate by serial: $e");
+      debugPrint("Error loading asset by serial: $e");
     }
     return null;
   }
 
+  // Generates a human-readable unique ID for new assets.
   static String generateUniqueId(String category, String campus) {
     final prefix = category.substring(0, min(3, category.length)).toUpperCase();
     final campusPrefix = campus.substring(0, min(3, campus.length)).toUpperCase();
@@ -50,20 +54,21 @@ class AssetService {
     return "$prefix-$campusPrefix-$timestamp";
   }
 
+  // Adds a new asset to the backend and refreshes the local list.
   static Future<bool> addAsset(Asset asset) async {
     try {
       final response = await ApiClient.dio.post('/assets', data: asset.toJson());
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Herlaai bates om seker te maak ons het die nuwe ID vanaf die DB
         await fetchAssets();
         return true;
       }
     } catch (e) {
-      debugPrint("Fout met byvoeg van bate: $e");
+      debugPrint("Error adding asset: $e");
     }
     return false;
   }
 
+  // FUTURE IDEA: Add an offline 'queue' for assets created while the user has no signal.
   static Future<void> updateAsset(Asset updatedAsset) async {
     try {
       final response = await ApiClient.dio.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
@@ -71,12 +76,12 @@ class AssetService {
         await fetchAssets();
       }
     } catch (e) {
-      debugPrint("Fout met opdatering van bate: $e");
+      debugPrint("Error updating asset: $e");
     }
   }
 
   static Future<void> linkReportToAsset(String assetId, String reportId) async {
-    // Backend hanteer gewoonlik hierdie verwantskap via foreign keys in die Faultcard
-    debugPrint("Koppel verslag $reportId aan bate $assetId");
+    // Relationship is usually handled by the backend via foreign keys in Faultcards.
+    debugPrint("Linking report $reportId to asset $assetId");
   }
 }

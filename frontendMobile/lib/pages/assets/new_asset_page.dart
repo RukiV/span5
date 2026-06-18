@@ -1,3 +1,4 @@
+import '../../widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
@@ -34,13 +35,24 @@ class _NewAssetPageState extends State<NewAssetPage> {
     super.initState();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
-    } else {
-      try {
-        selectedCampus = CampusService.campusesNotifier.value
-            .firstWhere((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name))
-            .name;
-      } catch (_) {}
     }
+    
+    // Autofill campus and restrict if not admin
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          try {
+            selectedCampus = CampusService.campusesNotifier.value
+                .firstWhere((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name))
+                .name;
+          } catch (_) {
+            if (CampusService.campusesNotifier.value.isNotEmpty) {
+               selectedCampus = CampusService.campusesNotifier.value.first.name;
+            }
+          }
+        });
+      }
+    });
   }
 
   List<String> get availableRooms {
@@ -122,61 +134,53 @@ class _NewAssetPageState extends State<NewAssetPage> {
               const SizedBox(height: 20),
 
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Kategorie *", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-                        const SizedBox(height: 6),
-                        DropdownButtonFormField<String>(
-                          value: category,
-                          decoration: InputDecoration(
-                            filled: true,
-                            fillColor: const Color(0xFFFEFBEA),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          items: categories.map((c) => DropdownMenuItem(value: c, child: Text(c, style: const TextStyle(fontSize: 14)))).toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              category = v!;
-                            });
-                          },
-                        ),
-                      ],
+                    child: CustomDropdown<String>(
+                      label: "Kategorie *",
+                      hint: "Kies",
+                      value: category,
+                      items: categories
+                          .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text(c,
+                                  style: const TextStyle(fontSize: 13),
+                                  overflow: TextOverflow.ellipsis)))
+                          .toList(),
+                      onChanged: (v) => setState(() => category = v!),
                     ),
                   ),
-                  const SizedBox(width: 15),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Kampus *", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-                        const SizedBox(height: 6),
-                        ValueListenableBuilder<List<Campus>>(
-                          valueListenable: CampusService.campusesNotifier,
-                          builder: (context, campuses, _) {
-                            return DropdownButtonFormField<String>(
-                              value: selectedCampus,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: const Color(0xFFFEFBEA),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              items: campuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name, style: const TextStyle(fontSize: 14)))).toList(),
-                              onChanged: (v) {
-                                setState(() {
-                                  selectedCampus = v;
-                                  selectedLocation = null;
-                                });
-                              },
-                              validator: (v) => v == null ? "Kampus word vereis" : null,
-                            );
-                          },
-                        ),
-                      ],
+                    child: ValueListenableBuilder<List<Campus>>(
+                      valueListenable: CampusService.campusesNotifier,
+                      builder: (context, campuses, _) {
+                        // Filter campuses if FK
+                        final filteredCampuses = UserSession.isAdmin 
+                            ? campuses 
+                            : campuses.where((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name)).toList();
+                        
+                        return CustomDropdown<String>(
+                          label: "Kampus *",
+                          hint: "Kies",
+                          value: selectedCampus,
+                          items: filteredCampuses
+                              .map((c) => DropdownMenuItem(
+                                  value: c.name,
+                                  child: Text(c.name,
+                                      style: const TextStyle(fontSize: 13),
+                                      overflow: TextOverflow.ellipsis)))
+                              .toList(),
+                          onChanged: UserSession.isAdmin ? (v) {
+                            setState(() {
+                              selectedCampus = v;
+                              selectedLocation = null;
+                            });
+                          } : null, // Disable selection for FK
+                          validator: (v) => v == null ? "Vereis" : null,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -184,38 +188,26 @@ class _NewAssetPageState extends State<NewAssetPage> {
               const SizedBox(height: 20),
 
               availableRooms.isNotEmpty
-                  ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Spesifieke Lokaal *", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedLocation,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFFEFBEA),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                    ),
-                    items: availableRooms.map((r) {
-                      final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(value: r, child: Text(name, style: const TextStyle(fontSize: 14)));
-                    }).toList(),
-                    onChanged: (v) => setState(() => selectedLocation = v!),
-                    validator: (v) => v == null ? "Lokaal word vereis" : null,
-                  ),
-                ],
-              )
+                  ? CustomDropdown<String>(
+                      label: "Spesifieke Lokaal *",
+                      hint: "Kies Lokaal",
+                      value: selectedLocation,
+                      items: availableRooms.map((r) {
+                        final name = r.contains(":") ? r.split(":").last : r;
+                        return DropdownMenuItem(
+                            value: r,
+                            child: Text(name, style: const TextStyle(fontSize: 14)));
+                      }).toList(),
+                      onChanged: (v) => setState(() => selectedLocation = v!),
+                      validator: (v) => v == null ? "Lokaal word vereis" : null,
+                    )
                   : _buildCustomTextField(
-                label: "Spesifieke Lokaal *",
-                hint: "bv. Lokaal 4 of Bitterbessie",
-                onChanged: (v) => location = v,
-                validator: (v) => (v == null || v.isEmpty) ? "Lokaal word vereis" : null,
-              ),
+                      label: "Spesifieke Lokaal *",
+                      hint: "bv. Lokaal 4 of Bitterbessie",
+                      onChanged: (v) => location = v,
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? "Lokaal word vereis" : null,
+                    ),
 
               const SizedBox(height: 25),
               const Text("IDENTIFIKASIE OPSIES", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1)),

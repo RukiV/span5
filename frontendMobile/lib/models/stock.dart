@@ -25,6 +25,7 @@ class Stock {
   );
 
   Map<String, dynamic> toJson() => {
+    'stock_name': "$brand $type", // Backend mag dalk hierdie veld verwag
     'stock_brand': brand,
     'stock_amount': amount,
     'stock_type': type,

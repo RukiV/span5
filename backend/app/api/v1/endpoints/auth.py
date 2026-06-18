@@ -46,16 +46,18 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
     return user_service.getByID(session, payload.get("user_id"))
 
 
-def _check_system_access(user: User):
+def _check_system_access(user: User, request: Request):
     """
     Kontroleer of gebruiker toegang het tot FBS-stelsel.
     Slegs role_id >= 2 (FK-koördineerder en Administrator) mag aanmeld.
     Gewone gebruikers (role_id=1) word geweier met 403-fout.
     """
-    if user.role_id == 1:
+    client_type = request.headers.get("X-Client-Type")
+
+    if user.role_id == 1 and client_type != "mobile":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Jy het nie toegang tot die FBS stelsel nie. Kontak Administrasie asseblief: admin@akademia.co.za"
+            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir web-toegang."
         )
 
 
@@ -78,7 +80,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(request: LoginRequest, session: Session = Depends(getSession)):
+def login(login_data: LoginRequest, request: Request, session: Session = Depends(getSession)):
     """
     Plaaslike aanmelding met e-pos en wagwoord.
     1. Soek gebruiker op e-posadres
@@ -87,9 +89,9 @@ def login(request: LoginRequest, session: Session = Depends(getSession)):
     4. Gee app-sessietoken terug
     """
     # Soek gebruiker op basis van e-pos
-    user = user_service.get_by_email(session, request.user_email)
+    user = user_service.get_by_email(session, login_data.user_email)
     
-    # Verifieer dat gebruiker bestaan en wagwoord korrekt is
+    # Verifieer dat gebruiker bestaan en wagwoord korrek is
     if not user or user.user_password != request.user_password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -98,7 +100,7 @@ def login(request: LoginRequest, session: Session = Depends(getSession)):
     
     # Kontroleer of gebruiker se rol toelaat toegang tot stelsel
     # Hierdie gee 403-fout vir gewone gebruikers (role_id=1)
-    _check_system_access(user)
+    _check_system_access(user, request)
     
     # Skep app-sessietoken vir gekwalifiseerde gebruiker
     app_token = create_session_token(user.user_id)
@@ -134,7 +136,7 @@ def validate_session(request: Request, session: Session = Depends(getSession)):
     return {"valid": True, "user_id": user.user_id, "exp": payload.get("exp")}
 
 
-@router.post("/refresh")
+@router.post("/refresh")-
 def refresh_session(request: Request, session: Session = Depends(getSession)):
     """
     Vernuwe sessie deur nuwe token uit te gee.
@@ -166,7 +168,7 @@ def revoke_session():
 
 
 @router.post("/microsoft")
-async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Depends(getSession)):
+async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request, session: Session = Depends(getSession)):
     """
     Microsoft Azure AD aanmelding.
     1. Valideer Microsoft-token via Graph API
@@ -180,7 +182,7 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
         async with httpx.AsyncClient() as client:
             graph_response = await client.get(
                 "https://graph.microsoft.com/v1.0/me",
-                headers={"Authorization": f"Bearer {request.microsoft_token}"}
+                headers={"Authorization": f"Bearer {token_request.microsoft_token}"}
             )
 
             # Kontroleer of Graph API-versoek suksesvol was
@@ -211,12 +213,12 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
             # Gebruiker bestaan reeds - gebruik hulle
             user = existing_user
         else:
-            # Skep nuwe gebruiker met standaard-rol (ID 1 = gewone Gebruiker)
+            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek
             user = User(
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password="microsoft_oauth",  # Plaasvervanger vir OAuth-gebruikers
+                user_password="microsoft_oauth",
                 user_status="active",
                 role_id=1  # Standaard rol
             )
@@ -224,9 +226,8 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
             session.commit()
             session.refresh(user)
 
-        # Kontroleer of gebruiker se rol toelaat toegang tot stelsel
-        # Hierdie gee 403-fout vir gewone gebruikers (role_id=1)
-        _check_system_access(user)
+        # Kontroleer of gebruiker se rol toelaat toegang tot stelsel (Mobiel vs Web)   
+        _check_system_access(user, request)
 
         # Skep ons app se sessietoken (nie Microsoft se token nie)
         app_token = create_session_token(user.user_id)
@@ -236,6 +237,9 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
             "user_id": user.user_id
         }
 
+    except HTTPException:
+        # Moenie FastAPI foute (soos 403 Forbidden) vang en in 500's verander nie
+        raise
     except httpx.HTTPError as e:
         # Hanteer netwerkfoute by Microsoft-verbinding
         raise HTTPException(

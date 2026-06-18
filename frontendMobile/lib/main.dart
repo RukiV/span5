@@ -5,6 +5,7 @@ import 'pages/reporting/location_page.dart';
 import 'core/app_colors.dart';
 
 
+// Global key for navigation across the app without context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() => runApp(const MyApp());
@@ -19,12 +20,13 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Akademia Fasiliteite',
 
-      // Globale Tema
+      // Global App Theme Configuration
       theme: ThemeData(
         fontFamily: 'Poppins',
         primaryColor: AppColors.navy,
         scaffoldBackgroundColor: AppColors.background,
 
+        // Custom AppBar styling for a consistent look
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.navy,
           foregroundColor: AppColors.white,
@@ -37,6 +39,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
+        // Default button styles
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
@@ -46,6 +49,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
+        // Text input styling used throughout the app
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: AppColors.inputFill,
@@ -61,6 +65,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       onGenerateRoute: (settings) {
         Widget page;
+        // Route management
         switch (settings.name) {
           case '/':
             page = const LoginPage();
@@ -76,7 +81,7 @@ class MyApp extends StatelessWidget {
             page = const LoginPage();
         }
 
-        // Custom Smooth Fade Transition
+        // Custom Smooth Fade Transition between screens
         return PageRouteBuilder(
           settings: settings,
           pageBuilder: (context, animation, secondaryAnimation) => page,
