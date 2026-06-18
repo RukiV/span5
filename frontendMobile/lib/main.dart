@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
@@ -8,7 +9,15 @@ import 'core/app_colors.dart';
 // Global key for navigation across the app without context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
+  }
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
