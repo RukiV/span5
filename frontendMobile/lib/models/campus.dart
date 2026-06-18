@@ -8,7 +8,7 @@ class Campus {
   final LatLng location;
   final double radius; 
   final String? imageAsset;
-  final List<String> rooms;
+  final List<String> rooms; // Word gestoor as "ID:Name"
 
   Campus({
     required this.id,
@@ -44,25 +44,29 @@ class Campus {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'code': code,
-    'address': address,
-    'lat': location.latitude,
-    'lng': location.longitude,
-    'radius': radius,
-    'imageAsset': imageAsset,
-    'rooms': rooms,
+    'location_name': name,
+    'location_type': code,
+    'location_streetnum': address.split(' ').first,
+    'location_streetname': address.split(' ').skip(1).join(' '),
+    'zipcode_id': 1, // Default vir nou
   };
 
   factory Campus.fromJson(Map<String, dynamic> json) => Campus(
-    id: json['id'],
-    name: json['name'],
-    code: json['code'],
-    address: json['address'],
-    location: LatLng(json['lat'], json['lng']),
-    radius: (json['radius'] as num).toDouble(),
-    imageAsset: json['imageAsset'],
-    rooms: List<String>.from(json['rooms'] ?? []),
+    id: json['location_id']?.toString() ?? '',
+    name: json['location_name'] ?? '',
+    code: json['location_type'] ?? 'KAMPUS',
+    address: "${json['location_streetnum'] ?? ''} ${json['location_streetname'] ?? ''}".trim(),
+    location: const LatLng(-25.8480, 28.2366), // Backend stoor nie tans lat/lng in Location nie
+    radius: 110.0,
+    imageAsset: null,
+    rooms: [], // Moet apart gelaai word via rooms endpoint
   );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Campus && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

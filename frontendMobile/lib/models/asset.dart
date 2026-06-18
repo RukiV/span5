@@ -1,9 +1,10 @@
+// Asset: Represents a piece of equipment or furniture tracked by the system.
 class Asset {
   final String id;
   final String serialCode;
   final String name;
   final String category;
-  final String location;
+  final String location; // Corresponds to room_id on the backend
   final String status;
   final DateTime purchaseDate;
   final DateTime campusStartDate;
@@ -26,6 +27,7 @@ class Asset {
   })  : warrantyReceipts = warrantyReceipts ?? [],
         reportIds = reportIds ?? [];
 
+  // Creates a copy of the asset with optional updated fields.
   Asset copyWith({
     String? campus,
     String? id,
@@ -54,41 +56,44 @@ class Asset {
     );
   }
 
+  // Converts the object into a JSON-friendly map for backend updates.
   Map<String, dynamic> toJson() => {
     'asset_name': name,
     'asset_status': status.toLowerCase(),
     'room_id': int.tryParse(location) ?? 1,
     'assettype_id': _getCategoryId(category),
     'asset_serial': serialCode,
+    'asset_isoutdoor': false, // Currently default to false, could be a toggle in UI later
   };
 
+  // Factory constructor to create an Asset object from a backend JSON response.
   factory Asset.fromJson(Map<String, dynamic> json) => Asset(
-    campus: 'Hoofkampus (Centurion)', // Backend het nie 'n direkte campus veld op asset nie
+    campus: 'Loading...', // Ideally populated via Room -> Location relationship
     id: json['asset_id']?.toString() ?? '',
     serialCode: json['asset_serial'] ?? '',
-    name: json['asset_name'] ?? 'Onbekende Bate',
+    name: json['asset_name'] ?? 'Unknown Asset',
     category: _getCategoryName(json['assettype_id']),
     location: json['room_id']?.toString() ?? '1',
     status: json['asset_status'] ?? 'active',
-    purchaseDate: DateTime.now(), // Backend stoor nie tans aankoopdatum nie
+    purchaseDate: DateTime.now(),
     campusStartDate: DateTime.now(),
     warrantyReceipts: [],
     reportIds: [],
   );
 
+  // Helper to map category names to backend-expected IDs
   static int _getCategoryId(String cat) {
-    switch (cat) {
-      case "Meubels": return 1;
-      case "IT Toerusting": return 2;
-      default: return 3;
-    }
+    if (cat.contains("Meubel")) return 1;
+    if (cat.contains("IT") || cat.contains("Tegno")) return 2;
+    return 3; // Other
   }
 
+  // Helper to map backend IDs back to human-readable categories
   static String _getCategoryName(int? id) {
     switch (id) {
-      case 1: return "Meubels";
-      case 2: return "IT Toerusting";
-      default: return "Ander";
+      case 1: return "Furniture";
+      case 2: return "IT Equipment";
+      default: return "Other";
     }
   }
 }
