@@ -105,7 +105,7 @@ def validate_session(request: Request, session: Session = Depends(getSession)):
     return {"valid": True, "user_id": user.user_id, "exp": payload.get("exp")}
 
 
-@router.post("/refresh")-
+@router.post("/refresh")
 def refresh_session(request: Request, session: Session = Depends(getSession)):
     """Refresh the session expiry by issuing a new session token."""
     token = _get_bearer_token(request)

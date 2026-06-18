@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiClient {
   // CONFIGURATION: Set your server's IP address here.
   // Use '10.0.2.2' for Android Emulator or your laptop's local IP (e.g., 192.168.1.95) for physical devices.
-  static const String laptopIp = '192.168.1.95'; 
+  static const String laptopIp = '10.0.2.2';
   static const String serverBaseUrl = 'http://$laptopIp:8000';
   static final Dio _dio = _initDio();
 

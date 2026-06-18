@@ -8,6 +8,7 @@ import '../../main.dart';
 import '../../core/app_colors.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
+import '../../core/auth_config.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -26,10 +27,10 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passControl = TextEditingController();
 
   final Config config = Config(
-    tenant: "49c8f005-73ef-462e-99e7-7be3a22980eb",
-    clientId: "ee909cd4-2fae-4cd2-8d7e-da7e8508d772",
-    scope: "openid profile offline_access User.Read",
-    redirectUri: "msauth://com.example.untitled/xc13Rb9XZfaL0EqEJWzx78ijaeM=",
+    tenant: AuthConfig.tenantId,
+    clientId: AuthConfig.clientId,
+    scope: AuthConfig.scopes.join(' '),
+    redirectUri: AuthConfig.redirectUri,
     navigatorKey: navigatorKey,
   );
 
