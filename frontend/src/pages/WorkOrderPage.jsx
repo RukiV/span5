@@ -302,10 +302,24 @@ function WorkOrderPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/stock">Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains">Terreine</Link></li>
+          <li class="dropdown" >
+              <div className="dropdown-trigger">
+                  <span>Bates & Voorraad</span>
+              </div>
+                  <div className="dropdown-content">
+                  <Link to="/assets">Bates</Link>
+                  <Link to="/stock">Voorraad</Link>
+                  </div>
+          </li>
+              <li class="dropdown">
+              <div className="dropdown-trigger">
+                  <span>Lokale & Terreine</span>
+              </div>
+              <div className="dropdown-content">
+                  <li><Link to="/rooms">Lokale</Link></li>
+                  <li><Link to="/terrains">Terreine</Link></li>
+              </div>
+          </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders" style={{ background: "#935e28" }}>Werksopdragte</Link></li>
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
@@ -401,7 +415,7 @@ function WorkOrderPage() {
                     <td className="actions-cell">
                         <button 
                         type="button"
-                        className="btn-view"
+                        className="btn-edit"
                         onClick={() => handleEditWorkOrder(order)}
                         title="Bekyk en wysig werksopdrag"
                       >
@@ -426,11 +440,11 @@ function WorkOrderPage() {
 
       {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
-        <div className="workorder-modal-overlay" onClick={handleCloseModal}>
-          <div className="workorder-modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal" >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="mri-header">
-                <h1 className="mri-main-title">Werksopdrag Kaart</h1>
+            <div className="modal-header">
+                <h3>Werksopdrag Kaart</h3>
                 {isEditing && (
                   <div className="mri-job-no">
                     <input 
@@ -441,6 +455,7 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
+                <span className="close" onClick={handleCloseModal}>&times;</span>
                 <hr/>
             </div>
 
@@ -456,8 +471,6 @@ function WorkOrderPage() {
                     value={formData.brief_description}
                     onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
                     placeholder="Kort beskrywing van werk"
-                    
-
                   />
                 </div>
                 <div className="mri-cell w-40">
@@ -651,10 +664,10 @@ function WorkOrderPage() {
             </div>
 
             {/* Knoppies */}
-            <div className="mri-controls no-print">
-              <button type="button" className="btn-mri-secondary" onClick={handleCloseModal}>Sluit</button>
-              <button type="button" className="btn-mri-primary" onClick={() => window.print()}>Druk Werksopdrag</button>
-              <button type="button" className="btn-mri-save" onClick={handleSaveWorkOrder}>Stoor</button>
+            <div className="modal-footer no-print">
+              <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
+              <button type="button" className="btn-save" onClick={handleSaveWorkOrder}>Stoor</button>
             </div>
           </div>
         </div>

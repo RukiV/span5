@@ -126,14 +126,28 @@ function TerrainsPage() {
       <div className="sidebar">
         <h2>FBS</h2>
         <ul>
-          <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/stock">Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains" style={{ background: '#935e28' }}>Terreine</Link></li>
-          <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
-          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
+            <li><Link to="/dashboard">Paneelbord</Link></li>
+            <li class="dropdown" >
+                <div className="dropdown-trigger">
+                    <span>Bates & Voorraad</span>
+                </div>
+                    <div className="dropdown-content">
+                    <Link to="/assets">Bates</Link>
+                    <Link to="/stock">Voorraad</Link>
+                    </div>
+            </li>
+                <li class="dropdown" style={{ background: '#935e28' }}>
+                <div className="dropdown-trigger">
+                    <span>Lokale & Terreine</span>
+                </div>
+                <div className="dropdown-content">
+                    <li><Link to="/rooms">Lokale</Link></li>
+                    <li><Link to="/terrains" style={{ background: '#935e28' }}>Terreine</Link></li>
+                </div>
+            </li>
+            <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
+            <li><Link to="/work-orders">Werksopdragte</Link></li>
+            {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
@@ -189,11 +203,11 @@ function TerrainsPage() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" style={{ display: "flex" }}>
+        <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
               <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-              <button className="close" onClick={handleCloseModal}>×</button>
+               <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
             <div className="input-row">
               <div className="input-group">

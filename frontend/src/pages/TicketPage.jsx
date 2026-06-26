@@ -213,10 +213,24 @@ function TicketPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/stock">Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains">Terreine</Link></li>
+          <li class="dropdown" >
+              <div className="dropdown-trigger">
+                  <span>Bates & Voorraad</span>
+              </div>
+                  <div className="dropdown-content">
+                  <Link to="/assets">Bates</Link>
+                  <Link to="/stock">Voorraad</Link>
+                  </div>
+          </li>
+              <li class="dropdown">
+              <div className="dropdown-trigger">
+                  <span>Lokale & Terreine</span>
+              </div>
+              <div className="dropdown-content">
+                  <li><Link to="/rooms">Lokale</Link></li>
+                  <li><Link to="/terrains">Terreine</Link></li>
+              </div>
+          </li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
