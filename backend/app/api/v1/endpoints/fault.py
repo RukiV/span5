@@ -1,8 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
-from typing import List, Optional
-import os
-import uuid
+from typing import List
 
 from ....db.database import getSession
 from ....models.fault import FaultcardRead, FaultcardCreate, FaultcardUpdate
@@ -25,46 +23,8 @@ def readFault(faultID: int, session: Session = Depends(getSession)):
     return fault
 
 @router.post("", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
-async def addFault(
-    # --- MOBILE MULTIPART SUPPORT ---
-    # These parameters use 'Form' and 'File' instead of 'Body'.
-    # This is required so the mobile app can send both an image and report data in one request.
-    # Note: If you change this back to a JSON Body, mobile image uploads will fail.
-    fault_description: str = Form(...),
-    asset_id: Optional[int] = Form(None),
-    room_id: Optional[int] = Form(None),
-    mappoint_id: Optional[int] = Form(None),
-    fault_type: Optional[str] = Form(None),
-    fault_priority: str = Form("medium"),
-    user_id: Optional[int] = Form(None),
-    image: Optional[UploadFile] = File(None),
-    # --------------------------------
-    session: Session = Depends(getSession)
-):
-    # Create the Create model
-    faultIn = FaultcardCreate(
-        fault_description=fault_description,
-        asset_id=asset_id,
-        room_id=room_id,
-        mappoint_id=mappoint_id,
-        fault_type=fault_type,
-        fault_priority=fault_priority,
-        user_id=user_id
-    )
-
-    if image:
-        UPLOAD_DIR = "uploads"
-        file_extension = os.path.splitext(image.filename)[1]
-        filename = f"{uuid.uuid4()}{file_extension}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
-
-        with open(filepath, "wb") as buffer:
-            content = await image.read()
-            buffer.write(content)
-
-        faultIn.fault_image_url = f"/uploads/{filename}"
-
-    #Create new fault
+def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession)):
+    """Create a new fault report using a standard JSON body."""
     return fault_service.create(session, faultIn)
     
 @router.patch("/{faultID}", response_model=FaultcardRead)

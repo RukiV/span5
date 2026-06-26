@@ -1,5 +1,4 @@
 import 'user_session.dart';
-import '../core/api_client.dart';
 
 class Report {
   final String id;
@@ -12,8 +11,6 @@ class Report {
   final String phase; // Word gemap na fault_status op backend
   final String user;
   final DateTime timestamp;
-  final String? adminNotes;
-  final List<String> imageUrls;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
 
   Report({
@@ -27,8 +24,6 @@ class Report {
     required this.phase,
     required this.user,
     required this.timestamp,
-    this.adminNotes,
-    this.imageUrls = const [],
     this.gpsCoords,
   });
 
@@ -61,7 +56,6 @@ class Report {
       'user_id': UserSession.userId,
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
-      'admin_notes': adminNotes,
     };
   }
 
@@ -96,28 +90,6 @@ class Report {
       description = parts.sublist(1).join(": ");
     }
 
-    // Handhaaf ondersteuning vir enkel imageUrl (vir nou) of 'n lys van urls
-    List<String> urls = [];
-    String baseUrl = ApiClient.serverBaseUrl;
-
-    void addUrl(String? path) {
-      if (path == null) return;
-      if (path.startsWith('http')) {
-        urls.add(path);
-      } else {
-        urls.add('$baseUrl$path');
-      }
-    }
-
-    addUrl(json['fault_image_url']);
-    addUrl(json['image_url']);
-    
-    if (json['image_urls'] != null && json['image_urls'] is List) {
-      for (var url in json['image_urls']) {
-        addUrl(url.toString());
-      }
-    }
-
     return Report(
       id: json['fault_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
       assetId: json['asset_id']?.toString() ?? 'Geen Bate',
@@ -131,8 +103,6 @@ class Report {
       timestamp: json['fault_reportdatetime'] != null 
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
-      adminNotes: json['admin_notes'],
-      imageUrls: urls,
       gpsCoords: json['mappoint_id']?.toString(),
     );
   }
@@ -148,8 +118,6 @@ class Report {
     String? phase,
     String? user,
     DateTime? timestamp,
-    String? adminNotes,
-    List<String>? imageUrls,
     String? gpsCoords,
   }) {
     return Report(
@@ -163,8 +131,6 @@ class Report {
       phase: phase ?? this.phase,
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
-      adminNotes: adminNotes ?? this.adminNotes,
-      imageUrls: imageUrls ?? this.imageUrls,
       gpsCoords: gpsCoords ?? this.gpsCoords,
     );
   }
