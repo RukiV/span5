@@ -23,14 +23,12 @@ class NewReportPage extends StatefulWidget {
 }
 
 class _NewReportPageState extends State<NewReportPage> {
-  final List<File> problemImages = [];
   String? gpsCoords;
   Uint8List? mapScreenshot;
   final TextEditingController serialController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descController = TextEditingController();
 
-  final TextEditingController internalNotesController = TextEditingController();
   String? selectedCampus;
   String? selectedLocation;
   String? selectedCategory;
@@ -49,7 +47,6 @@ class _NewReportPageState extends State<NewReportPage> {
     serialController.dispose();
     titleController.dispose();
     descController.dispose();
-    internalNotesController.dispose();
     super.dispose();
   }
 
@@ -183,13 +180,6 @@ class _NewReportPageState extends State<NewReportPage> {
 
                       if (UserSession.hasAdminPrivileges) ...[
                         const SizedBox(height: sectionGap),
-                        _buildLabel("Admin Interne Notas"),
-                        const SizedBox(height: labelGap),
-                        _buildCustomTextField(
-                          controller: internalNotesController,
-                          hint: "Notas slegs sigbaar vir personeel...",
-                        ),
-                        const SizedBox(height: sectionGap),
                         _buildLabel("Prioriteit (Aktiveer na voltooiing)"),
                         const SizedBox(height: labelGap),
                         AbsorbPointer(
@@ -264,12 +254,10 @@ class _NewReportPageState extends State<NewReportPage> {
                               user: UserSession.userId.toString(),
                               timestamp: DateTime.now(),
                               gpsCoords: gpsCoords,
-                              adminNotes: UserSession.hasAdminPrivileges ? internalNotesController.text : null,
                             );
 
                             try {
-                              // Support multiple images if backend allows in future, currently service might take one
-                              final success = await ReportService.addReport(newReport, problemImages.isNotEmpty ? problemImages.first : null);
+                              final success = await ReportService.addReport(newReport);
                               if (mounted) {
                                 if (success) {
                                   NewReportPage.lastSubmissionTime = DateTime.now();
@@ -447,47 +435,11 @@ class _NewReportPageState extends State<NewReportPage> {
               contentPadding: EdgeInsets.fromLTRB(12, 8, 12, 12),
             ),
           ),
-          if (problemImages.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: problemImages.map((img) => Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(img, width: 80, height: 80, fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      right: 0,
-                      top: 0,
-                      child: GestureDetector(
-                        onTap: () => setState(() => problemImages.remove(img)),
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          child: const Icon(Icons.close, size: 14, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                )).toList(),
-              ),
-            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 10, 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _buildCompactActionButton(
-                  icon: Icons.add_a_photo_outlined,
-                  onTap: () async {
-                    final file = await CameraService.takePhoto();
-                    if (file != null) setState(() => problemImages.add(file));
-                  },
-                ),
-                const SizedBox(width: 8),
                 _buildCompactActionButton(
                   icon: gpsCoords != null ? Icons.location_on : Icons.location_on_outlined,
                   isActive: gpsCoords != null,

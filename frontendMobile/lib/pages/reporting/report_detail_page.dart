@@ -65,16 +65,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 ),
               ),
             const SizedBox(height: 25),
-            if (_currentReport.adminNotes != null && _currentReport.adminNotes!.isNotEmpty) ...[
-              _buildSectionHeader("Admin Notas"),
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.blue.withOpacity(0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.withOpacity(0.2))),
-                child: Text(_currentReport.adminNotes!, style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic)),
-              ),
-              const SizedBox(height: 25),
-            ],
             _buildSectionHeader("Tydlyn (Audit Log)"),
             const SizedBox(height: 15),
             _buildTimeline(),
@@ -86,57 +76,30 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildImageSection() {
-    if (_currentReport.imageUrls.isEmpty && widget.screenshot == null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader("Fotos van Probleem"),
-          const SizedBox(height: 12),
-          _imagePlaceholder(),
-        ],
-      );
+    if (widget.screenshot == null) {
+      return const SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Fotos van Probleem"),
+        _buildSectionHeader("Ligging Kaart"),
         const SizedBox(height: 12),
         SizedBox(
           height: 250,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: (_currentReport.imageUrls.length) + (widget.screenshot != null ? 1 : 0),
-            itemBuilder: (context, index) {
-              Widget image;
-              if (index < _currentReport.imageUrls.length) {
-                image = Image.network(
-                  _currentReport.imageUrls[index],
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stack) => _imagePlaceholder(),
-                );
-              } else {
-                image = Image.memory(widget.screenshot!, fit: BoxFit.cover);
-              }
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: InkWell(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => Dialog(
-                        child: InteractiveViewer(child: image),
-                      ),
-                    );
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(width: 300, child: image),
-                  ),
+          child: InkWell(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  child: InteractiveViewer(child: Image.memory(widget.screenshot!, fit: BoxFit.contain)),
                 ),
               );
             },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(widget.screenshot!, fit: BoxFit.cover),
+            ),
           ),
         ),
       ],
