@@ -323,9 +323,12 @@ function UsersPage() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" style={{ display: 'flex' }}>
-          <div className="job-form-card">
-            <h3 className="form-title">{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
+        <div className="modal">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
+            </div>
             {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
             {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
             <div className="form-group">
@@ -383,8 +386,8 @@ function UsersPage() {
                 <option value="inactive">Onaktief</option>
               </select>
             </div>
-            <div className="form-actions">
-              <button className="btn-close" onClick={handleCloseModal}>Kanselleer</button>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-save" onClick={handleAddUser}>Stoor</button>
             </div>
           </div>

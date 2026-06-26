@@ -177,15 +177,29 @@ function AssetPage() {
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <div >
       <div className="sidebar">
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets" style={{ background: '#935e28' }}>Bates</Link></li>
-          <li><Link to="/stock">Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains">Terreine</Link></li>
+          <li class="dropdown" style={{ background: '#935e28' }}>
+              <div className="dropdown-trigger">
+                <span>Bates & Voorraad</span>
+              </div>
+                <div className="dropdown-content">
+                <Link to="/assets" style={{ background: '#935e28' }}>Bates</Link>
+                <Link to="/stock">Voorraad</Link>
+                </div>
+          </li>
+           <li class="dropdown">
+              <div className="dropdown-trigger">
+                  <span>Lokale & Terreine</span>
+              </div>
+              <div className="dropdown-content">
+                  <li><Link to="/rooms">Lokale</Link></li>
+                  <li><Link to="/terrains">Terreine</Link></li>
+              </div>
+          </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}

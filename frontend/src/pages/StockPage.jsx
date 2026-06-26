@@ -152,14 +152,28 @@ function StockPage() {
       <div className="sidebar">
         <h2>FBS</h2>
         <ul>
-          <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/stock" style={{ background: '#935e28' }}>Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains">Terreine</Link></li>
-          <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
-          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
+            <li><Link to="/dashboard">Paneelbord</Link></li>
+            <li class="dropdown" style={{ background: '#935e28' }}>
+                <div className="dropdown-trigger">
+                    <span>Bates & Voorraad</span>
+                </div>
+                <div className="dropdown-content">
+                    <Link to="/assets" >Bates</Link>
+                    <Link to="/stock" style={{ background: '#935e28' }}>Voorraad</Link>
+                </div>
+            </li>
+            <li class="dropdown">
+                <div className="dropdown-trigger">
+                    <span>Lokale & Terreine</span>
+                </div>
+                <div className="dropdown-content">
+                    <li><Link to="/rooms">Lokale</Link></li>
+                    <li><Link to="/terrains">Terreine</Link></li>
+                </div>
+            </li>
+            <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
+            <li><Link to="/work-orders">Werksopdragte</Link></li>
+            {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
           <Link to="/login" className="btn-logout-sidebar">Logout</Link>
