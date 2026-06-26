@@ -11,6 +11,8 @@ function ReportsPage() {
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
+          <li><Link to="/stock">Voorraad</Link></li>
+          <li><Link to="/terrains">Terreine</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
           {/* Opmerking: Typo in oorspronklike kode - Lk in plaas van Link */}
           <li><Link to="/analysis">Analise</Link></li>

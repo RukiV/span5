@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import '../styles/App.css';
 import '../styles/Dashboard.css';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
@@ -43,7 +44,9 @@ const DashboardPage = () => {
         <ul>
           <li><Link to="/dashboard" style={{ background: '#935e28' }}>Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
+          <li><Link to="/stock">Voorraad</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
+          <li><Link to="/terrains">Terreine</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           {/* Toon Gebruikers-skakel slegs vir Administrateure (role_id=3) */}
@@ -89,7 +92,7 @@ const DashboardPage = () => {
           <div className="dashboard-grid">
             <div className="data-panel">
               <h3>Onlangse Herstelwerk</h3>
-              <table className="repair-table">
+              <table className="standard-table">
                 <thead>
                   <tr>
                     <th>Bate</th>

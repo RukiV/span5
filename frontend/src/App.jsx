@@ -4,12 +4,14 @@ import './styles/App.css';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AssetPage from './pages/AssetPage';
+import StockPage from './pages/StockPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
 import UsersPage from './pages/UsersPage';
 import AnalysisPage from './pages/AnalysisPage';
 import CalendarPage from './pages/CalendarPage';
 import RoomsPage from './pages/RoomsPage';
+import TerrainsPage from './pages/TerrainsPage';
 import ReportsPage from './pages/ReportsPage';
 
 function App() {
@@ -19,12 +21,14 @@ function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/assets" element={<AssetPage />} />
+        <Route path="/stock" element={<StockPage />} />
         <Route path="/fault-tickets" element={<TicketPage />} />
         <Route path="/work-orders" element={<WorkOrderPage />} />
         <Route path="/users" element={<UsersPage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/rooms" element={<RoomsPage />} />
+        <Route path="/terrains" element={<TerrainsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/" element={<DashboardPage />} />
       </Routes>

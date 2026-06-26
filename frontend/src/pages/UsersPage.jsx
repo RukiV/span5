@@ -220,7 +220,9 @@ function UsersPage() {
           <ul>
             <li><Link to="/dashboard">Paneelbord</Link></li>
             <li><Link to="/assets">Bates</Link></li>
+            <li><Link to="/stock">Voorraad</Link></li>
             <li><Link to="/rooms">Lokale</Link></li>
+            <li><Link to="/terrains">Terreine</Link></li>
             <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
             <li><Link to="/work-orders">Werksopdragte</Link></li>
           </ul>
@@ -251,7 +253,9 @@ function UsersPage() {
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
+          <li><Link to="/stock">Voorraad</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
+          <li><Link to="/terrains">Terreine</Link></li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
@@ -287,10 +291,10 @@ function UsersPage() {
               <option value="inactive">Onaktief</option>
             </select>
 
-            <button className="btn-add-user" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
           </div>
 
-          <table className="users-table">
+          <table className="standard-table">
             <thead>
               <tr>
                 <th>Naam</th>
