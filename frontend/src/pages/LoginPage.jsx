@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMsal } from "@azure/msal-react";
 import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
+import '../styles/App.css';
 import '../styles/Login.css';
 
 function LoginPage() {

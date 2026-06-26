@@ -214,7 +214,9 @@ function TicketPage() {
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
+          <li><Link to="/stock">Voorraad</Link></li>
           <li><Link to="/rooms">Lokale</Link></li>
+          <li><Link to="/terrains">Terreine</Link></li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
@@ -250,7 +252,7 @@ function TicketPage() {
             <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
           </div>
 
-          <table className="tickets-table">
+          <table className="standard-table">
             <thead>
               <tr>
                 <th>ID Kaartjie</th>

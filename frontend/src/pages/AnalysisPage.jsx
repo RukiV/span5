@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import '../styles/App.css';
 import '../styles/Analysis.css';
 
 function AnalysisPage() {
@@ -11,6 +12,8 @@ function AnalysisPage() {
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
           <li><Link to="/assets">Bates</Link></li>
+          <li><Link to="/stock">Voorraad</Link></li>
+          <li><Link to="/terrains">Terreine</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
           {/* Markeer huidige blad as aktief met bruin agtergrond */}
           <li><Link to="/analysis" style={{ background: '#935e28' }}>Analise</Link></li>

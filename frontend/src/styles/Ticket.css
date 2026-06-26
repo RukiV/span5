@@ -1,34 +1,9 @@
 /* Ticket Page Styles */
 body { display: flex; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
 
-.sidebar { width: 250px; background-color: #0e1e3b; color: white; height: 100vh; position: fixed; display: flex; flex-direction: column; padding: 20px 0; }
-.sidebar h2 { text-align: center; margin-bottom: 30px; letter-spacing: 2px; }
-.sidebar ul { list-style: none; padding: 0; flex: 1; }
-.sidebar ul li a { display: block; padding: 12px 25px; color: white; text-decoration: none; transition: 0.3s; }
-.sidebar ul li a:hover { background-color: #1a2e54; }
-.logout-container { padding: 0 20px; margin-top: auto; }
-.btn-logout-sidebar { display: block; background-color: #935e28; color: white; padding: 12px; text-align: center; text-decoration: none; border-radius: 5px; font-weight: bold; transition: 0.3s; }
-.btn-logout-sidebar:hover { background-color: #a0522d; }
-
-.main { margin-left: 250px; width: calc(100vw - 250px); min-height: 100vh; flex: 1; overflow: hidden; }
-
-.navbar { background: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-
-.content { padding: 10px 30px 30px 30px; flex: 1; width: 100%; overflow-y: auto; }
-
-.controls { display: flex; gap: 15px; margin-bottom: 20px; align-items: center; }
 
 .search-box { flex: 2; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; background-color: white; }
 .filter-select { flex: 1; padding: 10px; border: 1px solid #cbd5e1; border-radius: 5px; background-color: white; }
-
-.btn-add { padding: 10px 20px; font-size: 20px; cursor: pointer; background: #935e28; color: white; border: none; border-radius: 4px; }
-
-.tickets-table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-.tickets-table th, .tickets-table td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
-.tickets-table tbody tr { cursor: pointer; transition: 0.2s; }
-.tickets-table tbody tr:hover { background-color: #f1f5f9; }
-
-.modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 3000; }
 
 .job-form-card { background: white; padding: 25px; border-radius: 8px; width: 450px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
@@ -54,10 +29,7 @@ body { display: flex; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdan
 .status-default { background-color: #e9ecef; color: #333; }
 
 /* Modal Styles */
-.modal { display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; padding: 30px; border-radius: 8px; width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
-.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #935e28; padding-bottom: 15px; }
-.modal-header h3 { margin: 0; color: #0e1e3b; }
+
 .close { font-size: 28px; font-weight: bold; color: #999; cursor: pointer; }
 .close:hover { color: #000; }
 
@@ -67,7 +39,7 @@ body { display: flex; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdan
 .input-group input, .input-group textarea, .input-group select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; font-size: 14px; }
 .input-group textarea { resize: vertical; min-height: 80px; }
 
-.modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
 .btn-cancel { background-color: #eee; color: #333; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-weight: bold; }
 .btn-cancel:hover { background-color: #ddd; }
 .btn-save:hover { background-color: #a0522d; }

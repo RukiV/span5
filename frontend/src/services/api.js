@@ -25,7 +25,7 @@ const apiClient = axios.create({
   },
 });
 
-// Voeg versoek-interceptor vir outentikasie-token by
+// Voeg versoek-interceptor vir outentikasie-token en client-type by
 apiClient.interceptors.request.use(
   (config) => {
     // Haal token uit localStorage en voeg by Authorization-header
@@ -33,6 +33,9 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Voeg X-Client-Type header by om as web-klien te identifiseer
+    // Backend kontroleer hierdie vir rol-gebaseerde toegang (Students slegs mobile)
+    config.headers['X-Client-Type'] = 'web';
     return config;
   },
   (error) => {
@@ -80,7 +83,17 @@ export const locationAPI = {
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
-  create: (data) => apiClient.post('/fault', data),
+  // create: Ondersteun multipart form data vir image uploads (mobiele app)
+  create: (data) => {
+    // As data bevat FormData, gebruik multipart form data header
+    if (data instanceof FormData) {
+      return apiClient.post('/fault', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    // Anders stuur as JSON
+    return apiClient.post('/fault', data);
+  },
   update: (id, data) => apiClient.patch(`/fault/${id}`, data),
   delete: (id) => apiClient.delete(`/fault/${id}`),
 };
