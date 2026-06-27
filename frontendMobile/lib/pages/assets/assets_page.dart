@@ -78,7 +78,7 @@ class _AssetsPageState extends State<AssetsPage> {
           if (widget.filterRoomId != null)
             Container(
               padding: const EdgeInsets.all(10),
-              color: AppColors.gold.withOpacity(0.2),
+              color: AppColors.gold.withValues(alpha: 0.2),
               child: Row(
                 children: [
                   const Icon(Icons.filter_list, size: 16, color: AppColors.navy),
