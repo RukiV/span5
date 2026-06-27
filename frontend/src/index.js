@@ -9,6 +9,13 @@ import { msalConfig } from './services/msalConfig';
 const msalInstance = new PublicClientApplication(msalConfig);
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
+// Global fallback logout used by pages that haven't imported the hook yet.
+window.__logout = function() {
+  try { sessionStorage.clear(); localStorage.clear(); } catch(_) {}
+  window.location.replace(window.location.origin + '/login');
+}
+
 root.render(
   <React.StrictMode>
     <MsalProvider instance={msalInstance}>

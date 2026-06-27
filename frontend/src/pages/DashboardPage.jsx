@@ -3,30 +3,38 @@ import { Link } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { useCurrentUser } from '../hooks/useCurrentUser';
+import '../styles/App.css';
 import '../styles/Dashboard.css';
+import { useLogout } from './Page.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 const DashboardPage = () => {
+  // Haal huidige gebruiker se info en admin-status
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
 
+  // Data vir trendlyn-grafiek (herstelwerk per dag van week)
+  // Toon hoeveel take voltooide is, met groene kleur-skema
   const repairTrendData = {
     labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa', 'So'],
     datasets: [{
       label: 'Voltooide Take',
       data: [2, 5, 3, 8, 4, 1, 2],
-      borderColor: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderColor: '#10b981',        // Groen lyn
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',  // Ligte groen vulling
       fill: true,
       tension: 0.3
     }]
   };
 
+  // Data vir tergepastei-grafiek (bate-toestande verspreiding)
+  // Toon persentasie van bates in verskillende toestande
   const statusDistData = {
     labels: ['In Gebruik', 'Beskikbaar', 'Onderhoud'],
     datasets: [{
-      data: [65, 40, 15],
-      backgroundColor: ['#3b82f6', '#10b981', '#ef4444'],
+      data: [65, 40, 15],  // Hoeveelheid per toestand
+      backgroundColor: ['#3b82f6', '#10b981', '#ef4444'],  // Blou, groen, rooi
       borderWidth: 0
     }]
   };
@@ -37,14 +45,31 @@ const DashboardPage = () => {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard" style={{ background: '#935e28' }}>Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
+          <li class="dropdown" >
+              <div className="dropdown-trigger">
+                  <span>Bates & Voorraad</span>
+              </div>
+                  <div className="dropdown-content">
+                  <Link to="/assets">Bates</Link>
+                  <Link to="/stock">Voorraad</Link>
+                  </div>
+          </li>
+              <li class="dropdown">
+              <div className="dropdown-trigger">
+                  <span>Lokale & Terreine</span>
+              </div>
+              <div className="dropdown-content">
+                  <li><Link to="/rooms">Lokale</Link></li>
+                  <li><Link to="/terrains">Terreine</Link></li>
+              </div>
+          </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          {/* Toon Gebruikers-skakel slegs vir Administrateure (role_id=3) */}
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 
@@ -55,6 +80,7 @@ const DashboardPage = () => {
         </div>
 
         <div className="content">
+          {/* Hoofskakelstatistieke met tellings en maandeligse tendense */}
           <div className="stats-grid">
             <div className="stat-card">
               <h4>Totale Bates</h4>
@@ -78,10 +104,11 @@ const DashboardPage = () => {
             </div>
           </div>
 
+          {/* Tabel en aktiwiteit-log */}
           <div className="dashboard-grid">
             <div className="data-panel">
               <h3>Onlangse Herstelwerk</h3>
-              <table className="repair-table">
+              <table className="standard-table">
                 <thead>
                   <tr>
                     <th>Bate</th>
@@ -132,16 +159,19 @@ const DashboardPage = () => {
             </div>
           </div>
 
+          {/* Trendgrafieke en verspreidingsgrafieke vir visuele analise */}
           <div className="charts-container">
             <div className="data-panel">
               <h3>Herstelwerk Tendens (7 Dae)</h3>
               <div className="chart-container">
+                {/* Trendlyn-grafiek toon herstelwerk oor week */}
                 <Line data={repairTrendData} options={{ responsive: true, maintainAspectRatio: false }} />
               </div>
             </div>
             <div className="data-panel">
               <h3>Bate Status Verspreiding</h3>
               <div className="chart-container">
+                {/* Tergepastei-grafiek toon bate-toestande proporsie */}
                 <Doughnut data={statusDistData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
               </div>
             </div>
