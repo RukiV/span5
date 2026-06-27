@@ -31,7 +31,7 @@ class CustomDropdown<T> extends StatelessWidget {
           const SizedBox(height: 6),
         ],
         DropdownButtonFormField<T>(
-          value: value,
+          initialValue: value,
           isExpanded: true, // Fix vir overflow
           decoration: InputDecoration(
             filled: true,

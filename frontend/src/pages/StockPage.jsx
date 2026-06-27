@@ -5,6 +5,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 import "../styles/App.css";
 import { useLogout } from "./Page.jsx";
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function StockPage() {
   const { isAdmin } = useCurrentUser();
@@ -185,7 +186,7 @@ function StockPage() {
       <div className="main">
         <div className="navbar">
           <h3>Voorraad Bestuur</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">
