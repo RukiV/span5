@@ -1,16 +1,20 @@
-// AuthConfig: Static configuration for Microsoft Azure AD OAuth integration.
-class AuthConfig {
-  // CLIENT ID: Uniquely identifies our mobile app in the Azure Portal.
-  static const String clientId = "ee909cd4-2fae-4cd2-8d7e-da7e8508d772";
-  
-  // TENANT: Set to "common" for any Microsoft account or a specific ID for Akademia.
-  static const String tenantId = "DEFAULT"; 
-  
-  // REDIRECT URI: The URI Azure calls back to after a successful login.
-  static const String redirectUri = "msauth://com.example.untitled/xc13Rb9XZfaL0EqEJWzx78ijaeM%3D";
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-  // SCOPES: Permissions we are requesting from the user.
-  static const List<String> scopes = ["openid", "profile", "User.Read"];
+class AuthConfig {
+  // Ons verwyder die hardgekodeerde fallbacks. 
+  // Die app sal nou slegs werk as die .env lêer korrek opgestel is.
   
-  // FUTURE IDEA: Move these to a .env file to avoid hardcoding sensitive IDs.
+  static String get clientId => dotenv.get('AZURE_CLIENT_ID', fallback: '');
+  
+  static String get tenantId => dotenv.get('AZURE_TENANT_ID', fallback: 'common'); 
+  
+  static String get redirectUri => dotenv.get('AZURE_REDIRECT_URI', fallback: '');
+
+  static List<String> get scopes {
+    final scopesStr = dotenv.get('AZURE_SCOPES', fallback: 'openid,profile,User.Read');
+    return scopesStr.split(',');
+  }
+
+  // 'n Helper om te kyk of die konfigurasie gelaai is
+  static bool get isValid => clientId.isNotEmpty && redirectUri.isNotEmpty;
 }

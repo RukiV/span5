@@ -85,57 +85,30 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildImageSection() {
-    if (_currentReport.imageUrls.isEmpty && widget.screenshot == null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionHeader("Fotos van Probleem"),
-          const SizedBox(height: 12),
-          _imagePlaceholder(),
-        ],
-      );
+    if (widget.screenshot == null) {
+      return const SizedBox.shrink();
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Fotos van Probleem"),
+        _buildSectionHeader("Ligging Kaart"),
         const SizedBox(height: 12),
         SizedBox(
           height: 250,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: (_currentReport.imageUrls.length) + (widget.screenshot != null ? 1 : 0),
-            itemBuilder: (context, index) {
-              Widget image;
-              if (index < _currentReport.imageUrls.length) {
-                image = Image.network(
-                  _currentReport.imageUrls[index],
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stack) => _imagePlaceholder(),
-                );
-              } else {
-                image = Image.memory(widget.screenshot!, fit: BoxFit.cover);
-              }
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: InkWell(
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => Dialog(
-                        child: InteractiveViewer(child: image),
-                      ),
-                    );
-                  },
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: SizedBox(width: 300, child: image),
-                  ),
+          child: InkWell(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => Dialog(
+                  child: InteractiveViewer(child: Image.memory(widget.screenshot!, fit: BoxFit.contain)),
                 ),
               );
             },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(widget.screenshot!, fit: BoxFit.cover),
+            ),
           ),
         ),
       ],
