@@ -99,6 +99,22 @@ export const usersAPI = {
   delete: (id) => apiClient.delete(`/users/${id}`),
 };
 
+export const contractorsAPI = {
+  getAll: () => apiClient.get('/contractors'),
+  getById: (id) => apiClient.get(`/contractors/${id}`),
+  create: (data) => apiClient.post('/contractors', data),
+  update: (id, data) => apiClient.patch(`/contractors/${id}`, data),
+  delete: (id) => apiClient.delete(`/contractors/${id}`),
+};
+
+export const quotesAPI = {
+  getAll: () => apiClient.get('/quotes'),
+  getById: (id) => apiClient.get(`/quotes/${id}`),
+  create: (data) => apiClient.post('/quotes', data),
+  update: (id, data) => apiClient.patch(`/quotes/${id}`, data),
+  delete: (id) => apiClient.delete(`/quotes/${id}`),
+};
+
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
 apiClient.stock = stockAPI;
@@ -108,5 +124,7 @@ apiClient.tickets = ticketsAPI;
 apiClient.workOrders = workOrdersAPI;
 apiClient.auth = authAPI;
 apiClient.users = usersAPI;
+apiClient.assets = contractorsAPI;
+apiClient.assets = quotesAPI;
 
 export { apiClient };
