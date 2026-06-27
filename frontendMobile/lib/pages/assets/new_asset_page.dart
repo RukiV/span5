@@ -222,7 +222,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   title: Text(isFixed ? "QR Kode (Vaste Item)" : "Barcode (Los Item)", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: Text(isFixed ? "Vir Aircons, Ligte, ens." : "Vir stoele, tafels, ens.", style: const TextStyle(fontSize: 12)),
                   value: isFixed,
-                  activeColor: AppColors.gold,
+                  activeThumbColor: AppColors.gold,
                   onChanged: (v) => setState(() => isFixed = v),
                 ),
               ),
@@ -235,8 +235,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(15),
-                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-                      border: Border.all(color: AppColors.gold.withOpacity(0.2)),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+                      border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
                     ),
                     child: Column(
                       children: [

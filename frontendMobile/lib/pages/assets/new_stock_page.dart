@@ -78,7 +78,7 @@ class _NewStockPageState extends State<NewStockPage> {
               const Text("Tipe *", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: _inputDecoration(),
                 items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                 onChanged: (v) => setState(() => type = v!),
@@ -94,7 +94,7 @@ class _NewStockPageState extends State<NewStockPage> {
                       : campuses.where((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name)).toList();
 
                   return DropdownButtonFormField<String>(
-                    value: selectedCampus,
+                    initialValue: selectedCampus,
                     decoration: _inputDecoration(),
                     items: filteredCampuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
                     onChanged: UserSession.isAdmin ? (v) => setState(() {
@@ -109,7 +109,7 @@ class _NewStockPageState extends State<NewStockPage> {
                 const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: selectedRoom,
+                  initialValue: selectedRoom,
                   decoration: _inputDecoration(),
                   items: availableRooms.map((r) {
                     final name = r.contains(":") ? r.split(":").last : r;

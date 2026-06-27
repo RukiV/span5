@@ -358,7 +358,7 @@ class _NewReportPageState extends State<NewReportPage> {
     }
 
     return DropdownButtonFormField<String>(
-      value: selectedLocation,
+      initialValue: selectedLocation,
       decoration: InputDecoration(
         filled: true,
         fillColor: const Color(0xFFFEFBEA),
@@ -518,7 +518,7 @@ class _NewReportPageState extends State<NewReportPage> {
       child: Container(
         height: 40, width: 40,
         decoration: BoxDecoration(
-          color: (isActive || mapScreenshot != null) ? AppColors.gold.withOpacity(0.1) : Colors.white.withOpacity(0.5),
+          color: (isActive || mapScreenshot != null) ? AppColors.gold.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: isMandatory ? Colors.red : ((isActive || mapScreenshot != null) ? AppColors.gold : Colors.grey[300]!)),
         ),
@@ -542,7 +542,7 @@ class _NewReportPageState extends State<NewReportPage> {
               margin: EdgeInsets.only(right: p == "Hoog" ? 0 : 8),
               height: 40,
               decoration: BoxDecoration(
-                color: isSelected ? pColor.withOpacity(0.1) : const Color(0xFFFEFBEA),
+                color: isSelected ? pColor.withValues(alpha: 0.1) : const Color(0xFFFEFBEA),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: isSelected ? pColor : Colors.grey[400]!),
               ),
