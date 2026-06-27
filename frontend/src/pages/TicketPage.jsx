@@ -5,6 +5,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import "../styles/Ticket.css";
 import { useLogout } from './Page.jsx';
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
@@ -246,7 +247,7 @@ function TicketPage() {
       <div className="main">
         <div className="navbar">
           <h3>Foutkaartjies Bestuur</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">

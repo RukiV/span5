@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { assetsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
+import UserProfileHeader from '../components/UserProfileHeader';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
 
@@ -335,7 +336,7 @@ function WorkOrderPage() {
       <div className="main">
         <div className="navbar">
           <h3>Bestuur Werksopdragte</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">

@@ -4,7 +4,6 @@ import '../../core/app_colors.dart';
 import '../../core/report_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
-import 'scan_page.dart';
 import 'dart:typed_data';
 
 class ReportDetailPage extends StatefulWidget {
@@ -65,6 +64,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 ),
               ),
             const SizedBox(height: 25),
+            if (_currentReport.adminNotes != null && _currentReport.adminNotes!.isNotEmpty) ...[
+              _buildSectionHeader("Admin Notas"),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.withValues(alpha: 0.2))),
+                child: Text(_currentReport.adminNotes!, style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic)),
+              ),
+              const SizedBox(height: 25),
+            ],
             _buildSectionHeader("Tydlyn (Audit Log)"),
             const SizedBox(height: 15),
             _buildTimeline(),
@@ -136,7 +145,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)],
       ),
       child: Column(
         children: [
@@ -145,7 +154,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.2),
+                  color: statusColor.withValues(alpha: 0.2),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -301,7 +310,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: col.withOpacity(0.2),
+        color: col.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
@@ -330,7 +339,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? color : color.withOpacity(0.1),
+          color: isSelected ? color : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: color, width: 1.5),
         ),
@@ -391,7 +400,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Column(children: [
         Container(width: 12, height: 12, decoration: BoxDecoration(color: isCompleted ? AppColors.gold : Colors.grey[300], shape: BoxShape.circle)),
-        if (!isLast) Container(width: 2, height: 40, color: isCompleted ? AppColors.gold.withOpacity(0.5) : Colors.grey[200]),
+        if (!isLast) Container(width: 2, height: 40, color: isCompleted ? AppColors.gold.withValues(alpha: 0.5) : Colors.grey[200]),
       ]),
       const SizedBox(width: 15),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

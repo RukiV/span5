@@ -91,7 +91,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ManageRoomsPage(),
+                          builder: (context) => const ManageRoomsPage(),
                         ),
                       );
                     },
