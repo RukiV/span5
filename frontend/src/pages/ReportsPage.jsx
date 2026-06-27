@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import '../styles/App.css';
 import '../styles/Reports.css';
 import { useLogout } from './Page.jsx';
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function ReportsPage() {
   const logout = useLogout();
@@ -35,7 +36,7 @@ function ReportsPage() {
         {/* Top balk met titel en gebruiker-info */}
         <div className="navbar">
           <h3>Verslae</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         {/* Verslae-inhoud */}

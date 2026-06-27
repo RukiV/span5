@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import '../styles/App.css';
 import '../styles/Analysis.css';
 import { useLogout } from './Page.jsx';
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function AnalysisPage() {
   const logout = useLogout();
@@ -34,7 +35,7 @@ function AnalysisPage() {
         {/* Top balk met titel en gebruiker-info */}
         <div className="navbar">
           <h3>Analise</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">

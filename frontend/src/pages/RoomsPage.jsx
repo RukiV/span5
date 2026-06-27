@@ -5,6 +5,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import { useLogout } from "./Page.jsx";
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function RoomsPage() {
   const { isAdmin } = useCurrentUser();
@@ -191,7 +192,7 @@ function RoomsPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li class="dropdown" >
+          <li className="dropdown" >
               <div className="dropdown-trigger">
                 <span>Bates & Voorraad</span>
               </div>
@@ -200,7 +201,7 @@ function RoomsPage() {
                 <Link to="/stock">Voorraad</Link>
                 </div>
           </li>
-            <li class="dropdown" style={{ background: '#935e28' }}>
+            <li className="dropdown" style={{ background: '#935e28' }}>
               <div className="dropdown-trigger">
                   <span>Lokale & Terreine</span>
               </div>
@@ -221,7 +222,7 @@ function RoomsPage() {
       <div className="main">
         <div className="navbar">
           <h3>Lokale Bestuur</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">

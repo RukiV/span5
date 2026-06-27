@@ -5,6 +5,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { useLogout } from "./Page.jsx";
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function TerrainsPage() {
   const { isAdmin } = useCurrentUser();
@@ -160,7 +161,7 @@ function TerrainsPage() {
       <div className="main">
         <div className="navbar">
           <h3>Terrein Bestuur</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">

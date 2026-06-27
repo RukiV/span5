@@ -1,7 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { assetsAPI, roomsAPI, authAPI } from "../services/api";
-import { useNavigate } from 'react-router-dom';
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -9,7 +8,7 @@ import "./Page.jsx";
 import { useLogout } from "./Page.jsx";
 
 function AssetPage() {
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const [assets, setAssets] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -200,7 +199,7 @@ function AssetPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li class="dropdown" style={{ background: '#935e28' }}>
+          <li className="dropdown" style={{ background: '#935e28' }}>
               <div className="dropdown-trigger">
                 <span>Bates & Voorraad</span>
               </div>
@@ -232,8 +231,26 @@ function AssetPage() {
       <div className="main">
         <div className="navbar">
           <h3>Bates Bestuur</h3>
-          <div className="user">Admin</div>
-        </div>
+    
+    {/* VERTOON NOU ROL, NAAM EN EMAIL REGS BO */}
+    <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
+      {user ? (
+        <>
+          <div className="user-name" style={{ fontWeight: 'bold' }}>
+            {user.user_name} {user.user_surname}
+          </div>
+          <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
+            {user.role_id === 3 ? "Administrateur" : user.role_id === 2 ? "Personeel" : "Student"}
+          </div>
+          <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>
+            {user.user_email}
+          </div>
+        </>
+      ) : (
+        <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
+      )}
+    </div>
+  </div>
 
         <div className="content">
           <div className="controls">

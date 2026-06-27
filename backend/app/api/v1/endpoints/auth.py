@@ -92,7 +92,7 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
     user = user_service.get_by_email(session, login_data.user_email)
     
     # Verifieer dat gebruiker bestaan en wagwoord korrek is
-    if not user or user.user_password != request.user_password:
+    if not user or user.user_password != login_data.user_password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -174,7 +174,7 @@ async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request
     1. Valideer Microsoft-token via Graph API
     2. Haal gebruiker se inligting van Microsoft
     3. Soek of skep gebruiker in ons database
-    4. Kontroleer rol-toegang
+    4. Kontroleer rol-toegang (Web vs Mobile)
     5. Gee app-token terug
     """
     try:
