@@ -4,9 +4,11 @@ import { roomsAPI, stockAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 import "../styles/App.css";
+import { useLogout } from "./Page.jsx";
 
 function StockPage() {
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -176,7 +178,7 @@ function StockPage() {
             {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 

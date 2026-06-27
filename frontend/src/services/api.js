@@ -28,8 +28,8 @@ const apiClient = axios.create({
 // Voeg versoek-interceptor vir outentikasie-token en client-type by
 apiClient.interceptors.request.use(
   (config) => {
-    // Haal token uit localStorage en voeg by Authorization-header
-    const token = localStorage.getItem('token');
+    // Haal token uit sessionStorage en voeg by Authorization-header
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -39,6 +39,26 @@ apiClient.interceptors.request.use(
     return config;
   },
   (error) => {
+    return Promise.reject(error);
+  }
+);
+
+//Voeg antwoord-interceptor by vir stelsel-foute (Verval/Server Down) =====
+apiClient.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    // 401 beteken die token het verval of die backend het herbegin en ken nie die sessie nie
+    if (error.response && error.response.status === 401) {
+      console.warn('Sessie het verval of token is ongeldig. Meld tans af...');
+      
+      // Maak die sessionStorage skoon
+      sessionStorage.clear();
+      
+      // Dwing die blaaier om terug te gaan na die Login-skerm
+      window.location.href = '/login';
+    }
     return Promise.reject(error);
   }
 );

@@ -4,9 +4,11 @@ import { assetsAPI, roomsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Rooms.css";
+import { useLogout } from "./Page.jsx";
 
 function RoomsPage() {
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
 
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -212,7 +214,7 @@ function RoomsPage() {
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 

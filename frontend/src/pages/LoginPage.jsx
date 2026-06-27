@@ -27,12 +27,12 @@ function LoginPage() {
 
       // As token ontvang is, stoor dit en navigeer na dashboard
       if (token) {
-        localStorage.setItem('token', token);
+        sessionStorage.setItem('token', token);
         navigate('/dashboard', { replace: true });
         // Haal huidige gebruiker se inligting op en stoor dit
         try {
           const userResponse = await authAPI.me();
-          localStorage.setItem('user', JSON.stringify(userResponse.data));
+          sessionStorage.setItem('user', JSON.stringify(userResponse.data));
         } catch (meError) {
           console.warn('Could not fetch user info after login:', meError);
         }
@@ -68,12 +68,12 @@ function LoginPage() {
 
       // As app-token ontvang is, stoor en navigeer
       if (appToken) {
-        localStorage.setItem('token', appToken);
+        sessionStorage.setItem('token', appToken);
         navigate('/dashboard', { replace: true });
         // Haal en stoor gebruiker se inligting
         try {
           const userResponse = await authAPI.me();
-          localStorage.setItem('user', JSON.stringify(userResponse.data));
+          sessionStorage.setItem('user', JSON.stringify(userResponse.data));
         } catch (meError) {
           console.warn('Could not fetch user info after login:', meError);
         }

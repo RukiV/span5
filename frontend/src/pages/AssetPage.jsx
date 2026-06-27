@@ -1,12 +1,16 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI } from "../services/api";
+import { assetsAPI, roomsAPI, authAPI } from "../services/api";
+import { useNavigate } from 'react-router-dom';
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
+import "./Page.jsx";
+import { useLogout } from "./Page.jsx";
 
 function AssetPage() {
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
   const [assets, setAssets] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +31,20 @@ function AssetPage() {
   useEffect(() => {
     fetchAssets();
     fetchRooms();
+  }, []);
+
+  // Validate token with backend on mount — if invalid, force logout
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await authAPI.me();
+      } catch (err) {
+        try { sessionStorage.clear(); localStorage.clear(); } catch(_) {}
+        window.location.replace(window.location.origin + '/login');
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   const fetchAssets = async () => {
@@ -205,7 +223,9 @@ function AssetPage() {
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => { logout(); }}>
+            Teken Uit
+          </button>
         </div>
       </div>
 
