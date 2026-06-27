@@ -2,29 +2,41 @@
 import { Link } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import '../styles/App.css';
 import "../styles/Ticket.css";
+import { useLogout } from './Page.jsx';
 
 function TicketPage() {
+  // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
+  
+  // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
+  const [statusFilter, setStatusFilter] = useState("");    // Filter op status
+  
+  // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
-    title: "",
-    description: "",
-    category: "",
-    status: "open",
-    priority: "medium",
+    title: "",                      // Hoofsaak/titel
+    description: "",                // Volledige beskrywing
+    category: "",                   // Fout-tipe (REPAIR, MAINTENANCE, etc.)
+    status: "open",                 // Fout-status (open, wait, resolved)
+    priority: "medium",             // Prioriteit (low, medium, high)
   });
 
+  // Haal foutkaartjies wanneer blad laai
   useEffect(() => {
     fetchTickets();
   }, []);
 
+  // Haal alle foutkaartjies van backend
   const fetchTickets = async () => {
     setLoading(true);
     try {
@@ -39,13 +51,16 @@ function TicketPage() {
     }
   };
 
+  // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
     try {
+      // Valideer dat ten minste titel of beskrywing ingevul is
       if (!newTicket.title && !newTicket.description) {
         alert("Voer asseblief 'n titel of beskrywing vir die foutkaartjie in.");
         return;
       }
 
+      // Bou payload vir backend - kombineer titel en beskrywing
       const payload = {
         fault_description: newTicket.title
           ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
@@ -57,6 +72,7 @@ function TicketPage() {
 
       console.log("Payload being sent:", JSON.stringify(payload, null, 2));
 
+      // Opdateer of skep nuwe kaartjie
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
         alert("Foutkaartjie suksesvol opgedateer!");
@@ -77,9 +93,11 @@ function TicketPage() {
     }
   };
 
+  // Laai foutkaartjie-data in vorm vir redigering
   const handleEditTicket = (ticket) => {
     setIsEditing(true);
     setEditingId(ticket.fault_id);
+    // Ontleed beskrywing om titel en details te skei
     const description = ticket.fault_description || "";
     const colonIndex = description.indexOf(":");
     const title = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
@@ -95,6 +113,7 @@ function TicketPage() {
     setShowModal(true);
   };
 
+  // Sluit modal en stel vorm terug
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
@@ -197,14 +216,30 @@ function TicketPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
+          <li class="dropdown" >
+              <div className="dropdown-trigger">
+                  <span>Bates & Voorraad</span>
+              </div>
+                  <div className="dropdown-content">
+                  <Link to="/assets">Bates</Link>
+                  <Link to="/stock">Voorraad</Link>
+                  </div>
+          </li>
+              <li class="dropdown">
+              <div className="dropdown-trigger">
+                  <span>Lokale & Terreine</span>
+              </div>
+              <div className="dropdown-content">
+                  <li><Link to="/rooms">Lokale</Link></li>
+                  <li><Link to="/terrains">Terreine</Link></li>
+              </div>
+          </li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 
@@ -234,7 +269,7 @@ function TicketPage() {
             <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
           </div>
 
-          <table className="tickets-table">
+          <table className="standard-table">
             <thead>
               <tr>
                 <th>ID Kaartjie</th>
