@@ -35,16 +35,18 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
     return user_service.getByID(session, payload.get("user_id"))
 
 
-def _check_system_access(user: User):
+def _check_system_access(user: User, request: Request):
     """
     Check if user has access to the FBS system.
-    Only role_id >= 2 (FK and Admin) can access.
-    Regular users (role_id=1) are blocked.
+    Only role_id >= 2 (FK and Admin) can access the Web platform.
+    Regular users (role_id=1/Students) are only allowed via the Mobile App.
     """
-    if user.role_id == 1:
+    client_type = request.headers.get("X-Client-Type")
+
+    if user.role_id == 1 and client_type != "mobile":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Jy het nie toegang tot die FBS stelsel nie. Kontak Administrasie asseblief: admin@akademia.co.za"
+            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir web-toegang."
         )
 
 
@@ -67,18 +69,18 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-def login(request: LoginRequest, session: Session = Depends(getSession)):
+def login(login_data: LoginRequest, request: Request, session: Session = Depends(getSession)):
     """Local login with email and password."""
-    user = user_service.get_by_email(session, request.user_email)
+    user = user_service.get_by_email(session, login_data.user_email)
     
-    if not user or user.user_password != request.user_password:
+    if not user or user.user_password != login_data.user_password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
     
-    # Check if user has access to the FBS system
-    _check_system_access(user)
+    # Check if user has access to the FBS system (Mobile vs Web)
+    _check_system_access(user, request)
     
     # Create app session token
     app_token = create_session_token(user.user_id)
@@ -126,14 +128,14 @@ def revoke_session():
 
 
 @router.post("/microsoft")
-async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Depends(getSession)):
+async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request, session: Session = Depends(getSession)):
     """Validate Microsoft token via Graph API and create/return app session token."""
     try:
         # Use the Microsoft token to get user info from Graph API
         async with httpx.AsyncClient() as client:
             graph_response = await client.get(
                 "https://graph.microsoft.com/v1.0/me",
-                headers={"Authorization": f"Bearer {request.microsoft_token}"}
+                headers={"Authorization": f"Bearer {token_request.microsoft_token}"}
             )
             if graph_response.status_code != 200:
                 raise HTTPException(
@@ -158,21 +160,21 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
         if existing_user:
             user = existing_user
         else:
-            # Create new user with default role (ID 1 = User role)
+            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek
             user = User(
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password="microsoft_oauth",  # Placeholder for OAuth users
+                user_password="microsoft_oauth",
                 user_status="active",
-                role_id=1  # Default role
+                role_id=1
             )
             session.add(user)
             session.commit()
             session.refresh(user)
 
-        # Check if user has access to the FBS system
-        _check_system_access(user)
+        # Check if user has access to the FBS system (Mobile vs Web)
+        _check_system_access(user, request)
 
         # Create our app's session token (not Microsoft's token)
         app_token = create_session_token(user.user_id)
@@ -182,6 +184,9 @@ async def microsoft_login(request: MicrosoftTokenRequest, session: Session = Dep
             "user_id": user.user_id
         }
 
+    except HTTPException:
+        # Moenie FastAPI foute (soos 403 Forbidden) vang en in 500's verander nie
+        raise
     except httpx.HTTPError as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
