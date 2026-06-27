@@ -1,7 +1,4 @@
-import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useCurrentUser } from "../hooks/useCurrentUser";
-import "../styles/App.css";
 import { authAPI } from '../services/api';
 
 

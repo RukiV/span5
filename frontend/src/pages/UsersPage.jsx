@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
+import UserProfileHeader from '../components/UserProfileHeader';
 
 function UsersPage() {
   const navigate = useNavigate();
@@ -14,7 +15,6 @@ function UsersPage() {
   const [filter, setFilter] = useState('almal');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [formUser, setFormUser] = useState({
     user_name: '',
@@ -40,7 +40,6 @@ function UsersPage() {
       try {
         // Haal huidige gebruiker se inligting van backend
         const response = await apiClient.get('/auth/me');
-        setCurrentUser(response.data);
         
         // Kontroleer of rol-ID 3 is (Administrateur)
         if (response.data.role_id === 3) {
@@ -294,14 +293,14 @@ function UsersPage() {
           <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
-          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Logout</button>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 
       <div className="main">
         <div className="navbar">
           <h3>Gebruikers Bestuur</h3>
-          <div className="user">Admin</div>
+          <UserProfileHeader />
         </div>
 
         <div className="content">
