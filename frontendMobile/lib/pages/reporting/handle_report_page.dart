@@ -100,7 +100,7 @@ class _HandleReportPageState extends State<HandleReportPage> {
                         label: Text(p, style: TextStyle(color: isSel ? Colors.white : pCol, fontWeight: FontWeight.bold)),
                         selected: isSel,
                         selectedColor: pCol,
-                        backgroundColor: pCol.withOpacity(0.1),
+                        backgroundColor: pCol.withValues(alpha: 0.1),
                         onSelected: (val) => setState(() => _selectedPriority = p),
                       );
                     }).toList(),
@@ -222,7 +222,7 @@ class _HandleReportPageState extends State<HandleReportPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
