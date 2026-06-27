@@ -11,15 +11,6 @@ class FaultcardBase(SQLModel):
     fault_type: Optional[Type] = None
     fault_status: FaultStatus = Field(default=FaultStatus.WAIT)
     fault_priority: Priority = Field(default=Priority.MEDIUM)
-
-    # --- MOBILE SUPPORT FIELDS ---
-    # fault_image_url: Stores the relative path to the uploaded image file.
-    # admin_notes: Stores feedback or internal notes from the management team.
-    # REMOVAL NOTICE: These are required by the mobile app's detail views.
-    fault_image_url: Optional[str] = None
-    admin_notes: Optional[str] = None
-    # -----------------------------
-
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
 
@@ -54,8 +45,6 @@ class FaultcardUpdate(SQLModel):
     fault_type: Optional[Type] = None
     fault_status: Optional[FaultStatus] = None
     fault_priority: Optional[Priority] = None
-    fault_image_url: Optional[str] = None
-    admin_notes: Optional[str] = None
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
     user_id: Optional[int] = None

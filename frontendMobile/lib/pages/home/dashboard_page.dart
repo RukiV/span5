@@ -32,9 +32,9 @@ class DashboardPage extends StatelessWidget {
                 childAspectRatio: 1.5,
                 children: [
                   _buildStatCard("Totaal", reports.length.toString(), Icons.assignment),
-                  _buildStatCard("Hangende", ReportService.pendingCount.toString(), Icons.pending_actions, color: Colors.orange),
-                  _buildStatCard("Hoog", ReportService.highPriorityCount.toString(), Icons.priority_high, color: Colors.red),
-                  _buildStatCard("Voltooi", (reports.length - ReportService.pendingCount).toString(), Icons.check_circle, color: Colors.green),
+                  _buildStatCard("Hangende", reports.where((r) => r.phase == "Ontvang" || r.phase == "Besig").length.toString(), Icons.pending_actions, color: Colors.orange),
+                  _buildStatCard("Hoog", reports.where((r) => r.priority == "Hoog").length.toString(), Icons.priority_high, color: Colors.red),
+                  _buildStatCard("Voltooi", reports.where((r) => r.phase == "Voltooi").length.toString(), Icons.check_circle, color: Colors.green),
                 ],
               );
             },
