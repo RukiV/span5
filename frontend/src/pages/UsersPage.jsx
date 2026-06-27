@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
+import '../styles/App.css';
 import '../styles/Users.css';
+import { useLogout } from './Page.jsx';
 
 function UsersPage() {
   const navigate = useNavigate();
+    const logout = useLogout();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,26 +33,29 @@ function UsersPage() {
     { id: 3, name: 'Administrateur' }
   ];
 
-  // Check if user is authorized (Admin role)
+  // Kontroleer of huidige gebruiker 'n Administrateur is
+  // Slegs Administrateure (role_id=3) kan die Gebruikersblad sien
   useEffect(() => {
     const checkAuthorization = async () => {
       try {
+        // Haal huidige gebruiker se inligting van backend
         const response = await apiClient.get('/auth/me');
         setCurrentUser(response.data);
         
-        // Only allow access if role_id is 3 (Administrateur)
+        // Kontroleer of rol-ID 3 is (Administrateur)
         if (response.data.role_id === 3) {
           setIsAuthorized(true);
         } else {
+          // As nie administrateur nie, magtig-status sal vals wees
           setIsAuthorized(false);
-          // Redirect to dashboard after 2 seconds
+          // Navigeer terug na dashboard na 2 sekondes
           setTimeout(() => {
             navigate('/dashboard');
           }, 2000);
         }
       } catch (error) {
         console.error('Error checking authorization:', error);
-        // Redirect to login if not authenticated
+        // As fout, navigeer na login-blad
         navigate('/login');
       }
     };
@@ -57,6 +63,7 @@ function UsersPage() {
     checkAuthorization();
   }, [navigate]);
 
+  // Haal almal gebruikers van backend wanneer magtiging bevestig is
   useEffect(() => {
     if (isAuthorized) {
       fetchUsers();
@@ -64,6 +71,7 @@ function UsersPage() {
   }, [isAuthorized]);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
       const response = await apiClient.users.getAll();
       setUsers(response.data);
@@ -74,38 +82,41 @@ function UsersPage() {
     }
   };
 
+  // Hanteer toevoeging van nuwe gebruiker of opdatering van bestaande
   const handleAddUser = async () => {
     try {
       setError('');
       setSuccess('');
-      
+
+      // Valideer dat vereiste velde ingevul is
       if (!formUser.user_name || !formUser.user_email) {
         setError('Naam en e-pos is vereist');
         return;
       }
 
+      // Vir nuwe gebruikers, wagwoord is vereist
       if (!editingUser && !formUser.user_password) {
         setError('Wagwoord is vereist vir nuwe gebruikers');
         return;
       }
 
       let dataToSend = { ...formUser };
-      
-      // When editing, don't send empty password
+
+      // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
         delete dataToSend.user_password;
       }
 
+      // As ons redigeer, stuur PATCH-versoek, anders POST vir nuwe gebruiker
       if (editingUser) {
-        // Update existing user
         await apiClient.users.update(editingUser.user_id, dataToSend);
         setSuccess('Gebruiker het succesvol opgedateer');
       } else {
-        // Create new user
         await apiClient.users.create(dataToSend);
-        setSuccess('Gebruiker het succesvol geskep');
+        setSuccess('Gebruiker het suksesvol geskep');
       }
-      
+
+      // Sluit modale na 1.5 sekondes en herlaai gebruikerlys
       setTimeout(() => {
         setShowModal(false);
         setEditingUser(null);
@@ -126,30 +137,34 @@ function UsersPage() {
     }
   };
 
+  // Laai gebruiker-data in vorm vir redigering
   const handleEditUser = (user) => {
     setEditingUser(user);
     setFormUser({
       user_name: user.user_name,
       user_surname: user.user_surname || '',
       user_email: user.user_email,
-      user_password: '',
+      user_password: '', // Laat leeg sodat bestaande wagwoord nie oorskryf word
       user_status: user.user_status,
       role_id: user.role_id
     });
     setShowModal(true);
   };
 
+  // Verwyder gebruiker na bevestiging
   const handleDeleteUser = async (userId) => {
+    // Vra bevestiging voordat verwyder word
     if (window.confirm('Is jy seker jy wil hierdie gebruiker verwyder?')) {
       try {
         await apiClient.users.delete(userId);
-        fetchUsers();
+        fetchUsers(); // Herlaai lys na suksesvol verwyder
       } catch (error) {
         console.error('Error deleting user:', error);
       }
     }
   };
 
+  // Sluit modal en stel vorm terug
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingUser(null);
@@ -163,13 +178,17 @@ function UsersPage() {
     });
   };
 
+  // Filter gebruikers op soekterm EN status
   const filteredUsers = users.filter(user => {
+    // Soek in naam of e-pos veld
     const matchesSearch = (user.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (user.user_email || '').toLowerCase().includes(searchTerm.toLowerCase());
+    // Filter op status (almal, aktief, onaktief)
     const matchesFilter = filter === 'almal' || user.user_status === filter;
     return matchesSearch && matchesFilter;
   });
 
+  // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
     switch (roleId) {
       case 1: return 'rol-user';
@@ -203,13 +222,31 @@ function UsersPage() {
           <h2>FBS</h2>
           <ul>
             <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
+            <li class="dropdown" >
+            <div className="dropdown-trigger">
+                <span>Bates & Voorraad</span>
+            </div>
+                <div className="dropdown-content">
+                <Link to="/assets">Bates</Link>
+                <Link to="/stock">Voorraad</Link>
+                </div>
+            </li>
+            <li class="dropdown">
+            <div className="dropdown-trigger">
+                <span>Lokale & Terreine</span>
+            </div>
+            <div className="dropdown-content">
+                <li><Link to="/rooms">Lokale</Link></li>
+                <li><Link to="/terrains">Terreine</Link></li>
+            </div>
+            </li>
             <li><Link to="/rooms">Lokale</Link></li>
+            <li><Link to="/terrains">Terreine</Link></li>
             <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
             <li><Link to="/work-orders">Werksopdragte</Link></li>
           </ul>
           <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+            <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
           </div>
         </div>
         <div className="main">
@@ -234,14 +271,30 @@ function UsersPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
+          <li class="dropdown" >
+            <div className="dropdown-trigger">
+                <span>Bates & Voorraad</span>
+            </div>
+                <div className="dropdown-content">
+                <Link to="/assets">Bates</Link>
+                <Link to="/stock">Voorraad</Link>
+                </div>
+          </li>
+            <li class="dropdown">
+            <div className="dropdown-trigger">
+                <span>Lokale & Terreine</span>
+            </div>
+            <div className="dropdown-content">
+                <li><Link to="/rooms">Lokale</Link></li>
+                <li><Link to="/terrains">Terreine</Link></li>
+            </div>
+          </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Logout</button>
         </div>
       </div>
 
@@ -271,10 +324,10 @@ function UsersPage() {
               <option value="inactive">Onaktief</option>
             </select>
 
-            <button className="btn-add-user" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
           </div>
 
-          <table className="users-table">
+          <table className="standard-table">
             <thead>
               <tr>
                 <th>Naam</th>
@@ -303,9 +356,12 @@ function UsersPage() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" style={{ display: 'flex' }}>
-          <div className="job-form-card">
-            <h3 className="form-title">{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
+        <div className="modal">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
+              <span className="close" onClick={handleCloseModal}>&times;</span>
+            </div>
             {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
             {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
             <div className="form-group">
@@ -363,8 +419,8 @@ function UsersPage() {
                 <option value="inactive">Onaktief</option>
               </select>
             </div>
-            <div className="form-actions">
-              <button className="btn-close" onClick={handleCloseModal}>Kanselleer</button>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-save" onClick={handleAddUser}>Stoor</button>
             </div>
           </div>
