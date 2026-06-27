@@ -24,7 +24,7 @@ def readFault(faultID: int, session: Session = Depends(getSession)):
 
 @router.post("", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
 def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession)):
-    #Create new fault
+    """Create a new fault report using a standard JSON body."""
     return fault_service.create(session, faultIn)
     
 @router.patch("/{faultID}", response_model=FaultcardRead)

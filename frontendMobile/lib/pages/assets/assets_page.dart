@@ -1,40 +1,32 @@
 import 'package:flutter/material.dart';
+import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../core/asset_service.dart';
-import '../../core/stock_service.dart';
 import '../../models/asset.dart';
-import '../../models/stock.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
-import 'new_stock_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 
 class AssetsPage extends StatefulWidget {
-  const AssetsPage({super.key});
+  final String? filterRoomId;
+  const AssetsPage({super.key, this.filterRoomId});
 
   @override
   State<AssetsPage> createState() => _AssetsPageState();
 }
 
-class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _AssetsPageState extends State<AssetsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {});
-      }
-    });
-    // Laai vars data
+    if (widget.filterRoomId != null) {
+      _query = "room:${widget.filterRoomId}";
+    }
     AssetService.fetchAssets();
-    StockService.fetchStocks();
-    
     _searchController.addListener(() {
       setState(() {
         _query = _searchController.text.toLowerCase();
@@ -44,7 +36,6 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -59,35 +50,9 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
       final asset = await AssetService.getAssetBySerialCode(scannedCode);
       if (mounted) {
         if (asset != null) {
-          // TODO: Navigate to asset detail page or show asset info
-          // Navigator.push(
-          //   context,
-          //   MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)),
-          // );
-          showDialog(
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: const Text('Bate Gevind'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Naam: ${asset.name}'),
-                    const SizedBox(height: 8),
-                    Text('ID: ${asset.id}'),
-                    const SizedBox(height: 8),
-                    Text('Serial: ${asset.serialCode}'),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
-                  ),
-                ],
-              );
-            },
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -102,34 +67,34 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(48),
-        child: Container(
-          color: AppColors.navy,
-          child: TabBar(
-            controller: _tabController,
-            indicatorColor: AppColors.gold,
-            labelColor: AppColors.gold,
-            unselectedLabelColor: Colors.white70,
-            tabs: const [
-              Tab(text: "BATES"),
-              Tab(text: "TOERUSTING"),
-            ],
-          ),
-        ),
+      appBar: AppBar(
+        title: const Text("BATE"),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
           _buildSearchBar(),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildAssetTab(),
-                _buildStockTab(),
-              ],
+          if (widget.filterRoomId != null)
+            Container(
+              padding: const EdgeInsets.all(10),
+              color: AppColors.gold.withOpacity(0.2),
+              child: Row(
+                children: [
+                  const Icon(Icons.filter_list, size: 16, color: AppColors.navy),
+                  const SizedBox(width: 8),
+                  Text("Filter: Lokaal ID ${widget.filterRoomId}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () {
+                      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AssetsPage()));
+                    },
+                  )
+                ],
+              ),
             ),
-          ),
+          Expanded(child: _buildAssetList()),
         ],
       ),
       floatingActionButton: _buildFab(),
@@ -144,7 +109,7 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
         controller: _searchController,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          hintText: "Soek...",
+          hintText: "Soek bates...",
           hintStyle: TextStyle(color: Colors.white.withAlpha(150), fontSize: 14),
           prefixIcon: const Icon(Icons.search, color: AppColors.gold),
           fillColor: Colors.white.withAlpha(30),
@@ -159,95 +124,58 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildAssetTab() {
+  Widget _buildAssetList() {
     return ValueListenableBuilder<List<Asset>>(
       valueListenable: AssetService.assetsNotifier,
       builder: (context, allAssets, _) {
         final filtered = allAssets.where((a) {
-          final matchesSearch = a.name.toLowerCase().contains(_query) || a.id.toLowerCase().contains(_query);
-          return matchesSearch;
+          if (_query.startsWith("room:")) {
+            final targetRoomId = _query.replaceFirst("room:", "");
+            return a.location == targetRoomId;
+          }
+          return a.name.toLowerCase().contains(_query) || a.id.toLowerCase().contains(_query);
         }).toList();
 
-        return _buildList(
-          items: filtered,
-          header: ["ID", "Naam", "Status"],
-          itemBuilder: (asset) => _buildAssetRow(asset as Asset),
-        );
-      },
-    );
-  }
+        if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
-  Widget _buildStockTab() {
-    return ValueListenableBuilder<List<Stock>>(
-      valueListenable: StockService.stocksNotifier,
-      builder: (context, allStocks, _) {
-        final filtered = allStocks.where((s) {
-          final matchesSearch = s.brand.toLowerCase().contains(_query) || s.type.toLowerCase().contains(_query);
-          return matchesSearch;
-        }).toList();
-
-        return _buildList(
-          items: filtered,
-          header: ["Naam", "Tipe", "Hvh"],
-          itemBuilder: (stock) => _buildStockRow(stock as Stock),
-        );
-      },
-    );
-  }
-
-  Widget _buildList({required List items, required List<String> header, required Widget Function(dynamic) itemBuilder}) {
-    if (items.isEmpty) return const Center(child: Text("Geen items gevind nie."));
-    
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          color: AppColors.gold,
-          child: Row(
-            children: [
-              Expanded(flex: 1, child: Text(header[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 3, child: Text(header[1], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 2, child: Text(header[2], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.separated(
-            itemCount: items.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) => itemBuilder(items[index]),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAssetRow(Asset asset) {
-    return InkWell(
-      // onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-        child: Row(
+        return Column(
           children: [
-            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12))),
-            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: _statusBadge(asset.status)),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+              color: AppColors.gold,
+              child: const Row(
+                children: [
+                  Expanded(flex: 1, child: Text("ID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                  Expanded(flex: 3, child: Text("Naam", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                  Expanded(flex: 2, child: Text("Status", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                itemCount: filtered.length,
+                separatorBuilder: (context, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final asset = filtered[index];
+                  return InkWell(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12))),
+                          Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+                          Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStockRow(Stock stock) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(flex: 1, child: Text(stock.brand, style: const TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 3, child: Text(stock.type, style: const TextStyle(fontSize: 12))),
-          Expanded(flex: 2, child: Text("${stock.amount}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold))),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -265,24 +193,12 @@ class _AssetsPageState extends State<AssetsPage> with SingleTickerProviderStateM
           const SizedBox(height: 12),
           FloatingActionButton(
             heroTag: "addBtn",
-            onPressed: () {
-              if (_tabController.index == 0) {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const NewAssetPage()));
-              } else {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const NewStockPage()));
-              }
-            },
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewAssetPage())),
             backgroundColor: AppColors.gold,
             child: const Icon(Icons.add, color: Colors.white),
           ),
         ],
       ],
     );
-  }
-
-  Widget _statusBadge(String status) {
-    Color color = Colors.green;
-    if (status == "Onderhoud") color = Colors.orange;
-    return Text(status, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13));
   }
 }
