@@ -2,8 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/App.css';
 import '../styles/Analysis.css';
+import { useLogout } from './Page.jsx';
 
 function AnalysisPage() {
+  const logout = useLogout();
   return (
     <div style={{ display: 'flex' }}>
       {/* LINKERBAAD - Navigasie-menu */}
@@ -23,7 +25,7 @@ function AnalysisPage() {
           <li><Link to="/work-orders">Werksopdragte</Link></li>
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 

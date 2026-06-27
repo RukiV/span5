@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
+import '../styles/App.css';
 import '../styles/Users.css';
+import { useLogout } from './Page.jsx';
 
 function UsersPage() {
   const navigate = useNavigate();
+    const logout = useLogout();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,8 +70,8 @@ function UsersPage() {
     }
   }, [isAuthorized]);
 
-  // Haal almal gebruikers-lys van backend-API
   const fetchUsers = async () => {
+    setLoading(true);
     try {
       const response = await apiClient.users.getAll();
       setUsers(response.data);
@@ -84,7 +87,7 @@ function UsersPage() {
     try {
       setError('');
       setSuccess('');
-      
+
       // Valideer dat vereiste velde ingevul is
       if (!formUser.user_name || !formUser.user_email) {
         setError('Naam en e-pos is vereist');
@@ -98,7 +101,7 @@ function UsersPage() {
       }
 
       let dataToSend = { ...formUser };
-      
+
       // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
         delete dataToSend.user_password;
@@ -110,9 +113,9 @@ function UsersPage() {
         setSuccess('Gebruiker het succesvol opgedateer');
       } else {
         await apiClient.users.create(dataToSend);
-        setSuccess('Gebruiker het succesvol geskep');
+        setSuccess('Gebruiker het suksesvol geskep');
       }
-      
+
       // Sluit modale na 1.5 sekondes en herlaai gebruikerlys
       setTimeout(() => {
         setShowModal(false);
@@ -219,15 +222,31 @@ function UsersPage() {
           <h2>FBS</h2>
           <ul>
             <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li><Link to="/assets">Bates</Link></li>
-            <li><Link to="/stock">Voorraad</Link></li>
+            <li class="dropdown" >
+            <div className="dropdown-trigger">
+                <span>Bates & Voorraad</span>
+            </div>
+                <div className="dropdown-content">
+                <Link to="/assets">Bates</Link>
+                <Link to="/stock">Voorraad</Link>
+                </div>
+            </li>
+            <li class="dropdown">
+            <div className="dropdown-trigger">
+                <span>Lokale & Terreine</span>
+            </div>
+            <div className="dropdown-content">
+                <li><Link to="/rooms">Lokale</Link></li>
+                <li><Link to="/terrains">Terreine</Link></li>
+            </div>
+            </li>
             <li><Link to="/rooms">Lokale</Link></li>
             <li><Link to="/terrains">Terreine</Link></li>
             <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
             <li><Link to="/work-orders">Werksopdragte</Link></li>
           </ul>
           <div className="logout-container">
-            <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+            <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
           </div>
         </div>
         <div className="main">
@@ -252,16 +271,30 @@ function UsersPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li><Link to="/assets">Bates</Link></li>
-          <li><Link to="/stock">Voorraad</Link></li>
-          <li><Link to="/rooms">Lokale</Link></li>
-          <li><Link to="/terrains">Terreine</Link></li>
+          <li class="dropdown" >
+            <div className="dropdown-trigger">
+                <span>Bates & Voorraad</span>
+            </div>
+                <div className="dropdown-content">
+                <Link to="/assets">Bates</Link>
+                <Link to="/stock">Voorraad</Link>
+                </div>
+          </li>
+            <li class="dropdown">
+            <div className="dropdown-trigger">
+                <span>Lokale & Terreine</span>
+            </div>
+            <div className="dropdown-content">
+                <li><Link to="/rooms">Lokale</Link></li>
+                <li><Link to="/terrains">Terreine</Link></li>
+            </div>
+          </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
           <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Logout</button>
         </div>
       </div>
 

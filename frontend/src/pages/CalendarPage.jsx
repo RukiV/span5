@@ -2,8 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/App.css';
 import '../styles/Calendar.css';
+import { useLogout } from './Page.jsx';
 
 function CalendarPage() {
+  const logout = useLogout();
   return (
     <div style={{ display: 'flex' }}>
       {/* LINKERBAAD - Navigasie-menu */}
@@ -22,9 +24,9 @@ function CalendarPage() {
           <li><Link to="/rooms">Lokale</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
         </ul>
-        <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
-        </div>
+          <div className="logout-container">
+            <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
+          </div>
       </div>
 
       {/* HOOFINHOUD */}

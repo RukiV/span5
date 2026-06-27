@@ -69,6 +69,7 @@
 
 .btn-logout-sidebar {
     display: block;
+    width: 100%;
     background-color: var(--bruin);
     color: var(--wit);
     padding: 12px;
@@ -279,7 +280,7 @@
   z-index: 1;
   left: 250px;
   bottom: -30px;
-  border-radius: 5px;
+ 
 }
 
 .dropdown-content a {
@@ -288,12 +289,9 @@
   background-color: var(--blou);
 }
 
-/* Show the dropdown menu on hover */
 .dropdown:hover .dropdown-content {display: block;}
 
-
-
-/* 1. Make the trigger a flex container to push the arrow to the right */
+/* Kode vir arrow vir dropdown*/
 .sidebar ul li.dropdown .dropdown-trigger {
   display: flex !important;
   justify-content: space-between;
@@ -301,22 +299,20 @@
   width: 100%;
 }
 
-/* 2. Create the arrow using a pseudo-element */
 .sidebar ul li.dropdown .dropdown-trigger::after {
-  content: '›';               /* Modern chevron symbol */
+  content: '›';               
   color: white;
   font-size: 18px;
   font-weight: bold;
   line-height: 1;
   display: inline-block;
-  transition: transform 0.2s ease; /* Smooth turning animation */
+  transition: transform 0.2s ease; 
   transform: rotate(0deg);
   opacity: 1;
 }
 
-/* 3. Rotate the arrow downward when hovering over the menu item */
 .sidebar ul li.dropdown:hover .dropdown-trigger::after {
-  transform: rotate(90deg);    /* Spins it downward */
-  opacity: 1;                  /* Brightens it on hover */
+  transform: rotate(90deg);    
+  opacity: 1;                  
   color: var(--wit);        
 }

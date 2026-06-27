@@ -2,11 +2,14 @@
 import { Link } from "react-router-dom";
 import { assetsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useLogout } from './Page.jsx';
+import '../styles/App.css';
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
   
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
@@ -325,7 +328,7 @@ function WorkOrderPage() {
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Teken Uit</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 

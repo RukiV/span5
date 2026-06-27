@@ -2,11 +2,14 @@
 import { Link } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import '../styles/App.css';
 import "../styles/Ticket.css";
+import { useLogout } from './Page.jsx';
 
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
@@ -236,7 +239,7 @@ function TicketPage() {
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 

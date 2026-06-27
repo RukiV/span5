@@ -5,12 +5,14 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import '../styles/App.css';
 import '../styles/Dashboard.css';
+import { useLogout } from './Page.jsx';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
 
 const DashboardPage = () => {
   // Haal huidige gebruiker se info en admin-status
   const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
 
   // Data vir trendlyn-grafiek (herstelwerk per dag van week)
   // Toon hoeveel take voltooide is, met groene kleur-skema
@@ -67,7 +69,7 @@ const DashboardPage = () => {
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
-          <Link to="/login" className="btn-logout-sidebar">Logout</Link>
+          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
         </div>
       </div>
 
