@@ -7,7 +7,7 @@ class ApiClient {
   static Dio _initDio() {
     // VIR WERKLIKE FOON: Vervang met jou laptop se IP (bv. '192.168.1.100')
     // Jy kan dit kry deur 'ipconfig' in cmd te hardloop op Windows.
-    const String laptopIp = '10.32.6.229'; // Jou laptop se IP-adres vanaf die foto
+    const String laptopIp = '192.168.1.95'; // Jou laptop se IP-adres vanaf die foto
 
     final dio = Dio(
       BaseOptions(
