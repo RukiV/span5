@@ -10,6 +10,8 @@ class AuditlogBase(SQLModel):
     action: str = Field(max_length=100)
     affectedtable: str = Field(max_length=100)
     affectedcolumn: Optional[str] = Field(default=None, max_length=100)
+    previous_value: Optional[Dict] = Field(default=None, sa_column=Column(JSONB))
+    new_value: Optional[Dict] = Field(default=None, sa_column=Column(JSONB))
     json_data: Optional[Dict] = Field(default=None, sa_column=Column(JSONB))
     actiondatetime: Optional[datetime] = None
 
@@ -37,6 +39,8 @@ class AuditlogUpdate(SQLModel):
     action: Optional[str] = None
     affectedtable: Optional[str] = None
     affectedcolumn: Optional[str] = None
+    previous_value: Optional[Dict] = None
+    new_value: Optional[Dict] = None
     json_data: Optional[Dict] = None
     actiondatetime: Optional[datetime] = None
     user_id: Optional[int] = None
