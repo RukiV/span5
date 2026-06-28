@@ -5,3 +5,5 @@ psycopg2-binary>=2.9.9
 httpx>=0.25.0
 pydantic>=2.0.0
 python-dotenv>=1.0.0
+# Noodsaaklik vir multipart/form-data (lêer-uploads) vanaf die mobiele app.
+python-multipart>=0.0.6

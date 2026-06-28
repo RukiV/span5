@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
 import 'core/app_colors.dart';
 
 
+// Global key for navigation across the app without context
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() => runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
+  }
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -19,12 +29,13 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Akademia Fasiliteite',
 
-      // Globale Tema
+      // Global App Theme Configuration
       theme: ThemeData(
         fontFamily: 'Poppins',
         primaryColor: AppColors.navy,
         scaffoldBackgroundColor: AppColors.background,
 
+        // Custom AppBar styling for a consistent look
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.navy,
           foregroundColor: AppColors.white,
@@ -37,6 +48,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
+        // Default button styles
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
@@ -46,6 +58,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
 
+        // Text input styling used throughout the app
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: AppColors.inputFill,
@@ -61,6 +74,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/',
       onGenerateRoute: (settings) {
         Widget page;
+        // Route management
         switch (settings.name) {
           case '/':
             page = const LoginPage();
@@ -76,7 +90,7 @@ class MyApp extends StatelessWidget {
             page = const LoginPage();
         }
 
-        // Custom Smooth Fade Transition
+        // Custom Smooth Fade Transition between screens
         return PageRouteBuilder(
           settings: settings,
           pageBuilder: (context, animation, secondaryAnimation) => page,

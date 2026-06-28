@@ -1,3 +1,4 @@
+import '../../widgets/status_badge.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
@@ -59,41 +60,54 @@ class _ReportingPageState extends State<ReportingPage> {
         }
 
         if (UserSession.hasAdminPrivileges) {
-          return DefaultTabController(
-            length: 2,
-            child: Column(
-              children: [
-                _buildSearchBar(),
-                Container(
-                  color: AppColors.navy,
-                  child: const TabBar(
-                    indicatorColor: AppColors.gold,
-                    indicatorWeight: 4,
-                    dividerColor: Colors.transparent,
-                    labelColor: AppColors.gold,
-                    unselectedLabelColor: Colors.white70,
-                    labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1),
-                    tabs: [
-                      Tab(text: "NUWE AANVRAE"),
-                      Tab(text: "IN VORDERING"),
-                    ],
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: DefaultTabController(
+              length: 2,
+              child: Column(
+                children: [
+                  _buildSearchBar(),
+                  Container(
+                    color: AppColors.navy,
+                    child: const TabBar(
+                      indicatorColor: AppColors.gold,
+                      indicatorWeight: 4,
+                      dividerColor: Colors.transparent,
+                      labelColor: AppColors.gold,
+                      unselectedLabelColor: Colors.white70,
+                      labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.1),
+                      tabs: [
+                        Tab(text: "NUWE AANVRAE"),
+                        Tab(text: "IN VORDERING"),
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      _buildReportList(context, filtered.where((r) => r.phase == 'Ontvang').toList()),
-                      _buildReportList(context, filtered.where((r) => r.phase != 'Ontvang').toList()),
-                    ],
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildReportList(context, filtered.where((r) => r.phase == 'Ontvang').toList()),
+                        _buildReportList(context, filtered.where((r) => r.phase != 'Ontvang').toList()),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+            floatingActionButton: FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              elevation: 4,
+              icon: const Icon(Icons.add_a_photo, color: Colors.white),
+              label: const Text("Nuwe Verslag", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              onPressed: () => _handleNewReport(context),
             ),
           );
         }
 
         // Studente sien net hul eie lys (GEEN TABS)
-        final studentReports = allReports.where((r) => r.user == UserSession.userId.toString()).toList();
+        final studentReports = allReports.where((r) {
+          // Vergelyk as strings om seker te maak dit match
+          return r.user.toString() == UserSession.userId.toString();
+        }).toList();
         
         final filteredStudentReports = studentReports.where((r) {
           final matchesSearch = _searchQuery.isEmpty || 
@@ -195,7 +209,7 @@ class _ReportingPageState extends State<ReportingPage> {
                       ),
                       Expanded(
                         flex: 2,
-                        child: _buildStatusText(r),
+                        child: StatusBadge(status: r.phase, fontSize: 12),
                       ),
                     ],
                   ),
@@ -208,33 +222,7 @@ class _ReportingPageState extends State<ReportingPage> {
     );
   }
 
-  Widget _buildStatusText(Report r) {
-    String phase = r.phase;
-    String prio = r.priority;
-    Color textColor;
-    String statusLabel = phase;
-
-    if (phase == "Voltooi") {
-      textColor = const Color(0xFF4CAF50);
-      statusLabel = "Voltooi";
-    } else if (phase == "Besig") {
-      textColor = Colors.grey;
-      statusLabel = "Besig";
-    } else {
-      if (prio == "Hoog") {
-        textColor = const Color(0xFFFF9800);
-        statusLabel = "Prioriteit";
-      } else {
-        textColor = const Color(0xFF009688);
-        statusLabel = "Nuut";
-      }
-    }
-
-    return Text(
-      statusLabel,
-      style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13),
-    );
-  }
+  // _buildStatusText verwyder aangesien ons nou die herbruikbare StatusBadge widget gebruik
 
   void _handleNewReport(BuildContext context) async {
     await Navigator.push(

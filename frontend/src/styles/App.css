@@ -5,61 +5,121 @@
   font-family: Arial, sans-serif;
 }
 
+:root {
+    --wit: #ffffff;
+    --bruin: #935e28;
+    --blou: #0e1e3b;
+    --blou-lig: #1a2e54;
+    --grys-agtergrond: #f8fafc;
+    --border: #e2e8f0;
+}
+
+
+/*Sidebar*/
+
 .sidebar {
-  width: 250px;
-  background-color: #4b3426; /* Brown */
-  color: white;
-  padding: 20px;
-  position: fixed;
-  height: 100vh;
-  overflow-y: auto;
+    width: 250px;
+    background-color: var(--blou);
+    color: var(--wit);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    position: fixed;
 }
 
-.sidebar-header {
-  text-align: center;
-  margin-bottom: 30px;
+.sidebar h2 {
+    margin-bottom: 30px;
+    text-align: center;
+    color: var(--wit);
+    font-weight: bold;
+    letter-spacing: 2px;
 }
 
-.sidebar-header h2 {
-  margin: 0;
-  font-size: 24px;
-  color: #2a5f9e; /* Blue */
+.sidebar ul {
+    list-style: none;
+    padding: 0; 
+    flex: 1;
+    
 }
 
-.sidebar-header p {
-  margin: 5px 0 0 0;
-  font-size: 14px;
-  color: #ddd;
+.sidebar ul li {
+   
+    transition: background 0.3s;
 }
 
-.sidebar-menu {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.sidebar-menu li {
-  margin-bottom: 10px;
-}
-
-.sidebar-link {
-  display: block;
-  color: white;
-  text-decoration: none;
-  padding: 10px 15px;
+.sidebar ul li a { 
+  display: block; 
+  padding: 20px; 
+  color: white; 
+  text-decoration: none; 
+  transition: 0.2s; 
   border-radius: 5px;
-  transition: background-color 0.3s;
 }
 
-.sidebar-link:hover {
-  background-color: #2a5f9e; /* Blue */
+.sidebar ul li:hover, .sidebar a:hover {
+    background-color: var(--blou-lig);
+    color: var(--bruin);
 }
 
-.content-area {
-  margin-left: 250px;
-  flex: 1;
-  padding: 20px;
-  background-color: #f5f5f5;
+.logout-container {
+    padding: 0 20px;
+    margin-top: auto;
+}
+
+.btn-logout-sidebar {
+    display: block;
+    width: 100%;
+    background-color: var(--bruin);
+    color: var(--wit);
+    padding: 12px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.btn-logout-sidebar:hover {
+    background-color: #a0522d;
+}
+
+/*Controls*/
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+
+.controls input, .controls select {
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background-color: white;
+}
+
+
+/*Main page*/
+.main { 
+  display: flex;
+  flex-direction: column;
+  margin-left: 250px; 
+  width: calc(100vw - 250px); 
+  min-height: 100vh; 
+  flex: 1; 
+  overflow: hidden; 
+}
+
+/* --- Algemene Inhoud --- */
+.content {
+    padding: 10px 25px 25px 25px;
+    overflow-y: auto;
+    background-color: var(--wit);
+    flex: 1;
+    width: 100%;
 }
 
 .page {
@@ -72,34 +132,60 @@
   margin-bottom: 20px;
 }
 
+/*Popup goed*/
+.modal {
+    display: flex; 
+    position: fixed;
+    justify-content: center; 
+    align-items: center; 
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    width: 600px;
+    border-radius: 10px;
+    overflow: hidden;
+    max-height: 90vh; 
+    overflow-y: auto; 
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3); 
+}
+
+.modal-header {
+    background: #0e1e3b;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px; 
+    border-bottom: 2px solid #935e28;
+}
+
+.modal-footer { 
+    display: flex; 
+    gap: 10px; 
+    justify-content: flex-end; 
+    margin-top: 20px;
+    padding: 20px;
+}
+
+.close {
+    font-size: 28px;
+    cursor: pointer;
+    font-weight: bold; 
+    color: #999; 
+}
+.close:hover { color: white }
+
+
 /* Forms */
-.login-form {
-  max-width: 400px;
-  margin: 0 auto;
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #4b3426; /* Brown */
-}
-
-.form-group input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 16px;
-}
 
 .btn-primary {
   background-color: #2a5f9e; /* Blue */
@@ -113,8 +199,23 @@
 }
 
 .btn-primary:hover {
-  background-color: #1e4a7a;
+  background-color: #0e1e3b;
 }
+
+.btn-add { 
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background: #935e28;
+  color: white; 
+  border: none; 
+  border-radius: 5px; 
+  box-shadow: 0 5px 12px rgba(147,94,40,0.22); 
+  transition: transform 0.2s ease, background 0.2s ease; 
+}
+
+
+.btn-add:hover { transform: translateY(-1px); background: #b06c41; }
 
 /* Cards */
 .asset-card, .ticket-card, .work-order-card {
@@ -130,7 +231,88 @@
   color: #2a5f9e; /* Blue */
 }
 
+.standard-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.standard-table th,
+.standard-table td {
+  padding: 15px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.standard-table tbody tr {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.standard-table tbody tr:hover {
+  background-color: #f1f5f9;
+}
+
 .asset-card p, .ticket-card p, .work-order-card p {
   margin: 5px 0;
   color: #4b3426; /* Brown */
+}
+
+.dropdown{
+  position: relative;
+  display: inline-block;
+  padding: 20px;
+  width: 100%;
+  border-radius: 5px
+}
+.dropdown:hover{
+  border-radius: 5px 0px 0px 5px;
+}
+
+.dropdown-content{
+  display: none;
+  position: absolute;
+  min-width: 160px;
+  text-align: center;
+  z-index: 1;
+  left: 250px;
+  bottom: -30px;
+ 
+}
+
+.dropdown-content a {
+  display: block;
+  border-radius: 0px 5px 5px 0px !important;
+  background-color: var(--blou);
+}
+
+.dropdown:hover .dropdown-content {display: block;}
+
+/* Kode vir arrow vir dropdown*/
+.sidebar ul li.dropdown .dropdown-trigger {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.sidebar ul li.dropdown .dropdown-trigger::after {
+  content: '›';               
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 0.2s ease; 
+  transform: rotate(0deg);
+  opacity: 1;
+}
+
+.sidebar ul li.dropdown:hover .dropdown-trigger::after {
+  transform: rotate(90deg);    
+  opacity: 1;                  
+  color: var(--wit);        
 }

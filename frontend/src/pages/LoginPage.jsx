@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMsal } from "@azure/msal-react";
 import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
+import '../styles/App.css';
 import '../styles/Login.css';
 
 function LoginPage() {
@@ -13,21 +14,25 @@ function LoginPage() {
   const navigate = useNavigate();
   const { instance } = useMsal();
 
+  // Hanteer plaaslike aanmelding met e-pos en wagwoord
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
+      // Stuur aanmeldingsversoek na backend met gebruikersin-voer
       const response = await authAPI.login(username, password);
       const token = response.data?.access_token;
 
+      // As token ontvang is, stoor dit en navigeer na dashboard
       if (token) {
-        localStorage.setItem('token', token);
+        sessionStorage.setItem('token', token);
         navigate('/dashboard', { replace: true });
+        // Haal huidige gebruiker se inligting op en stoor dit
         try {
           const userResponse = await authAPI.me();
-          localStorage.setItem('user', JSON.stringify(userResponse.data));
+          sessionStorage.setItem('user', JSON.stringify(userResponse.data));
         } catch (meError) {
           console.warn('Could not fetch user info after login:', meError);
         }
@@ -35,7 +40,7 @@ function LoginPage() {
         setError('Login failed. No access token returned.');
       }
     } catch (err) {
-      // Handle 403 Forbidden (no access to system)
+      // Hanteer 403-fout (geen toegang tot stelsel vir hierdie rol)
       if (err.response?.status === 403) {
         setError(err.response?.data?.detail || 'Jy het nie toegang tot die FBS stelsel nie. Kontak Administrasie asseblief: admin@akademia.co.za');
       } else {
@@ -47,24 +52,28 @@ function LoginPage() {
     }
   };
 
+  // Hanteer Azure/Microsoft-aanmelding
   const handleMicrosoftLogin = async () => {
     setError('');
     setLoading(true);
 
     try {
+      // Vertoon Microsoft-login popup vir gebruiker
       const response = await instance.loginPopup(loginRequest);
       const microsoftToken = response.accessToken;
 
-      // Send Microsoft token to backend for validation and exchange
+      // Stuur Microsoft-token na backend vir validasie en uitruiling vir app-token
       const appTokenResponse = await authAPI.validateMicrosoftToken(microsoftToken);
       const appToken = appTokenResponse.data?.access_token;
 
+      // As app-token ontvang is, stoor en navigeer
       if (appToken) {
-        localStorage.setItem('token', appToken);
+        sessionStorage.setItem('token', appToken);
         navigate('/dashboard', { replace: true });
+        // Haal en stoor gebruiker se inligting
         try {
           const userResponse = await authAPI.me();
-          localStorage.setItem('user', JSON.stringify(userResponse.data));
+          sessionStorage.setItem('user', JSON.stringify(userResponse.data));
         } catch (meError) {
           console.warn('Could not fetch user info after login:', meError);
         }
@@ -72,6 +81,7 @@ function LoginPage() {
         setError('Microsoft login failed. No app token received.');
       }
     } catch (err) {
+      // Hanteer verskillende Microsoft-fouttoestande
       if (err.errorCode === 'popup_window_blocked') {
         setError('Popup was blocked. Please allow popups and try again.');
       } else if (err.errorCode === 'AADB2C90118') {

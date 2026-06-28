@@ -7,7 +7,7 @@ export const msalConfig = {
     redirectUri: process.env.REACT_APP_REDIRECT_URI || "http://localhost:3000/auth/callback"
   },
   cache: {
-    cacheLocation: "localStorage",
+    cacheLocation: "sessionStorage",
     storeAuthStateInCookie: false
   },
   system: {
