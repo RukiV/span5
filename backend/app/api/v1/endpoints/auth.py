@@ -49,7 +49,7 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
 def _check_system_access(user: User, request: Request):
     """
     Kontroleer of gebruiker toegang het tot FBS-stelsel.
-    Slegs role_id >= 2 (FK-koördineerder en Administrator) mag aanmeld.
+    Slegs role_id >= 2 (FK-koÃ¶rdineerder en Administrator) mag aanmeld.
     Gewone gebruikers (role_id=1) word geweier met 403-fout.
     """
     client_type = request.headers.get("X-Client-Type")
@@ -57,7 +57,7 @@ def _check_system_access(user: User, request: Request):
     if user.role_id == 1 and client_type != "mobile":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir web-toegang."
+            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir hulp asseblief: admin@akademia.co.za"
         )
 
 
