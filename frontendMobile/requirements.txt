@@ -1,0 +1,39 @@
+# Flutter Dependencies (Managed via pubspec.yaml)
+# Run 'flutter pub get' to install all dependencies
+
+# Core
+flutter_sdk: >=3.1.0 <4.0.0
+
+# Authentication & Session
+aad_oauth: ^1.0.0
+local_auth: ^2.2.0
+shared_preferences: ^2.2.2
+
+# Networking
+dio: ^5.7.0
+
+# Hardware & Media
+image_picker: ^1.0.7
+mobile_scanner: ^7.2.0
+permission_handler: ^12.0.1
+
+# Location & Mapping
+geolocator: ^13.0.1
+geocoding: ^4.0.0
+flutter_map: ^7.0.2
+latlong2: ^0.9.1
+flutter_map_cache: ^2.0.0+1
+google_maps_flutter: ^2.17.0
+
+# UI Components & Icons
+shimmer: ^3.0.0
+cupertino_icons: ^1.0.9
+path_provider: ^2.1.2
+
+# Barcodes & QR
+qr_flutter: ^4.1.0
+barcode_widget: ^2.0.4
+
+# Development
+flutter_lints: ^3.0.0
+dcdg: ^4.1.0

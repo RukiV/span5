@@ -11,10 +11,24 @@ from ..models.role import Role
 from ..models.user import User
 
 def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
+    """
+    Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
+    
+    Args:
+        session: Databasis-sessie
+        user_email: E-posadres vir soeken/skep
+        user_password: Wagwoord vir nuwe gebruiker
+        role_id: Rol-ID (1=Gebruiker, 2=FK-Koördineerder, 3=Administrateur)
+        
+    Returns:
+        Bestaande of nuwe Gebruiker-objek
+    """
+    # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
         return user
 
+    # Skep nuwe toetsgebruiker met gegewe parameters
     user = User(
         user_name="Test",
         user_surname="User",
@@ -24,7 +38,7 @@ def _get_or_create_test_user(session: Session, user_email: str, user_password: s
         user_lastlogintime=None,
         user_lastlogouttime=None,
         user_status="active",
-        role_id=role_id,
+        role_id=role_id,  # Toekenning van rol vir toesgang-beheer
     )
     session.add(user)
     session.commit()
@@ -206,6 +220,7 @@ def _get_or_create_fault(
 
 
 def _get_or_create_default_role(session: Session) -> Role:
+    """Skep Standaard-gebruiker-rol (role_id=1). Kan NIE aanmeld nie."""
     role = session.exec(select(Role).where(Role.role_name == "User")).first()
     if role:
         return role
@@ -218,6 +233,7 @@ def _get_or_create_default_role(session: Session) -> Role:
 
 
 def _get_or_create_admin_role(session: Session) -> Role:
+    """Skep Administrator-rol (role_id=3). Volle stelsel-toegang."""
     role = session.exec(select(Role).where(Role.role_name == "Administrateur")).first()
     if role:
         return role
@@ -230,6 +246,7 @@ def _get_or_create_admin_role(session: Session) -> Role:
 
 
 def _get_or_create_fk_role(session: Session) -> Role:
+    """Skep FK-Koördineerder-rol (role_id=2). Kan aanmeld, beperkte toegang."""
     role = session.exec(select(Role).where(Role.role_name == "Fasiliteit Koördineerder")).first()
     if role:
         return role
@@ -242,35 +259,45 @@ def _get_or_create_fk_role(session: Session) -> Role:
 
 
 def seed_data():
+    """
+    Seed-funksie - Inisialiseer databasis met toetsdata.
+    Geroep wanneer toepassing begin. Skep rolle, gebruikers, lokasies, bates, ens.
+    """
     print("Seed function called")
     with Session(engine) as session:
-        # Create all roles - order matters! Administrateur must be role_id = 3 for frontend check
-        user_role = _get_or_create_default_role(session)
-        fk_role = _get_or_create_fk_role(session)
-        admin_role = _get_or_create_admin_role(session)
+        # Skep alle rolle in KORREKTE volgorde
+        # Orde is KRITIEK! Administrateur moet role_id = 3 wees vir frontend-kontrole
+        # Databasis gee auto-inkrementerende IDs in skepping-volgorde
+        user_role = _get_or_create_default_role(session)           # ID 1
+        fk_role = _get_or_create_fk_role(session)                 # ID 2
+        admin_role = _get_or_create_admin_role(session)           # ID 3
 
-        # Create test users for each role
+        # Skep toetsgebruikers vir elke rol
+        # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
         _get_or_create_test_user(
             session,
             user_email="test@example.com",
             user_password="password123",
-            role_id=user_role.role_id,
+            role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
             user_email="fk@example.com",
             user_password="fk123",
-            role_id=fk_role.role_id,
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
         )
 
+        # Administrateur - KAN aanmeld EN vol toegang
         _get_or_create_test_user(
             session,
             user_email="admin@example.com",
             user_password="admin123",
-            role_id=admin_role.role_id,
+            role_id=admin_role.role_id,  # role_id = 3 (toelaat)
         )
 
+        # Skep toetsdata vir lokasies, kamers, bates, ens.
         zipcode = _get_or_create_zipcode(session)
 
         loc1 = _get_or_create_location(

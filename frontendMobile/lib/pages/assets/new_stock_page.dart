@@ -4,6 +4,7 @@ import '../../core/campus_service.dart';
 import '../../core/stock_service.dart';
 import '../../models/campus.dart';
 import '../../models/stock.dart';
+import '../../models/user_session.dart';
 
 class NewStockPage extends StatefulWidget {
   const NewStockPage({super.key});
@@ -30,6 +31,22 @@ class _NewStockPageState extends State<NewStockPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          try {
+            selectedCampus = CampusService.campusesNotifier.value
+                .firstWhere((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name))
+                .name;
+          } catch (_) {
+            if (CampusService.campusesNotifier.value.isNotEmpty) {
+               selectedCampus = CampusService.campusesNotifier.value.first.name;
+            }
+          }
+        });
+      }
+    });
   }
 
   List<String> get availableRooms {
@@ -61,7 +78,7 @@ class _NewStockPageState extends State<NewStockPage> {
               const Text("Tipe *", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
-                value: type,
+                initialValue: type,
                 decoration: _inputDecoration(),
                 items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                 onChanged: (v) => setState(() => type = v!),
@@ -72,14 +89,18 @@ class _NewStockPageState extends State<NewStockPage> {
               ValueListenableBuilder<List<Campus>>(
                 valueListenable: CampusService.campusesNotifier,
                 builder: (context, campuses, _) {
+                  final filteredCampuses = UserSession.isAdmin 
+                      ? campuses 
+                      : campuses.where((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name)).toList();
+
                   return DropdownButtonFormField<String>(
-                    value: selectedCampus,
+                    initialValue: selectedCampus,
                     decoration: _inputDecoration(),
-                    items: campuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
-                    onChanged: (v) => setState(() {
+                    items: filteredCampuses.map((c) => DropdownMenuItem(value: c.name, child: Text(c.name))).toList(),
+                    onChanged: UserSession.isAdmin ? (v) => setState(() {
                       selectedCampus = v;
                       selectedRoom = null;
-                    }),
+                    }) : null,
                   );
                 },
               ),
@@ -88,7 +109,7 @@ class _NewStockPageState extends State<NewStockPage> {
                 const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: selectedRoom,
+                  initialValue: selectedRoom,
                   decoration: _inputDecoration(),
                   items: availableRooms.map((r) {
                     final name = r.contains(":") ? r.split(":").last : r;

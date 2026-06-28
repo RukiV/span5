@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../../core/report_service.dart';
 import '../../models/report.dart';
 
+import '../reporting/report_detail_page.dart';
+
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
 
@@ -30,9 +32,9 @@ class DashboardPage extends StatelessWidget {
                 childAspectRatio: 1.5,
                 children: [
                   _buildStatCard("Totaal", reports.length.toString(), Icons.assignment),
-                  _buildStatCard("Hangende", ReportService.pendingCount.toString(), Icons.pending_actions, color: Colors.orange),
-                  _buildStatCard("Hoog", ReportService.highPriorityCount.toString(), Icons.priority_high, color: Colors.red),
-                  _buildStatCard("Voltooi", (reports.length - ReportService.pendingCount).toString(), Icons.check_circle, color: Colors.green),
+                  _buildStatCard("Hangende", reports.where((r) => r.phase == "Ontvang" || r.phase == "Besig").length.toString(), Icons.pending_actions, color: Colors.orange),
+                  _buildStatCard("Hoog", reports.where((r) => r.priority == "Hoog").length.toString(), Icons.priority_high, color: Colors.red),
+                  _buildStatCard("Voltooi", reports.where((r) => r.phase == "Voltooi").length.toString(), Icons.check_circle, color: Colors.green),
                 ],
               );
             },
@@ -56,6 +58,10 @@ class DashboardPage extends StatelessWidget {
                   return Card(
                     margin: const EdgeInsets.only(bottom: 10),
                     child: ListTile(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => ReportDetailPage(report: r)),
+                      ),
                       leading: CircleAvatar(
                         backgroundColor: AppColors.gold.withValues(alpha: 0.1),
                         child: const Icon(Icons.report, color: AppColors.gold),

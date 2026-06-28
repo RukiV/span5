@@ -1,14 +1,18 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import '../models/report.dart';
 import 'api_client.dart';
 import 'asset_service.dart';
 
+// ReportService: Hanteer alle logika vir die skep, haal en opdatering van foutverslae.
 class ReportService {
   static final List<Report> _reports = [];
   static final ValueNotifier<List<Report>> reportsNotifier = ValueNotifier(_reports);
 
+  static int get pendingCount => _reports.where((r) => r.phase == "Ontvang" || r.phase == "Besig").length;
+  static int get highPriorityCount => _reports.where((r) => r.priority == "Hoog").length;
+  static int get completedCount => _reports.where((r) => r.phase == "Voltooi").length;
+
+  // Haal alle verslae vanaf die backend
   static Future<void> fetchReports() async {
     try {
       final response = await ApiClient.dio.get('/fault');
@@ -23,10 +27,9 @@ class ReportService {
     }
   }
 
-  static Future<bool> addReport(Report report, File? imageFile) async {
+  // Stuur 'n nuwe verslag na die backend (Sonder prente vir nou)
+  static Future<bool> addReport(Report report) async {
     try {
-      // Vir nou stuur ons net die JSON data aangesien die backend dalk nie 
-      // Multipart/Form-data vir FaultcardCreate ondersteun nie (dit gebruik Pydantic model)
       final response = await ApiClient.dio.post('/fault', data: report.toJson());
       
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -36,14 +39,14 @@ class ReportService {
         return true;
       }
     } catch (e) {
-      debugPrint("Fout met byvoeg van verslag: $e");
+      debugPrint("Fout met byvoeging van verslag: $e");
     }
     return false;
   }
 
+  // Dateer 'n verslag op
   static Future<void> updateReport(Report updatedReport) async {
     try {
-      // Gebruik PATCH soos per backend endpoint
       final response = await ApiClient.dio.patch('/fault/${updatedReport.id}', data: updatedReport.toJson());
       if (response.statusCode == 200) {
         final index = _reports.indexWhere((r) => r.id == updatedReport.id);
@@ -57,35 +60,77 @@ class ReportService {
     }
   }
 
-  static Future<void> approveReport(String id, String priority, String adminNotes) async {
-    final index = _reports.indexWhere((r) => r.id == id);
-    if (index != -1) {
-      final updatedReport = _reports[index].copyWith(
-        priority: priority,
-        phase: 'Besig',
-        adminNotes: adminNotes,
-      );
-      await updateReport(updatedReport);
-      
-      // Koppel die verslag aan die bate as dit goedgekeur word
-      if (updatedReport.assetId != 'ONSIGBAAR') {
-        await AssetService.linkReportToAsset(updatedReport.assetId, updatedReport.id);
+  // Dateer slegs die status op
+  static Future<bool> updateReportStatus(String id, String phase) async {
+    try {
+      String backendStatus = "wag";
+      if (phase == "Besig") backendStatus = "besig";
+      if (phase == "Voltooi") backendStatus = "opgelos";
+      if (phase == "Geweier") backendStatus = "verwerp";
+
+      final response = await ApiClient.dio.patch('/fault/$id', data: {'fault_status': backendStatus});
+      if (response.statusCode == 200) {
+        final index = _reports.indexWhere((r) => r.id == id);
+        if (index != -1) {
+          _reports[index] = _reports[index].copyWith(phase: phase);
+          reportsNotifier.value = List.from(_reports);
+        }
+        return true;
       }
+    } catch (e) {
+      debugPrint("Fout met status opdatering: $e");
     }
+    return false;
   }
 
-  static Future<void> disapproveReport(String id, String adminNotes) async {
-    final index = _reports.indexWhere((r) => r.id == id);
-    if (index != -1) {
-      final updatedReport = _reports[index].copyWith(
-        phase: 'Geweier',
-        adminNotes: adminNotes,
-      );
-      await updateReport(updatedReport);
+  // Dateer slegs die prioriteit op
+  static Future<bool> updateReportPriority(String id, String priority) async {
+    try {
+      String backendPriority = "medium";
+      if (priority == "Laag") backendPriority = "low";
+      if (priority == "Hoog") backendPriority = "high";
+
+      final response = await ApiClient.dio.patch('/fault/$id', data: {'fault_priority': backendPriority});
+      if (response.statusCode == 200) {
+        final index = _reports.indexWhere((r) => r.id == id);
+        if (index != -1) {
+          _reports[index] = _reports[index].copyWith(priority: priority);
+          reportsNotifier.value = List.from(_reports);
+        }
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Fout met prioriteit opdatering: $e");
     }
+    return false;
   }
 
-  static int get count => reportsNotifier.value.length;
-  static int get pendingCount => reportsNotifier.value.where((r) => r.phase != 'Voltooi').length;
-  static int get highPriorityCount => reportsNotifier.value.where((r) => r.priority == 'Hoog').length;
+  // Goedkeuring (skuif na 'besig' en stel prioriteit)
+  static Future<bool> approveReport(String id, String priority, String notes) async {
+    try {
+      String backendPriority = "medium";
+      if (priority == "Laag") backendPriority = "low";
+      if (priority == "Hoog") backendPriority = "high";
+
+      final response = await ApiClient.dio.patch('/fault/$id', data: {
+        'fault_status': 'besig',
+        'fault_priority': backendPriority
+      });
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Fout met goedkeuring: $e");
+    }
+    return false;
+  }
+
+  // Verwerp (skuif na 'verwerp')
+  static Future<bool> disapproveReport(String id, String notes) async {
+    try {
+      final response = await ApiClient.dio.patch('/fault/$id', data: {'fault_status': 'verwerp'});
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("Fout met verwerping: $e");
+    }
+    return false;
+  }
 }

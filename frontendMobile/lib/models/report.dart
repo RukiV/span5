@@ -11,8 +11,6 @@ class Report {
   final String phase; // Word gemap na fault_status op backend
   final String user;
   final DateTime timestamp;
-  final String? adminNotes;
-  final String? imageUrl;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
 
   Report({
@@ -26,8 +24,6 @@ class Report {
     required this.phase,
     required this.user,
     required this.timestamp,
-    this.adminNotes,
-    this.imageUrl,
     this.gpsCoords,
   });
 
@@ -56,8 +52,7 @@ class Report {
       'fault_priority': backendPriority,
       'fault_status': backendStatus,
       'fault_reportdatetime': timestamp.toIso8601String(),
-      // Backend verwag IDs as integers
-      'asset_id': int.tryParse(assetId),
+      'asset_id': assetId == "0" ? null : int.tryParse(assetId),
       'user_id': UserSession.userId,
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
@@ -108,8 +103,6 @@ class Report {
       timestamp: json['fault_reportdatetime'] != null 
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
-      adminNotes: json['admin_notes'],
-      imageUrl: json['image_url'],
       gpsCoords: json['mappoint_id']?.toString(),
     );
   }
@@ -125,8 +118,6 @@ class Report {
     String? phase,
     String? user,
     DateTime? timestamp,
-    String? adminNotes,
-    String? imageUrl,
     String? gpsCoords,
   }) {
     return Report(
@@ -140,8 +131,6 @@ class Report {
       phase: phase ?? this.phase,
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
-      adminNotes: adminNotes ?? this.adminNotes,
-      imageUrl: imageUrl ?? this.imageUrl,
       gpsCoords: gpsCoords ?? this.gpsCoords,
     );
   }
