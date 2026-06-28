@@ -5,6 +5,7 @@ import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
 import '../styles/App.css';
 import '../styles/Login.css';
+import { clearAuthSession, markUserActivity } from '../authSession';
 
 function LoginPage() {
   const [username, setUsername] = useState('');
@@ -19,6 +20,7 @@ function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+    clearAuthSession();
 
     try {
       // Stuur aanmeldingsversoek na backend met gebruikersin-voer
@@ -28,6 +30,7 @@ function LoginPage() {
       // As token ontvang is, stoor dit en navigeer na dashboard
       if (token) {
         sessionStorage.setItem('token', token);
+        markUserActivity();
         navigate('/dashboard', { replace: true });
         // Haal huidige gebruiker se inligting op en stoor dit
         try {
@@ -56,19 +59,35 @@ function LoginPage() {
   const handleMicrosoftLogin = async () => {
     setError('');
     setLoading(true);
+    clearAuthSession();
 
     try {
-      // Vertoon Microsoft-login popup vir gebruiker
+      // 1. Vertoon Microsoft-login popup vir gebruiker
       const response = await instance.loginPopup(loginRequest);
       const microsoftToken = response.accessToken;
 
-      // Stuur Microsoft-token na backend vir validasie en uitruiling vir app-token
+      // 2. HAAL N GEWELDIGE TOKEN UIT EXPLISIET VIR MICROSOFT GRAPH (KALENDER)
+      try {
+        const graphTokenResponse = await instance.acquireTokenSilent({
+          ...loginRequest,
+          account: response.account
+        });
+        // Stoor hierdie token sodat CalendarPage dit direk kan gebruik om Microsoft API te bel
+        sessionStorage.setItem("ms_access_token", graphTokenResponse.accessToken);
+      } catch (tokenError) {
+        console.warn("Silent token acquisition failed, trying popup...", tokenError);
+        const graphTokenResponse = await instance.acquireTokenPopup(loginRequest);
+        sessionStorage.setItem("ms_access_token", graphTokenResponse.accessToken);
+      }
+
+      // 3. Stuur Microsoft-token na backend vir validasie en uitruiling vir app-token
       const appTokenResponse = await authAPI.validateMicrosoftToken(microsoftToken);
       const appToken = appTokenResponse.data?.access_token;
 
       // As app-token ontvang is, stoor en navigeer
       if (appToken) {
         sessionStorage.setItem('token', appToken);
+        markUserActivity();
         navigate('/dashboard', { replace: true });
         // Haal en stoor gebruiker se inligting
         try {
