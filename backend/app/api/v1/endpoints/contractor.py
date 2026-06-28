@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
 
+from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
 from ....models.contractor import ContractorRead, ContractorCreate, ContractorUpdate
 from ....services.contractor_service import contractor_service
@@ -23,23 +24,23 @@ def readContractor(ContractorID: int, session: Session = Depends(getSession)):
     return contractor
 
 @router.post("", response_model=ContractorRead, status_code=status.HTTP_201_CREATED)
-def addContractor(ContractorIn: ContractorCreate, session: Session = Depends(getSession)):
+def addContractor(ContractorIn: ContractorCreate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Create new contractor
-    return contractor_service.create(session, ContractorIn)
+    return contractor_service.create(session, ContractorIn, user_id=user_id)
 
 @router.patch("/{contractorID}", response_model=ContractorRead)
-def patchContractor(ContractorID: int, ContractorIn: ContractorUpdate, session: Session = Depends(getSession)):
+def patchContractor(ContractorID: int, ContractorIn: ContractorUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Update existing contractor
-    contractor = contractor_service.update(session, ContractorID, ContractorIn)
+    contractor = contractor_service.update(session, ContractorID, ContractorIn, user_id=user_id)
     if not contractor:
         raise HTTPException(status_code=404, detail="Contractor not found")
     
     return contractor
 
 @router.delete("/{contractorID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeContractor(ContractorID: int, session: Session =Depends(getSession)):
+def removeContractor(ContractorID: int, session: Session =Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Delete contractor
-    if not contractor_service.delete(session, ContractorID):
+    if not contractor_service.delete(session, ContractorID, user_id=user_id):
         raise HTTPException(status_code=404, detail="Contractor not found")
     
     return None
