@@ -39,6 +39,14 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         )
         session.add(audit_log)
 
+    @staticmethod
+    def _get_changed_fields(before_data: dict[str, Any], after_data: dict[str, Any], update_data: dict[str, Any]) -> list[str]:
+        return [
+            field
+            for field in update_data.keys()
+            if field in before_data and before_data[field] != after_data[field]
+        ]
+
     def getAll(self, session: Session) -> Sequence[ModelType]:
         return session.exec(select(self.model)).all()
 
@@ -73,25 +81,26 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
             return None
 
         before_data = obj.model_dump(mode="json")
-        updateData = data.model_dump(exclude_unset=True)
-        changed_fields = list(updateData.keys())
-
-        obj.sqlmodel_update(updateData)
+        update_data = data.model_dump(exclude_unset=True)
+        obj.sqlmodel_update(update_data)
 
         session.add(obj)
         try:
-            filtered_before = {field: before_data[field] for field in changed_fields if field in before_data}
-            filtered_after = {field: obj.model_dump(mode="json")[field] for field in changed_fields}
-            self._create_audit_log(
-                session,
-                "update",
-                {
-                    "previous_value": filtered_before,
-                    "new_value": filtered_after,
-                },
-                affected_column=changed_fields[0] if changed_fields else None,
-                user_id=user_id,
-            )
+            after_data = obj.model_dump(mode="json")
+            changed_fields = self._get_changed_fields(before_data, after_data, update_data)
+            if changed_fields:
+                filtered_before = {field: before_data[field] for field in changed_fields}
+                filtered_after = {field: after_data[field] for field in changed_fields}
+                self._create_audit_log(
+                    session,
+                    "update",
+                    {
+                        "previous_value": filtered_before,
+                        "new_value": filtered_after,
+                    },
+                    affected_column=changed_fields[0],
+                    user_id=user_id,
+                )
             session.commit()
             session.refresh(obj)
         except Exception:
