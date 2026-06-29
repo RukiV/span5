@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './styles/App.css';
 import './logoutInterceptor';
+import { clearAuthSession, isSessionExpired, markUserActivity } from './authSession';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AssetPage from './pages/AssetPage';
@@ -19,15 +20,12 @@ import ReportsPage from './pages/ReportsPage';
    1. DIE BESKERMDE ROETE-MEGANISME
    ========================================================= */
 function ProtectedRoute({ children }) {
-  // Kyk na token - elke keer wanneer hierdie komponent render, so dit is altyd up-to-date
   const token = sessionStorage.getItem('token');
   const isLoggingOut = sessionStorage.getItem('isLoggingOut');
 
-  // As daar geen token is nie, of as logout flag gesit is, stuur die gebruiker dadelik terug na login
-  // 'replace' sorg dat hulle nie met die "Back"-knoppie kan terugkom nie
-  if (!token || isLoggingOut) {
-    // Clear the logout flag so we don't get stuck
+  if (!token || isLoggingOut || isSessionExpired()) {
     sessionStorage.removeItem('isLoggingOut');
+    clearAuthSession();
     return <Navigate to="/login" replace />;
   }
 
@@ -36,9 +34,49 @@ function ProtectedRoute({ children }) {
 }
 
 /* =========================================================
-   2. JOU OPGBEDATEERDE APP-ROETES
+   2. JOU OPGBEDATEERDE APP-ROETES EN DOCKER KONTROLE
    ========================================================= */
 function App() {
+  useEffect(() => {
+    markUserActivity();
+
+    const timeout = window.setTimeout(() => {
+      if (sessionStorage.getItem('token')) {
+        clearAuthSession();
+        window.location.replace(window.location.origin + '/login');
+      }
+    }, 30 * 60 * 1000);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  // KONTROLEER OF DOCKER HERSTART HET
+  useEffect(() => {
+    // 1. Gryp die Build ID wat Docker ingespuit het (val terug op versteknaam in dev)
+    const currentBuildId = process.env.REACT_APP_BUILD_ID || "development_build";
+    
+    // 2. Gryp die Build ID van die blaaier se vorige aktiewe sessie
+    const savedBuildId = localStorage.getItem('active_build_id');
+
+    // 3. As daar 'n ou ID gestoor is, maar dit pas nie by die nuwe een nie -> Omgewing het herbegin!
+    if (savedBuildId && savedBuildId !== currentBuildId) {
+      console.warn("Docker-omgewing het herbegin. Ou sessies en tokens word skoongemaak...");
+      
+      // Vee alle vorige sessie data, Microsoft- en App-tokens uit
+      sessionStorage.clear();
+      localStorage.clear();
+      
+      // Stoor die nuwe ID sodat hy nie weer in 'n lus bly uitlog nie
+      localStorage.setItem('active_build_id', currentBuildId);
+      
+      // Dwing die blaaier om die Login-skerm skoon te laai
+      window.location.replace('/login');
+    } else {
+      // As dit die eerste keer laai of die ID ooreenstem, stoor net die huidige een
+      localStorage.setItem('active_build_id', currentBuildId);
+    }
+  }, []);
+
   return (
     <Router>
       <Routes>

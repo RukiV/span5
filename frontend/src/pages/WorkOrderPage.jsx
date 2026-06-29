@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, workOrdersAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, contractorsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import UserProfileHeader from '../components/UserProfileHeader';
@@ -26,7 +26,10 @@ function WorkOrderPage() {
   const [editingId, setEditingId] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [newQuote, setNewQuote] = useState({ supplier: "", amount: "", description: "" });
+  const [contractors, setContractors] = useState([]);
+  const [showAddContractor, setShowAddContractor] = useState(false);
+  const [newContractor, setNewContractor] = useState({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" });
+  const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
   
   // Vorm-data vir werksopdrag (uitgebreide velde)
   const [formData, setFormData] = useState({
@@ -61,7 +64,17 @@ function WorkOrderPage() {
   useEffect(() => {
     fetchWorkOrders();
     fetchAssets();
+    fetchContractors();
   }, []);
+
+  const fetchContractors = async () => {
+    try {
+      const response = await contractorsAPI.getAll();
+      setContractors(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal kontrakteurs:", error);
+    }
+  };
 
   // Haal werksopdragte-lys van backend
   const fetchWorkOrders = async () => {
@@ -166,21 +179,43 @@ function WorkOrderPage() {
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
-    if (!newQuote.supplier || !newQuote.amount) {
-      alert("Verskaffer en bedrag is vereist");
+    if (!newQuote.contractor_id || !newQuote.amount) {
+      alert("Kies 'n kontrakteur en voer 'n bedrag in");
       return;
     }
     
+    const contractor = contractors.find(c => c.contractor_id === Number(newQuote.contractor_id));
     const quote = {
       id: Date.now(),
-      supplier: newQuote.supplier,
+      contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
+      contractor_name: contractor ? contractor.contractor_name : "",
       amount: parseFloat(newQuote.amount),
       description: newQuote.description,
       createdAt: new Date().toLocaleDateString('af-ZA')
     };
-    
+
     setQuotes([...quotes, quote]);
-    setNewQuote({ supplier: "", amount: "", description: "" });
+    setNewQuote({ contractor_id: "", amount: "", description: "" });
+  };
+
+  const handleAddContractor = async () => {
+    try {
+      if (!newContractor.contractor_name || !newContractor.contractor_email) {
+        alert("Voer asseblief kontrakteur se naam en e-pos in");
+        return;
+      }
+      const resp = await contractorsAPI.create(newContractor);
+      const created = resp.data || resp;
+      await fetchContractors();
+      setShowAddContractor(false);
+      setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" });
+      if (created?.contractor_id) {
+        setNewQuote({ ...newQuote, contractor_id: String(created.contractor_id) });
+      }
+    } catch (error) {
+      console.error("Fout by skep kontrakteur:", error);
+      alert("Kontrakteur kon nie geskep word nie");
+    }
   };
 
   const handleDeleteQuote = (quoteId) => {
@@ -200,7 +235,7 @@ function WorkOrderPage() {
     setEditingId(null);
     setQuotes([]);
     setSelectedQuoteId(null);
-    setNewQuote({ supplier: "", amount: "", description: "" });
+    setNewQuote({ contractor_id: "", amount: "", description: "" });
     setFormData({
       job_desc: "",
       job_type: "",
@@ -326,6 +361,9 @@ function WorkOrderPage() {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders" style={{ background: "#935e28" }}>Werksopdragte</Link></li>
+          <li><Link to="/calendar" >Kalender</Link></li>
+          <li><Link to="/analysis">Analise</Link></li>
+          <li><Link to="/reports">Verslae</Link></li>  
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
         <div className="logout-container">
@@ -581,13 +619,18 @@ function WorkOrderPage() {
               <div className="quote-form">
                 <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
                 <div className="quote-input-row">
-                  <input 
-                    type="text" 
-                    placeholder="Verskaffer Naam"
-                    value={newQuote.supplier}
-                    onChange={(e) => setNewQuote({...newQuote, supplier: e.target.value})}
+                  <select
+                    value={newQuote.contractor_id}
+                    onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
                     className="quote-input"
-                  />
+                  >
+                    <option value="">Kies Kontrakteur</option>
+                    {contractors.map((contractor) => (
+                      <option key={contractor.contractor_id} value={contractor.contractor_id}>
+                        {contractor.contractor_name}
+                      </option>
+                    ))}
+                  </select>
                   <input 
                     type="number" 
                     placeholder="Bedrag (R)"
@@ -602,7 +645,50 @@ function WorkOrderPage() {
                   >
                     Voeg By
                   </button>
+                  <button
+                    type="button"
+                    className="quote-add-btn"
+                    style={{ marginLeft: 8, background: '#6c757d' }}
+                    onClick={() => setShowAddContractor(true)}
+                  >
+                    + Kontrakteur
+                  </button>
                 </div>
+
+                {showAddContractor && (
+                  <div className="modal" style={{ display: 'flex' }}>
+                    <div className="modal-content">
+                      <div className="modal-header">
+                        <h3>Nuwe Kontrakteur</h3>
+                        <span className="close" onClick={() => { setShowAddContractor(false); setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" }); }}>&times;</span>
+                      </div>
+                      <div className="form-group">
+                        <label>Voornaam</label>
+                        <input type="text" value={newContractor.contractor_name} onChange={(e) => setNewContractor({ ...newContractor, contractor_name: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label>Van</label>
+                        <input type="text" value={newContractor.contractor_surname} onChange={(e) => setNewContractor({ ...newContractor, contractor_surname: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label>E-pos</label>
+                        <input type="email" value={newContractor.contractor_email} onChange={(e) => setNewContractor({ ...newContractor, contractor_email: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label>Telefoonnommer</label>
+                        <input type="text" value={newContractor.contractor_number} onChange={(e) => setNewContractor({ ...newContractor, contractor_number: e.target.value })} />
+                      </div>
+                      <div className="form-group">
+                        <label>Tipe</label>
+                        <input type="text" value={newContractor.contractor_type} onChange={(e) => setNewContractor({ ...newContractor, contractor_type: e.target.value })} />
+                      </div>
+                      <div className="modal-footer">
+                        <button type="button" className="btn-save" onClick={handleAddContractor}>Stoor Kontrakteur</button>
+                        <button type="button" className="btn-cancel" onClick={() => { setShowAddContractor(false); setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" }); }}>Kanselleer</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <textarea 
                   placeholder="Beskrywing van Kwotasie (opsioneel)"
                   value={newQuote.description}
@@ -617,7 +703,7 @@ function WorkOrderPage() {
                   <table className="quote-table">
                     <thead>
                       <tr>
-                        <th>Verskaffer</th>
+                        <th>Kontrakteur</th>
                         <th style={{textAlign: "right"}}>Bedrag</th>
                         <th>Beskrywing</th>
                         <th style={{textAlign: "center"}}>Datum</th>
@@ -628,7 +714,7 @@ function WorkOrderPage() {
                     <tbody>
                       {quotes.map((quote) => (
                         <tr key={quote.id} className={selectedQuoteId === quote.id ? "selected" : ""}>
-                          <td>{quote.supplier}</td>
+                          <td>{quote.contractor_name || "-"}</td>
                           <td style={{textAlign: "right", fontWeight: "700"}}>R {quote.amount.toFixed(2)}</td>
                           <td>{quote.description || "-"}</td>
                           <td style={{textAlign: "center"}}>{quote.createdAt}</td>
@@ -655,7 +741,7 @@ function WorkOrderPage() {
                   </table>
                   {selectedQuoteId && (
                     <div className="quote-summary">
-                      ✓ Gekose Kwotasie: R {quotes.find(q => q.id === selectedQuoteId)?.amount.toFixed(2)} - {quotes.find(q => q.id === selectedQuoteId)?.supplier}
+                      ✓ Gekose Kwotasie: R {quotes.find(q => q.id === selectedQuoteId)?.amount.toFixed(2)} ({quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'})
                     </div>
                   )}
                 </div>
