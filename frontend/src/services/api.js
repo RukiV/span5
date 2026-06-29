@@ -38,7 +38,7 @@ apiClient.interceptors.request.use(
     config.headers['X-Client-Type'] = 'web';
     return config;
   },
-  (error) => {
+  (error) => { 
     return Promise.reject(error);
   }
 );

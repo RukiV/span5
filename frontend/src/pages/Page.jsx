@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { authAPI } from '../services/api';
+import { clearAuthSession } from '../authSession';
 
 
 export function useLogout() {
@@ -18,9 +19,7 @@ export function useLogout() {
       console.error("Backend logout error:", err);
     }
     
-    // CRITICAL: Clear ALL storage FIRST before any navigation
-    sessionStorage.clear();
-    localStorage.clear();
+    clearAuthSession();
     
     // Then redirect to login with absolute URL to force complete reload
     // Use window.location.replace to prevent back button access
