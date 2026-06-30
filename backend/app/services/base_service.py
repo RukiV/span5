@@ -21,8 +21,9 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         session: Session,
         action: str,
         payload: Any,
-        affected_column: Optional[str] = None,
+        affected_columns: Optional[Any] = None,
         user_id: Optional[int] = None,
+        affected_id: Optional[int] = None,
     ) -> None:
         previous_value = payload.get("previous_value") if isinstance(payload, dict) else None
         new_value = payload.get("new_value") if isinstance(payload, dict) else None
@@ -30,7 +31,8 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         audit_log = Auditlog(
             action=action,
             affectedtable=self._get_table_name(),
-            affectedcolumn=affected_column,
+            affectedcolumn=affected_columns,
+            affectedid=affected_id,
             previous_value=previous_value,
             new_value=new_value,
             json_data=payload,
@@ -47,6 +49,20 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
             if field in before_data and before_data[field] != after_data[field]
         ]
 
+    def _extract_obj_id(self, obj: ModelType) -> Optional[int]:
+        data = obj.model_dump(mode="json")
+        model_name = self.model.__name__.lower()
+        # common primary key patterns
+        candidates = [f"{model_name}_id", "id"]
+        for key in candidates:
+            if key in data and isinstance(data[key], int):
+                return data[key]
+        # fallback: first _id field that isn't user_id
+        for k, v in data.items():
+            if k.endswith("_id") and k != "user_id" and isinstance(v, int):
+                return v
+        return None
+
     def getAll(self, session: Session) -> Sequence[ModelType]:
         return session.exec(select(self.model)).all()
 
@@ -58,6 +74,9 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
 
         session.add(obj)
         try:
+            # flush to assign PKs so we can reference the affected id in the audit
+            session.flush()
+            affected_id = self._extract_obj_id(obj)
             self._create_audit_log(
                 session,
                 "create",
@@ -65,7 +84,9 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                     "previous_value": None,
                     "new_value": data.model_dump(mode="json"),
                 },
+                affected_columns=None,
                 user_id=user_id,
+                affected_id=affected_id,
             )
             session.commit()
             session.refresh(obj)
@@ -91,6 +112,8 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
             if changed_fields:
                 filtered_before = {field: before_data[field] for field in changed_fields}
                 filtered_after = {field: after_data[field] for field in changed_fields}
+                affected_id = self._extract_obj_id(obj)
+                # store all changed fields as JSON (list) in affectedcolumn
                 self._create_audit_log(
                     session,
                     "update",
@@ -98,8 +121,9 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                         "previous_value": filtered_before,
                         "new_value": filtered_after,
                     },
-                    affected_column=changed_fields[0],
+                    affected_columns=changed_fields,
                     user_id=user_id,
+                    affected_id=affected_id,
                 )
             session.commit()
             session.refresh(obj)
@@ -115,6 +139,20 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
             return False
 
         payload = obj.model_dump(mode="json")
+        affected_id = None
+        if isinstance(payload, dict):
+            # try common id patterns
+            model_name = self.model.__name__.lower()
+            if f"{model_name}_id" in payload and isinstance(payload[f"{model_name}_id"], int):
+                affected_id = payload[f"{model_name}_id"]
+            elif "id" in payload and isinstance(payload["id"], int):
+                affected_id = payload["id"]
+            else:
+                for k, v in payload.items():
+                    if k.endswith("_id") and k != "user_id" and isinstance(v, int):
+                        affected_id = v
+                        break
+
         session.delete(obj)
         try:
             self._create_audit_log(
@@ -124,7 +162,9 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                     "previous_value": payload,
                     "new_value": None,
                 },
+                affected_columns=None,
                 user_id=user_id,
+                affected_id=affected_id,
             )
             session.commit()
         except Exception:
