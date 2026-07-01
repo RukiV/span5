@@ -37,6 +37,7 @@ class JobcardBase(SQLModel):
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
@@ -48,6 +49,7 @@ class Jobcard(JobcardBase, Base, table=True):
     jobcard_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
+    room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     fault_id: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
@@ -56,12 +58,15 @@ class Jobcard(JobcardBase, Base, table=True):
 
 class JobcardCreate(JobcardBase):
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    fault_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):
     jobcard_id: int
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
@@ -74,8 +79,10 @@ class JobcardUpdate(SQLModel):
     job_type: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None

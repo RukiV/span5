@@ -11,7 +11,7 @@ function AnalysisPage() {
   const logout = useLogout();
   const [loading, setLoading] = useState(true);
 
-  // Validate token with backend on mount — if invalid, force logout
+  // Valideer token met backend op mount — as dit ongeldig is, dwing uitlog
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -63,6 +63,7 @@ function AnalysisPage() {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar" >Kalender</Link></li>
           <li><Link to="/analysis" style={{ background: '#935e28' }}>Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>  
