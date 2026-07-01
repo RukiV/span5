@@ -26,16 +26,6 @@
 
 .btn-view { background: green; color: white; }
 
-.btn-save {
-    background: var(--bruin);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-.btn-save:hover { background-color: #a0522d; }
 
 .btn-cancel {
     background-color: #eee; 
