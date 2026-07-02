@@ -294,6 +294,7 @@ function CalendarPage() {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar" style={{ background: '#935e28' }}>Kalender</Link></li>
           <li><Link to="/analysis">Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>

@@ -6,6 +6,7 @@ from .base import Base
 from .validators import sanitize_text   # ← Import here
 
 class UserBase(SQLModel):
+    """Base model for user data."""
     user_name: str = Field(min_length=1, max_length=100)
     user_surname: str = Field(min_length=1, max_length=100)
     user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
@@ -21,15 +22,18 @@ class UserBase(SQLModel):
         return sanitize_text(v)
 
 class User(UserBase, Base, table=True):
+    """Model for user data."""
     user_id: Optional[int] = Field(default=None, primary_key=True)
     role_id: int = Field(foreign_key="role.role_id")
 
 
 class UserCreate(UserBase):
+    """Input model for creating user records."""
     role_id: int
 
 
 class UserRead(UserBase):
+    """Output model for reading user records."""
     user_id: int
     user_name: str
     user_surname: str
@@ -42,6 +46,7 @@ class UserRead(UserBase):
 
 
 class UserUpdate(SQLModel):
+    """Input model for updating user records."""
     user_name: Optional[str] = None
     user_surname: Optional[str] = None
     user_email: Optional[str] = None

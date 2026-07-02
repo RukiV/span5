@@ -7,6 +7,7 @@ from .enums import JobStatus
 from .validators import sanitize_text, validate_positive_int
 
 class JobrecurringBase(SQLModel):
+    """Base model for jobrecurring data."""
     job_recurringinterval: Optional[int] = None
 
     @field_validator('job_recurringinterval', mode='before')
@@ -16,27 +17,33 @@ class JobrecurringBase(SQLModel):
 
 
 class Jobrecurring(JobrecurringBase, Base, table=True):
+    """Model for jobrecurring data."""
     jobrecurr_id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class JobrecurringCreate(JobrecurringBase):
+    """Input model for creating jobrecurring records."""
     pass
 
 
 class JobrecurringRead(JobrecurringBase):
+    """Output model for reading jobrecurring records."""
     jobrecurr_id: int
 
 
 class JobrecurringUpdate(SQLModel):
+    """Input model for updating jobrecurring records."""
     job_recurringinterval: Optional[int] = None
 
 
 class JobcardBase(SQLModel):
+    """Base model for jobcard data."""
     job_desc: str
     job_status: JobStatus = Field(default=JobStatus.WAIT)
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
@@ -45,9 +52,11 @@ class JobcardBase(SQLModel):
 
 
 class Jobcard(JobcardBase, Base, table=True):
+    """Model for jobcard data."""
     jobcard_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
+    room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     fault_id: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
@@ -55,13 +64,18 @@ class Jobcard(JobcardBase, Base, table=True):
 
 
 class JobcardCreate(JobcardBase):
+    """Input model for creating jobcard records."""
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    fault_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):
+    """Output model for reading jobcard records."""
     jobcard_id: int
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
@@ -69,13 +83,16 @@ class JobcardRead(JobcardBase):
 
 
 class JobcardUpdate(SQLModel):
+    """Input model for updating jobcard records."""
     job_desc: Optional[str] = None
     job_status: Optional[JobStatus] = None
     job_type: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None

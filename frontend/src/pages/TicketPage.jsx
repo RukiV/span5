@@ -61,7 +61,7 @@ function TicketPage() {
         return;
       }
 
-      // Bou payload vir backend - kombineer titel en beskrywing
+      // Bou data vir backend - kombineer titel en beskrywing
       const payload = {
         fault_description: newTicket.title
           ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
@@ -237,6 +237,7 @@ function TicketPage() {
           </li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
           <li><Link to="/analysis">Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>  
@@ -378,7 +379,7 @@ function TicketPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

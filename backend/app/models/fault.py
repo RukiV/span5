@@ -7,6 +7,7 @@ from .enums import FaultStatus, Priority, Type
 from .validators import sanitize_text
 
 class FaultcardBase(SQLModel):
+    """Base model for faultcard data."""
     fault_description: str
     fault_type: Optional[Type] = None
     fault_status: FaultStatus = Field(default=FaultStatus.WAIT)
@@ -21,6 +22,7 @@ class FaultcardBase(SQLModel):
 
 
 class Faultcard(FaultcardBase, Base, table=True):
+    """Model for faultcard data."""
     fault_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
@@ -29,10 +31,12 @@ class Faultcard(FaultcardBase, Base, table=True):
 
 
 class FaultcardCreate(FaultcardBase):
+    """Input model for creating faultcard records."""
     asset_id: Optional[int] = None
 
 
 class FaultcardRead(FaultcardBase):
+    """Output model for reading faultcard records."""
     fault_id: int
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
@@ -41,6 +45,7 @@ class FaultcardRead(FaultcardBase):
 
 
 class FaultcardUpdate(SQLModel):
+    """Input model for updating faultcard records."""
     fault_description: Optional[str] = None
     fault_type: Optional[Type] = None
     fault_status: Optional[FaultStatus] = None
