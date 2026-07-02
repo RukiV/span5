@@ -14,10 +14,6 @@ def readJobs(session: Session = Depends(getSession)):
     #Fetch all jobs
     return job_service.getAll(session)
 
-@router.get("/recent", response_model=List[JobcardRead])
-def readRecentJobs(limit: int = 5, session: Session = Depends(getSession)):
-    return job_service.getRecent(session, limit=limit)
-
 @router.get("/{jobID}", response_model=JobcardRead)
 def readJob(jobID: int, session: Session = Depends(getSession)):
     #Fetch single job by id
