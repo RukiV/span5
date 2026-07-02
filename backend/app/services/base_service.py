@@ -24,6 +24,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         affected_columns: Optional[Any] = None,
         user_id: Optional[int] = None,
         affected_id: Optional[int] = None,
+        json_data: Optional[Any] = None,
     ) -> None:
         previous_value = payload.get("previous_value") if isinstance(payload, dict) else None
         new_value = payload.get("new_value") if isinstance(payload, dict) else None
@@ -35,7 +36,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
             affectedid=affected_id,
             previous_value=previous_value,
             new_value=new_value,
-            json_data=payload,
+            json_data=json_data if json_data is not None else payload,
             actiondatetime=datetime.utcnow(),
             user_id=user_id,
         )
@@ -87,6 +88,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                 affected_columns=None,
                 user_id=user_id,
                 affected_id=affected_id,
+                json_data=obj.model_dump(mode="json"),
             )
             session.commit()
             session.refresh(obj)
@@ -124,6 +126,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                     affected_columns=changed_fields,
                     user_id=user_id,
                     affected_id=affected_id,
+                    json_data=after_data,
                 )
             session.commit()
             session.refresh(obj)
@@ -165,6 +168,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                 affected_columns=None,
                 user_id=user_id,
                 affected_id=affected_id,
+                json_data=payload,
             )
             session.commit()
         except Exception:
