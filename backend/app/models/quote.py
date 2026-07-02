@@ -44,9 +44,6 @@ class QuoteUpdate(SQLModel):
     quote_desc: Optional[str] = None
     quote_date: Optional[date] = None
     quote_status: Optional[str] = None
-<<<<<<< HEAD
     quote_selection_reason: Optional[str] = None
     contractor_id: Optional[int] = None
-=======
-    contractor_id: Optional[int] = None
->>>>>>> cf62588b34cf2bc9f0c74bfe69fd217b7aef3757
+
