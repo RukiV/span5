@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import inspect, text
 from sqlmodel import create_engine, Session, SQLModel
 
 # Database Configuration
@@ -14,8 +15,25 @@ if not DATABASE_URL:
 
 engine = create_engine(DATABASE_URL, echo=True)
 
+
 def createDBandTables():
     SQLModel.metadata.create_all(engine)
+
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        if "jobcard" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("jobcard")}
+            if "quote_ids" not in columns:
+                connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS quote_ids TEXT"))
+            if "room_id" not in columns:
+                connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS room_id INTEGER"))
+
+        if "quote" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("quote")}
+            if "contractor_id" not in columns:
+                connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS contractor_id INTEGER"))
+            if "quote_selection_reason" not in columns:
+                connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
 
 def getSession():
     with Session(engine) as session:

@@ -151,6 +151,7 @@ function TerrainsPage() {
             </li>
             <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
             <li><Link to="/work-orders">Werksopdragte</Link></li>
+            <li><Link to="/contractors">Kontrakteurs</Link></li>
             <li><Link to="/calendar">Kalender</Link></li>
             <li><Link to="/analysis">Analise</Link></li>
             <li><Link to="/reports">Verslae</Link></li>  
@@ -264,7 +265,7 @@ function TerrainsPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-save" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

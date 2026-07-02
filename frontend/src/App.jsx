@@ -14,6 +14,7 @@ import AnalysisPage from './pages/AnalysisPage';
 import CalendarPage from './pages/CalendarPage';
 import RoomsPage from './pages/RoomsPage';
 import TerrainsPage from './pages/TerrainsPage';
+import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
 
 /* =========================================================
@@ -89,6 +90,7 @@ function App() {
         <Route path="/stock" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
         <Route path="/fault-tickets" element={<ProtectedRoute><TicketPage /></ProtectedRoute>} />
         <Route path="/work-orders" element={<ProtectedRoute><WorkOrderPage /></ProtectedRoute>} />
+        <Route path="/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
         <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />

@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, workOrdersAPI, contractorsAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import UserProfileHeader from '../components/UserProfileHeader';
@@ -15,6 +15,8 @@ function WorkOrderPage() {
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
   const [assets, setAssets] = useState([]);               // Bates vir toekenning
+  const [rooms, setRooms] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [statusFilter, setStatusFilter] = useState("");    // Filter op status
@@ -27,16 +29,18 @@ function WorkOrderPage() {
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [contractors, setContractors] = useState([]);
-  const [showAddContractor, setShowAddContractor] = useState(false);
-  const [newContractor, setNewContractor] = useState({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" });
   const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
+  const [quoteEditId, setQuoteEditId] = useState(null);
+  const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
+  const [connectionType, setConnectionType] = useState("");
+  const [connectionTargetId, setConnectionTargetId] = useState("");
   
   // Vorm-data vir werksopdrag (uitgebreide velde)
   const [formData, setFormData] = useState({
     // Hoofinligting
     job_desc: "",                   // Hoofbeskrywing
     job_type: "",                   // Werksoort (maintenance, repair, inspection, installation, emergency)
-    job_status: "OPEN",             // Status (OPEN, WAIT, COMPLETED)
+    job_status: "open",             // Status (open, wag, voltooid)
     job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     
@@ -64,15 +68,38 @@ function WorkOrderPage() {
   useEffect(() => {
     fetchWorkOrders();
     fetchAssets();
+    fetchRooms();
+    fetchTickets();
     fetchContractors();
   }, []);
 
   const fetchContractors = async () => {
     try {
       const response = await contractorsAPI.getAll();
-      setContractors(response.data || []);
+      const contractorList = response.data || [];
+      setContractors(contractorList);
+      return contractorList;
     } catch (error) {
       console.error("Fout by haal kontrakteurs:", error);
+      return [];
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const response = await roomsAPI.getAll();
+      setRooms(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal lokale:", error);
+    }
+  };
+
+  const fetchTickets = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setTickets(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal foutkaartjies:", error);
     }
   };
 
@@ -106,8 +133,35 @@ function WorkOrderPage() {
     return dateString.split('T')[0];
   };
 
+  const normalizeJobStatus = (status) => {
+    const value = String(status || "").trim().toLowerCase();
+    if (["open", "oop", "opened"].includes(value)) return "open";
+    if (["wait", "wag", "pending", "hangende"].includes(value)) return "wag";
+    if (["completed", "voltooid", "done", "voltooi"].includes(value)) return "voltooid";
+    if (["in_progress", "besig", "inprogress"].includes(value)) return "besig";
+    if (["cancelled", "geannuleerd", "cancel", "canceled"].includes(value)) return "geannuleerd";
+    return value || "open";
+  };
+
+  const formatDateTimeForPayload = (value) => {
+    if (!value) return null;
+    if (typeof value === "string" && value.includes("T")) return value;
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`;
+    return value;
+  };
+
+  const parseQuoteIds = (value) => {
+    if (!value) return [];
+    return String(value)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => Number(item))
+      .filter((item) => !Number.isNaN(item));
+  };
+
   // Hanteer redigering van werksopdrag
-  function handleEditWorkOrder(order) {
+  async function handleEditWorkOrder(order) {
     setIsEditing(true);
     setEditingId(order.jobcard_id);
 
@@ -120,7 +174,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: description,
       job_type: order.job_type || "",
-      job_status: order.job_status || "OPEN",
+      job_status: normalizeJobStatus(order.job_status),
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
       contact_name: order.contact_name || "",
@@ -135,6 +189,64 @@ function WorkOrderPage() {
       completed_date: formatDateForInput(order.job_finisheddatetime),
       cost_recovery_notes: order.cost_recovery_notes || "",
     });
+
+    if (order.asset_id) {
+      setConnectionType("asset");
+      setConnectionTargetId(String(order.asset_id));
+    } else if (order.room_id) {
+      setConnectionType("room");
+      setConnectionTargetId(String(order.room_id));
+    } else if (order.fault_id) {
+      setConnectionType("fault");
+      setConnectionTargetId(String(order.fault_id));
+    } else {
+      setConnectionType("");
+      setConnectionTargetId("");
+    }
+
+    const quoteIds = parseQuoteIds(order.quote_ids || (order.quote_id ? String(order.quote_id) : ""));
+
+    if (quoteIds.length > 0) {
+      try {
+        const contractorList = contractors.length > 0 ? contractors : await fetchContractors();
+        const quoteResponses = await Promise.allSettled(quoteIds.map((id) => quotesAPI.getById(id)));
+        const loadedQuotes = quoteResponses
+          .filter((result) => result.status === "fulfilled" && result.value)
+          .map((result) => {
+            const response = result.value;
+            const quoteData = response.data || response;
+            const contractor = contractorList.find((item) => item.contractor_id === Number(quoteData.contractor_id));
+            return {
+              id: quoteData.quote_id,
+              contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
+              contractor_name: contractor?.contractor_name || "",
+              amount: Number(quoteData.quote_price || 0),
+              description: quoteData.quote_desc || "",
+              createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
+              selection_reason: quoteData.quote_selection_reason || ""
+            };
+          });
+        setQuotes(loadedQuotes);
+        const loadedReasonMap = Object.fromEntries(
+          loadedQuotes.map((quote) => [quote.id, quote.selection_reason || ""])
+        );
+        setQuoteSelectionReasons((prev) => ({ ...prev, ...loadedReasonMap }));
+        const selectedQuoteFromOrder = order.quote_id ? Number(order.quote_id) : null;
+        setSelectedQuoteId(
+          loadedQuotes.some((quote) => quote.id === selectedQuoteFromOrder)
+            ? selectedQuoteFromOrder
+            : loadedQuotes[0]?.id ?? null
+        );
+      } catch (error) {
+        console.error("Fout by laai kwotasies:", error);
+        setQuotes([]);
+        setSelectedQuoteId(null);
+      }
+    } else {
+      setQuotes([]);
+      setSelectedQuoteId(null);
+    }
+
     setShowModal(true);
   }
 
@@ -146,27 +258,70 @@ function WorkOrderPage() {
         return;
       }
 
-      // Kombineer velde vir backend payload
       const payload = {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
         job_type: formData.job_type || null,
-        job_status: formData.job_status,
-        job_priority: formData.job_priority || "Normal",
-        job_createddatetime: formData.job_createddatetime || new Date().toISOString(),
-        asset_id: formData.asset_id ? Number(formData.asset_id) : null,
-        room_id: formData.room_id ? Number(formData.room_id) : null,
-        contact_name: formData.contact_name || null,
-        contact_email: formData.contact_email || null,
-        contact_phone: formData.contact_phone || null,
-        authorized_by: formData.authorized_by || null,
-        completed_date: formData.completed_date || null,
-        cost_recovery_notes: formData.cost_recovery_notes || null,
+        job_status: normalizeJobStatus(formData.job_status),
+        job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
+        asset_id: null,
+        room_id: null,
+        fault_id: null,
+        job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
       };
 
-      if (isEditing) {
-        await workOrdersAPI.update(editingId, payload);
-      } else {
-        await workOrdersAPI.create(payload);
+      if (connectionType === "asset" && connectionTargetId) {
+        payload.asset_id = Number(connectionTargetId);
+      } else if (connectionType === "room" && connectionTargetId) {
+        payload.room_id = Number(connectionTargetId);
+      } else if (connectionType === "fault" && connectionTargetId) {
+        payload.fault_id = Number(connectionTargetId);
+      }
+
+      const savedWorkOrderResponse = isEditing
+        ? await workOrdersAPI.update(editingId, payload)
+        : await workOrdersAPI.create(payload);
+      const savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
+      const workOrderId = savedWorkOrder?.jobcard_id || editingId;
+
+      if (quotes.some((quote) => !quote.contractor_id || !String(quote.description || "").trim())) {
+        alert("Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê.");
+        return;
+      }
+
+      if (selectedQuoteId && !String(quoteSelectionReasons[selectedQuoteId] || "").trim()) {
+        alert("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.");
+        return;
+      }
+
+      const createdQuoteIds = [];
+      let selectedCreatedQuoteId = null;
+
+      for (const quote of quotes) {
+        const quotePayload = {
+          quote_price: Number(quote.amount),
+          quote_desc: quote.description || "Kwotasie",
+          quote_date: new Date().toISOString().split('T')[0],
+          quote_status: "Pending",
+          quote_selection_reason: quoteSelectionReasons[quote.id] || null,
+          contractor_id: quote.contractor_id ? Number(quote.contractor_id) : null,
+        };
+
+        const quoteResponse = await quotesAPI.create(quotePayload);
+        const createdQuote = quoteResponse?.data || quoteResponse;
+        const createdQuoteId = createdQuote?.quote_id ?? null;
+        createdQuoteIds.push(createdQuoteId);
+
+        if (selectedQuoteId && String(quote.id) === String(selectedQuoteId)) {
+          selectedCreatedQuoteId = createdQuoteId;
+        }
+      }
+
+      if (workOrderId) {
+        const persistedQuoteIds = createdQuoteIds.filter(Boolean).join(",");
+        await workOrdersAPI.update(workOrderId, {
+          quote_id: selectedCreatedQuoteId ? Number(selectedCreatedQuoteId) : null,
+          quote_ids: persistedQuoteIds || null,
+        });
       }
       
       handleCloseModal();
@@ -179,54 +334,74 @@ function WorkOrderPage() {
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
-    if (!newQuote.contractor_id || !newQuote.amount) {
-      alert("Kies 'n kontrakteur en voer 'n bedrag in");
+    if (!newQuote.contractor_id || !newQuote.amount || !String(newQuote.description || "").trim()) {
+      alert("Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie.");
       return;
     }
-    
+
     const contractor = contractors.find(c => c.contractor_id === Number(newQuote.contractor_id));
-    const quote = {
-      id: Date.now(),
+    const updatedQuote = {
+      id: quoteEditId || Date.now(),
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
       contractor_name: contractor ? contractor.contractor_name : "",
       amount: parseFloat(newQuote.amount),
       description: newQuote.description,
-      createdAt: new Date().toLocaleDateString('af-ZA')
+      createdAt: quoteEditId ? quotes.find((q) => q.id === quoteEditId)?.createdAt || new Date().toLocaleDateString('af-ZA') : new Date().toLocaleDateString('af-ZA'),
+      selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
 
-    setQuotes([...quotes, quote]);
+    if (quoteEditId) {
+      setQuotes(quotes.map((quote) => (quote.id === quoteEditId ? updatedQuote : quote)));
+      setQuoteEditId(null);
+    } else {
+      setQuotes([...quotes, updatedQuote]);
+    }
+
     setNewQuote({ contractor_id: "", amount: "", description: "" });
   };
 
-  const handleAddContractor = async () => {
-    try {
-      if (!newContractor.contractor_name || !newContractor.contractor_email) {
-        alert("Voer asseblief kontrakteur se naam en e-pos in");
-        return;
-      }
-      const resp = await contractorsAPI.create(newContractor);
-      const created = resp.data || resp;
-      await fetchContractors();
-      setShowAddContractor(false);
-      setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" });
-      if (created?.contractor_id) {
-        setNewQuote({ ...newQuote, contractor_id: String(created.contractor_id) });
-      }
-    } catch (error) {
-      console.error("Fout by skep kontrakteur:", error);
-      alert("Kontrakteur kon nie geskep word nie");
-    }
+  const handleStartEditQuote = (quoteId) => {
+    const quoteToEdit = quotes.find((quote) => quote.id === quoteId);
+    if (!quoteToEdit) return;
+
+    setNewQuote({
+      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : "",
+      amount: quoteToEdit.amount ? String(quoteToEdit.amount) : "",
+      description: quoteToEdit.description || ""
+    });
+    setQuoteEditId(quoteId);
   };
+
+  const handleCancelQuoteEdit = () => {
+    setQuoteEditId(null);
+    setNewQuote({ contractor_id: "", amount: "", description: "" });
+  };
+
 
   const handleDeleteQuote = (quoteId) => {
     setQuotes(quotes.filter(q => q.id !== quoteId));
+    setQuoteSelectionReasons((prev) => {
+      const next = { ...prev };
+      delete next[quoteId];
+      return next;
+    });
     if (selectedQuoteId === quoteId) {
       setSelectedQuoteId(null);
+    }
+    if (quoteEditId === quoteId) {
+      setQuoteEditId(null);
+      setNewQuote({ contractor_id: "", amount: "", description: "" });
     }
   };
 
   const handleSelectQuote = (quoteId) => {
-    setSelectedQuoteId(quoteId === selectedQuoteId ? null : quoteId);
+    const nextSelectedId = quoteId === selectedQuoteId ? null : quoteId;
+    setSelectedQuoteId(nextSelectedId);
+    if (nextSelectedId) {
+      if (!quoteSelectionReasons[nextSelectedId]) {
+        setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
+      }
+    }
   };
 
   const handleCloseModal = () => {
@@ -235,7 +410,11 @@ function WorkOrderPage() {
     setEditingId(null);
     setQuotes([]);
     setSelectedQuoteId(null);
+    setQuoteEditId(null);
+    setQuoteSelectionReasons({});
     setNewQuote({ contractor_id: "", amount: "", description: "" });
+    setConnectionType("");
+    setConnectionTargetId("");
     setFormData({
       job_desc: "",
       job_type: "",
@@ -277,6 +456,8 @@ function WorkOrderPage() {
       completed_date: "",
       cost_recovery_notes: "",
     });
+    setConnectionType("");
+    setConnectionTargetId("");
     setShowModal(true);
   };
 
@@ -341,7 +522,7 @@ function WorkOrderPage() {
         <h2>FBS</h2>
         <ul>
           <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li class="dropdown" >
+          <li className="dropdown" >
               <div className="dropdown-trigger">
                   <span>Bates & Voorraad</span>
               </div>
@@ -350,7 +531,7 @@ function WorkOrderPage() {
                   <Link to="/stock">Voorraad</Link>
                   </div>
           </li>
-              <li class="dropdown">
+              <li className="dropdown">
               <div className="dropdown-trigger">
                   <span>Lokale & Terreine</span>
               </div>
@@ -361,6 +542,7 @@ function WorkOrderPage() {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders" style={{ background: "#935e28" }}>Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar" >Kalender</Link></li>
           <li><Link to="/analysis">Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>  
@@ -454,7 +636,7 @@ function WorkOrderPage() {
                         {translateStatus(order.job_status)}
                       </span>
                     </td>
-                    <td className="actions-cell">
+                    <td>
                         <button 
                         type="button"
                         className="btn-edit"
@@ -483,7 +665,7 @@ function WorkOrderPage() {
       {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
         <div className="modal" >
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content-workorder" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
                 <h3>Werksopdrag Kaart</h3>
@@ -498,7 +680,6 @@ function WorkOrderPage() {
                   </div>
                 )}
                 <span className="close" onClick={handleCloseModal}>&times;</span>
-                <hr/>
             </div>
 
             {/* Vorm */}
@@ -528,9 +709,9 @@ function WorkOrderPage() {
                       value={formData.job_status}
                       onChange={(e) => setFormData({...formData, job_status: e.target.value})}
                     >
-                      <option value="OPEN">Oop</option>
-                      <option value="WAIT">Hangende</option>
-                      <option value="COMPLETED">Voltooi</option>
+                      <option value="open">Oop</option>
+                      <option value="wag">Hangende</option>
+                      <option value="voltooid">Voltooi</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Werksoort</span> 
@@ -552,22 +733,72 @@ function WorkOrderPage() {
               {/* Bate en Aard */}
               <div className="mri-row flex">
                 <div className="mri-cell w-50 border-r">
-                  <label>Bate</label>
-                  <select 
-                    value={formData.asset_id}
-                    onChange={(e) => setFormData({...formData, asset_id: e.target.value})}
-                    className="inp-full"
-                  >
-                    <option value="">Geen bate gekies</option>
-                    {assets.map(asset => (
-                      <option key={asset.asset_id} value={asset.asset_id}>
-                        {asset.asset_id} - {asset.asset_name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="mri-fld">
+                    <span>Koppel aan</span>
+                    <select
+                      value={connectionType}
+                      onChange={(e) => {
+                        setConnectionType(e.target.value);
+                        setConnectionTargetId("");
+                      }}
+                      className="inp-full"
+                    >
+                      <option value="">Geen gekies</option>
+                      <option value="asset">Bate</option>
+                      <option value="room">Lokaal</option>
+                      <option value="fault">Foutkaartjie</option>
+                    </select>
+                  </div>
+                  <div className="mri-fld">
+                    <span style={{color: (connectionType=== "")  ? "#9ca3af" : ""}}>{connectionType === "asset"
+                      ? "Bate" 
+                      : connectionType === "room"
+                      ? "Lokaal" 
+                      : connectionType === "room"
+                      ? "Foutkaartjie"
+                      : "Item"}
+                      </span>
+                    <select
+                      style={{color: (connectionType=== "")  ? "#9ca3af" : ""}}
+                      value={connectionTargetId}
+                      onChange={(e) => setConnectionTargetId(e.target.value)}
+                      className="inp-full"
+                      disabled={connectionType=== ""}
+                    >
+                      <option value="" >Geen item gekies</option>
+                      {connectionType === "asset" && assets.map((asset) => (
+                        <option key={asset.asset_id} value={asset.asset_id}>
+                          {asset.asset_id} - {asset.asset_name}
+                        </option>
+                      ))}
+                      {connectionType === "room" && rooms.map((room) => (
+                        <option key={room.room_id} value={room.room_id}>
+                          {room.room_id} - {room.room_name || room.room_number || room.room_desc || 'Lokaal'}
+                        </option>
+                      ))}
+                      {connectionType === "fault" && tickets.map((ticket) => (
+                        <option key={ticket.fault_id} value={ticket.fault_id}>
+                          {ticket.fault_id} - {ticket.fault_desc || ticket.fault_title || ticket.fault_type || 'Foutkaartjie'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="mri-cell w-50">
-                  <div className="mri-fld"><span>Aard</span> <input type="text" value={formData.nature} onChange={(e) => setFormData({...formData, nature: e.target.value})} placeholder="Elektries, Meganies, ens." /></div>
+                  <div className="mri-fld"><span>Aard</span> 
+                    <select
+                      value={formData.nature}
+                      onChange={(e) => setFormData({...formData, nature: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="Elektries">Elektries</option>
+                      <option value="Meganies">Meganies</option>
+                      <option value="Siviel">Siviel</option>
+                      <option value="Buite">Buite</option>
+                      <option value="Algemeen">Algemeen</option>
+                      <option value="Nood">Nood</option>
+                    </select>
+                  </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
                     <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
                       <option>Laag</option>
@@ -618,119 +849,105 @@ function WorkOrderPage() {
               {/* Voeg Nuwe Kwotasie By */}
               <div className="quote-form">
                 <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
-                <div className="quote-input-row">
-                  <select
-                    value={newQuote.contractor_id}
-                    onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
-                    className="quote-input"
-                  >
-                    <option value="">Kies Kontrakteur</option>
-                    {contractors.map((contractor) => (
-                      <option key={contractor.contractor_id} value={contractor.contractor_id}>
-                        {contractor.contractor_name}
-                      </option>
-                    ))}
-                  </select>
-                  <input 
-                    type="number" 
-                    placeholder="Bedrag (R)"
-                    value={newQuote.amount}
-                    onChange={(e) => setNewQuote({...newQuote, amount: e.target.value})}
-                    className="quote-input"
-                  />
-                  <button 
-                    type="button"
-                    onClick={handleAddQuote}
-                    className="quote-add-btn"
-                  >
-                    Voeg By
-                  </button>
-                  <button
-                    type="button"
-                    className="quote-add-btn"
-                    style={{ marginLeft: 8, background: '#6c757d' }}
-                    onClick={() => setShowAddContractor(true)}
-                  >
-                    + Kontrakteur
-                  </button>
-                </div>
-
-                {showAddContractor && (
-                  <div className="modal" style={{ display: 'flex' }}>
-                    <div className="modal-content">
-                      <div className="modal-header">
-                        <h3>Nuwe Kontrakteur</h3>
-                        <span className="close" onClick={() => { setShowAddContractor(false); setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" }); }}>&times;</span>
-                      </div>
-                      <div className="form-group">
-                        <label>Voornaam</label>
-                        <input type="text" value={newContractor.contractor_name} onChange={(e) => setNewContractor({ ...newContractor, contractor_name: e.target.value })} />
-                      </div>
-                      <div className="form-group">
-                        <label>Van</label>
-                        <input type="text" value={newContractor.contractor_surname} onChange={(e) => setNewContractor({ ...newContractor, contractor_surname: e.target.value })} />
-                      </div>
-                      <div className="form-group">
-                        <label>E-pos</label>
-                        <input type="email" value={newContractor.contractor_email} onChange={(e) => setNewContractor({ ...newContractor, contractor_email: e.target.value })} />
-                      </div>
-                      <div className="form-group">
-                        <label>Telefoonnommer</label>
-                        <input type="text" value={newContractor.contractor_number} onChange={(e) => setNewContractor({ ...newContractor, contractor_number: e.target.value })} />
-                      </div>
-                      <div className="form-group">
-                        <label>Tipe</label>
-                        <input type="text" value={newContractor.contractor_type} onChange={(e) => setNewContractor({ ...newContractor, contractor_type: e.target.value })} />
-                      </div>
-                      <div className="modal-footer">
-                        <button type="button" className="btn-save" onClick={handleAddContractor}>Stoor Kontrakteur</button>
-                        <button type="button" className="btn-cancel" onClick={() => { setShowAddContractor(false); setNewContractor({ contractor_name: "", contractor_surname: "", contractor_email: "", contractor_number: "", contractor_type: "" }); }}>Kanselleer</button>
-                      </div>
+               <div className="mri-row">
+                  <div className="mri-cell w-50">
+                      <div className="mri-fld">
+                      <span>Kontrakteur</span>
+                      <select
+                        value={newQuote.contractor_id}
+                        onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
+                        className="quote-input"
+                      >
+                        
+                        <option value="">Kies Kontrakteur</option>
+                        {contractors.map((contractor) => (
+                          <option key={contractor.contractor_id} value={contractor.contractor_id}>
+                            {contractor.contractor_name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
+                    <div className="mri-fld">
+                      <span>Bedrag</span>
+                      <input 
+                        type="number" 
+                        placeholder="Bedrag (R)"
+                        value={newQuote.amount}
+                        onChange={(e) => setNewQuote({...newQuote, amount: e.target.value})}
+                        className="quote-input"
+                      />
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={handleAddQuote}
+                      className="btn-add"
+                    >
+                      {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
+                    </button>
+                    {quoteEditId && (
+                      <button
+                        type="button"
+                        className="btn-add"
+                        style={{ marginLeft: 8, background: '#6c757d' }}
+                        onClick={handleCancelQuoteEdit}
+                      >
+                        Kanselleer Wysiging
+                      </button>
+                    )}
                   </div>
-                )}
-                <textarea 
-                  placeholder="Beskrywing van Kwotasie (opsioneel)"
-                  value={newQuote.description}
-                  onChange={(e) => setNewQuote({...newQuote, description: e.target.value})}
-                  className="quote-textarea"
-                />
+                  
+                  <div className="mri-cell w-50">
+                    <textarea 
+                      placeholder="Beskrywing van Kwotasie"
+                      value={newQuote.description}
+                      onChange={(e) => setNewQuote({...newQuote, description: e.target.value})}
+                      className="quote-textarea"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Kwotasies Tabel */}
               {quotes.length > 0 && (
-                <div className=" quote-table-wrap">
-                  <table className="quote-table">
+                <div className="quote-table-wrap">
+                  <table className="standard-table">
                     <thead>
                       <tr>
                         <th>Kontrakteur</th>
-                        <th style={{textAlign: "right"}}>Bedrag</th>
+                        <th>Bedrag</th>
                         <th>Beskrywing</th>
-                        <th style={{textAlign: "center"}}>Datum</th>
-                        <th style={{textAlign: "center"}}>Gekies</th>
-                        <th style={{textAlign: "center"}}>Aksie</th>
+                        <th>Datum</th>
+                        <th>Gekies</th>
+                        <th>Aksie</th>
                       </tr>
                     </thead>
                     <tbody>
                       {quotes.map((quote) => (
                         <tr key={quote.id} className={selectedQuoteId === quote.id ? "selected" : ""}>
                           <td>{quote.contractor_name || "-"}</td>
-                          <td style={{textAlign: "right", fontWeight: "700"}}>R {quote.amount.toFixed(2)}</td>
-                          <td>{quote.description || "-"}</td>
-                          <td style={{textAlign: "center"}}>{quote.createdAt}</td>
-                          <td style={{textAlign: "center"}}>
+                          <td style={{ fontWeight: "700"}}>R {quote.amount.toFixed(2)}</td>
+                          <td>{quote.description}</td>
+                          <td>{quote.createdAt}</td>
+                          <td>
                             <input 
                               type="radio" 
-                              name="selectedQuote"
+                              className="selectedQuote"
                               checked={selectedQuoteId === quote.id}
                               onChange={() => handleSelectQuote(quote.id)}
                             />
                           </td>
-                          <td style={{textAlign: "center"}}>
+                          <td>
+                            <button 
+                              type="button"
+                              onClick={() => handleStartEditQuote(quote.id)}
+                              className="btn-edit"
+                            >
+                              Wysig
+                            </button>
                             <button 
                               type="button"
                               onClick={() => handleDeleteQuote(quote.id)}
-                              className="quote-delete-btn"
+                              className="btn-delete"
                             >
                               Verwyder
                             </button>
@@ -741,14 +958,20 @@ function WorkOrderPage() {
                   </table>
                   {selectedQuoteId && (
                     <div className="quote-summary">
-                      ✓ Gekose Kwotasie: R {quotes.find(q => q.id === selectedQuoteId)?.amount.toFixed(2)} ({quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'})
+                      <div>✓ Gekose Kwotasie: R {quotes.find(q => q.id === selectedQuoteId)?.amount.toFixed(2)} ({quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'})</div>
+                      <textarea
+                        className="quote-reason-textarea"
+                        placeholder="Gee 'n rede waarom hierdie kwotasie gekies is"
+                        value={quoteSelectionReasons[selectedQuoteId] || ""}
+                        onChange={(e) => setQuoteSelectionReasons((prev) => ({ ...prev, [selectedQuoteId]: e.target.value }))}
+                      />
                     </div>
                   )}
                 </div>
               )}
               {quotes.length === 0 && (
                 <div className="quote-empty">
-                  Geen kwotasies bygevoeg nog nie
+                  Geen kwotasies bygevoeg nie
                 </div>
               )}
             </div>
@@ -757,7 +980,7 @@ function WorkOrderPage() {
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
-              <button type="button" className="btn-save" onClick={handleSaveWorkOrder}>Stoor</button>
+              <button type="button" className="btn-add" onClick={handleSaveWorkOrder}>Stoor</button>
             </div>
           </div>
         </div>
