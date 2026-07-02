@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI, authAPI } from "../services/api";
+import { assetsAPI, roomsAPI, authAPI, workOrdersAPI, auditsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -18,6 +18,10 @@ function AssetPage() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [assetRoomHistory, setAssetRoomHistory] = useState([]);
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_serial: "",
@@ -30,6 +34,7 @@ function AssetPage() {
   useEffect(() => {
     fetchAssets();
     fetchRooms();
+    fetchJobs();
   }, []);
 
   // Validate token with backend on mount — if invalid, force logout
@@ -63,6 +68,30 @@ function AssetPage() {
       setRooms(response.data);
     } catch (error) {
       console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      setJobs([]);
+    }
+  };
+
+  const fetchAssetRoomHistory = async (asset_id) => {
+    if (!asset_id) {
+      return;
+    }
+
+    try {
+      const response = await auditsAPI.getRoomChangesForAsset(asset_id);
+      setAssetRoomHistory(response.data);
+    } catch (error) {
+      console.error("Error fetching asset room history:", error);
+      setAssetRoomHistory([]);
     }
   };
 
@@ -189,6 +218,14 @@ function AssetPage() {
     return `Room ${item.room_id}`;
   };
 
+  const handleViewHistory = (asset) => {
+    setSelectedAsset(asset);
+    fetchAssetRoomHistory(asset.asset_id);
+    setShowHistoryModal(true);
+  };
+
+  const getJobHistoryOfAsset = (asset_id) => jobs.filter((job) => job.asset_id === asset_id);
+
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -298,6 +335,9 @@ function AssetPage() {
                     </span>
                   </td>
                   <td>
+                    <button className="btn-view" onClick={() => handleViewHistory(item)}>
+                      Besigtig Geskiedenis
+                    </button>
                     <button className="btn-edit" onClick={() => handleEditAsset(item)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
                   </td>
@@ -378,6 +418,66 @@ function AssetPage() {
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-save" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && selectedAsset && (
+        <div className="modal" style={{ display: "flex" }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Geskiedenis van {(selectedAsset.asset_id)} - {selectedAsset.asset_name}</h3>
+              <span className="close" onClick={() => setShowHistoryModal(false)}>&times;</span>
+            </div>
+            <div className="modal-body">
+              {getJobHistoryOfAsset(selectedAsset.asset_id).length > 0 ? (
+                <table className="assets-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Naam</th>
+                      <th>Tipe</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getJobHistoryOfAsset(selectedAsset.asset_id).map((job) => (
+                      <tr key={job.jobcard_id}>
+                        <td>{job.jobcard_id}</td>
+                        <td>{job.job_desc}</td>
+                        <td>{job.job_type}</td>
+                        <td>{job.job_status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>Geen onderhoud rekords vir hierdie bate.</p>
+              )}
+
+              {assetRoomHistory && assetRoomHistory.length > 0 ? (
+                <table className="assets-table">
+                  <thead>
+                    <tr>
+                      <th>Datum & Tyd</th>
+                      <th>Ou Kamer</th>
+                      <th>Nuwe Kamer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assetRoomHistory.map((log) => (
+                      <tr key={log.auditlog_id}>
+                        <td>{new Date(log.actiondatetime).toLocaleString('af-ZA')}</td>
+                        <td>{log.previous_value?.room_id || "Geen"}</td>
+                        <td style={{ fontWeight: 'bold' }}>{log.new_value?.room_id || "Geen"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>Geen kamerveranderings aangeteken vir hierdie bate.</p>
+              )}
             </div>
           </div>
         </div>
