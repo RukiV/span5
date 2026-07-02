@@ -50,17 +50,18 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
 
         session.add(obj)
         try:
+            session.flush()
+            session.refresh(obj)
             self._create_audit_log(
                 session,
                 "create",
                 {
                     "previous_value": None,
-                    "new_value": data.model_dump(mode="json"),
+                    "new_value": obj.model_dump(mode="json"),
                 },
                 user_id=user_id,
             )
             session.commit()
-            session.refresh(obj)
         except Exception:
             session.rollback()
             raise
@@ -82,6 +83,14 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
         try:
             filtered_before = {field: before_data[field] for field in changed_fields if field in before_data}
             filtered_after = {field: obj.model_dump(mode="json")[field] for field in changed_fields}
+
+            pk_fields = [col.name for col in self.model.__table__.primary_key]
+            for pk in pk_fields:
+                if pk in before_data:
+                    filtered_before.setdefault(pk, before_data[pk])
+                if pk in obj.model_dump(mode="json"):
+                    filtered_after.setdefault(pk, obj.model_dump(mode="json")[pk])
+
             self._create_audit_log(
                 session,
                 "update",

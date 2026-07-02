@@ -177,6 +177,16 @@ export const quotesAPI = {
   delete: (id) => apiClient.delete(`/quotes/${id}`),
 };
 
+export const auditsAPI = {
+  getAll: () => apiClient.get('/audit'),
+  getById: (id) => apiClient.get(`/audit/${id}`),
+  create: (data) => apiClient.post('/audit', data),
+  update: (id, data) => apiClient.patch(`/audit/${id}`, data),
+  delete: (id) => apiClient.delete(`/audit/${id}`),
+
+  getRoomChangesForAsset: (asset_id) => apiClient.get(`/audit/asset/${asset_id}`),
+};
+
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
 apiClient.stock = stockAPI;
