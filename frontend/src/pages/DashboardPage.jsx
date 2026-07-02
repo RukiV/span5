@@ -66,6 +66,9 @@ const DashboardPage = () => {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/calendar" >Kalender</Link></li>
+          <li><Link to="/analysis">Analise</Link></li>
+          <li><Link to="/reports" >Verslae</Link></li>  
           {/* Toon Gebruikers-skakel slegs vir Administrateure (role_id=3) */}
           {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
         </ul>
