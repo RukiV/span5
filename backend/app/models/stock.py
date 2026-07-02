@@ -6,6 +6,7 @@ from .validators import sanitize_text, validate_positive_int
 
 
 class StockBase(SQLModel):
+    """Base model for stock data."""
     stock_name: Optional[str] = Field(max_length=100)
     stock_brand: str = Field(max_length=100)
     stock_amount: int = Field(default=0)
@@ -24,20 +25,24 @@ class StockBase(SQLModel):
 
 
 class Stock(StockBase, Base, table=True):
+    """Model for stock data."""
     stock_id: Optional[int] = Field(default=None, primary_key=True)
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
 
 
 class StockCreate(StockBase):
+    """Input model for creating stock records."""
     room_id: Optional[int] = None
 
 
 class StockRead(StockBase):
+    """Output model for reading stock records."""
     stock_id: int
     room_id: Optional[int] = None
 
 
 class StockUpdate(SQLModel):
+    """Input model for updating stock records."""
     stock_name: Optional[str] = None
     stock_brand: Optional[str] = None
     stock_amount: Optional[int] = None
