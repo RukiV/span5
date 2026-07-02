@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
@@ -7,13 +7,36 @@ import '../styles/App.css';
 import '../styles/Dashboard.css';
 import { useLogout } from './Page.jsx';
 import UserProfileHeader from '../components/UserProfileHeader';
+import { apiClient } from '../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
+
+const mapAssetStatusLabel = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'active':
+      return 'In Gebruik';
+    case 'maintenance':
+      return 'Onderhoud';
+    case 'inactive':
+      return 'Nie Aktief';
+    case 'decommissioned':
+      return 'Afgeskakel';
+    default:
+      return status || 'Onbekend';
+  }
+};
 
 const DashboardPage = () => {
   // Haal huidige gebruiker se info en admin-status
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
+  const [assetStatusChartData, setAssetStatusChartData] = useState({
+    labels: [],
+    datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]
+  });
+  const [assetStatusLoading, setAssetStatusLoading] = useState(true);
+  const [recentWorkOrders, setRecentWorkOrders] = useState([]);
+  const [workOrdersLoading, setWorkOrdersLoading] = useState(true);
 
   // Data vir trendlyn-grafiek (herstelwerk per dag van week)
   // Toon hoeveel take voltooide is, met groene kleur-skema
@@ -29,16 +52,66 @@ const DashboardPage = () => {
     }]
   };
 
-  // Data vir tergepastei-grafiek (bate-toestande verspreiding)
-  // Toon persentasie van bates in verskillende toestande
-  const statusDistData = {
-    labels: ['In Gebruik', 'Beskikbaar', 'Onderhoud'],
-    datasets: [{
-      data: [65, 40, 15],  // Hoeveelheid per toestand
-      backgroundColor: ['#3b82f6', '#10b981', '#ef4444'],  // Blou, groen, rooi
-      borderWidth: 0
-    }]
-  };
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAssetStatus = async () => {
+      try {
+        const response = await apiClient.assets.getStatusSummary();
+        if (!isMounted) return;
+
+        const summary = response?.data || [];
+        const labels = summary.map((item) => mapAssetStatusLabel(item.status));
+        const counts = summary.map((item) => item.count || 0);
+        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
+
+        setAssetStatusChartData({
+          labels,
+          datasets: [{
+            data: counts,
+            backgroundColor: colors.slice(0, labels.length),
+            borderWidth: 0
+          }]
+        });
+      } catch (error) {
+        console.error('Kon bate-status data nie laai nie:', error);
+        if (isMounted) {
+          setAssetStatusChartData({
+            labels: ['Geen data'],
+            datasets: [{ data: [1], backgroundColor: ['#94a3b8'], borderWidth: 0 }]
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setAssetStatusLoading(false);
+        }
+      }
+    };
+
+    const loadRecentWorkOrders = async () => {
+      try {
+        const response = await apiClient.workOrders.getRecent(5);
+        if (!isMounted) return;
+        setRecentWorkOrders(response?.data || []);
+      } catch (error) {
+        console.error('Kon onlangse werkopdragte nie laai nie:', error);
+        if (isMounted) {
+          setRecentWorkOrders([]);
+        }
+      } finally {
+        if (isMounted) {
+          setWorkOrdersLoading(false);
+        }
+      }
+    };
+
+    loadAssetStatus();
+    loadRecentWorkOrders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div style={{ display: 'flex' }}>
@@ -112,7 +185,7 @@ const DashboardPage = () => {
           {/* Tabel en aktiwiteit-log */}
           <div className="dashboard-grid">
             <div className="data-panel">
-              <h3>Onlangse Herstelwerk</h3>
+              <h3>Onlangse Werksopdragte</h3>
               <table className="standard-table">
                 <thead>
                   <tr>
@@ -123,24 +196,28 @@ const DashboardPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>Lug versorger</td>
-                    <td>Filter vervanging</td>
-                    <td><span className="status completed">Voltooi</span></td>
-                    <td>2023-10-01</td>
-                  </tr>
-                  <tr>
-                    <td>Kragopwerker</td>
-                    <td>Brandstof pomp herstel</td>
-                    <td><span className="status in-progress">Besig</span></td>
-                    <td>2023-10-02</td>
-                  </tr>
-                  <tr>
-                    <td>Huisbak Hoof</td>
-                    <td>Kabel inspeksie</td>
-                    <td><span className="status pending">Hangende</span></td>
-                    <td>2023-10-03</td>
-                  </tr>
+                  {workOrdersLoading ? (
+                    <tr>
+                      <td colSpan="4">Laai onlangse werkopdragte...</td>
+                    </tr>
+                  ) : recentWorkOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan="4">Geen werkopdragte gevind nie.</td>
+                    </tr>
+                  ) : (
+                    recentWorkOrders.map((job) => (
+                      <tr key={job.jobcard_id}>
+                        <td>{job.asset_id || '—'}</td>
+                        <td>{job.job_desc || 'Geen beskrywing'}</td>
+                        <td>
+                          <span className={`status ${job.job_status?.toLowerCase?.() || 'pending'}`}>
+                            {job.job_status || 'Onbekend'}
+                          </span>
+                        </td>
+                        <td>{job.job_createddatetime ? new Date(job.job_createddatetime).toLocaleDateString('af-ZA') : '—'}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -176,8 +253,11 @@ const DashboardPage = () => {
             <div className="data-panel">
               <h3>Bate Status Verspreiding</h3>
               <div className="chart-container">
-                {/* Tergepastei-grafiek toon bate-toestande proporsie */}
-                <Doughnut data={statusDistData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
+                {assetStatusLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>Laai bate-status...</div>
+                ) : (
+                  <Doughnut data={assetStatusChartData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
+                )}
               </div>
             </div>
           </div>
