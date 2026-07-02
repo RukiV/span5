@@ -6,6 +6,7 @@ from .base import Base
 from .validators import sanitize_text, validate_email, validate_phone
 
 class ContractorBase(SQLModel):
+    """Base model for contractor data."""
     contractor_name: str = Field(max_length=100)
     contractor_surname: str = Field(max_length=100)
     contractor_email: str = Field(max_length=150)
@@ -25,18 +26,22 @@ class ContractorBase(SQLModel):
 
 
 class Contractor(ContractorBase, Base, table=True):
+    """Model for contractor data."""
     contractor_id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class ContractorCreate(ContractorBase):
+    """Input model for creating contractor records."""
     pass
 
 
 class ContractorRead(ContractorBase):
+    """Output model for reading contractor records."""
     contractor_id: int
 
 
 class ContractorUpdate(SQLModel):
+    """Input model for updating contractor records."""
     contractor_name: Optional[str] = None
     contractor_surname: Optional[str] = None
     contractor_email: Optional[str] = None
