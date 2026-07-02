@@ -26,6 +26,11 @@ def _get_or_create_test_user(session: Session, user_email: str, user_password: s
     # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
+        if user.role_id != role_id:
+            user.role_id = role_id
+            session.add(user)
+            session.commit()
+            session.refresh(user)
         return user
 
     # Skep nuwe toetsgebruiker met gegewe parameters

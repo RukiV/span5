@@ -3,6 +3,7 @@ import { LogLevel } from "@azure/msal-browser";
 export const msalConfig = {
   auth: {
     clientId: process.env.REACT_APP_MICROSOFT_CLIENT_ID || "your_client_id_here",
+
     authority: `https://login.microsoftonline.com/${process.env.REACT_APP_MICROSOFT_TENANT_ID || "common"}`,
     redirectUri: process.env.REACT_APP_REDIRECT_URI || "http://localhost:3000/auth/callback"
   },
@@ -21,10 +22,11 @@ export const msalConfig = {
   }
 };
 
+// Configured with ReadWrite permissions
 export const loginRequest = {
-  scopes: ["User.Read"]
+  scopes: ["User.Read", "Calendars.ReadWrite"]
 };
 
 export const tokenRequest = {
-  scopes: ["User.Read"]
+  scopes: ["User.Read", "Calendars.ReadWrite"]
 };

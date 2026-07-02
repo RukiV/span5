@@ -20,6 +20,7 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm install
+RUN npm install @azure/msal-browser @azure/msal-react
 
 # Copy source code
 COPY . .
