@@ -35,8 +35,6 @@ const DashboardPage = () => {
     datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]
   });
   const [assetStatusLoading, setAssetStatusLoading] = useState(true);
-  const [recentWorkOrders, setRecentWorkOrders] = useState([]);
-  const [workOrdersLoading, setWorkOrdersLoading] = useState(true);
 
   // Data vir trendlyn-grafiek (herstelwerk per dag van week)
   // Toon hoeveel take voltooide is, met groene kleur-skema
@@ -88,25 +86,7 @@ const DashboardPage = () => {
       }
     };
 
-    const loadRecentWorkOrders = async () => {
-      try {
-        const response = await apiClient.workOrders.getRecent(5);
-        if (!isMounted) return;
-        setRecentWorkOrders(response?.data || []);
-      } catch (error) {
-        console.error('Kon onlangse werkopdragte nie laai nie:', error);
-        if (isMounted) {
-          setRecentWorkOrders([]);
-        }
-      } finally {
-        if (isMounted) {
-          setWorkOrdersLoading(false);
-        }
-      }
-    };
-
     loadAssetStatus();
-    loadRecentWorkOrders();
 
     return () => {
       isMounted = false;
@@ -185,7 +165,7 @@ const DashboardPage = () => {
           {/* Tabel en aktiwiteit-log */}
           <div className="dashboard-grid">
             <div className="data-panel">
-              <h3>Onlangse Werksopdragte</h3>
+              <h3>Onlangse Herstelwerk</h3>
               <table className="standard-table">
                 <thead>
                   <tr>
@@ -196,28 +176,24 @@ const DashboardPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {workOrdersLoading ? (
-                    <tr>
-                      <td colSpan="4">Laai onlangse werkopdragte...</td>
-                    </tr>
-                  ) : recentWorkOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan="4">Geen werkopdragte gevind nie.</td>
-                    </tr>
-                  ) : (
-                    recentWorkOrders.map((job) => (
-                      <tr key={job.jobcard_id}>
-                        <td>{job.asset_id || '—'}</td>
-                        <td>{job.job_desc || 'Geen beskrywing'}</td>
-                        <td>
-                          <span className={`status ${job.job_status?.toLowerCase?.() || 'pending'}`}>
-                            {job.job_status || 'Onbekend'}
-                          </span>
-                        </td>
-                        <td>{job.job_createddatetime ? new Date(job.job_createddatetime).toLocaleDateString('af-ZA') : '—'}</td>
-                      </tr>
-                    ))
-                  )}
+                  <tr>
+                    <td>Lug versorger</td>
+                    <td>Filter vervanging</td>
+                    <td><span className="status completed">Voltooi</span></td>
+                    <td>2023-10-01</td>
+                  </tr>
+                  <tr>
+                    <td>Kragopwerker</td>
+                    <td>Brandstof pomp herstel</td>
+                    <td><span className="status in-progress">Besig</span></td>
+                    <td>2023-10-02</td>
+                  </tr>
+                  <tr>
+                    <td>Huisbak Hoof</td>
+                    <td>Kabel inspeksie</td>
+                    <td><span className="status pending">Hangende</span></td>
+                    <td>2023-10-03</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
