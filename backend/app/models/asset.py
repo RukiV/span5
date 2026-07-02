@@ -6,6 +6,7 @@ from .enums import AssetStatus
 from .validators import sanitize_text, validate_positive_int
 
 class AssettypeBase(SQLModel):
+    """Base model for assettype data."""
     assettype_name: str = Field(max_length=100)
     assettype_avg_lifespan: Optional[int] = None
     assettype_min_lifespan: Optional[int] = None
@@ -24,18 +25,22 @@ class AssettypeBase(SQLModel):
 
 
 class Assettype(AssettypeBase, Base, table=True):
+    """Model for assettype data."""
     assettype_id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class AssettypeCreate(AssettypeBase):
+    """Input model for creating assettype records."""
     pass
 
 
 class AssettypeRead(AssettypeBase):
+    """Output model for reading assettype records."""
     assettype_id: int
 
 
 class AssettypeUpdate(SQLModel):
+    """Input model for updating assettype records."""
     assettype_name: Optional[str] = None
     assettype_avg_lifespan: Optional[int] = None
     assettype_min_lifespan: Optional[int] = None
@@ -44,6 +49,7 @@ class AssettypeUpdate(SQLModel):
 
 
 class AssetBase(SQLModel):
+    """Base model for asset data."""
     asset_name: str = Field(max_length=100)
     asset_serial: Optional[str] = Field(default=None, max_length=20)
     asset_status: AssetStatus = Field(default=AssetStatus.ACTIVE)
@@ -56,23 +62,27 @@ class AssetBase(SQLModel):
 
 
 class Asset(AssetBase, Base, table=True):
+    """Model for asset data."""
     asset_id: Optional[int] = Field(default=None, primary_key=True)
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     assettype_id: int = Field(foreign_key="assettype.assettype_id")
 
 
 class AssetCreate(AssetBase):
+    """Input model for creating asset records."""
     assettype_id: int
     room_id: Optional[int] = None
 
 
 class AssetRead(AssetBase):
+    """Output model for reading asset records."""
     asset_id: int
     room_id: Optional[int] = None
     assettype_id: int
 
 
 class AssetUpdate(SQLModel):
+    """Input model for updating asset records."""
     asset_name: Optional[str] = None
     asset_serial: Optional[str] = None
     asset_status: Optional[AssetStatus] = None
