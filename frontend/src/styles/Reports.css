@@ -1,1 +1,122 @@
 /* Reports Page Styles */
+.report-generator-card,
+.report-history-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.report-generator-header h4,
+.report-history-card h4 {
+  margin: 0 0 6px;
+  color: #111827;
+}
+
+.report-generator-header p {
+  margin: 0 0 12px;
+  color: #6b7280;
+}
+
+.report-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.report-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.report-field select {
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.report-column-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.report-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.report-columns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.report-column-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+  font-size: 13px;
+}
+
+.report-loading,
+.report-status {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.report-history-meta {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 3px;
+}
