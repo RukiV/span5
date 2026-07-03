@@ -4,7 +4,7 @@ from typing import List
 
 from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
-from ....models.asset import AssetRead, AssetCreate, AssetUpdate
+from ....models.asset import AssetRead, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ....services.assets_service import assets_service
 
 router = APIRouter()
@@ -22,6 +22,11 @@ def readAsset(assetID: int, session: Session = Depends(getSession)):
         raise HTTPException(status_code=404, detail="Asset not found")
     
     return asset
+
+@router.get("/{assetID}/history", response_model=List[AssetHistoryEventRead])
+def readAssetHistory(assetID: int, session: Session = Depends(getSession)):
+    #Fetch merged asset room/maintenance history
+    return assets_service.getHistory(session, assetID)
 
 @router.get("/serial/{serial}", response_model=AssetRead)
 def readAssetBySerial(serial: str, session: Session = Depends(getSession)):

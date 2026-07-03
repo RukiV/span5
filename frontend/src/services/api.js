@@ -67,6 +67,7 @@ apiClient.interceptors.response.use(
 export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
   getById: (id) => apiClient.get(`/assets/${id}`),
+  getHistory: (id) => apiClient.get(`/assets/${id}/history`),
   create: (data) => apiClient.post('/assets', data),
   update: (id, data) => apiClient.patch(`/assets/${id}`, data),  // Gebruik PATCH nie PUT
   delete: (id) => apiClient.delete(`/assets/${id}`),
