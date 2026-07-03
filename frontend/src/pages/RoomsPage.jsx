@@ -16,6 +16,9 @@ function RoomsPage() {
   const [terrains, setTerrains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+  const [sortDirection, setSortDirection] = useState("asc");
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -168,13 +171,30 @@ function RoomsPage() {
     return terrain ? terrain.location_name : "-";
   };
 
-  const filteredRooms = rooms.filter((room) => {
-    const query = searchTerm.toLowerCase();
-    return (
-      room.room_name?.toLowerCase().includes(query) ||
-      room.room_capacity?.toString().includes(query)
-    );
-  });
+  const filteredRooms = [...rooms]
+    .filter((room) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+      const values = {
+        id: room.room_id,
+        name: room.room_name,
+        type: translateRoomType(room.room_type || 'other'),
+        terrain: getTerrainName(room.location_id),
+        capacity: room.room_capacity,
+      };
+      if (filterColumn === 'all') {
+        return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
+      }
+      return String(values[filterColumn] || '').toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'id') return (Number(a.room_id || 0) - Number(b.room_id || 0)) * direction;
+      if (sortBy === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * direction;
+      return 0;
+    });
 
   if (loading) {
     return (
@@ -231,14 +251,38 @@ function RoomsPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              className="search-box"
-              placeholder="Soek lokale..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  className="search-box"
+                  placeholder="Soek lokale..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="type">Tipe</option>
+                <option value="terrain">Terrein</option>
+                <option value="capacity">Kapasiteit</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="capacity">Kapasiteit</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
+              <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
+            </div>
           </div>
 
           <table className="standard-table">

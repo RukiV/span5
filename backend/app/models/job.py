@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -42,6 +42,8 @@ class JobcardBase(SQLModel):
     job_status: JobStatus = Field(default=JobStatus.WAIT)
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
+    job_scheduled_datetime: Optional[datetime] = None
+    job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
 
@@ -49,6 +51,17 @@ class JobcardBase(SQLModel):
     @classmethod
     def _sanitize_strings(cls, v, info):
         return sanitize_text(v)
+
+    @field_validator('job_scheduled_datetime', mode='before')
+    @classmethod
+    def _normalize_scheduled_date(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, date):
+            return datetime.combine(v, datetime.min.time())
+        return v
 
 
 class Jobcard(JobcardBase, Base, table=True):
@@ -88,6 +101,8 @@ class JobcardUpdate(SQLModel):
     job_status: Optional[JobStatus] = None
     job_type: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
+    job_scheduled_datetime: Optional[datetime] = None
+    job_schedule_type: Optional[str] = None
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
     user_id: Optional[int] = None
