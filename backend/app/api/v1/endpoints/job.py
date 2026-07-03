@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 from typing import List
+from datetime import datetime
 
 from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
-from ....models.job import JobcardRead, JobcardCreate, JobcardUpdate
+from ....models.job import Jobcard, JobcardRead, JobcardCreate, JobcardUpdate
 from ....services.job_service import job_service
 
 router = APIRouter()
@@ -13,6 +14,16 @@ router = APIRouter()
 def readJobs(session: Session = Depends(getSession)):
     #Fetch all jobs
     return job_service.getAll(session)
+
+@router.get("/scheduled/upcoming", response_model=List[JobcardRead])
+def readScheduledJobs(session: Session = Depends(getSession)):
+    #Fetch all scheduled jobs ordered by scheduled date
+    jobs = session.exec(
+        select(Jobcard)
+        .where(Jobcard.job_scheduled_datetime.isnot(None))
+        .order_by(Jobcard.job_scheduled_datetime.asc())
+    ).all()
+    return jobs
 
 @router.get("/{jobID}", response_model=JobcardRead)
 def readJob(jobID: int, session: Session = Depends(getSession)):

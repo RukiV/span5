@@ -81,6 +81,7 @@ function CalendarPage() {
     location: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingEventId, setDeletingEventId] = useState(null);
 
   // 1. Valideer sessie en laai Microsoft Kalender-data op mount
   useEffect(() => {
@@ -98,7 +99,7 @@ function CalendarPage() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [selectedDate, viewMode]);
 
   const formatDateKey = (date) => {
     const year = date.getFullYear();
@@ -153,6 +154,30 @@ function CalendarPage() {
     return days;
   }, [selectedDate, viewMode]);
 
+  const getCalendarViewRange = () => {
+    const start = new Date(selectedDate);
+    const end = new Date(selectedDate);
+
+    if (viewMode === 'week') {
+      const day = start.getDay();
+      const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diff);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+    } else {
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setMonth(end.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    return {
+      startDateTime: start.toISOString(),
+      endDateTime: end.toISOString(),
+    };
+  };
+
   // 2. Haal bestaande kalenderitems van Microsoft af (Read)
   const fetchMicrosoftCalendarEvents = async () => {
     let msAccessToken;
@@ -166,17 +191,22 @@ function CalendarPage() {
     }
 
     try {
-      const response = await fetch("https://graph.microsoft.com/v1.0/me/events?$top=10&$orderby=start/dateTime asc&$select=id,subject,bodyPreview,start,end,location", {
-        headers: {
-          Authorization: `Bearer ${msAccessToken}`,
-          Prefer: 'outlook.timezone="South Africa Standard Time"'
+      const { startDateTime, endDateTime } = getCalendarViewRange();
+      const response = await fetch(
+        `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${encodeURIComponent(startDateTime)}&endDateTime=${encodeURIComponent(endDateTime)}&$top=100&$orderby=start/dateTime asc&$select=id,subject,bodyPreview,start,end,location,recurrence`,
+        {
+          headers: {
+            Authorization: `Bearer ${msAccessToken}`,
+            Prefer: 'outlook.timezone="South Africa Standard Time"'
+          }
         }
-      });
+      );
 
       if (!response.ok) throw new Error("Kon nie kalenderdata ophaal nie.");
 
       const data = await response.json();
       setEvents(data.value || []);
+      setCalendarError(null);
     } catch (err) {
       console.error("Microsoft Graph GET Error:", err);
       setCalendarError("Fout met die laai van Microsoft Kalender items.");
@@ -184,6 +214,37 @@ function CalendarPage() {
   };
 
   // 3. Stuur 'n nuwe kalenderitem na Microsoft (Write)
+  const handleDeleteEvent = async (eventId) => {
+    if (!eventId) return;
+
+    const confirmed = window.confirm('Verwyder hierdie kalenderafspraak?');
+    if (!confirmed) return;
+
+    try {
+      setDeletingEventId(eventId);
+      const msAccessToken = await getMicrosoftAccessToken();
+
+      const response = await fetch(`https://graph.microsoft.com/v1.0/me/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${msAccessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Kon die afspraak nie verwyder nie.');
+      }
+
+      await fetchMicrosoftCalendarEvents();
+      alert('Afspraak suksesvol verwyder.');
+    } catch (err) {
+      console.error('Microsoft Graph DELETE Error:', err);
+      alert('Fout tydens die verwydering van die afspraak.');
+    } finally {
+      setDeletingEventId(null);
+    }
+  };
+
   const handleCreateEvent = async (e) => {
     e.preventDefault();
 
@@ -481,6 +542,14 @@ function CalendarPage() {
                           <div className="calendar-event-title">{event.subject}</div>
                           <div className="calendar-event-meta">{event.location?.displayName || 'Geen plek'}</div>
                           <div className="calendar-event-body">{event.bodyPreview || 'Geen beskrywing.'}</div>
+                          <button
+                            type="button"
+                            className="btn-delete"
+                            onClick={() => handleDeleteEvent(event.id)}
+                            disabled={deletingEventId === event.id}
+                          >
+                            {deletingEventId === event.id ? 'Besig...' : 'Verwyder'}
+                          </button>
                         </div>
                       ))}
                     </div>

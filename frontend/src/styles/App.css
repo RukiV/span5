@@ -87,12 +87,24 @@
 /*Controls*/
 .controls {
     display: flex;
+    justify-content: space-between;
     gap: 10px;
     margin-bottom: 20px;
     align-items: center;
     flex-wrap: wrap;
 }
 
+.controls-left,
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.controls-right {
+    margin-left: auto;
+}
 
 .controls input, .controls select {
     padding: 10px;

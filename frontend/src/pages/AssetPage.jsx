@@ -14,7 +14,9 @@ function AssetPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState("");
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+  const [sortDirection, setSortDirection] = useState("asc");
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -141,28 +143,6 @@ function AssetPage() {
     setShowModal(true);
   };
 
-  const filteredItems = assets.filter((asset) => {
-    const query = searchTerm.toLowerCase();
-    const matchesSearch =
-      asset.asset_name?.toLowerCase().includes(query) ||
-      String(asset.assettype_id).includes(query);
-    const matchesFilter = filter === "" || asset.asset_status === filter;
-    return matchesSearch && matchesFilter;
-  });
-
-  const getStatusClass = (status) => {
-    switch (status) {
-      case "active":
-        return "status-aktief";
-      case "maintenance":
-        return "status-onderhoud";
-      case "retired":
-        return "status-waarskuwing";
-      default:
-        return "status-waarskuwing";
-    }
-  };
-
   const getStatusLabel = (status) => {
     switch (status) {
       case "active":
@@ -187,6 +167,59 @@ function AssetPage() {
     }
 
     return `Room ${item.room_id}`;
+  };
+
+  const filteredItems = [...assets]
+    .filter((asset) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+
+      const getColumnValue = (column) => {
+        switch (column) {
+          case "asset_id":
+            return asset.asset_id;
+          case "asset_name":
+            return asset.asset_name;
+          case "asset_serial":
+            return asset.asset_serial;
+          case "asset_isoutdoor":
+            return asset.asset_isoutdoor ? "Ja" : "Nee";
+          case "room":
+            return getRoomName(asset);
+          case "status":
+            return getStatusLabel(asset.asset_status);
+          default:
+            return `${asset.asset_name || ""} ${asset.asset_serial || ""} ${getRoomName(asset)} ${getStatusLabel(asset.asset_status)}`;
+        }
+      };
+
+      if (filterColumn === "all") {
+        return [asset.asset_name, asset.asset_serial, getRoomName(asset), getStatusLabel(asset.asset_status)]
+          .some((value) => String(value).toLowerCase().includes(query));
+      }
+
+      return String(getColumnValue(filterColumn) ?? "").toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === "default") return 0;
+      const direction = sortDirection === "asc" ? 1 : -1;
+      if (sortBy === "asset_id") return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * direction;
+      if (sortBy === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * direction;
+      if (sortBy === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * direction;
+      return 0;
+    });
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "active":
+        return "status-aktief";
+      case "maintenance":
+        return "status-onderhoud";
+      case "retired":
+        return "status-waarskuwing";
+      default:
+        return "status-waarskuwing";
+    }
   };
 
   if (loading) {
@@ -258,19 +291,38 @@ function AssetPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              placeholder="Soek bates..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <select value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">Filter: Alle</option>
-              <option value="active">Aktief</option>
-              <option value="maintenance">Onderhoud</option>
-              <option value="retired">Afgedank</option>
-            </select>
-            <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
+            <div className="controls-left">
+              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                <input
+                  type="text"
+                  placeholder="Soek bates..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="asset_id">ID</option>
+                <option value="asset_name">Naam</option>
+                <option value="asset_serial">Serienommer</option>
+                <option value="asset_isoutdoor">Buite</option>
+                <option value="room">Lokaal</option>
+                <option value="status">Status</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="asset_id">ID</option>
+                <option value="asset_name">Naam</option>
+                <option value="status">Status</option>
+              </select>
+              <div style={{ display: "flex", gap: "0.25rem" }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection("asc")} style={{ minWidth: "40px", background: sortDirection === "asc" ? "#935e28" : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection("desc")} style={{ minWidth: "40px", background: sortDirection === "desc" ? "#935e28" : undefined }} title="Dalend">▼</button>
+              </div>
+              <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
+            </div>
           </div>
 
           <table className="standard-table">
