@@ -7,6 +7,8 @@ import '../../core/campus_service.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
+import '../../models/campus.dart';
+import '../../core/asset_service.dart';
 import '../../core/report_service.dart';
 import '../reporting/report_detail_page.dart';
 
@@ -27,6 +29,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
   void initState() {
     super.initState();
     _currentAsset = widget.asset;
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
   }
 
   Future<void> _pickReceipt() async {
@@ -53,6 +58,12 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text("BATE #${_currentAsset.id}"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () => _showEditAssetDialog(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -250,6 +261,159 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showEditAssetDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Wysig Bate", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildPopupField("Naam", _currentAsset.name, (v) {
+                  setState(() => _currentAsset = _currentAsset.copyWith(name: v));
+                }),
+                const SizedBox(height: 16),
+                _buildPopupField("Serienommer", _currentAsset.serialCode, (v) {
+                  setState(() => _currentAsset = _currentAsset.copyWith(serialCode: v));
+                }),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Checkbox(value: false, onChanged: (v) {}),
+                    const Text("Buite"),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                ValueListenableBuilder<List<Campus>>(
+                  valueListenable: CampusService.campusesNotifier,
+                  builder: (context, campuses, _) {
+                    final allRooms = campuses.expand((c) => c.rooms).toList();
+                    if (!allRooms.any((r) => r.startsWith("${_currentAsset.location}:"))) {
+                       // Ensure current room is at least in the list if it's missing from loaded data
+                       // though it should ideally be there.
+                    }
+                    return DropdownButtonFormField<String>(
+                      value: allRooms.any((r) => r.startsWith("${_currentAsset.location}:")) 
+                          ? allRooms.firstWhere((r) => r.startsWith("${_currentAsset.location}:"))
+                          : null,
+                      decoration: _popupInputDecoration(),
+                      items: allRooms.map<DropdownMenuItem<String>>((r) {
+                        final parts = r.split(":");
+                        final name = parts.last;
+                        return DropdownMenuItem<String>(value: r, child: Text(name));
+                      }).toList(),
+                      onChanged: (v) {
+                        if (v != null) {
+                          setState(() {
+                            _currentAsset = _currentAsset.copyWith(location: v.split(":").first);
+                          });
+                        }
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                const Text("Status", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _currentAsset.status.toLowerCase(),
+                  decoration: _popupInputDecoration(),
+                  items: [
+                    {"value": "active", "label": "Aktief"},
+                    {"value": "maintenance", "label": "Onderhoud"},
+                    {"value": "decommissioned", "label": "Afgedank"},
+                    {"value": "inactive", "label": "Onaktief"},
+                  ].map<DropdownMenuItem<String>>((s) => DropdownMenuItem<String>(
+                    value: s["value"],
+                    child: Text(s["label"]!),
+                  )).toList(),
+                  onChanged: (v) {
+                    if (v != null) {
+                      setState(() {
+                        _currentAsset = _currentAsset.copyWith(status: v);
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Kanselleer", style: TextStyle(color: Colors.grey))),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await AssetService.updateAsset(_currentAsset);
+                        if (mounted) Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF8B5E34),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text("Opdateer"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopupField(String label, String initialValue, Function(String) onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 6),
+        TextFormField(
+          initialValue: initialValue,
+          decoration: _popupInputDecoration(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _popupInputDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
     );
   }
 

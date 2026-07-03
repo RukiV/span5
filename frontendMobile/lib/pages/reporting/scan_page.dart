@@ -11,7 +11,10 @@ class ScanPage extends StatefulWidget {
 }
 
 class _ScanPageState extends State<ScanPage> {
-  final MobileScannerController cameraController = MobileScannerController();
+  final MobileScannerController cameraController = MobileScannerController(
+    formats: [BarcodeFormat.all],
+    detectionSpeed: DetectionSpeed.normal,
+  );
   bool _isDetected = false;
 
   @override
@@ -196,7 +199,7 @@ class _ScanPageState extends State<ScanPage> {
                           Text(
                             widget.isLocation 
                               ? "Soek die QR-kode teen die muur by die ingang. Skandeer vanaf ongeveer 1 meter."
-                              : "Soek die goue plakker op die meubels of IT toerusting. Rig die raam op die kode.",
+                              : "Soek die goue plakker op die meubels of IT voorraad. Rig die raam op die kode.",
                             style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12, height: 1.4),
                           ),
                         ],

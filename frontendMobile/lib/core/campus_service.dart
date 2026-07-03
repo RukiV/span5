@@ -63,6 +63,18 @@ class CampusService {
     return "Room $roomId";
   }
 
+  // Helper to get campus name from room ID
+  static String getCampusNameByRoomId(String roomId) {
+    for (var campus in _campuses) {
+      for (var room in campus.rooms) {
+        if (room.startsWith("$roomId:")) {
+          return campus.name;
+        }
+      }
+    }
+    return "";
+  }
+
   // FUTURE IDEA: Add a method to fetch a single campus details with its GPS center point.
   static Campus? getCampusByName(String name) {
     try {
@@ -115,6 +127,31 @@ class CampusService {
       }
     } catch (e) {
       debugPrint("Error adding campus: $e");
+    }
+    return false;
+  }
+
+  // Updates campus details on the backend.
+  static Future<bool> updateCampus(Campus campus) async {
+    try {
+      final parts = campus.address.split(' ');
+      final streetNum = parts.isNotEmpty ? parts[0] : "0";
+      final streetName = parts.length > 1 ? parts.skip(1).join(' ') : "Unknown";
+
+      final response = await ApiClient.dio.put('/location/${campus.id}', data: {
+        "location_name": campus.name,
+        "location_streetnum": streetNum,
+        "location_streetname": streetName,
+        "location_type": campus.code,
+        "zipcode_id": 1, // Default or fetch from somewhere
+      });
+
+      if (response.statusCode == 200) {
+        await fetchCampuses();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error updating campus: $e");
     }
     return false;
   }

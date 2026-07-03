@@ -6,6 +6,9 @@ import '../admin/campus_management_page.dart';
 import '../admin/manage_rooms_page.dart';
 import '../contractor/job_cards_page.dart';
 import 'dashboard_page.dart';
+import 'calendar_page.dart';
+import 'works_assignments_page.dart';
+import 'reports_page.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
 
@@ -51,53 +54,65 @@ class _HomePageState extends State<HomePage> {
 
   // Bereken die beskikbare items op grond van rol
   List<Map<String, dynamic>> _getVisibleMenu() {
-    final List<Map<String, dynamic>> allItems = [
+    if (UserSession.isStudent) {
+      return [
+        {
+          'title': 'Foutkaartjies',
+          'icon': Icons.report_gmailerrorred_outlined,
+          'page': const ReportingPage(),
+        }
+      ];
+    }
+
+    return [
       {
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
         'page': const DashboardPage(),
-        'roles': [UserRole.admin, UserRole.manager]
       },
       {
-        'title': 'Werkkaarte',
-        'icon': Icons.assignment_outlined,
-        'page': const JobCardsPage(),
-        'roles': [UserRole.contractor]
-      },
-      {
-        'title': 'Rapportering',
-        'icon': Icons.report_gmailerrorred_outlined,
-        'page': const ReportingPage(),
-        'roles': [UserRole.admin, UserRole.manager, UserRole.student]
-      },
-      {
-        'title': 'Bate',
+        'title': 'Bates',
         'icon': Icons.inventory_2_outlined,
         'page': const AssetsPage(),
-        'roles': [UserRole.admin, UserRole.manager]
       },
       {
-        'title': 'Toerusting',
+        'title': 'Voorraad',
         'icon': Icons.construction_outlined,
         'page': const StockPage(),
-        'roles': [UserRole.admin, UserRole.manager],
         'isSubItem': true
       },
       {
-        'title': 'Lokaal',
-        'icon': Icons.room_outlined,
-        'page': const ManageRoomsPage(),
-        'roles': [UserRole.admin, UserRole.manager]
-      },
-      {
-        'title': 'Kampus',
+        'title': 'Terreine',
         'icon': Icons.map_outlined,
         'page': const CampusManagementPage(),
-        'roles': [UserRole.admin, UserRole.manager]
+      },
+      {
+        'title': 'Lokale',
+        'icon': Icons.room_outlined,
+        'page': const ManageRoomsPage(),
+        'isSubItem': true
+      },
+      {
+        'title': 'Foutkaartjies',
+        'icon': Icons.report_gmailerrorred_outlined,
+        'page': const ReportingPage(),
+      },
+      {
+        'title': 'Werksopdragte',
+        'icon': Icons.assignment_outlined,
+        'page': const WorksAssignmentsPage(),
+      },
+      {
+        'title': 'Kalender',
+        'icon': Icons.calendar_today_outlined,
+        'page': const CalendarPage(),
+      },
+      {
+        'title': 'Verslae',
+        'icon': Icons.analytics_outlined,
+        'page': const ReportsPage(),
       },
     ];
-
-    return allItems.where((item) => (item['roles'] as List<UserRole>).contains(UserSession.role)).toList();
   }
 
   @override

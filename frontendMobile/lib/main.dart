@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
@@ -11,6 +12,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('af_ZA', null);
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
