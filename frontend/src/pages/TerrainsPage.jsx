@@ -13,6 +13,9 @@ function TerrainsPage() {
   const [terrains, setTerrains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+  const [sortDirection, setSortDirection] = useState("asc");
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -112,14 +115,29 @@ function TerrainsPage() {
     setShowModal(true);
   };
 
-  const filteredTerrains = terrains.filter((terrain) => {
-    const query = searchTerm.toLowerCase();
-    return (
-      terrain.location_name?.toLowerCase().includes(query) ||
-      terrain.location_type?.toLowerCase().includes(query) ||
-      terrain.location_streetname?.toLowerCase().includes(query)
-    );
-  });
+  const filteredTerrains = [...terrains]
+    .filter((terrain) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+      const values = {
+        id: terrain.location_id,
+        name: terrain.location_name,
+        type: terrain.location_type,
+        streetnum: terrain.location_streetnum,
+        streetname: terrain.location_streetname,
+      };
+      if (filterColumn === 'all') {
+        return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
+      }
+      return String(values[filterColumn] || '').toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'id') return (Number(a.location_id || 0) - Number(b.location_id || 0)) * direction;
+      if (sortBy === 'name') return String(a.location_name || '').localeCompare(String(b.location_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      return 0;
+    });
 
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
@@ -170,14 +188,37 @@ function TerrainsPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              className="search-box"
-              placeholder="Soek terreine..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  className="search-box"
+                  placeholder="Soek terreine..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="type">Tipe</option>
+                <option value="streetnum">Straatnommer</option>
+                <option value="streetname">Straatnaam</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
+              <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
+            </div>
           </div>
 
           <table className="standard-table">
