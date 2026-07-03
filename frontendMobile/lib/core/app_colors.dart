@@ -12,4 +12,8 @@ class AppColors {
   
   // Foutkleur vir SnackBars en validasie
   static const Color errorRed = Color(0xFFD32F2F);
+
+  // Nuwe kleure vir Kalender en Events
+  static const Color terracotta = Color(0xFFE2725B);
+  static const Color lavender = Color(0xFFE6E6FA);
 }

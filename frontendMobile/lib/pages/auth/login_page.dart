@@ -31,8 +31,8 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _userControl = TextEditingController();
   final TextEditingController _passControl = TextEditingController();
 
-  // Microsoft OAuth Konfigurasie uit die sentrale AuthConfig
-  final Config config = Config(
+  // Ons skuif die Config na 'n getter om seker te maak dit lees die vars waardes
+  Config get _oauthConfig => Config(
     tenant: AuthConfig.tenantId,
     clientId: AuthConfig.clientId,
     scope: AuthConfig.scopes.join(' '),
@@ -43,7 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    oauth = AadOAuth(config);
+    oauth = AadOAuth(_oauthConfig);
     _initAuth();
   }
 

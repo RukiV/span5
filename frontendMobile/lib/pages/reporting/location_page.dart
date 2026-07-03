@@ -100,16 +100,28 @@ class _LocationPageState extends State<LocationPage> {
   void _handleNewPosition(Position position, {bool moveMap = false}) {
     if (!mounted) return;
     final userPoint = LatLng(position.latitude, position.longitude);
+    
+    // Check if we were already in manual mode or if this is first fix
+    bool wasManual = _isManualMode;
+    
     setState(() {
       _userLocation = userPoint;
+      if (!_isManualMode) {
+        _selectedLocation = userPoint;
+      }
       _updateActiveCampus(userPoint);
+      _hasPoint = true; // Ensure we have a point now
     });
-    if (moveMap && _isPointInsideAnyCampus(userPoint)) {
+
+    if (moveMap || (!_isManualMode && !wasManual)) {
       _mapController?.animateCamera(CameraUpdate.newLatLngZoom(userPoint, 18.0));
     }
   }
 
   void _updateActiveCampus(LatLng point) {
+    // If no campuses loaded yet, don't block the user
+    if (CampusService.campusesNotifier.value.isEmpty) return;
+
     model.Campus? foundCampus;
     for (var campus in CampusService.campusesNotifier.value) {
       double distance = Geolocator.distanceBetween(
@@ -125,6 +137,8 @@ class _LocationPageState extends State<LocationPage> {
   }
 
   bool _isPointInsideAnyCampus(LatLng point) {
+    if (CampusService.campusesNotifier.value.isEmpty) return false; // Don't allow if not loaded
+
     for (var campus in CampusService.campusesNotifier.value) {
       double distance = Geolocator.distanceBetween(
         point.latitude, point.longitude, 
@@ -163,8 +177,10 @@ class _LocationPageState extends State<LocationPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isOffCampus = _userLocation != null && _activeCampus == null;
-    bool showPlaceholder = isOffCampus || (_gpsPermissionDenied && !_hasPoint);
+    bool isOffCampus = _userLocation != null && 
+                       _activeCampus == null && 
+                       CampusService.campusesNotifier.value.isNotEmpty;
+    bool showPlaceholder = (_gpsPermissionDenied && !_hasPoint);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -187,6 +203,26 @@ class _LocationPageState extends State<LocationPage> {
             ),
         ],
       ),
+      floatingActionButton: (isOffCampus || _gpsPermissionDenied || _userLocation == null) 
+        ? null 
+        : Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: FloatingActionButton(
+              mini: true,
+              backgroundColor: Colors.white,
+              onPressed: () {
+                if (_userLocation != null) {
+                  _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
+                  setState(() {
+                    _selectedLocation = _userLocation!;
+                    _isManualMode = false;
+                    _updateActiveCampus(_userLocation!);
+                  });
+                }
+              },
+              child: const Icon(Icons.my_location, color: AppColors.navy),
+            ),
+          ),
       body: Stack(
         children: [
           GoogleMap(
@@ -249,33 +285,82 @@ class _LocationPageState extends State<LocationPage> {
   }
 
   Widget _buildStatusOverlay(bool isOffCampus) {
+    bool isSelectionInside = _isPointInsideAnyCampus(_selectedLocation);
+
     return Positioned(
       top: 15, left: 15, right: 15,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 15),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 230/255), borderRadius: BorderRadius.circular(30),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 30/255), blurRadius: 10)],
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isOffCampus ? Icons.block : (_gpsPermissionDenied ? Icons.location_off : (_isManualMode ? Icons.edit_location_alt : Icons.gps_fixed)), 
-              size: 16, 
-              color: (isOffCampus || _gpsPermissionDenied) ? Colors.red : (_isManualMode ? Colors.orange : AppColors.navy)
+      child: Column(
+        children: [
+          if (CampusService.campusesNotifier.value.isEmpty)
+             Container(
+               margin: const EdgeInsets.only(bottom: 10),
+               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+               decoration: BoxDecoration(
+                 color: Colors.white.withValues(alpha: 0.9),
+                 borderRadius: BorderRadius.circular(10),
+               ),
+               child: const Row(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+                   SizedBox(width: 10),
+                   Text("Laai kampusse...", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                 ],
+               ),
+             ),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(15),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
+              ],
+              border: Border.all(
+                color: isOffCampus ? Colors.red.withValues(alpha: 0.3) : (isSelectionInside ? AppColors.gold.withValues(alpha: 0.3) : Colors.orange.withValues(alpha: 0.3)),
+                width: 1
+              )
             ),
-            const SizedBox(width: 10),
-            Text(
-              isOffCampus ? "GEBLOKKEER" : (_gpsPermissionDenied ? "Geen GPS" : (_isManualMode ? "Handmatige Modus" : "GPS Aktief")), 
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.navy)
+            child: Row(
+              children: [
+                Icon(
+                  isOffCampus ? Icons.block : (!isSelectionInside ? Icons.warning_amber_rounded : Icons.check_circle_outline), 
+                  size: 20, 
+                  color: isOffCampus ? Colors.red : (!isSelectionInside ? Colors.orange : Colors.green)
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isOffCampus ? "BUITE TOEGELATE AREA" : (isSelectionInside ? "LIGGING GEVIND" : "ONGELDIGE LIGGING"), 
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 12, 
+                          color: isOffCampus ? Colors.red : (isSelectionInside ? AppColors.navy : Colors.orange),
+                          letterSpacing: 0.5
+                        )
+                      ),
+                      Text(
+                        isOffCampus 
+                          ? "Beweeg asb. na 'n kampus area." 
+                          : (isSelectionInside ? "Klik op die regmerkie bo om te bevestig." : "Skuif die kaart na 'n goue sirkel."),
+                        style: const TextStyle(fontSize: 10, color: Colors.black54)
+                      ),
+                    ],
+                  ),
+                ),
+                if (_isManualMode && !isOffCampus)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(4)),
+                    child: const Text("MANUEEL", style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold)),
+                  )
+              ],
             ),
-            const Spacer(),
-            Text(
-              _activeCampus?.name ?? (isOffCampus ? "Buite Gebied" : "Soek..."), 
-              style: const TextStyle(fontSize: 11, color: Colors.black54, fontWeight: FontWeight.bold)
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

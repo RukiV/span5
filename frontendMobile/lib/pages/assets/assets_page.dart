@@ -1,3 +1,4 @@
+import '../../core/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
@@ -65,17 +66,19 @@ class _AssetsPageState extends State<AssetsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("BATE"),
+      appBar: canPop ? AppBar(
+        title: Text(widget.filterRoomId != null ? "Lokaal: ${widget.filterRoomId}" : "Bates"),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-      ),
+      ) : null,
       body: Column(
         children: [
-          _buildSearchBar(),
-          if (widget.filterRoomId != null)
+          if (!canPop) _buildSearchBar(),
+          if (widget.filterRoomId != null && !canPop)
             Container(
               padding: const EdgeInsets.all(10),
               color: AppColors.gold.withValues(alpha: 0.2),
@@ -128,7 +131,10 @@ class _AssetsPageState extends State<AssetsPage> {
     return ValueListenableBuilder<List<Asset>>(
       valueListenable: AssetService.assetsNotifier,
       builder: (context, allAssets, _) {
-        final filtered = allAssets.where((a) {
+        // ROL-GEBASEERDE DATA FILTRERING: Bestuurders kan alles sien, maar slegs hul eie kampus wysig (word in detail hanteer)
+        List<Asset> baseAssets = allAssets;
+
+        final filtered = baseAssets.where((a) {
           if (_query.startsWith("room:")) {
             final targetRoomId = _query.replaceFirst("room:", "");
             return a.location == targetRoomId;
