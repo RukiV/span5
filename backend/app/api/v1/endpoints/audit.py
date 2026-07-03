@@ -1,13 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 from typing import List
 
 from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
-from ....models.audit import AuditlogRead, AuditlogCreate, AuditlogUpdate
+from ....models.audit import AuditlogRead, AuditlogCreate, AuditlogUpdate, Auditlog
 from ....services.audit_service import audit_service
 
 router = APIRouter()
+
+@router.get("", response_model=List[AuditlogRead])
+def readAuditLogs(session: Session = Depends(getSession)):
+    return session.exec(select(Auditlog).order_by(Auditlog.actiondatetime.desc())).all()
 
 @router.get("", response_model=List[AuditlogRead])
 def readAudits(session: Session = Depends(getSession)):

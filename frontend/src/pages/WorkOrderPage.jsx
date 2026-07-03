@@ -1,9 +1,12 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useMsal } from '@azure/msal-react';
 import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
+import { loginRequest } from '../services/msalConfig';
 import UserProfileHeader from '../components/UserProfileHeader';
+import { normalizeWorkOrdersPayload } from './workOrderUtils';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
 
@@ -11,6 +14,7 @@ function WorkOrderPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
+  const { instance } = useMsal();
   
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
@@ -19,8 +23,9 @@ function WorkOrderPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
-  const [statusFilter, setStatusFilter] = useState("");    // Filter op status
+  const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
+  const [sortDirection, setSortDirection] = useState("asc");
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -44,6 +49,8 @@ function WorkOrderPage() {
     job_status: "open",             // Status (open, wag, voltooid)
     job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
+    job_scheduled_datetime: "",     // Geskeduleerde datum
+    job_schedule_type: "enkel",    // Herhalingstipe
     
     // Aanspreekpunt-inligting
     contact_name: "",               // Naam van persoon
@@ -119,11 +126,11 @@ function WorkOrderPage() {
     setLoading(true);
     try {
       const response = await workOrdersAPI.getAll();
-      const orders = response.data;
-      setWorkOrders(orders);
+      const payload = response?.data ?? response;
+      setWorkOrders(normalizeWorkOrdersPayload(payload));
 
       if (pendingJobcardId) {
-        const matchingOrder = orders.find((order) => order.jobcard_id === pendingJobcardId);
+        const matchingOrder = payload.find((payload) => payload.jobcard_id === pendingJobcardId);
         if (matchingOrder) {
           handleEditWorkOrder(matchingOrder);
           setSearchParams({});
@@ -131,6 +138,7 @@ function WorkOrderPage() {
       }
     } catch (error) {
       console.error("Fout by haal werksopdragte:", error);
+      setWorkOrders([]);
     } finally {
       setLoading(false);
     }
@@ -151,6 +159,30 @@ function WorkOrderPage() {
     if (!dateString) return "";
     // Haal net die datum-deel uit (eerste 10 karakters: YYYY-MM-DD)
     return dateString.split('T')[0];
+  };
+
+  const formatDateTimeForInput = (value) => {
+    if (!value) return "";
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      if (trimmed.includes("T")) return trimmed.slice(0, 16);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return `${trimmed}T00:00`;
+
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 16);
+      }
+
+      return trimmed;
+    }
+
+    if (value instanceof Date) {
+      return value.toISOString().slice(0, 16);
+    }
+
+    return "";
   };
 
   const normalizeJobStatus = (status) => {
@@ -180,6 +212,139 @@ function WorkOrderPage() {
       .filter((item) => !Number.isNaN(item));
   };
 
+  const getMicrosoftAccessToken = async () => {
+    let msAccessToken = sessionStorage.getItem('ms_access_token');
+    if (msAccessToken) return msAccessToken;
+
+    const account = instance.getActiveAccount();
+    if (!account) {
+      throw new Error('No active Microsoft account');
+    }
+
+    const response = await instance.acquireTokenSilent({ ...loginRequest, account });
+    msAccessToken = response.accessToken;
+    sessionStorage.setItem('ms_access_token', msAccessToken);
+    return msAccessToken;
+  };
+
+  const buildCalendarMarker = (workOrderId) => `FBS-WO-${workOrderId}`;
+
+  const deleteScheduledOutlookEventsForWorkOrder = async (workOrderId) => {
+    if (!workOrderId) return;
+
+    try {
+      const msAccessToken = await getMicrosoftAccessToken();
+      const marker = buildCalendarMarker(workOrderId);
+      const response = await fetch(
+        'https://graph.microsoft.com/v1.0/me/events?$top=100&$select=id,subject,bodyPreview',
+        {
+          headers: {
+            Authorization: `Bearer ${msAccessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) return;
+
+      const data = await response.json();
+      for (const event of data.value || []) {
+        const subject = event.subject || '';
+        const body = event.bodyPreview || '';
+        if (subject.includes(marker) || body.includes(marker)) {
+          await fetch(`https://graph.microsoft.com/v1.0/me/events/${event.id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${msAccessToken}`,
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Kon Outlook-afsprake vir werksopdrag nie verwyder nie:', error);
+    }
+  };
+
+  const createScheduledOutlookEventForWorkOrder = async (workOrderId, workOrderData) => {
+    if (!workOrderId || !workOrderData?.job_scheduled_datetime) return;
+
+    try {
+      const msAccessToken = await getMicrosoftAccessToken();
+      const marker = buildCalendarMarker(workOrderId);
+      const subject = `${marker} ${workOrderData.job_desc || 'Werksopdrag'}`;
+      const startDateTime = String(workOrderData.job_scheduled_datetime).replace(' ', 'T');
+      const start = new Date(startDateTime);
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      const startValue = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}T${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}:00`;
+      const endValue = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}T${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}:00`;
+
+      const payload = {
+        subject,
+        body: {
+          contentType: 'HTML',
+          content: `<p>Werksopdrag ID: ${workOrderId}</p><p>${workOrderData.job_desc || 'Werksopdrag'}</p>`,
+        },
+        start: {
+          dateTime: startValue,
+          timeZone: 'South Africa Standard Time',
+        },
+        end: {
+          dateTime: endValue,
+          timeZone: 'South Africa Standard Time',
+        },
+      };
+
+      if (workOrderData.job_schedule_type === 'weekliks') {
+        payload.recurrence = {
+          pattern: {
+            type: 'weekly',
+            interval: 1,
+            daysOfWeek: [start.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()],
+          },
+          range: {
+            type: 'noEnd',
+            startDate: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+          },
+        };
+      } else if (workOrderData.job_schedule_type === 'maandeliks') {
+        payload.recurrence = {
+          pattern: {
+            type: 'absoluteMonthly',
+            interval: 1,
+            dayOfMonth: start.getDate(),
+          },
+          range: {
+            type: 'noEnd',
+            startDate: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+          },
+        };
+      } else if (workOrderData.job_schedule_type === 'jaarliks') {
+        payload.recurrence = {
+          pattern: {
+            type: 'absoluteYearly',
+            interval: 1,
+            dayOfMonth: start.getDate(),
+            month: start.getMonth() + 1,
+          },
+          range: {
+            type: 'noEnd',
+            startDate: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
+          },
+        };
+      }
+
+      await fetch('https://graph.microsoft.com/v1.0/me/events', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${msAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      console.warn('Kon Outlook-afspraak vir werksopdrag nie skep nie:', error);
+    }
+  };
+
   // Hanteer redigering van werksopdrag
   async function handleEditWorkOrder(order) {
     setIsEditing(true);
@@ -197,6 +362,8 @@ function WorkOrderPage() {
       job_status: normalizeJobStatus(order.job_status),
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
+      job_scheduled_datetime: formatDateTimeForInput(order.job_scheduled_datetime || order.job_createddatetime),
+      job_schedule_type: order.job_schedule_type || "enkel",
       contact_name: order.contact_name || "",
       contact_email: order.contact_email || "",
       contact_phone: order.contact_phone || "",
@@ -283,6 +450,8 @@ function WorkOrderPage() {
         job_type: formData.job_type || null,
         job_status: normalizeJobStatus(formData.job_status),
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
+        job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
+        job_schedule_type: formData.job_schedule_type || "enkel",
         asset_id: null,
         room_id: null,
         fault_id: null,
@@ -342,6 +511,11 @@ function WorkOrderPage() {
           quote_id: selectedCreatedQuoteId ? Number(selectedCreatedQuoteId) : null,
           quote_ids: persistedQuoteIds || null,
         });
+
+        if (payload.job_scheduled_datetime) {
+          await deleteScheduledOutlookEventsForWorkOrder(workOrderId);
+          await createScheduledOutlookEventForWorkOrder(workOrderId, payload);
+        }
       }
       
       handleCloseModal();
@@ -441,6 +615,8 @@ function WorkOrderPage() {
       job_status: "OPEN",
       job_priority: "Normal",
       job_createddatetime: "",
+      job_scheduled_datetime: "",
+      job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
       contact_phone: "",
@@ -464,6 +640,8 @@ function WorkOrderPage() {
       job_status: "OPEN",
       job_priority: "Normal",
       job_createddatetime: new Date().toISOString().split('T')[0],
+      job_scheduled_datetime: new Date().toISOString().slice(0, 16),
+      job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
       contact_phone: "",
@@ -487,6 +665,7 @@ function WorkOrderPage() {
     }
     try {
       await workOrdersAPI.delete(workOrderId);
+      await deleteScheduledOutlookEventsForWorkOrder(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Fout by verwydering:", error);
@@ -495,13 +674,25 @@ function WorkOrderPage() {
   };
 
   // Filter en sorteer werksopdragte
-  const filteredWorkOrders = workOrders.filter((order) => {
-    const query = searchTerm.toLowerCase();
-    const description = order.job_desc || "";
-    const matchesSearch = description.toLowerCase().includes(query) || String(order.jobcard_id).includes(query);
-    const matchesFilter = statusFilter === "" || order.job_status === statusFilter;
-    return matchesSearch && matchesFilter;
-  }).sort((a, b) => {
+  const filteredWorkOrders = [...workOrders]
+    .filter((order) => {
+      const query = searchTerm.trim().toLowerCase();
+      const description = order.job_desc || "";
+      if (!query) return true;
+      const values = {
+        description,
+        id: String(order.jobcard_id),
+        job_type: order.job_type,
+        asset_id: String(order.asset_id || ""),
+        scheduled: order.job_scheduled_datetime,
+        status: order.job_status,
+      };
+      const matchesColumn = filterColumn === 'all'
+        ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
+        : String(values[filterColumn] || '').toLowerCase().includes(query);
+      return matchesColumn;
+    })
+    .sort((a, b) => {
     switch (sortBy) {
       case "date":
         return new Date(b.job_createddatetime) - new Date(a.job_createddatetime);
@@ -582,47 +773,54 @@ function WorkOrderPage() {
         <div className="content">
           {/* Beheer-reeks: Soek, Filter, Sorteer, Voeg By */}
           <div className="controls">
-            <input 
-              type="text" 
-              className="search-box"
-              id="jobSearch" 
-              placeholder="Soek op ID of Beskrywing..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            
-            <select 
-              className="filter-select"
-              id="statusFilter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="">Alle Statuse</option>
-              <option value="OPEN">Oop</option>
-              <option value="WAIT">Hangende</option>
-              <option value="COMPLETED">Voltooi</option>
-            </select>
+            <div className="controls-left">
+              <input 
+                type="text" 
+                className="search-box"
+                id="jobSearch" 
+                placeholder="Soek op ID of Beskrywing..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="description">Beskrywing</option>
+                <option value="job_type">Werksoort</option>
+                <option value="asset_id">Bate ID</option>
+                <option value="scheduled">Datum</option>
+                <option value="status">Status</option>
+              </select>
+            </div>
 
-            <select 
-              className="sort-select"
-              id="jobSort"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-            >
-              <option value="id">Sorteer: ID</option>
-              <option value="date">Sorteer: Datum</option>
-              <option value="status">Sorteer: Status</option>
-            </select>
+            <div className="controls-right">
+              <select 
+                className="sort-select"
+                id="jobSort"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="id">ID</option>
+                <option value="date">Datum</option>
+                <option value="status">Status</option>
+              </select>
+
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
 
               <button 
-              type="button"
-              className="btn-add" 
-              id="addJobBtn"
-              title="Voeg Nuwe Werksopdrag By"
-              onClick={handleNewWorkOrder}
-            >
-              + Nuwe Werksopdrag
-            </button>
+                type="button"
+                className="btn-add" 
+                id="addJobBtn"
+                title="Voeg Nuwe Werksopdrag By"
+                onClick={handleNewWorkOrder}
+              >
+                + Nuwe Werksopdrag
+              </button>
+            </div>
           </div>
 
           {/* Tabel van Werksopdragte */}
@@ -650,7 +848,7 @@ function WorkOrderPage() {
                     <td className="description-cell">{order.job_desc || "-"}</td>
                     <td>{order.job_type || "-"}</td>
                     <td>{order.asset_id || "-"}</td>
-                    <td>{order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleDateString('af-ZA') : "-"}</td>
+                    <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
                     <td>
                       <span className={`status-badge ${getStatusClass(order.job_status)}`}>
                         {translateStatus(order.job_status)}
@@ -717,12 +915,23 @@ function WorkOrderPage() {
                   />
                 </div>
                 <div className="mri-cell w-40">
-                  <div className="mri-fld"><span>Datum</span> 
+                  <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
                     <input 
-                      type="date" 
-                      value={formData.job_createddatetime}
-                      onChange={(e) => setFormData({...formData, job_createddatetime: e.target.value})}
+                      type="datetime-local"
+                      value={formData.job_scheduled_datetime}
+                      onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
                     />
+                  </div>
+                  <div className="mri-fld"><span>Herhaling</span> 
+                    <select 
+                      value={formData.job_schedule_type}
+                      onChange={(e) => setFormData({...formData, job_schedule_type: e.target.value})}
+                    >
+                      <option value="enkel">Enkel</option>
+                      <option value="weekliks">Weekliks</option>
+                      <option value="maandeliks">Maandeliks</option>
+                      <option value="jaarliks">Jaarliks</option>
+                    </select>
                   </div>
                   <div className="mri-fld"><span>Status</span> 
                     <select 

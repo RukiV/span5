@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Sequence
 from sqlmodel import Session, select, cast, Integer
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from ..models.asset import Asset, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ..models.audit import Auditlog
@@ -88,5 +88,19 @@ class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
         )
         return merged
 
+    def getStatusSummary(self, session: Session) -> list[dict]:
+        statement = (
+            select(Asset.asset_status, func.count(Asset.asset_id))
+            .group_by(Asset.asset_status)
+        )
+        results = session.exec(statement).all()
+
+        return [
+            {
+                "status": status.value if hasattr(status, "value") else str(status),
+                "count": count,
+            }
+            for status, count in results
+        ]
 
 assets_service = AssetService()

@@ -68,6 +68,7 @@ export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
   getById: (id) => apiClient.get(`/assets/${id}`),
   getHistory: (id) => apiClient.get(`/assets/${id}/history`),
+  getStatusSummary: () => apiClient.get('/assets/status-summary'),
   create: (data) => apiClient.post('/assets', data),
   update: (id, data) => apiClient.patch(`/assets/${id}`, data),  // Gebruik PATCH nie PUT
   delete: (id) => apiClient.delete(`/assets/${id}`),
@@ -122,7 +123,9 @@ export const ticketsAPI = {
 // ===== WERKSOPDRAGTE-API =====
 export const workOrdersAPI = {
   getAll: () => apiClient.get('/job'),
+  getRecent: (limit = 5) => apiClient.get('/job/recent', { params: { limit } }),
   getById: (id) => apiClient.get(`/job/${id}`),
+  getScheduled: () => apiClient.get('/job/scheduled/upcoming'),
   create: (data) => apiClient.post('/job', data),
   update: (id, data) => apiClient.patch(`/job/${id}`, data),
   delete: (id) => apiClient.delete(`/job/${id}`),
@@ -179,6 +182,7 @@ export const quotesAPI = {
 };
 
 export const auditsAPI = {
+  getAllUnsorted: () => apiClient.get('/audit'),
   getAll: () => apiClient.get('/audit'),
   getById: (id) => apiClient.get(`/audit/${id}`),
   create: (data) => apiClient.post('/audit', data),
@@ -197,8 +201,8 @@ apiClient.tickets = ticketsAPI;
 apiClient.workOrders = workOrdersAPI;
 apiClient.auth = authAPI;
 apiClient.users = usersAPI;
-apiClient.assets = contractorsAPI;
-apiClient.assets = quotesAPI;
+apiClient.contractors = contractorsAPI;
+apiClient.quotes = quotesAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };
