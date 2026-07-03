@@ -14,6 +14,10 @@ def readAssets(session: Session = Depends(getSession)):
     #Fetch all assets
     return assets_service.getAll(session)
 
+@router.get("/status-summary")
+def readAssetStatusSummary(session: Session = Depends(getSession)):
+    return assets_service.getStatusSummary(session)
+
 @router.get("/{assetID}", response_model=AssetRead)
 def readAsset(assetID: int, session: Session = Depends(getSession)):
     #Fetch single asset by id
