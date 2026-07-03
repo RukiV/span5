@@ -13,6 +13,9 @@ function ContractorsPage() {
   const [contractors, setContractors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterColumn, setFilterColumn] = useState('all');
+  const [sortBy, setSortBy] = useState('default');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -163,15 +166,31 @@ function ContractorsPage() {
     setSuccess('');
   };
 
-  const filteredContractors = contractors.filter((contractor) => {
-    const query = searchTerm.toLowerCase();
-    return (
-      contractor.contractor_name?.toLowerCase().includes(query) ||
-      contractor.contractor_surname?.toLowerCase().includes(query) ||
-      contractor.contractor_email?.toLowerCase().includes(query) ||
-      contractor.contractor_type?.toLowerCase().includes(query)
-    );
-  });
+  const filteredContractors = [...contractors]
+    .filter((contractor) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+      const values = {
+        id: contractor.contractor_id,
+        name: contractor.contractor_name,
+        surname: contractor.contractor_surname,
+        email: contractor.contractor_email,
+        number: contractor.contractor_number,
+        type: contractor.contractor_type,
+      };
+      if (filterColumn === 'all') {
+        return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
+      }
+      return String(values[filterColumn] || '').toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'name') return String(a.contractor_name || '').localeCompare(String(b.contractor_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'surname') return String(a.contractor_surname || '').localeCompare(String(b.contractor_surname || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'id') return (Number(a.contractor_id || 0) - Number(b.contractor_id || 0)) * direction;
+      return 0;
+    });
 
   if (loading) {
     return (
@@ -224,14 +243,39 @@ function ContractorsPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              className="search-box"
-              placeholder="Soek kontrakteur..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button type="button" className="btn-add" onClick={handleNewContractor}>+ Nuwe Kontrakteur</button>
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  className="search-box"
+                  placeholder="Soek kontrakteur..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="surname">Van</option>
+                <option value="email">E-pos</option>
+                <option value="number">Tel</option>
+                <option value="type">Tipe</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="surname">Van</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
+              <button type="button" className="btn-add" onClick={handleNewContractor}>+ Nuwe Kontrakteur</button>
+            </div>
           </div>
 
           

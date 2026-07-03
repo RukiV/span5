@@ -124,6 +124,7 @@ export const workOrdersAPI = {
   getAll: () => apiClient.get('/job'),
   getRecent: (limit = 5) => apiClient.get('/job/recent', { params: { limit } }),
   getById: (id) => apiClient.get(`/job/${id}`),
+  getScheduled: () => apiClient.get('/job/scheduled/upcoming'),
   create: (data) => apiClient.post('/job', data),
   update: (id, data) => apiClient.patch(`/job/${id}`, data),
   delete: (id) => apiClient.delete(`/job/${id}`),
@@ -177,6 +178,10 @@ export const quotesAPI = {
   create: (data) => apiClient.post('/quotes', data),
   update: (id, data) => apiClient.patch(`/quotes/${id}`, data),
   delete: (id) => apiClient.delete(`/quotes/${id}`),
+};
+
+export const auditAPI = {
+  getAll: () => apiClient.get('/audit'),
 };
 
 // Attach all API collections to apiClient
