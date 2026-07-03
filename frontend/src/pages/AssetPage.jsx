@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { assetsAPI, roomsAPI, authAPI, workOrdersAPI, auditsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
@@ -10,6 +10,7 @@ import { useLogout } from "./Page.jsx";
 function AssetPage() {
   const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
+  const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,7 @@ function AssetPage() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [jobs, setJobs] = useState([]);
-  const [assetRoomHistory, setAssetRoomHistory] = useState([]);
+  const [assetHistory, setAssetHistory] = useState([]);
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_serial: "",
@@ -81,17 +82,17 @@ function AssetPage() {
     }
   };
 
-  const fetchAssetRoomHistory = async (asset_id) => {
+  const fetchAssetHistory = async (asset_id) => {
     if (!asset_id) {
       return;
     }
 
     try {
-      const response = await auditsAPI.getRoomChangesForAsset(asset_id);
-      setAssetRoomHistory(response.data);
+      const response = await assetsAPI.getHistory(asset_id);
+      setAssetHistory(response.data);
     } catch (error) {
-      console.error("Error fetching asset room history:", error);
-      setAssetRoomHistory([]);
+      console.error("Error fetching asset history:", error);
+      setAssetHistory([]);
     }
   };
 
@@ -220,11 +221,14 @@ function AssetPage() {
 
   const handleViewHistory = (asset) => {
     setSelectedAsset(asset);
-    fetchAssetRoomHistory(asset.asset_id);
+    fetchAssetHistory(asset.asset_id);
     setShowHistoryModal(true);
   };
 
-  const getJobHistoryOfAsset = (asset_id) => jobs.filter((job) => job.asset_id === asset_id);
+  const handleOpenJobcard = (jobcardId) => {
+    setShowHistoryModal(false);
+    navigate(`/work-orders?search=${jobcardId}`);
+  };
 
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
@@ -428,56 +432,52 @@ function AssetPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Geskiedenis van {(selectedAsset.asset_id)} - {selectedAsset.asset_name}</h3>
+              <h3>Geskiedenis van {(selectedAsset.asset_serial)} - {selectedAsset.asset_name}</h3>
               <span className="close" onClick={() => setShowHistoryModal(false)}>&times;</span>
             </div>
             <div className="modal-body">
-              {getJobHistoryOfAsset(selectedAsset.asset_id).length > 0 ? (
+              {assetHistory && assetHistory.length > 0 ? (
                 <table className="assets-table">
-                  <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Naam</th>
-                      <th>Tipe</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
                   <tbody>
-                    {getJobHistoryOfAsset(selectedAsset.asset_id).map((job) => (
-                      <tr key={job.jobcard_id}>
-                        <td>{job.jobcard_id}</td>
-                        <td>{job.job_desc}</td>
-                        <td>{job.job_type}</td>
-                        <td>{job.job_status}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <p>Geen onderhoud rekords vir hierdie bate.</p>
-              )}
+                    {assetHistory.map((event) => {
+                      const eventDate = new Date(event.event_datetime).toLocaleDateString('af-ZA');
+                      const eventTime = new Date(event.event_datetime).toLocaleTimeString('af-ZA', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                      const eventText = event.event_description
+                        ? `${event.event_title} — ${event.event_description}`
+                        : event.event_title;
 
-              {assetRoomHistory && assetRoomHistory.length > 0 ? (
-                <table className="assets-table">
-                  <thead>
-                    <tr>
-                      <th>Datum & Tyd</th>
-                      <th>Ou Kamer</th>
-                      <th>Nuwe Kamer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assetRoomHistory.map((log) => (
-                      <tr key={log.auditlog_id}>
-                        <td>{new Date(log.actiondatetime).toLocaleString('af-ZA')}</td>
-                        <td>{log.previous_value?.room_id || "Geen"}</td>
-                        <td style={{ fontWeight: 'bold' }}>{log.new_value?.room_id || "Geen"}</td>
-                      </tr>
-                    ))}
+                      return (
+                        <React.Fragment key={`${event.source}-${event.event_id || event.event_datetime}`}>
+                          <tr>
+                            <td colSpan="3" className="history-date-row">
+                              {eventDate}
+                            </td>
+                            <td>{eventTime}</td>
+                            <td>{eventText}</td>
+                            <td>
+                              {event.source === 'job' && event.event_id ? (
+                                <button
+                                  type="button"
+                                  className="btn-view"
+                                  onClick={() => handleOpenJobcard(event.event_id)}
+                                >
+                                  Bekyk
+                                </button>
+                              ) : (
+                                <span></span>
+                              )}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               ) : (
-                <p>Geen kamerveranderings aangeteken vir hierdie bate.</p>
+                <p>Geen geskiedenis beskikbaar vir hierdie bate.</p>
               )}
             </div>
           </div>
