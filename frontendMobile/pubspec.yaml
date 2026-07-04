@@ -1,54 +1,3 @@
-<<<<<<< HEAD
-name: fbs
-description: "FBS"
-publish_to: 'none'
-
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.1.0 <4.0.0'
-
-dependencies:
-  flutter:
-    sdk: flutter
-  aad_oauth: ^1.0.0
-  image_picker: ^1.0.7
-  mobile_scanner: ^7.2.0
-  permission_handler: ^12.0.1
-  geolocator: ^13.0.1
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
-  local_auth: ^2.2.0
-  flutter_map_cache: ^2.0.0+1
-  path_provider: ^2.1.2
-  shared_preferences: ^2.2.2
-  shimmer: ^3.0.0
-  cupertino_icons: ^1.0.9
-  qr_flutter: ^4.1.0
-  barcode_widget: ^2.0.4
-  google_maps_flutter: ^2.17.0
-  geocoding: ^4.0.0
-  dio: ^5.7.0
-  flutter_dotenv: ^5.1.0
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^3.0.0
-  dcdg: ^4.1.0
-
-flutter:
-  uses-material-design: true
-
-  assets:
-    - .env
-    - assets/images/kampus_kaart.png
-
-  fonts:
-    - family: IndieFlower
-      fonts:
-        - asset: fonts/IndieFlower-Regular.ttf
-=======
 name: fbs
 description: "FBS"
 publish_to: 'none'
@@ -101,4 +50,3 @@ flutter:
     - family: IndieFlower
       fonts:
         - asset: fonts/IndieFlower-Regular.ttf
->>>>>>> 3080162a6b51675de2ce74fa53f3bd629f39db17
