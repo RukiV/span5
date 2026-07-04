@@ -4,10 +4,10 @@ import 'package:aad_oauth/model/config.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
-import '../../main.dart';
 import '../../core/app_colors.dart';
+import '../../core/navigation.dart';
 import '../../models/user_session.dart';
-import '../../core/api_client.dart';
+import '../../core/api/api_client.dart';
 import '../../core/auth_config.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
@@ -103,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       try {
-        final response = await ApiClient.dio.post(
+        final response = await ApiClient().client.post(
           '/auth/login',
           data: {
             'user_email': email,
@@ -115,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
           final token = response.data['access_token'];
           
           // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
-          await ApiClient.saveToken(token);
+          await ApiClient().saveToken(token);
 
           await _fetchProfileAndNavigate();
           return;
@@ -150,7 +150,7 @@ class _LoginPageState extends State<LoginPage> {
   /// Laai die gebruiker se profiel en stel die UserSession sentraal op.
   Future<void> _fetchProfileAndNavigate() async {
     try {
-      final response = await ApiClient.dio.get('/auth/me');
+      final response = await ApiClient().client.get('/auth/me');
       if (response.statusCode == 200) {
         
         // SENTRALE LOGIKA: Gebruik die UserSession klas om die data te inisieer.
@@ -222,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
       await oauth.login();
       String? accessToken = await oauth.getAccessToken();
       if (accessToken != null && mounted) {
-        final response = await ApiClient.dio.post(
+        final response = await ApiClient().client.post(
           '/auth/microsoft',
           data: {'microsoft_token': accessToken},
         );
@@ -230,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
         if (response.statusCode == 200) {
           final token = response.data['access_token'];
           // Stoor Microsoft sessie token ook veilig.
-          await ApiClient.saveToken(token);
+          await ApiClient().saveToken(token);
           await _fetchProfileAndNavigate();
         }
       } else {

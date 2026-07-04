@@ -16,3 +16,4 @@ build/
 htmlcov/
 **/__pycache__/
 webblad/
+frontendMobile/skills/

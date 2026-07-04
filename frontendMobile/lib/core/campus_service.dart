@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/campus.dart';
-import 'api_client.dart';
+import 'api/api_client.dart';
 
 // CampusService: Manages campus locations and their associated rooms.
 class CampusService {
@@ -12,9 +12,9 @@ class CampusService {
   static Future<void> fetchCampuses() async {
     try {
       // 1. Load all Locations (treated as Campuses in the mobile app)
-      final locResponse = await ApiClient.dio.get('/location');
+      final locResponse = await ApiClient().client.get('/location');
       // 2. Load all Rooms
-      final roomResponse = await ApiClient.dio.get('/rooms');
+      final roomResponse = await ApiClient().client.get('/rooms');
 
       if (locResponse.statusCode == 200 && roomResponse.statusCode == 200) {
         final List<dynamic> locData = locResponse.data;
@@ -90,7 +90,7 @@ class CampusService {
       // Attempt to get a default zipcode or use ID 1 from seed data.
       int defaultZipId = 1;
       try {
-        final zipResponse = await ApiClient.dio.get('/zipcode');
+        final zipResponse = await ApiClient().client.get('/zipcode');
         if (zipResponse.statusCode == 200 && (zipResponse.data as List).isNotEmpty) {
           defaultZipId = zipResponse.data[0]['zipcode_id'];
         }
@@ -103,7 +103,7 @@ class CampusService {
       final streetNum = parts.isNotEmpty ? parts[0] : "0";
       final streetName = parts.length > 1 ? parts.skip(1).join(' ') : "Unknown";
 
-      final response = await ApiClient.dio.post('/location', data: {
+      final response = await ApiClient().client.post('/location', data: {
         "location_name": campus.name,
         "location_streetnum": streetNum,
         "location_streetname": streetName,
@@ -115,7 +115,7 @@ class CampusService {
         final locId = response.data['location_id'];
         // Batch create the rooms for this location.
         for (var room in campus.rooms) {
-          await ApiClient.dio.post('/rooms', data: {
+          await ApiClient().client.post('/rooms', data: {
             "room_name": room,
             "location_id": locId,
             "room_type": "other",
@@ -138,7 +138,7 @@ class CampusService {
       final streetNum = parts.isNotEmpty ? parts[0] : "0";
       final streetName = parts.length > 1 ? parts.skip(1).join(' ') : "Unknown";
 
-      final response = await ApiClient.dio.put('/location/${campus.id}', data: {
+      final response = await ApiClient().client.put('/location/${campus.id}', data: {
         "location_name": campus.name,
         "location_streetnum": streetNum,
         "location_streetname": streetName,
@@ -163,7 +163,7 @@ class CampusService {
       final newRooms = updatedRooms.where((r) => !campus.rooms.contains(r)).toList();
 
       for (var roomName in newRooms) {
-        await ApiClient.dio.post('/rooms', data: {
+        await ApiClient().client.post('/rooms', data: {
           "room_name": roomName,
           "location_id": int.parse(campusId),
           "room_type": "other",
@@ -180,7 +180,7 @@ class CampusService {
 
   static Future<bool> removeCampus(String id) async {
     try {
-      final response = await ApiClient.dio.delete('/location/$id');
+      final response = await ApiClient().client.delete('/location/$id');
       if (response.statusCode == 200 || response.statusCode == 204) {
         await fetchCampuses();
         return true;
