@@ -15,9 +15,9 @@ def readQuotes(session: Session = Depends(getSession)):
     return quote_service.getAll(session)
 
 @router.get("/{quoteID}", response_model=QuoteRead)
-def readQuote(QuoteID: int, session: Session = Depends(getSession)):
+def readQuote(quoteID: int, session: Session = Depends(getSession)):
     #Fetch single quote by id
-    quote = quote_service.getByID(session, QuoteID)
+    quote = quote_service.getByID(session, quoteID)
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found")
     
@@ -29,18 +29,18 @@ def addQuote(QuoteIn: QuoteCreate, session: Session = Depends(getSession), user_
     return quote_service.create(session, QuoteIn, user_id=user_id)
 
 @router.patch("/{quoteID}", response_model=QuoteRead)
-def patchQuote(QuoteID: int, QuoteIn: QuoteUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
+def patchQuote(quoteID: int, QuoteIn: QuoteUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Update existing quote
-    quote = quote_service.update(session, QuoteID, QuoteIn, user_id=user_id)
+    quote = quote_service.update(session, quoteID, QuoteIn, user_id=user_id)
     if not quote:
         raise HTTPException(status_code=404, detail="Quote not found")
     
     return quote
 
 @router.delete("/{quoteID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeQuote(QuoteID: int, session: Session =Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
+def removeQuote(quoteID: int, session: Session =Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Delete quote
-    if not quote_service.delete(session, QuoteID, user_id=user_id):
+    if not quote_service.delete(session, quoteID, user_id=user_id):
         raise HTTPException(status_code=404, detail="Quote not found")
     
     return None

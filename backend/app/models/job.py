@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -42,12 +42,26 @@ class JobcardBase(SQLModel):
     job_status: JobStatus = Field(default=JobStatus.WAIT)
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
+    job_scheduled_datetime: Optional[datetime] = None
+    job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
     def _sanitize_strings(cls, v, info):
         return sanitize_text(v)
+
+    @field_validator('job_scheduled_datetime', mode='before')
+    @classmethod
+    def _normalize_scheduled_date(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, datetime):
+            return v
+        if isinstance(v, date):
+            return datetime.combine(v, datetime.min.time())
+        return v
 
 
 class Jobcard(JobcardBase, Base, table=True):
@@ -55,6 +69,7 @@ class Jobcard(JobcardBase, Base, table=True):
     jobcard_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
+    room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     fault_id: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
@@ -64,6 +79,8 @@ class Jobcard(JobcardBase, Base, table=True):
 class JobcardCreate(JobcardBase):
     """Input model for creating jobcard records."""
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    fault_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):
@@ -71,6 +88,7 @@ class JobcardRead(JobcardBase):
     jobcard_id: int
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
@@ -83,9 +101,13 @@ class JobcardUpdate(SQLModel):
     job_status: Optional[JobStatus] = None
     job_type: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
+    job_scheduled_datetime: Optional[datetime] = None
+    job_schedule_type: Optional[str] = None
     job_finisheddatetime: Optional[datetime] = None
+    quote_ids: Optional[str] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None

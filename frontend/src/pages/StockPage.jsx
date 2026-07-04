@@ -14,6 +14,9 @@ function StockPage() {
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+  const [sortDirection, setSortDirection] = useState("asc");
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -130,21 +133,38 @@ function StockPage() {
     setShowModal(true);
   };
 
-  const filteredStock = stock.filter((item) => {
-    const query = searchTerm.toLowerCase();
-    return (
-      item.stock_name?.toLowerCase().includes(query) ||
-      item.stock_brand?.toLowerCase().includes(query) ||
-      item.stock_type?.toLowerCase().includes(query) ||
-      item.stock_desc?.toLowerCase().includes(query)
-    );
-  });
-
   const getRoomName = (item) => {
     if (!item.room_id) return "-";
     const room = rooms.find((roomItem) => roomItem.room_id === item.room_id);
     return room ? room.room_name : `Room ${item.room_id}`;
   };
+
+  const filteredStock = [...stock]
+    .filter((item) => {
+      const query = searchTerm.trim().toLowerCase();
+      if (!query) return true;
+      const values = {
+        id: item.stock_id,
+        name: item.stock_name,
+        brand: item.stock_brand,
+        type: item.stock_type,
+        amount: item.stock_amount,
+        description: item.stock_desc,
+        room: getRoomName(item),
+      };
+      if (filterColumn === 'all') {
+        return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
+      }
+      return String(values[filterColumn] || '').toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * direction;
+      if (sortBy === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * direction;
+      return 0;
+    });
 
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
@@ -176,6 +196,7 @@ function StockPage() {
             </li>
             <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
             <li><Link to="/work-orders">Werksopdragte</Link></li>
+            <li><Link to="/contractors">Kontrakteurs</Link></li>
             <li><Link to="/calendar" >Kalender</Link></li>
             <li><Link to="/analysis">Analise</Link></li>
             <li><Link to="/reports">Verslae</Link></li>  
@@ -194,13 +215,39 @@ function StockPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              placeholder="Soek voorraad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  placeholder="Soek voorraad..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="brand">Merk</option>
+                <option value="type">Tipe</option>
+                <option value="amount">Hoeveelheid</option>
+                <option value="room">Lokaal</option>
+                <option value="description">Beskrywing</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="id">ID</option>
+                <option value="name">Naam</option>
+                <option value="amount">Hoeveelheid</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
+              <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+            </div>
           </div>
 
           <table className="standard-table">
@@ -305,7 +352,7 @@ function StockPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-save" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

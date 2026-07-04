@@ -13,6 +13,9 @@ function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
+  const [filterColumn, setFilterColumn] = useState('all');
+  const [sortBy, setSortBy] = useState('default');
+  const [sortDirection, setSortDirection] = useState('asc');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -177,15 +180,39 @@ function UsersPage() {
     });
   };
 
+  const getRoleName = (roleId) => {
+    switch (roleId) {
+      case 1: return 'Gebruiker';
+      case 2: return 'Fasiliteit Koördineerder';
+      case 3: return 'Administrateur';
+      default: return 'Gebruiker';
+    }
+  };
+
   // Filter gebruikers op soekterm EN status
-  const filteredUsers = users.filter(user => {
-    // Soek in naam of e-pos veld
-    const matchesSearch = (user.user_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (user.user_email || '').toLowerCase().includes(searchTerm.toLowerCase());
-    // Filter op status (almal, aktief, onaktief)
-    const matchesFilter = filter === 'almal' || user.user_status === filter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredUsers = [...users]
+    .filter(user => {
+      const query = searchTerm.trim().toLowerCase();
+      const matchesFilter = filter === 'almal' || user.user_status === filter;
+      if (!query) return matchesFilter;
+      const values = {
+        name: user.user_name,
+        email: user.user_email,
+        role: getRoleName(user.role_id),
+        status: user.user_status === 'active' ? 'Aktief' : 'Onaktief',
+      };
+      const matchesColumn = filterColumn === 'all'
+        ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
+        : String(values[filterColumn] || '').toLowerCase().includes(query);
+      return matchesFilter && matchesColumn;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'name') return String(a.user_name || '').localeCompare(String(b.user_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'email') return String(a.user_email || '').localeCompare(String(b.user_email || ''), 'af', { sensitivity: 'base' }) * direction;
+      return 0;
+    });
 
   // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
@@ -194,15 +221,6 @@ function UsersPage() {
       case 2: return 'rol-fasiliteit';
       case 3: return 'rol-admin';
       default: return 'rol-user';
-    }
-  };
-
-  const getRoleName = (roleId) => {
-    switch (roleId) {
-      case 1: return 'Gebruiker';
-      case 2: return 'Fasiliteit Koördineerder';
-      case 3: return 'Administrateur';
-      default: return 'Gebruiker';
     }
   };
 
@@ -250,6 +268,7 @@ function UsersPage() {
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
           <li><Link to="/analysis">Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>
@@ -268,25 +287,47 @@ function UsersPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              className="search-box"
-              placeholder="Soek op Naam of E-pos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  className="search-box"
+                  placeholder="Soek op Naam of E-pos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
 
-            <select
-              className="filter-select"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            >
-              <option value="almal">Filter: Alle Statusse</option>
-              <option value="active">Aktief</option>
-              <option value="inactive">Onaktief</option>
-            </select>
+              <select
+                className="filter-select"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="almal">Alle Statusse</option>
+                <option value="active">Aktief</option>
+                <option value="inactive">Onaktief</option>
+              </select>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="name">Naam</option>
+                <option value="email">E-pos</option>
+                <option value="role">Rol</option>
+                <option value="status">Status</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="name">Naam</option>
+                <option value="email">E-pos</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
 
-            <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+              <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+            </div>
           </div>
 
           <table className="standard-table">
@@ -383,7 +424,7 @@ function UsersPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddUser}>Stoor</button>
+              <button className="btn-add" onClick={handleAddUser}>Stoor</button>
             </div>
           </div>
         </div>

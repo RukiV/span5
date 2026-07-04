@@ -87,12 +87,24 @@
 /*Controls*/
 .controls {
     display: flex;
+    justify-content: space-between;
     gap: 10px;
     margin-bottom: 20px;
     align-items: center;
     flex-wrap: wrap;
 }
 
+.controls-left,
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.controls-right {
+    margin-left: auto;
+}
 
 .controls input, .controls select {
     padding: 10px;
@@ -202,20 +214,18 @@
   background-color: #0e1e3b;
 }
 
-.btn-add { 
+.btn-add {
+  background: var(--bruin);
+  color: white;
+  border: none;
   padding: 10px 20px;
-  font-size: 16px;
+  border-radius: 5px;
   cursor: pointer;
-  background: #935e28;
-  color: white; 
-  border: none; 
-  border-radius: 5px; 
+  font-weight: bold;
   box-shadow: 0 5px 12px rgba(147,94,40,0.22); 
   transition: transform 0.2s ease, background 0.2s ease; 
 }
-
-
-.btn-add:hover { transform: translateY(-1px); background: #b06c41; }
+.btn-add:hover { transform: translateY(-1px); background-color: #b06c41; }
 
 /* Cards */
 .asset-card, .ticket-card, .work-order-card {
@@ -243,7 +253,7 @@
 .standard-table th,
 .standard-table td {
   padding: 15px;
-  text-align: left;
+  text-align: center;
   border-bottom: 1px solid #eee;
 }
 

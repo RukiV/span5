@@ -15,9 +15,9 @@ def readContractors(session: Session = Depends(getSession)):
     return contractor_service.getAll(session)
 
 @router.get("/{contractorID}", response_model=ContractorRead)
-def readContractor(ContractorID: int, session: Session = Depends(getSession)):
+def readContractor(contractorID: int, session: Session = Depends(getSession)):
     #Fetch single contractor by id
-    contractor = contractor_service.getByID(session, ContractorID)
+    contractor = contractor_service.getByID(session, contractorID)
     if not contractor:
         raise HTTPException(status_code=404, detail="Contractor not found")
     
@@ -29,18 +29,18 @@ def addContractor(ContractorIn: ContractorCreate, session: Session = Depends(get
     return contractor_service.create(session, ContractorIn, user_id=user_id)
 
 @router.patch("/{contractorID}", response_model=ContractorRead)
-def patchContractor(ContractorID: int, ContractorIn: ContractorUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
+def patchContractor(contractorID: int, ContractorIn: ContractorUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Update existing contractor
-    contractor = contractor_service.update(session, ContractorID, ContractorIn, user_id=user_id)
+    contractor = contractor_service.update(session, contractorID, ContractorIn, user_id=user_id)
     if not contractor:
         raise HTTPException(status_code=404, detail="Contractor not found")
     
     return contractor
 
 @router.delete("/{contractorID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeContractor(ContractorID: int, session: Session =Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
+def removeContractor(contractorID: int, session: Session =Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
     #Delete contractor
-    if not contractor_service.delete(session, ContractorID, user_id=user_id):
+    if not contractor_service.delete(session, contractorID, user_id=user_id):
         raise HTTPException(status_code=404, detail="Contractor not found")
     
     return None
