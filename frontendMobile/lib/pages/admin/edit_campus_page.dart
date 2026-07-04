@@ -1,27 +1,45 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
-import '../../models/user_session.dart';
-import 'select_location_page.dart';
 
-class AddCampusPage extends StatefulWidget {
-  const AddCampusPage({super.key});
+class EditCampusPage extends StatefulWidget {
+  final Campus campus;
+  const EditCampusPage({super.key, required this.campus});
 
   @override
-  State<AddCampusPage> createState() => _AddCampusPageState();
+  State<EditCampusPage> createState() => _EditCampusPageState();
 }
 
-class _AddCampusPageState extends State<AddCampusPage> {
+class _EditCampusPageState extends State<EditCampusPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _typeController = TextEditingController();
-  final _streetNumController = TextEditingController();
-  final _streetNameController = TextEditingController();
-  final _zipIdController = TextEditingController(text: "1");
-  bool _isLoading = false;
-  LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
+  late TextEditingController _nameController;
+  late TextEditingController _typeController;
+  late TextEditingController _streetNumController;
+  late TextEditingController _streetNameController;
+  late TextEditingController _zipIdController;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final parts = widget.campus.address.split(' ');
+    _nameController = TextEditingController(text: widget.campus.name);
+    _typeController = TextEditingController(text: widget.campus.code);
+    _streetNumController = TextEditingController(text: parts.isNotEmpty ? parts[0] : "");
+    _streetNameController = TextEditingController(text: parts.length > 1 ? parts.skip(1).join(' ') : "");
+    _zipIdController = TextEditingController(text: "1"); // Default
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _typeController.dispose();
+    _streetNumController.dispose();
+    _streetNameController.dispose();
+    _zipIdController.dispose();
+    super.dispose();
+  }
 
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
@@ -45,12 +63,40 @@ class _AddCampusPageState extends State<AddCampusPage> {
     );
   }
 
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    final updatedCampus = widget.campus.copyWith(
+      name: _nameController.text,
+      code: _typeController.text,
+      address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
+    );
+
+    final success = await CampusService.updateCampus(updatedCampus);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      if (success) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Terrein suksesvol opgedateer")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kon nie opdateer nie. Probeer weer."), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF0F172A), // Donker agtergrond soos in voorbeeld
       appBar: AppBar(
-        title: const Text("Voeg Nuwe Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Wysig Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -119,33 +165,16 @@ class _AddCampusPageState extends State<AddCampusPage> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: _isLoading ? null : () async {
-                          if (_formKey.currentState!.validate()) {
-                            setState(() => _isLoading = true);
-                            final campus = Campus(
-                              id: "0",
-                              name: _nameController.text,
-                              code: _typeController.text,
-                              address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
-                              location: _selectedLocation,
-                              rooms: [],
-                            );
-                            final success = await CampusService.addCampus(campus);
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                              if (success) Navigator.pop(context);
-                            }
-                          }
-                        },
+                        onPressed: _isSaving ? null : _save,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5E34),
+                          backgroundColor: const Color(0xFF8B5E34), // Bruinagtige kleur soos in prent
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        child: _isLoading
+                        child: _isSaving
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("Stoor"),
+                            : const Text("Opdateer"),
                       ),
                     ],
                   ),
