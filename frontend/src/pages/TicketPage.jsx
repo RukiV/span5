@@ -16,7 +16,9 @@ function TicketPage() {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
-  const [statusFilter, setStatusFilter] = useState("");    // Filter op status
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [sortBy, setSortBy] = useState("default");
+  const [sortDirection, setSortDirection] = useState("asc");
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -61,7 +63,7 @@ function TicketPage() {
         return;
       }
 
-      // Bou payload vir backend - kombineer titel en beskrywing
+      // Bou data vir backend - kombineer titel en beskrywing
       const payload = {
         fault_description: newTicket.title
           ? `${newTicket.title}${newTicket.description ? `: ${newTicket.description}` : ''}`
@@ -142,15 +144,58 @@ function TicketPage() {
     }
   };
 
-  const filteredTickets = tickets.filter((ticket) => {
-    const query = searchTerm.toLowerCase();
-    const description = ticket.fault_description || "";
-    const matchesSearch =
-      description.toLowerCase().includes(query) ||
-      (ticket.fault_type || "").toLowerCase().includes(query);
-    const matchesFilter = statusFilter === "" || ticket.fault_status === statusFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const extractTitle = (faultDescription) => {
+    if (!faultDescription) return "-";
+    const parts = faultDescription.split(":");
+    return parts[0].trim();
+  };
+
+  const translateStatus = (status) => {
+    const translations = {
+      wag: "Hangende",
+      open: "Oop",
+      bevestig: "Bevestig",
+      besig: "Besig",
+      opgelos: "Opgelost",
+      verwerp: "Verwerp"
+    };
+    return translations[status] || status || "-";
+  };
+
+  const translatePriority = (priority) => {
+    const translations = {
+      low: "Laag",
+      medium: "Medium",
+      high: "Hoog"
+    };
+    return translations[priority] || priority || "-";
+  };
+
+  const filteredTickets = [...tickets]
+    .filter((ticket) => {
+      const query = searchTerm.trim().toLowerCase();
+      const description = ticket.fault_description || "";
+      if (!query) return true;
+      const values = {
+        id: ticket.fault_id,
+        title: extractTitle(description),
+        category: ticket.fault_type,
+        priority: translatePriority(ticket.fault_priority),
+        status: translateStatus(ticket.fault_status),
+      };
+      const matchesColumn = filterColumn === 'all'
+        ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
+        : String(values[filterColumn] || '').toLowerCase().includes(query);
+      return matchesColumn;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'default') return 0;
+      const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * direction;
+      if (sortBy === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * direction;
+      return 0;
+    });
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -178,33 +223,6 @@ function TicketPage() {
       upgrade: "Upgrade"
     };
     return translations[category] || category || "-";
-  };
-
-  const extractTitle = (faultDescription) => {
-    if (!faultDescription) return "-";
-    const parts = faultDescription.split(":");
-    return parts[0].trim();
-  };
-
-  const translateStatus = (status) => {
-    const translations = {
-      wag: "Hangende",
-      open: "Oop",
-      bevestig: "Bevestig",
-      besig: "Besig",
-      opgelos: "Opgelost",
-      verwerp: "Verwerp"
-    };
-    return translations[status] || status || "-";
-  };
-
-  const translatePriority = (priority) => {
-    const translations = {
-      low: "Laag",
-      medium: "Medium",
-      high: "Hoog"
-    };
-    return translations[priority] || priority || "-";
   };
 
   if (loading) {
@@ -237,6 +255,7 @@ function TicketPage() {
           </li>
           <li><Link to="/fault-tickets" style={{ background: "#935e28" }}>Foutkaartjies</Link></li>
           <li><Link to="/work-orders">Werksopdragte</Link></li>
+          <li><Link to="/contractors">Kontrakteurs</Link></li>
           <li><Link to="/calendar">Kalender</Link></li>
           <li><Link to="/analysis">Analise</Link></li>
           <li><Link to="/reports">Verslae</Link></li>  
@@ -255,22 +274,37 @@ function TicketPage() {
 
         <div className="content">
           <div className="controls">
-            <input
-              type="text"
-              placeholder="Soek..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">Filter: Alle</option>
-              <option value="wag">Wag</option>
-              <option value="open">Oop</option>
-              <option value="bevestig">Bevestig</option>
-              <option value="besig">Besig</option>
-              <option value="opgelos">Opgelost</option>
-              <option value="verwerp">Verwerp</option>
-            </select>
-            <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
+            <div className="controls-left">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <input
+                  type="text"
+                  placeholder="Soek..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="title">Titel</option>
+                <option value="category">Kategorie</option>
+                <option value="priority">Prioriteit</option>
+                <option value="status">Status</option>
+              </select>
+            </div>
+            <div className="controls-right">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                <option value="default">Standaard</option>
+                <option value="id">ID</option>
+                <option value="title">Titel</option>
+                <option value="status">Status</option>
+              </select>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+              </div>
+              <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
+            </div>
           </div>
 
           <table className="standard-table">
@@ -378,7 +412,7 @@ function TicketPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-save" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>
