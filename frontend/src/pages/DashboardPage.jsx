@@ -185,7 +185,6 @@ const DashboardPage = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
-  
   const [assetStatusChartData, setAssetStatusChartData] = useState({
     labels: [],
     datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]
