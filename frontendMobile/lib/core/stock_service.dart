@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/stock.dart';
-import 'api_client.dart';
+import 'api/api_client.dart';
 
 // StockService: Manages the inventory levels and stock items available in the system.
 class StockService {
@@ -11,7 +11,7 @@ class StockService {
   // Fetches current stock levels from the backend.
   static Future<void> fetchStocks() async {
     try {
-      final response = await ApiClient.dio.get('/stock');
+      final response = await ApiClient().client.get('/stock');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _stocks.clear();
@@ -26,7 +26,7 @@ class StockService {
   // Adds a new stock item to the database.
   static Future<bool> addStock(Stock stock) async {
     try {
-      final response = await ApiClient.dio.post('/stock', data: stock.toJson());
+      final response = await ApiClient().client.post('/stock', data: stock.toJson());
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchStocks();
         return true;

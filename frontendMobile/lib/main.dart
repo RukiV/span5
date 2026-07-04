@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
 import 'core/app_colors.dart';
+import 'core/navigation.dart';
 
 
 // Global key for navigation across the app without context
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Moved to core/navigation.dart
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('af_ZA', null);
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
