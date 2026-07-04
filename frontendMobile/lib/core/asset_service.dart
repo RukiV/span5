@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../models/asset.dart';
-import 'api_client.dart';
+import 'api/api_client.dart';
 
 // AssetService: Manages the lifecycle and state of assets (equipment/hardware) in the app.
 class AssetService {
@@ -12,7 +12,7 @@ class AssetService {
   // Fetches all assets from the backend.
   static Future<void> fetchAssets() async {
     try {
-      final response = await ApiClient.dio.get('/assets');
+      final response = await ApiClient().client.get('/assets');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _assets.clear();
@@ -36,7 +36,7 @@ class AssetService {
   // Used by the reporting system to identify an asset from a scanned QR or barcode.
   static Future<Asset?> getAssetBySerialCode(String serialCode) async {
     try {
-      final response = await ApiClient.dio.get('/assets/serial/$serialCode');
+      final response = await ApiClient().client.get('/assets/serial/$serialCode');
       if (response.statusCode == 200) {
         return Asset.fromJson(response.data);
       }
@@ -57,7 +57,7 @@ class AssetService {
   // Adds a new asset to the backend and refreshes the local list.
   static Future<bool> addAsset(Asset asset) async {
     try {
-      final response = await ApiClient.dio.post('/assets', data: asset.toJson());
+      final response = await ApiClient().client.post('/assets', data: asset.toJson());
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchAssets();
         return true;
@@ -71,7 +71,7 @@ class AssetService {
   // FUTURE IDEA: Add an offline 'queue' for assets created while the user has no signal.
   static Future<void> updateAsset(Asset updatedAsset) async {
     try {
-      final response = await ApiClient.dio.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
+      final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
       if (response.statusCode == 200) {
         await fetchAssets();
       }

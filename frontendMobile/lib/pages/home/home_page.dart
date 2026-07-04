@@ -12,6 +12,7 @@ import 'reports_page.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
 
+import '../../core/api/api_client.dart';
 import '../../core/asset_service.dart';
 import '../../core/campus_service.dart';
 import '../../core/report_service.dart';
@@ -185,9 +186,12 @@ class _HomePageState extends State<HomePage> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
               title: const Text("Teken Uit", style: TextStyle(color: Colors.redAccent)),
-              onTap: () {
-                UserSession.role = UserRole.student;
-                Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+              onTap: () async {
+                await ApiClient().clearToken();
+                UserSession.clear();
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                }
               },
             ),
             const SizedBox(height: 20),

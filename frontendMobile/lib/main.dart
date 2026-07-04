@@ -5,10 +5,11 @@ import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
 import 'core/app_colors.dart';
+import 'core/navigation.dart';
 
 
 // Global key for navigation across the app without context
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Moved to core/navigation.dart
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
