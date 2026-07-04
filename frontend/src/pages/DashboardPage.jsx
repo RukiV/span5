@@ -7,7 +7,7 @@ import '../styles/App.css';
 import '../styles/Dashboard.css';
 import { useLogout } from './Page.jsx';
 import UserProfileHeader from '../components/UserProfileHeader';
-import { auditAPI, workOrdersAPI } from '../services/api';
+import { auditsAPI, workOrdersAPI } from '../services/api';
 import { apiClient } from '../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
@@ -101,7 +101,7 @@ const DashboardPage = () => {
       try {
         const [workOrdersResponse, auditResponse] = await Promise.all([
           workOrdersAPI.getAll(),
-          auditAPI.getAll(),
+          auditsAPI.getAll(),
         ]);
 
         const orders = Array.isArray(workOrdersResponse?.data) ? workOrdersResponse.data : [];
@@ -185,7 +185,7 @@ const DashboardPage = () => {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
-
+  
   const [assetStatusChartData, setAssetStatusChartData] = useState({
     labels: [],
     datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]

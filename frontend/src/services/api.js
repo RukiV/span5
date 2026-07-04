@@ -67,6 +67,7 @@ apiClient.interceptors.response.use(
 export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
   getById: (id) => apiClient.get(`/assets/${id}`),
+  getHistory: (id) => apiClient.get(`/assets/${id}/history`),
   getStatusSummary: () => apiClient.get('/assets/status-summary'),
   create: (data) => apiClient.post('/assets', data),
   update: (id, data) => apiClient.patch(`/assets/${id}`, data),  // Gebruik PATCH nie PUT
@@ -180,8 +181,15 @@ export const quotesAPI = {
   delete: (id) => apiClient.delete(`/quotes/${id}`),
 };
 
-export const auditAPI = {
+export const auditsAPI = {
+  getAllUnsorted: () => apiClient.get('/audit'),
   getAll: () => apiClient.get('/audit'),
+  getById: (id) => apiClient.get(`/audit/${id}`),
+  create: (data) => apiClient.post('/audit', data),
+  update: (id, data) => apiClient.patch(`/audit/${id}`, data),
+  delete: (id) => apiClient.delete(`/audit/${id}`),
+
+  getRoomChangesForAsset: (asset_id) => apiClient.get(`/audit/asset/${asset_id}`),
 };
 
 // Attach all API collections to apiClient
