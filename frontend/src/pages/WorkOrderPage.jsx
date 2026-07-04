@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -31,6 +31,7 @@ function WorkOrderPage() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [pendingJobcardId, setPendingJobcardId] = useState(null);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [contractors, setContractors] = useState([]);
@@ -71,8 +72,18 @@ function WorkOrderPage() {
     cost_recovery_notes: "",        // Kostetoerekening-aantekeninge
   });
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Haal almal data wanneer blad laai
   useEffect(() => {
+    const requestedJobcardId = searchParams.get('jobcard_id');
+    const requestedSearch = searchParams.get('search');
+    if (requestedJobcardId) {
+      setPendingJobcardId(Number(requestedJobcardId));
+    }
+    if (requestedSearch) {
+      setSearchTerm(requestedSearch);
+    }
     fetchWorkOrders();
     fetchAssets();
     fetchRooms();
@@ -117,6 +128,14 @@ function WorkOrderPage() {
       const response = await workOrdersAPI.getAll();
       const payload = response?.data ?? response;
       setWorkOrders(normalizeWorkOrdersPayload(payload));
+
+      if (pendingJobcardId) {
+        const matchingOrder = payload.find((payload) => payload.jobcard_id === pendingJobcardId);
+        if (matchingOrder) {
+          handleEditWorkOrder(matchingOrder);
+          setSearchParams({});
+        }
+      }
     } catch (error) {
       console.error("Fout by haal werksopdragte:", error);
       setWorkOrders([]);

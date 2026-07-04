@@ -1,4 +1,5 @@
-from typing import Optional
+from typing import Optional, Any
+from datetime import datetime
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -89,3 +90,19 @@ class AssetUpdate(SQLModel):
     asset_isoutdoor: Optional[bool] = None
     room_id: Optional[int] = None
     assettype_id: Optional[int] = None
+
+
+class AssetHistoryEventBase(SQLModel):
+    """Normalized asset timeline event for room and maintenance history."""
+    event_type: str
+    event_datetime: datetime
+    event_title: str
+    event_description: Optional[str] = None
+    asset_id: int
+    source: str
+    event_id: Optional[int] = None
+    event_metadata: Optional[dict[str, Any]] = None
+
+
+class AssetHistoryEventRead(AssetHistoryEventBase):
+    pass
