@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI, authAPI } from "../services/api";
+import { Link, useNavigate } from "react-router-dom";
+import { assetsAPI, roomsAPI, authAPI, workOrdersAPI, auditsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -10,6 +10,7 @@ import { useLogout } from "./Page.jsx";
 function AssetPage() {
   const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
+  const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,10 @@ function AssetPage() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [assetHistory, setAssetHistory] = useState([]);
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_serial: "",
@@ -32,6 +37,7 @@ function AssetPage() {
   useEffect(() => {
     fetchAssets();
     fetchRooms();
+    fetchJobs();
   }, []);
 
   // Valideer token met backend op mount — as dit ongeldig is, dwing uitlog
@@ -65,6 +71,30 @@ function AssetPage() {
       setRooms(response.data);
     } catch (error) {
       console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+      setJobs([]);
+    }
+  };
+
+  const fetchAssetHistory = async (asset_id) => {
+    if (!asset_id) {
+      return;
+    }
+
+    try {
+      const response = await assetsAPI.getHistory(asset_id);
+      setAssetHistory(response.data);
+    } catch (error) {
+      console.error("Error fetching asset history:", error);
+      setAssetHistory([]);
     }
   };
 
@@ -169,6 +199,17 @@ function AssetPage() {
     return `Room ${item.room_id}`;
   };
 
+  const handleViewHistory = (asset) => {
+    setSelectedAsset(asset);
+    fetchAssetHistory(asset.asset_id);
+    setShowHistoryModal(true);
+  };
+
+  const handleOpenJobcard = (jobcardId) => {
+    setShowHistoryModal(false);
+    navigate(`/work-orders?search=${jobcardId}`);
+  };
+  
   const filteredItems = [...assets]
     .filter((asset) => {
       const query = searchTerm.trim().toLowerCase();
@@ -351,6 +392,9 @@ function AssetPage() {
                     </span>
                   </td>
                   <td>
+                    <button className="btn-view" onClick={() => handleViewHistory(item)}>
+                      Besigtig Geskiedenis
+                    </button>
                     <button className="btn-edit" onClick={() => handleEditAsset(item)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
                   </td>
@@ -431,6 +475,62 @@ function AssetPage() {
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && selectedAsset && (
+        <div className="modal" style={{ display: "flex" }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Geskiedenis van {(selectedAsset.asset_serial)} - {selectedAsset.asset_name}</h3>
+              <span className="close" onClick={() => setShowHistoryModal(false)}>&times;</span>
+            </div>
+            <div className="modal-body">
+              {assetHistory && assetHistory.length > 0 ? (
+                <table className="assets-table">
+                  <tbody>
+                    {assetHistory.map((event) => {
+                      const eventDate = new Date(event.event_datetime).toLocaleDateString('af-ZA');
+                      const eventTime = new Date(event.event_datetime).toLocaleTimeString('af-ZA', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                      const eventText = event.event_description
+                        ? `${event.event_title} — ${event.event_description}`
+                        : event.event_title;
+
+                      return (
+                        <React.Fragment key={`${event.source}-${event.event_id || event.event_datetime}`}>
+                          <tr>
+                            <td colSpan="3" className="history-date-row">
+                              {eventDate}
+                            </td>
+                            <td>{eventTime}</td>
+                            <td>{eventText}</td>
+                            <td>
+                              {event.source === 'job' && event.event_id ? (
+                                <button
+                                  type="button"
+                                  className="btn-view"
+                                  onClick={() => handleOpenJobcard(event.event_id)}
+                                >
+                                  Bekyk
+                                </button>
+                              ) : (
+                                <span></span>
+                              )}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <p>Geen geskiedenis beskikbaar vir hierdie bate.</p>
+              )}
             </div>
           </div>
         </div>
