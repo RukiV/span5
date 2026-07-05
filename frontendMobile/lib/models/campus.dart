@@ -1,4 +1,5 @@
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'building.dart';
 
 class Campus {
   final String id;
@@ -6,9 +7,9 @@ class Campus {
   final String code;
   final String address;
   final LatLng location;
-  final double radius; 
+  final double radius;
   final String? imageAsset;
-  final List<String> rooms; // Word gestoor as "ID:Name"
+  final List<Building> buildings;
 
   Campus({
     required this.id,
@@ -18,7 +19,7 @@ class Campus {
     required this.location,
     this.radius = 110,
     this.imageAsset,
-    this.rooms = const [],
+    this.buildings = const [],
   });
 
   Campus copyWith({
@@ -29,7 +30,7 @@ class Campus {
     LatLng? location,
     double? radius,
     String? imageAsset,
-    List<String>? rooms,
+    List<Building>? buildings,
   }) {
     return Campus(
       id: id ?? this.id,
@@ -39,7 +40,7 @@ class Campus {
       location: location ?? this.location,
       radius: radius ?? this.radius,
       imageAsset: imageAsset ?? this.imageAsset,
-      rooms: rooms ?? this.rooms,
+      buildings: buildings ?? this.buildings,
     );
   }
 
@@ -48,7 +49,7 @@ class Campus {
     'location_type': code,
     'location_streetnum': address.split(' ').first,
     'location_streetname': address.split(' ').skip(1).join(' '),
-    'zipcode_id': 1, // Default vir nou
+    'zipcode_id': 1,
   };
 
   factory Campus.fromJson(Map<String, dynamic> json) => Campus(
@@ -56,10 +57,12 @@ class Campus {
     name: json['location_name'] ?? '',
     code: json['location_type'] ?? 'KAMPUS',
     address: "${json['location_streetnum'] ?? ''} ${json['location_streetname'] ?? ''}".trim(),
-    location: const LatLng(-25.8480, 28.2366), // Backend stoor nie tans lat/lng in Location nie
+    location: const LatLng(-25.8480, 28.2366),
     radius: 110.0,
     imageAsset: null,
-    rooms: [], // Moet apart gelaai word via rooms endpoint
+    buildings: json['buildings'] != null
+        ? (json['buildings'] as List).map((b) => Building.fromJson(b)).toList()
+        : [],
   );
 
   @override

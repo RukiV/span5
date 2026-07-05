@@ -4,7 +4,7 @@ import '../assets/assets_page.dart';
 import '../assets/stock_page.dart';
 import '../admin/campus_management_page.dart';
 import '../admin/manage_rooms_page.dart';
-import '../contractor/job_cards_page.dart';
+import '../admin/buildings_list_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
@@ -86,6 +86,11 @@ class _HomePageState extends State<HomePage> {
         'title': 'Terreine',
         'icon': Icons.map_outlined,
         'page': const CampusManagementPage(),
+      },
+      {
+        'title': 'Geboue',
+        'icon': Icons.business_outlined,
+        'page': const BuildingsListPage(),
       },
       {
         'title': 'Lokale',

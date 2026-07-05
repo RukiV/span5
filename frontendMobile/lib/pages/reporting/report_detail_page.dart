@@ -1,5 +1,4 @@
 import 'edit_report_page.dart';
-import 'handle_report_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/report_service.dart';
@@ -244,38 +243,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       ),
       child: Text(priority, style: TextStyle(color: col, fontWeight: FontWeight.bold, fontSize: 11)),
     );
-  }
-
-  Future<void> _markAsComplete() async {
-    final success = await ReportService.updateReportStatus(_currentReport.id, "Voltooi");
-    if (success && mounted) {
-      _refreshData();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Verslag gemerk as Voltooi"), backgroundColor: Colors.green));
-    }
-  }
-
-  Widget _buildPriorityButton(BuildContext context, String label, Color color) {
-    bool isSelected = _currentReport.priority == label;
-    return InkWell(
-      onTap: () => _updatePriorityOnly(label, color),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? color : color.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color, width: 1.5),
-        ),
-        child: Text(label, style: TextStyle(color: isSelected ? Colors.white : color, fontWeight: FontWeight.bold, fontSize: 12)),
-      ),
-    );
-  }
-
-  Future<void> _updatePriorityOnly(String priority, Color color) async {
-    final success = await ReportService.updateReportPriority(_currentReport.id, priority);
-    if (success && mounted) {
-      _refreshData();
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Prioriteit verander na $priority"), backgroundColor: color));
-    }
   }
 
   Widget _buildSectionHeader(String title) {

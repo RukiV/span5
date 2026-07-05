@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
-import '../../models/user_session.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -78,7 +77,7 @@ class _CalendarPageState extends State<CalendarPage> {
               eventLoader: (day) => _getEventsForDay(day),
               calendarStyle: CalendarStyle(
                 todayDecoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.3),
+                  color: AppColors.gold.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
                 selectedDecoration: const BoxDecoration(
@@ -129,7 +128,7 @@ class _CalendarPageState extends State<CalendarPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_busy, size: 48, color: Colors.grey.withOpacity(0.5)),
+            Icon(Icons.event_busy, size: 48, color: Colors.grey.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
             const Text("Geen gebeure vir hierdie dag nie.", style: TextStyle(color: Colors.grey)),
           ],
