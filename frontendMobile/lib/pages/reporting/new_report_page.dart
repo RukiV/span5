@@ -1,10 +1,8 @@
 import '../../widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import '../../models/user_session.dart';
 import '../../core/campus_service.dart';
-import '../../core/camera_service.dart';
 import '../../core/app_colors.dart';
 import 'scan_page.dart';
 
@@ -30,6 +28,7 @@ class _NewReportPageState extends State<NewReportPage> {
   final TextEditingController descController = TextEditingController();
 
   String? selectedCampus;
+  String? selectedBuilding;
   String? selectedLocation;
   String? selectedCategory;
   String selectedPriority = "Laag";
@@ -50,16 +49,20 @@ class _NewReportPageState extends State<NewReportPage> {
     super.dispose();
   }
 
-  List<String> get filteredRooms {
+  List<String> get filteredBuildings {
     if (selectedCampus == null) return [];
-    try {
-      final campus = CampusService.campusesNotifier.value.firstWhere(
-        (c) => c.name == selectedCampus,
-      );
-      return campus.rooms;
-    } catch (_) {
-      return [];
-    }
+    final campus = CampusService.getCampusByName(selectedCampus!);
+    if (campus == null) return [];
+    return campus.buildings.map((b) => b.name).toList();
+  }
+
+  List<String> get filteredRooms {
+    if (selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(selectedCampus ?? '');
+    if (campus == null) return [];
+    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+    if (building == null) return [];
+    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
   bool isInvisibleCode = false;
   bool isUnknownLocation = false;
@@ -138,11 +141,28 @@ class _NewReportPageState extends State<NewReportPage> {
                                 .toList(),
                             onChanged: (v) => setState(() {
                               selectedCampus = v;
+                              selectedBuilding = null;
                               selectedLocation = null;
                             }),
                             validator: (v) => v == null ? "Kampus word vereis" : null,
                           );
                         },
+                      ),
+
+                      const SizedBox(height: sectionGap),
+
+                      CustomDropdown<String>(
+                        label: "Gebou *",
+                        hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies Gebou",
+                        value: selectedBuilding,
+                        items: filteredBuildings
+                            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                            .toList(),
+                        onChanged: (v) => setState(() {
+                          selectedBuilding = v;
+                          selectedLocation = null;
+                        }),
+                        validator: (v) => v == null ? "Gebou word vereis" : null,
                       ),
 
                       const SizedBox(height: sectionGap),
@@ -162,7 +182,7 @@ class _NewReportPageState extends State<NewReportPage> {
                         _buildLocationInput()
                       else
                         CustomDropdown<String>(
-                          hint: selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal",
+                          hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
                           value: selectedLocation,
                           items: filteredRooms.map((r) {
                             final name = r.contains(":") ? r.split(":").last : r;
@@ -237,10 +257,10 @@ class _NewReportPageState extends State<NewReportPage> {
                               roomId = selectedLocation!.split(":").first;
                             }
 
-                            // Map prioriteit (Backend verwag: laag, medium, hoog)
-                            String backendPriorityStr = "laag";
-                            if (selectedPriority == "Medium") backendPriorityStr = "medium";
-                            if (selectedPriority == "Hoog") backendPriorityStr = "hoog";
+                            // Map prioriteit (Backend verwag: Laag, Medium, Hoog)
+                            String backendPriorityStr = "Laag";
+                            if (selectedPriority == "Medium") backendPriorityStr = "Medium";
+                            if (selectedPriority == "Hoog") backendPriorityStr = "Hoog";
 
                             final newReport = Report(
                               id: "0",
@@ -357,7 +377,10 @@ class _NewReportPageState extends State<NewReportPage> {
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
       ),
-      hint: Text(selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal", style: const TextStyle(fontSize: 14)),
+      hint: Text(
+        selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
+        style: const TextStyle(fontSize: 14),
+      ),
       items: filteredRooms.map((r) {
         final name = r.contains(":") ? r.split(":").last : r;
         return DropdownMenuItem(value: r, child: Text(name));
