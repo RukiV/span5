@@ -178,7 +178,7 @@ packages:
     source: hosted
     version: "5.9.2"
   dio_cache_interceptor:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: dio_cache_interceptor
       sha256: "3644ce3e0c9ba21885cbb0578b3d2ffe022c8badc6f6f4042cb56ecdbe90a7ad"
