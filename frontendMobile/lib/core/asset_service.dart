@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import '../models/asset.dart';
-import 'api/api_client.dart';
+import 'api_client.dart';
 
 // AssetService: Manages the lifecycle and state of assets (equipment/hardware) in the app.
 class AssetService {

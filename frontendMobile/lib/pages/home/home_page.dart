@@ -12,7 +12,7 @@ import 'reports_page.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
 
-import '../../core/api/api_client.dart';
+import '../../core/api_client.dart';
 import '../../core/asset_service.dart';
 import '../../core/campus_service.dart';
 import '../../core/report_service.dart';

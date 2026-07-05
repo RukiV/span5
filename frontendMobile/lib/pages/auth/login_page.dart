@@ -7,7 +7,7 @@ import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
 import '../../core/navigation.dart';
 import '../../models/user_session.dart';
-import '../../core/api/api_client.dart';
+import '../../core/api_client.dart';
 import '../../core/auth_config.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.

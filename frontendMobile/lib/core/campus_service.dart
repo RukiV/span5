@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/campus.dart';
-import 'api/api_client.dart';
+import 'api_client.dart';
 
 // CampusService: Manages campus locations and their associated rooms.
 class CampusService {
