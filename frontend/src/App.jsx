@@ -14,6 +14,7 @@ import AnalysisPage from './pages/AnalysisPage';
 import CalendarPage from './pages/CalendarPage';
 import RoomsPage from './pages/RoomsPage';
 import TerrainsPage from './pages/TerrainsPage';
+import BuildingsPage from './pages/BuildingsPage';
 import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
 
@@ -96,6 +97,7 @@ function App() {
         <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
         <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
         <Route path="/terrains" element={<ProtectedRoute><TerrainsPage /></ProtectedRoute>} />
+        <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
         
         {/* As die gebruiker op "/" land, stuur hulle outomaties na die dashboard via ProtectedRoute */}

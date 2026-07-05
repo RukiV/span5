@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { locationAPI } from "../services/api";
+import { buildingsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import "../styles/Rooms.css";
@@ -11,12 +11,15 @@ function TerrainsPage() {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const [terrains, setTerrains] = useState([]);
+  const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
   const [showModal, setShowModal] = useState(false);
+  const [showBuildingsModal, setShowBuildingsModal] = useState(false);
+  const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [newTerrain, setNewTerrain] = useState({
@@ -29,6 +32,7 @@ function TerrainsPage() {
 
   useEffect(() => {
     fetchTerrains();
+    fetchBuildings();
   }, []);
 
   const fetchTerrains = async () => {
@@ -39,6 +43,15 @@ function TerrainsPage() {
       console.error("Error fetching terrains:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBuildings = async () => {
+    try {
+      const response = await buildingsAPI.getAll();
+      setBuildings(response.data || []);
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
     }
   };
 
@@ -86,6 +99,24 @@ function TerrainsPage() {
       console.error("Error deleting terrain:", error);
       alert("Fout tydens verwydering. Probeer asseblief weer.");
     }
+  };
+
+  const handleViewBuildings = (terrain) => {
+    setSelectedTerrain(terrain);
+    setShowBuildingsModal(true);
+  };
+
+  const getBuildingsForTerrain = (locationId) => buildings.filter((b) => b.location_id === locationId);
+
+  const translateBuildingType = (type) => {
+    const translations = {
+      admin: "Admin",
+      onderwys: "Onderwys",
+      laboratory: "Laboratorium",
+      warehouse: "Pakhuis",
+      other: "Ander",
+    };
+    return translations[type] || type;
   };
 
   const handleEditTerrain = (item) => {
@@ -164,6 +195,7 @@ function TerrainsPage() {
                 </div>
                 <div className="dropdown-content">
                     <li><Link to="/rooms">Lokale</Link></li>
+                    <li><Link to="/buildings">Geboue</Link></li>
                     <li><Link to="/terrains" style={{ background: '#935e28' }}>Terreine</Link></li>
                 </div>
             </li>
@@ -241,6 +273,7 @@ function TerrainsPage() {
                   <td>{terrain.location_streetnum || '-'}</td>
                   <td>{terrain.location_streetname || '-'}</td>
                   <td>
+                    <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
                     <button className="btn-edit" onClick={() => handleEditTerrain(terrain)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTerrain(terrain.location_id)}>Verwyder</button>
                   </td>
@@ -307,6 +340,44 @@ function TerrainsPage() {
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showBuildingsModal && selectedTerrain && (
+        <div className="modal" style={{ display: "flex" }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Geboue in {selectedTerrain.location_name}</h3>
+              <span className="close" onClick={() => setShowBuildingsModal(false)}>&times;</span>
+            </div>
+            <div className="modal-body">
+              {getBuildingsForTerrain(selectedTerrain.location_id).length > 0 ? (
+                <table className="standard-table">
+                  <thead>
+                    <tr>
+                      <th>ID Gebou</th>
+                      <th>Naam</th>
+                      <th>Tipe</th>
+                      <th>Straatnommer</th>
+                      <th>Straatnaam</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
+                      <tr key={building.building_id}>
+                        <td>{building.building_id}</td>
+                        <td>{building.building_name}</td>
+                        <td>{translateBuildingType(building.building_type)}</td>
+                        <td>{building.building_streetnum || '-'}</td>
+                        <td>{building.building_streetname || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p>Geen geboue op hierdie terrein.</p>
+              )}
             </div>
           </div>
         </div>
