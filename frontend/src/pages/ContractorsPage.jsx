@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { contractorsAPI } from '../services/api';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useLogout } from './Page.jsx';
+import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 import '../styles/App.css';
 
@@ -204,36 +205,7 @@ function ContractorsPage() {
 
   return (
     <div >
-      <div className="sidebar">
-        <h2>FBS</h2>
-        <ul>
-          <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li className="dropdown" >
-            <div className="dropdown-trigger"><span>Bates & Voorraad</span></div>
-            <div className="dropdown-content">
-              <Link to="/assets">Bates</Link>
-              <Link to="/stock">Voorraad</Link>
-            </div>
-          </li>
-          <li className="dropdown" >
-            <div className="dropdown-trigger"><span>Lokale & Terreine</span></div>
-            <div className="dropdown-content">
-              <Link to="/rooms">Lokale</Link>
-              <Link to="/terrains">Terreine</Link>
-            </div>
-          </li>
-          <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
-          <li><Link to="/contractors" style={{ background: '#935e28' }}>Kontrakteurs</Link></li>
-          <li><Link to="/calendar">Kalender</Link></li>
-          <li><Link to="/analysis">Analise</Link></li>
-          <li><Link to="/reports">Verslae</Link></li>
-          {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
-        </ul>
-        <div className="logout-container">
-          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
-        </div>
-      </div>
+      <Sidebar currentPath="/contractors" isAdmin={isAdmin} onLogout={logout} />
 
       <div className="main">
         <div className="navbar">

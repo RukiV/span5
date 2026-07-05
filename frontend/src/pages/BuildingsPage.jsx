@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
@@ -205,41 +206,7 @@ function BuildingsPage() {
 
   return (
     <div style={{ display: "flex" }}>
-      <div className="sidebar">
-        <h2>FBS</h2>
-        <ul>
-            <li><Link to="/dashboard">Paneelbord</Link></li>
-            <li class="dropdown" >
-                <div className="dropdown-trigger">
-                    <span>Bates & Voorraad</span>
-                </div>
-                    <div className="dropdown-content">
-                    <Link to="/assets">Bates</Link>
-                    <Link to="/stock">Voorraad</Link>
-                    </div>
-            </li>
-                <li class="dropdown" style={{ background: '#935e28' }}>
-                <div className="dropdown-trigger">
-                    <span>Lokale & Terreine</span>
-                </div>
-                <div className="dropdown-content">
-                    <li><Link to="/rooms">Lokale</Link></li>
-                    <li><Link to="/buildings" style={{ background: '#935e28' }}>Geboue</Link></li>
-                    <li><Link to="/terrains">Terreine</Link></li>
-                </div>
-            </li>
-            <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-            <li><Link to="/work-orders">Werksopdragte</Link></li>
-            <li><Link to="/contractors">Kontrakteurs</Link></li>
-            <li><Link to="/calendar">Kalender</Link></li>
-            <li><Link to="/analysis">Analise</Link></li>
-            <li><Link to="/reports">Verslae</Link></li>  
-            {isAdmin && <li><Link to="/users">Gebruikers</Link></li>}
-        </ul>
-        <div className="logout-container">
-          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
-        </div>
-      </div>
+      <Sidebar currentPath="/buildings" isAdmin={isAdmin} onLogout={logout} />
 
       <div className="main">
         <div className="navbar">
