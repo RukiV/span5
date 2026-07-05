@@ -32,13 +32,21 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:8000}
-        REACT_APP_MICROSOFT_CLIENT_ID: ${REACT_APP_MICROSOFT_CLIENT_ID:-your_client_id_here}
-        REACT_APP_MICROSOFT_TENANT_ID: ${REACT_APP_MICROSOFT_TENANT_ID:-your_tenant_id_here}
-        REACT_APP_REDIRECT_URI: ${REACT_APP_REDIRECT_URI:-http://localhost:3000/auth/callback}
+      dockerfile: Dockerfile.dev
     ports:
-      - "3000:80"
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-your_client_id_here}
+      - REACT_APP_MICROSOFT_TENANT_ID=common
+      - REACT_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+    stdin_open: true
+    tty: true
     depends_on:
       - backend
 

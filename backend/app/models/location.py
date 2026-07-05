@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
-from .enums import RoomType
+from .enums import BuildingType, RoomType
 from .validators import sanitize_text, validate_positive_int
 
 class ZipcodeBase(SQLModel):
@@ -39,6 +39,45 @@ class ZipcodeUpdate(SQLModel):
     zipcode_city: Optional[str] = None
     zipcode_province: Optional[str] = None
     zipcode_country: Optional[str] = None
+
+
+class BuildingBase(SQLModel):
+    """Base model for building data."""
+    building_name: str = Field(max_length=100)
+    building_type: BuildingType = Field(default=BuildingType.OTHER)
+    building_streetnum: str = Field(max_length=20)
+    building_streetname: str = Field(max_length=100)
+
+    @field_validator('building_name', 'building_streetnum', 'building_streetname', mode='before')
+    @classmethod
+    def _sanitize_building(cls, v, info):
+        return sanitize_text(v)
+
+
+class Building(BuildingBase, Base, table=True):
+    """Model for building data."""
+    building_id: Optional[int] = Field(default=None, primary_key=True)
+    location_id: int = Field(foreign_key="location.location_id")
+
+
+class BuildingCreate(BuildingBase):
+    """Input model for creating building records."""
+    location_id: int
+
+
+class BuildingRead(BuildingBase):
+    """Output model for reading building records."""
+    building_id: int
+    location_id: int
+
+
+class BuildingUpdate(SQLModel):
+    """Input model for updating building records."""
+    building_name: Optional[str] = None
+    building_type: Optional[BuildingType] = None
+    building_streetnum: Optional[str] = None
+    building_streetname: Optional[str] = None
+    location_id: Optional[int] = None
 
 
 class LocationBase(SQLModel):
@@ -100,18 +139,18 @@ class RoomBase(SQLModel):
 class Room(RoomBase, Base, table=True):
     """Model for room data."""
     room_id: Optional[int] = Field(default=None, primary_key=True)
-    location_id: int = Field(foreign_key="location.location_id")
+    building_id: int = Field(foreign_key="building.building_id")
 
 
 class RoomCreate(RoomBase):
     """Input model for creating room records."""
-    location_id: int
+    building_id: int
 
 
 class RoomRead(RoomBase):
     """Output model for reading room records."""
     room_id: int
-    location_id: int
+    building_id: int
 
 
 class RoomUpdate(SQLModel):
@@ -119,4 +158,4 @@ class RoomUpdate(SQLModel):
     room_name: Optional[str] = None
     room_capacity: Optional[int] = None
     room_type: Optional[RoomType] = None
-    location_id: Optional[int] = None
+    building_id: Optional[int] = None
