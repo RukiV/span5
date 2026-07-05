@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
+import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 
 function UsersPage() {
@@ -244,40 +245,7 @@ function UsersPage() {
 
   return (
     <div style={{ display: 'flex' }}>
-      <div className="sidebar">
-        <h2>FBS</h2>
-        <ul>
-          <li><Link to="/dashboard">Paneelbord</Link></li>
-          <li class="dropdown" >
-            <div className="dropdown-trigger">
-                <span>Bates & Voorraad</span>
-            </div>
-                <div className="dropdown-content">
-                <Link to="/assets">Bates</Link>
-                <Link to="/stock">Voorraad</Link>
-                </div>
-          </li>
-            <li class="dropdown">
-            <div className="dropdown-trigger">
-                <span>Lokale & Terreine</span>
-            </div>
-            <div className="dropdown-content">
-                <li><Link to="/rooms">Lokale</Link></li>
-                <li><Link to="/terrains">Terreine</Link></li>
-            </div>
-          </li>
-          <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
-          <li><Link to="/work-orders">Werksopdragte</Link></li>
-          <li><Link to="/contractors">Kontrakteurs</Link></li>
-          <li><Link to="/calendar">Kalender</Link></li>
-          <li><Link to="/analysis">Analise</Link></li>
-          <li><Link to="/reports">Verslae</Link></li>
-          <li><Link to="/users" style={{ background: "#935e28" }}>Gebruikers</Link></li>
-        </ul>
-        <div className="logout-container">
-          <button type="button" className="btn-logout-sidebar" onClick={() => logout()}>Teken Uit</button>
-        </div>
-      </div>
+      <Sidebar currentPath="/users" isAdmin={true} onLogout={logout} />
 
       <div className="main">
         <div className="navbar">

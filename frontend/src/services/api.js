@@ -92,6 +92,15 @@ export const roomsAPI = {
   delete: (id) => apiClient.delete(`/rooms/${id}`),
 };
 
+// ===== GEBOU-BESTUUR-API =====
+export const buildingsAPI = {
+  getAll: () => apiClient.get('/building'),
+  getById: (id) => apiClient.get(`/building/${id}`),
+  create: (data) => apiClient.post('/building', data),
+  update: (id, data) => apiClient.patch(`/building/${id}`, data),
+  delete: (id) => apiClient.delete(`/building/${id}`),
+};
+
 // ===== LOKASIES/TERREINE-API =====
 export const locationAPI = {
   getAll: () => apiClient.get('/location'),
@@ -196,6 +205,7 @@ export const auditsAPI = {
 apiClient.assets = assetsAPI;
 apiClient.stock = stockAPI;
 apiClient.rooms = roomsAPI;
+apiClient.buildings = buildingsAPI;
 apiClient.location = locationAPI;
 apiClient.tickets = ticketsAPI;
 apiClient.workOrders = workOrdersAPI;
