@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { assetsAPI, roomsAPI, locationAPI } from "../services/api";
+import { assetsAPI, buildingsAPI, roomsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Rooms.css";
@@ -14,6 +14,7 @@ function RoomsPage() {
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
   const [terrains, setTerrains] = useState([]);
+  const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -29,11 +30,12 @@ function RoomsPage() {
     room_capacity: "",
     room_type: "other",
     location_id: "",
+    building_id: "",
   });
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchRooms(), fetchAssets(), fetchTerrains()]);
+      await Promise.all([fetchRooms(), fetchAssets(), fetchTerrains(), fetchBuildings()]);
     };
     loadData();
   }, []);
@@ -68,6 +70,15 @@ function RoomsPage() {
     }
   };
 
+  const fetchBuildings = async () => {
+    try {
+      const response = await buildingsAPI.getAll();
+      setBuildings(response.data || []);
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
+    }
+  };
+
   const translateRoomType = (type) => {
     const translations = {
       classroom: "Klaslokaal",
@@ -84,8 +95,8 @@ function RoomsPage() {
       return;
     }
 
-    if (!newRoom.location_id) {
-      alert("Voer asseblief 'n terrein in");
+    if (!newRoom.building_id) {
+      alert("Voer asseblief 'n gebou in");
       return;
     }
 
@@ -93,7 +104,7 @@ function RoomsPage() {
       room_name: newRoom.room_name,
       room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : null,
       room_type: newRoom.room_type,
-      location_id: Number(newRoom.location_id),
+      building_id: Number(newRoom.building_id),
     };
 
     try {
@@ -111,13 +122,15 @@ function RoomsPage() {
   };
 
   const handleEditRoom = (room) => {
+    const building = buildings.find((b) => b.building_id === room.building_id);
     setIsEditing(true);
     setEditingId(room.room_id);
     setNewRoom({
       room_name: room.room_name || "",
       room_capacity: room.room_capacity ?? "",
       room_type: room.room_type || "other",
-      location_id: room.location_id ?? "",
+      location_id: building ? building.location_id : "",
+      building_id: room.building_id ?? "",
     });
     setShowModal(true);
   };
@@ -143,6 +156,7 @@ function RoomsPage() {
       room_capacity: "",
       room_type: "other",
       location_id: "",
+      building_id: "",
     });
     setShowModal(true);
   };
@@ -156,6 +170,7 @@ function RoomsPage() {
       room_capacity: "",
       room_type: "other",
       location_id: "",
+      building_id: "",
     });
   };
 
@@ -171,6 +186,16 @@ function RoomsPage() {
     return terrain ? terrain.location_name : "-";
   };
 
+  const getBuildingName = (buildingId) => {
+    const building = buildings.find((b) => b.building_id === buildingId);
+    return building ? building.building_name : "-";
+  };
+
+  const getBuildingTerrainId = (buildingId) => {
+    const building = buildings.find((b) => b.building_id === buildingId);
+    return building ? building.location_id : null;
+  };
+
   const filteredRooms = [...rooms]
     .filter((room) => {
       const query = searchTerm.trim().toLowerCase();
@@ -179,7 +204,7 @@ function RoomsPage() {
         id: room.room_id,
         name: room.room_name,
         type: translateRoomType(room.room_type || 'other'),
-        terrain: getTerrainName(room.location_id),
+        building: getBuildingName(room.building_id),
         capacity: room.room_capacity,
       };
       if (filterColumn === 'all') {
@@ -226,8 +251,9 @@ function RoomsPage() {
                   <span>Lokale & Terreine</span>
               </div>
               <div className="dropdown-content">
-                  <li><Link to="/rooms" style={{ background: '#935e28' }}>Lokale</Link></li>
-                  <li><Link to="/terrains">Terreine</Link></li>
+                    <li><Link to="/rooms" style={{ background: '#935e28' }}>Lokale</Link></li>
+                    <li><Link to="/buildings">Geboue</Link></li>
+                    <li><Link to="/terrains">Terreine</Link></li>
               </div>
           </li>
           <li><Link to="/fault-tickets">Foutkaartjies</Link></li>
@@ -266,7 +292,7 @@ function RoomsPage() {
                 <option value="id">ID</option>
                 <option value="name">Naam</option>
                 <option value="type">Tipe</option>
-                <option value="terrain">Terrein</option>
+                <option value="building">Gebou</option>
                 <option value="capacity">Kapasiteit</option>
               </select>
             </div>
@@ -291,7 +317,7 @@ function RoomsPage() {
                 <th>ID Lokaal</th>
                 <th>Naam</th>
                 <th>Tipe</th>
-                <th>Terrein</th>
+                <th>Gebou</th>
                 <th>Kapasiteit</th>
                 <th>Aksies</th>
               </tr>
@@ -302,7 +328,7 @@ function RoomsPage() {
                   <td>{room.room_id}</td>
                       <td>{room.room_name}</td>
                   <td>{translateRoomType(room.room_type || 'other')}</td>
-                  <td>{getTerrainName(room.location_id)}</td>
+                  <td>{getBuildingName(room.building_id)}</td>
                   <td>{room.room_capacity ?? '-'}</td>
                   <td>
                     <button className="btn-view" onClick={() => handleViewAssets(room)}>
@@ -339,10 +365,22 @@ function RoomsPage() {
                 />
               </div>
               <div className="input-group">
+                <label>Kapasiteit</label>
+                <input
+                  type="number"
+                  value={newRoom.room_capacity}
+                  onChange={(e) => setNewRoom({ ...newRoom, room_capacity: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="input-row">
+              <div className="input-group">
                 <label>Terrein</label>
                 <select
                   value={newRoom.location_id}
-                  onChange={(e) => setNewRoom({ ...newRoom, location_id: e.target.value })}
+                  onChange={(e) => {
+                    setNewRoom({ ...newRoom, location_id: e.target.value, building_id: "" });
+                  }}
                 >
                   <option value="">Kies 'n terrein</option>
                   {terrains.map((terrain) => (
@@ -350,15 +388,43 @@ function RoomsPage() {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="input-row">
               <div className="input-group">
-                <label>Kapasiteit</label>
-                <input
-                  type="number"
-                  value={newRoom.room_capacity}
-                  onChange={(e) => setNewRoom({ ...newRoom, room_capacity: e.target.value })}
-                />
+                <label>Gebou</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {newRoom.location_id ? (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="Soek gebou..."
+                        onChange={(e) => setNewRoom({ ...newRoom, _buildingSearch: e.target.value })}
+                        style={{ padding: '0.3rem', fontSize: '0.8rem' }}
+                      />
+                      <select
+                        value={newRoom.building_id}
+                        onChange={(e) => setNewRoom({ ...newRoom, building_id: e.target.value })}
+                      >
+                        <option value="">Kies 'n gebou</option>
+                        {buildings
+                          .filter((b) => b.location_id === Number(newRoom.location_id))
+                          .filter((b) => {
+                            const search = (newRoom._buildingSearch || '').toLowerCase();
+                            if (!search) return true;
+                            return b.building_name.toLowerCase().includes(search) ||
+                                   String(b.building_id).includes(search);
+                          })
+                          .map((building) => (
+                            <option key={building.building_id} value={building.building_id}>
+                              {building.building_name}
+                            </option>
+                          ))}
+                      </select>
+                    </>
+                  ) : (
+                    <select disabled>
+                      <option value="">Kies eers 'n terrein</option>
+                    </select>
+                  )}
+                </div>
               </div>
             </div>
             <div className="input-row">
@@ -387,7 +453,7 @@ function RoomsPage() {
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>Bates in {getTerrainName(selectedRoom.location_id)} - {selectedRoom.room_name}</h3>
+              <h3>Bates in {getBuildingName(selectedRoom.building_id)} - {selectedRoom.room_name}</h3>
               <span className="close" onClick={() => setShowAssetsModal(false)}>&times;</span>
             </div>
             <div className="modal-body">

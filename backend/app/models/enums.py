@@ -36,6 +36,14 @@ class AssetStatus(Enum):
     MAINTENANCE = "maintenance"
     DECOMMISSIONED = "decommissioned"   
 
+class BuildingType(Enum):
+    """Enumeration for building type values."""
+    ADMIN = "admin"
+    EDUCATIONAL = "onderwys"
+    LABORATORY = "laboratory"
+    WAREHOUSE = "warehouse"
+    OTHER = "other"
+
 class RoomType(Enum):
     """Enumeration for room type values."""
     OFFICE = "Kantoor"
