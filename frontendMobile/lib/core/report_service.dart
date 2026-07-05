@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/report.dart';
-import 'api/api_client.dart';
+import 'api_client.dart';
 
 // ReportService: Hanteer alle logika vir die skep, haal en opdatering van foutverslae.
 class ReportService {
