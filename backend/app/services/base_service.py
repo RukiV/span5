@@ -75,7 +75,6 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
 
         session.add(obj)
         try:
-            # flush to assign PKs so we can reference the affected id in the audit
             session.flush()
             affected_id = self._extract_obj_id(obj)
             self._create_audit_log(
@@ -83,7 +82,7 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                 "create",
                 {
                     "previous_value": None,
-                    "new_value": data.model_dump(mode="json"),
+                    "new_value": obj.model_dump(mode="json"),
                 },
                 affected_columns=None,
                 user_id=user_id,
