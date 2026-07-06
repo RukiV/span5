@@ -22,7 +22,7 @@ function Sidebar({ currentPath, isAdmin, onLogout }) {
         </li>
         <li className="dropdown" style={isInGroup(['/rooms', '/buildings', '/terrains'])}>
           <div className="dropdown-trigger">
-            <span>Lokale & Terreine</span>
+            <span>Lokale, Geboue & Terreine</span>
           </div>
           <div className="dropdown-content">
             <li><Link to="/rooms" style={isActive('/rooms')}>Lokale</Link></li>

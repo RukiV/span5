@@ -42,6 +42,7 @@ class BuildingType(Enum):
     EDUCATIONAL = "onderwys"
     LABORATORY = "laboratory"
     WAREHOUSE = "warehouse"
+    KAFERERIA = "kafeteria"
     OTHER = "other"
 
 class RoomType(Enum):
@@ -51,4 +52,5 @@ class RoomType(Enum):
     LABORATORY = "laboratory"
     WAREHOUSE = "warehouse"
     CLASSROOM = "classroom"
+    BATHROOM = "bathroom"
     OTHER = "other"
