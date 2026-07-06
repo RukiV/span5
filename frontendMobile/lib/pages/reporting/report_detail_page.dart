@@ -1,5 +1,5 @@
+import '../../core/campus_service.dart';
 import 'edit_report_page.dart';
-import 'handle_report_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/report_service.dart';
@@ -48,7 +48,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         actions: [
           if (UserSession.hasAdminPrivileges)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              icon: const Icon(Icons.delete_outline, color: AppColors.errorRed),
               onPressed: () => _showDeleteDialog(context),
             ),
         ],
@@ -64,7 +64,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const SizedBox(height: 25),
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
-            _buildDetailRow("Lokaal", _currentReport.location),
+            _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
+            _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
+            _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
             _buildDetailRow("Bate ID", _currentReport.assetId),
             _buildDetailRow("Kategorie", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
@@ -122,7 +124,11 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   Widget _buildStatusCard(BuildContext context) {
     String phase = _currentReport.phase;
     String priority = _currentReport.priority;
-    Color statusColor = phase == "Voltooi" || phase == "Opgelos" ? Colors.green : (phase == "Besig" || phase == "Bevestig" || phase == "Oop" ? Colors.blue : (phase == "Geweier" || phase == "Verwerp" ? Colors.red : Colors.orange));
+    
+    // Sinkroniseer kleure met Paneelbord: Besig/Voltooi = Groen, Geweier = Rooi, Ontvang = Goud
+    Color statusColor = (phase == "Voltooi" || phase == "Opgelos" || phase == "Besig") 
+        ? AppColors.successGreen 
+        : (phase == "Geweier" || phase == "Verwerp" ? AppColors.errorRed : AppColors.gold);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -180,9 +186,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _showDeleteDialog(context),
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                    label: const Text("VERWYDER", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red), padding: const EdgeInsets.symmetric(vertical: 12)),
+                    icon: const Icon(Icons.delete, color: AppColors.errorRed, size: 18),
+                    label: const Text("VERWYDER", style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.errorRed), padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
               ],
@@ -209,12 +215,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Verwyder Foutkaartjie", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        title: const Text("Verwyder Foutkaartjie", style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
         content: const Text("Is jy seker jy wil hierdie foutkaartjie permanent verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("KANSELLEER")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
             onPressed: () async {
               final success = await ReportService.deleteReport(_currentReport.id);
               if (mounted) {
@@ -222,7 +228,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 if (success) {
                   Navigator.pop(context); // Gaan terug na lys
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: Colors.red),
+                    const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: AppColors.errorRed),
                   );
                 }
               }
@@ -235,7 +241,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildPriorityBadge(String priority) {
-    Color col = priority == 'Hoog' ? Colors.red : (priority == 'Medium' ? Colors.orange : Colors.green);
+    Color col = priority == 'Hoog' ? AppColors.errorRed : (priority == 'Medium' ? AppColors.warningOrange : AppColors.successGreen);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -250,7 +256,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     final success = await ReportService.updateReportStatus(_currentReport.id, "Voltooi");
     if (success && mounted) {
       _refreshData();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Verslag gemerk as Voltooi"), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Verslag gemerk as Voltooi"), backgroundColor: AppColors.successGreen));
     }
   }
 

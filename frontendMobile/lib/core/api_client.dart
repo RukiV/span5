@@ -18,7 +18,7 @@ class ApiClient {
 
   ApiClient._internal() {
     //emulator
-    final baseUrl = dotenv.get('API_URL', fallback: 'http://10.0.2.2:8000/api/v1');
+    final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.0.12:8000/api/v1');
     //physical
     //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
     

@@ -43,7 +43,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         );
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Slippie suksesvol bygevoeg!")),
+        const SnackBar(content: Text("Slippie suksesvol bygevoeg!"), backgroundColor: AppColors.successGreen),
       );
     }
   }
@@ -309,11 +309,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 ValueListenableBuilder<List<Campus>>(
                   valueListenable: CampusService.campusesNotifier,
                   builder: (context, campuses, _) {
-                    final allRooms = campuses.expand((c) => c.rooms).toList();
-                    if (!allRooms.any((r) => r.startsWith("${_currentAsset.location}:"))) {
-                       // Ensure current room is at least in the list if it's missing from loaded data
-                       // though it should ideally be there.
-                    }
+                    final allRooms = campuses
+                        .expand((c) => c.buildings)
+                        .expand((b) => b.rooms ?? [])
+                        .map((r) => '${r.id}:${r.name}')
+                        .toList();
                     return DropdownButtonFormField<String>(
                       value: allRooms.any((r) => r.startsWith("${_currentAsset.location}:")) 
                           ? allRooms.firstWhere((r) => r.startsWith("${_currentAsset.location}:"))
@@ -369,7 +369,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                         if (mounted) Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B5E34),
+                        backgroundColor: AppColors.gold,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

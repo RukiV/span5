@@ -102,13 +102,7 @@ class _StockPageState extends State<StockPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(child: _buildPopupField("Naam", stock.brand)), // Stock model uses brand as name mostly
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildPopupField("Merk", stock.brand)),
-                  ],
-                ),
+                _buildPopupField("Merk", stock.brand),
                 const SizedBox(height: 16),
                 Row(
                   children: [
