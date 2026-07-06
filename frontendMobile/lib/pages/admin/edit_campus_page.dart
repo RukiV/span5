@@ -81,11 +81,11 @@ class _EditCampusPageState extends State<EditCampusPage> {
       if (success) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Terrein suksesvol opgedateer")),
+          const SnackBar(content: Text("Terrein suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie opdateer nie. Probeer weer."), backgroundColor: Colors.red),
+          const SnackBar(content: Text("Kon nie opdateer nie. Probeer weer."), backgroundColor: AppColors.errorRed),
         );
       }
     }
@@ -167,7 +167,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                       ElevatedButton(
                         onPressed: _isSaving ? null : _save,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5E34), // Bruinagtige kleur soos in prent
+                          backgroundColor: AppColors.gold, // Bruinagtige kleur soos in prent
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

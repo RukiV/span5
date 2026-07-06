@@ -5,6 +5,7 @@ import '../../models/campus.dart';
 import '../../models/user_session.dart';
 import '../assets/assets_page.dart';
 import 'edit_campus_page.dart';
+import 'buildings_list_page.dart';
 
 class CampusDetailPage extends StatefulWidget {
   final Campus campus;
@@ -21,7 +22,6 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
   void initState() {
     super.initState();
     _currentCampus = widget.campus;
-    // Sinkroniseer as daar updates was
     CampusService.campusesNotifier.addListener(_updateLocalState);
   }
 
@@ -36,9 +36,7 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
     try {
       final updated = CampusService.campusesNotifier.value.firstWhere((c) => c.id == _currentCampus.id);
       setState(() => _currentCampus = updated);
-    } catch (_) {
-      // Campus is moontlik verwyder
-    }
+    } catch (_) {}
   }
 
   Future<void> _deleteCampus() async {
@@ -63,11 +61,11 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
         if (success) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Terrein suksesvol verwyder")),
+            const SnackBar(content: Text("Terrein suksesvol verwyder"), backgroundColor: AppColors.successGreen),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Kon nie terrein verwyder nie."), backgroundColor: Colors.red),
+            const SnackBar(content: Text("Kon nie terrein verwyder nie."), backgroundColor: AppColors.errorRed),
           );
         }
       }
@@ -101,20 +99,34 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
       body: Column(
         children: [
           _buildInfoSection(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
             child: Row(
               children: [
-                Icon(Icons.meeting_room, color: AppColors.gold, size: 20),
-                SizedBox(width: 10),
-                Text(
-                  "LOKALE",
+                const Icon(Icons.business, color: AppColors.gold, size: 20),
+                const SizedBox(width: 10),
+                const Text(
+                  "GEBOUE",
                   style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, letterSpacing: 1.1),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BuildingsListPage(initialCampus: _currentCampus),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.visibility, size: 16),
+                  label: const Text("BESIGTIG", style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.gold),
                 ),
               ],
             ),
           ),
-          Expanded(child: _buildRoomsList()),
+          Expanded(child: _buildBuildingsList()),
         ],
       ),
     );
@@ -162,32 +174,37 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
     );
   }
 
-  Widget _buildRoomsList() {
-    if (_currentCampus.rooms.isEmpty) {
-      return const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)));
+  Widget _buildBuildingsList() {
+    if (_currentCampus.buildings.isEmpty) {
+      return const Center(child: Text("Geen geboue geregistreer nie.", style: TextStyle(color: Colors.grey)));
     }
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 15),
-      itemCount: _currentCampus.rooms.length,
+      itemCount: _currentCampus.buildings.length,
       itemBuilder: (context, index) {
-        final room = _currentCampus.rooms[index];
-        final roomDisplay = room.contains(':') ? room.split(':').last : room;
-        final roomId = room.contains(':') ? room.split(':').first : room;
-
+        final building = _currentCampus.buildings[index];
+        final roomCount = building.rooms?.length ?? 0;
         return Card(
           elevation: 1,
           margin: const EdgeInsets.only(bottom: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ListTile(
-            title: Text(roomDisplay, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text("ID: $roomId", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            title: Text(building.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("$roomCount lokale", style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.bold)),
+                if (building.address.isNotEmpty)
+                  Text(building.address, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
             trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
             onTap: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AssetsPage(filterRoomId: roomId),
+                  builder: (context) => AssetsPage(filterRoomId: building.id.toString()),
                 ),
               );
             },

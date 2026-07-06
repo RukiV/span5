@@ -4,6 +4,7 @@ import '../assets/assets_page.dart';
 import '../assets/stock_page.dart';
 import '../admin/campus_management_page.dart';
 import '../admin/manage_rooms_page.dart';
+import '../admin/buildings_list_page.dart';
 import '../contractor/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
@@ -69,34 +70,58 @@ class _HomePageState extends State<HomePage> {
       {
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
-        'page': const DashboardPage(),
+        'page': DashboardPage(onTabRequested: (index) {
+          setState(() => _selectedIndex = index);
+        }),
       },
       {
-        'title': 'Bates',
+        'title': 'Bates & Voorraad',
         'icon': Icons.inventory_2_outlined,
-        'page': const AssetsPage(),
+        'isExpandable': true,
+        'children': [
+          {
+            'title': 'Bates',
+            'icon': Icons.inventory_2_outlined,
+            'page': const AssetsPage(),
+          },
+          {
+            'title': 'Voorraad',
+            'icon': Icons.construction_outlined,
+            'page': const StockPage(),
+          },
+        ],
       },
       {
-        'title': 'Voorraad',
-        'icon': Icons.construction_outlined,
-        'page': const StockPage(),
-        'isSubItem': true
-      },
-      {
-        'title': 'Terreine',
+        'title': 'Lokale & Terreine',
         'icon': Icons.map_outlined,
-        'page': const CampusManagementPage(),
-      },
-      {
-        'title': 'Lokale',
-        'icon': Icons.room_outlined,
-        'page': const ManageRoomsPage(),
-        'isSubItem': true
+        'isExpandable': true,
+        'children': [
+          {
+            'title': 'Terreine',
+            'icon': Icons.map_outlined,
+            'page': const CampusManagementPage(),
+          },
+          {
+            'title': 'Geboue',
+            'icon': Icons.business_outlined,
+            'page': const BuildingsListPage(),
+          },
+          {
+            'title': 'Lokale',
+            'icon': Icons.room_outlined,
+            'page': const ManageRoomsPage(),
+          },
+        ],
       },
       {
         'title': 'Foutkaartjies',
         'icon': Icons.report_gmailerrorred_outlined,
         'page': const ReportingPage(),
+      },
+      {
+        'title': 'Kontrakteurs',
+        'icon': Icons.engineering_outlined,
+        'page': JobCardsPage(),
       },
       {
         'title': 'Werksopdragte',
@@ -116,11 +141,31 @@ class _HomePageState extends State<HomePage> {
     ];
   }
 
+  // Ons stoor watter dropdowns oop is
+  final Map<String, bool> _expandedStates = {};
+
   @override
   Widget build(BuildContext context) {
     final menu = _getVisibleMenu();
+
+    // Lys van alle plat items (insluitend kinders as hulle oop is)
+    final List<Map<String, dynamic>> flatMenu = [];
+    final List<int> parentIndices = [];
+
+    for (var item in menu) {
+      flatMenu.add(item);
+      parentIndices.add(flatMenu.length - 1);
+      
+      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
+        for (var child in item['children']) {
+          var childCopy = Map<String, dynamic>.from(child);
+          childCopy['isSubItem'] = true;
+          flatMenu.add(childCopy);
+        }
+      }
+    }
     
-    if (_selectedIndex >= menu.length) {
+    if (_selectedIndex >= flatMenu.length) {
       _selectedIndex = 0;
     }
 
@@ -141,7 +186,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         title: Text(
-            "FBS - ${menu[_selectedIndex]['title']}",
+            "FBS - ${flatMenu[_selectedIndex]['title']}",
             style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1, color: Colors.white)
         ),
         centerTitle: false,
@@ -169,17 +214,23 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            // Genereer slegs die toegelate menu items
-            ...List.generate(menu.length, (index) {
-              return _drawerItem(
-                menu[index]['icon'], 
-                menu[index]['title'], 
-                index,
-                isSubItem: menu[index]['isSubItem'] ?? false
-              );
-            }),
-
-            const Spacer(),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: menu.length,
+                itemBuilder: (context, index) {
+                  final item = menu[index];
+                  if (item['isExpandable'] == true) {
+                    return _buildExpandableItem(item);
+                  }
+                  return _drawerItem(
+                    item['icon'], 
+                    item['title'], 
+                    _getFlatIndex(flatMenu, item['title']),
+                  );
+                },
+              ),
+            ),
 
             const Divider(color: Colors.white24),
 
@@ -199,8 +250,56 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      body: menu[_selectedIndex]['page'],
+      body: flatMenu[_selectedIndex]['page'],
     );
+  }
+
+  int _getFlatIndex(List<Map<String, dynamic>> flatMenu, String title) {
+    return flatMenu.indexWhere((element) => element['title'] == title);
+  }
+
+  Widget _buildExpandableItem(Map<String, dynamic> item) {
+    bool isExpanded = _expandedStates[item['title']] ?? false;
+    
+    return Column(
+      children: [
+        ListTile(
+          leading: Icon(item['icon'], color: Colors.white70),
+          title: Text(item['title'], style: const TextStyle(color: Colors.white)),
+          trailing: Icon(
+            isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+            color: Colors.white54,
+          ),
+          onTap: () {
+            setState(() {
+              _expandedStates[item['title']] = !isExpanded;
+            });
+          },
+        ),
+        if (isExpanded)
+          ...item['children'].map<Widget>((child) {
+            final flatMenu = _getFlatMenu();
+            int idx = flatMenu.indexWhere((e) => e['title'] == child['title']);
+            return _drawerItem(child['icon'], child['title'], idx, isSubItem: true);
+          }).toList(),
+      ],
+    );
+  }
+
+  List<Map<String, dynamic>> _getFlatMenu() {
+    final menu = _getVisibleMenu();
+    final List<Map<String, dynamic>> flatMenu = [];
+    for (var item in menu) {
+      flatMenu.add(item);
+      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
+        for (var child in item['children']) {
+          var childCopy = Map<String, dynamic>.from(child);
+          childCopy['isSubItem'] = true;
+          flatMenu.add(childCopy);
+        }
+      }
+    }
+    return flatMenu;
   }
 
   // Helper om spyskaart items te bou met die regte kleure
@@ -230,4 +329,5 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
 }

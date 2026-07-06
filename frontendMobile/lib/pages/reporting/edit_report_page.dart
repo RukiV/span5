@@ -61,12 +61,12 @@ class _EditReportPageState extends State<EditReportPage> {
       setState(() => _isLoading = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Foutkaartjie suksesvol opgedateer"), backgroundColor: Colors.green),
+          const SnackBar(content: Text("Foutkaartjie suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie foutkaartjie opdateer nie"), backgroundColor: Colors.red),
+          const SnackBar(content: Text("Kon nie foutkaartjie opdateer nie"), backgroundColor: AppColors.errorRed),
         );
       }
     }

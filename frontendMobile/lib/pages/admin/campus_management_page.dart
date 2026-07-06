@@ -114,7 +114,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                               Text(campus.address, style: const TextStyle(fontSize: 13)),
                               const SizedBox(height: 5),
                               Text(
-                                "${campus.rooms.length} Lokale geregistreer",
+                                "${campus.buildings.length} Geboue",
                                 style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
                               ),
                             ],
