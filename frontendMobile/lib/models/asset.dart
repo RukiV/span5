@@ -4,14 +4,11 @@ class Asset {
   final String serialCode;
   final String name;
   final String category;
-  final int assetTypeId; // Added to maintain backend parity
-  final String location; // Corresponds to room_id on the backend
+  final int assetTypeId;
+  final String location; // room_id
   final String status;
-  final DateTime purchaseDate;
-  final DateTime campusStartDate;
-  final String campus; 
-  final List<String> warrantyReceipts;
-  final List<String> reportIds;
+  final bool isOutdoor;
+  final String campus;
 
   Asset({
     required this.campus,
@@ -22,14 +19,9 @@ class Asset {
     required this.assetTypeId,
     required this.location,
     required this.status,
-    required this.purchaseDate,
-    required this.campusStartDate,
-    List<String>? warrantyReceipts,
-    List<String>? reportIds,
-  })  : warrantyReceipts = warrantyReceipts ?? [],
-        reportIds = reportIds ?? [];
+    this.isOutdoor = false,
+  });
 
-  // Creates a copy of the asset with optional updated fields.
   Asset copyWith({
     String? campus,
     String? id,
@@ -39,10 +31,7 @@ class Asset {
     int? assetTypeId,
     String? location,
     String? status,
-    DateTime? purchaseDate,
-    DateTime? campusStartDate,
-    List<String>? warrantyReceipts,
-    List<String>? reportIds,
+    bool? isOutdoor,
   }) {
     return Asset(
       campus: campus ?? this.campus,
@@ -53,24 +42,19 @@ class Asset {
       assetTypeId: assetTypeId ?? this.assetTypeId,
       location: location ?? this.location,
       status: status ?? this.status,
-      purchaseDate: purchaseDate ?? this.purchaseDate,
-      campusStartDate: campusStartDate ?? this.campusStartDate,
-      warrantyReceipts: warrantyReceipts ?? this.warrantyReceipts,
-      reportIds: reportIds ?? this.reportIds,
+      isOutdoor: isOutdoor ?? this.isOutdoor,
     );
   }
 
-  // Converts the object into a JSON-friendly map for backend updates.
   Map<String, dynamic> toJson() => {
     'asset_name': name,
     'asset_status': status.toLowerCase(),
     'room_id': int.tryParse(location) ?? 1,
-    'assettype_id': assetTypeId, // Use the stored ID instead of re-mapping
+    'assettype_id': assetTypeId,
     'asset_serial': serialCode,
-    'asset_isoutdoor': false,
+    'asset_isoutdoor': isOutdoor,
   };
 
-  // Factory constructor to create an Asset object from a backend JSON response.
   factory Asset.fromJson(Map<String, dynamic> json) {
     final typeId = json['assettype_id'] as int? ?? 1;
     return Asset(
@@ -82,14 +66,10 @@ class Asset {
       category: _getCategoryName(typeId),
       location: json['room_id']?.toString() ?? '1',
       status: json['asset_status'] ?? 'active',
-      purchaseDate: DateTime.now(),
-      campusStartDate: DateTime.now(),
-      warrantyReceipts: [],
-      reportIds: [],
+      isOutdoor: json['asset_isoutdoor'] == true || json['asset_isoutdoor'] == 1,
     );
   }
 
-  // Helper to map backend IDs back to human-readable categories
   static String _getCategoryName(int id) {
     switch (id) {
       case 1: return "Meubels";
@@ -103,6 +83,6 @@ class Asset {
     if (name.contains("Meubel")) return 1;
     if (name.contains("IT") || name.contains("Elektron")) return 2;
     if (name.contains("Sekuriteit")) return 3;
-    return 1; // Default na Meubels as veiligheid
+    return 1;
   }
 }

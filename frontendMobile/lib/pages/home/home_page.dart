@@ -29,7 +29,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  String _selectedTitle = "Paneelbord";
+  final Map<String, bool> _expandedStates = {};
 
   @override
   void initState() {
@@ -39,7 +40,6 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initialDataSync() async {
     try {
-      // Laai data van die backend af wanneer die app oopmaak
       await Future.wait([
         CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
@@ -59,7 +59,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Bereken die beskikbare items op grond van rol
   List<Map<String, dynamic>> _getVisibleMenu() {
     if (UserSession.isStudent) {
       return [
@@ -76,7 +75,15 @@ class _HomePageState extends State<HomePage> {
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
         'page': DashboardPage(onTabRequested: (index) {
-          setState(() => _selectedIndex = index);
+          // Hierdie index verwys na die "flat" menu sonder expandable items oop
+          // Ons map dit na spesifieke titels vir stabiliteit
+          final titles = [
+            "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
+            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender", "Verslae"
+          ];
+          if (index >= 0 && index < titles.length) {
+            setState(() => _selectedTitle = titles[index]);
+          }
         }),
       },
       {
@@ -153,33 +160,28 @@ class _HomePageState extends State<HomePage> {
     ];
   }
 
-  // Ons stoor watter dropdowns oop is
-  final Map<String, bool> _expandedStates = {};
+  List<Map<String, dynamic>> _getFlatMenu() {
+    final menu = _getVisibleMenu();
+    final List<Map<String, dynamic>> flat = [];
+    for (var item in menu) {
+      if (item['isExpandable'] == true) {
+        for (var child in item['children']) {
+          flat.add(child);
+        }
+      } else {
+        flat.add(item);
+      }
+    }
+    return flat;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final menu = _getVisibleMenu();
-
-    // Lys van alle plat items (insluitend kinders as hulle oop is)
-    final List<Map<String, dynamic>> flatMenu = [];
-    final List<int> parentIndices = [];
-
-    for (var item in menu) {
-      flatMenu.add(item);
-      parentIndices.add(flatMenu.length - 1);
-      
-      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
-        for (var child in item['children']) {
-          var childCopy = Map<String, dynamic>.from(child);
-          childCopy['isSubItem'] = true;
-          flatMenu.add(childCopy);
-        }
-      }
-    }
-    
-    if (_selectedIndex >= flatMenu.length) {
-      _selectedIndex = 0;
-    }
+    final flatMenu = _getFlatMenu();
+    final activeItem = flatMenu.firstWhere(
+      (item) => item['title'] == _selectedTitle,
+      orElse: () => flatMenu.first,
+    );
 
     String roleTitle = "";
     if (UserSession.isAdmin) {
@@ -198,7 +200,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         title: Text(
-            "FBS - ${flatMenu[_selectedIndex]['title']}",
+            "FBS - ${activeItem['title']}",
             style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1, color: Colors.white)
         ),
         centerTitle: false,
@@ -227,20 +229,14 @@ class _HomePageState extends State<HomePage> {
             ),
 
             Expanded(
-              child: ListView.builder(
+              child: ListView(
                 padding: EdgeInsets.zero,
-                itemCount: menu.length,
-                itemBuilder: (context, index) {
-                  final item = menu[index];
+                children: _getVisibleMenu().map((item) {
                   if (item['isExpandable'] == true) {
                     return _buildExpandableItem(item);
                   }
-                  return _drawerItem(
-                    item['icon'], 
-                    item['title'], 
-                    _getFlatIndex(flatMenu, item['title']),
-                  );
-                },
+                  return _drawerItem(item['icon'], item['title']);
+                }).toList(),
               ),
             ),
 
@@ -262,22 +258,20 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      body: flatMenu[_selectedIndex]['page'],
+      body: activeItem['page'],
     );
-  }
-
-  int _getFlatIndex(List<Map<String, dynamic>> flatMenu, String title) {
-    return flatMenu.indexWhere((element) => element['title'] == title);
   }
 
   Widget _buildExpandableItem(Map<String, dynamic> item) {
     bool isExpanded = _expandedStates[item['title']] ?? false;
+    bool containsSelected = (item['children'] as List).any((child) => child['title'] == _selectedTitle);
     
     return Column(
       children: [
         ListTile(
-          leading: Icon(item['icon'], color: Colors.white70),
-          title: Text(item['title'], style: const TextStyle(color: Colors.white)),
+          leading: Icon(item['icon'], color: containsSelected ? AppColors.gold : Colors.white70),
+          title: Text(item['title'], 
+            style: TextStyle(color: containsSelected ? AppColors.gold : Colors.white, fontWeight: containsSelected ? FontWeight.bold : FontWeight.normal)),
           trailing: Icon(
             isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
             color: Colors.white54,
@@ -290,38 +284,19 @@ class _HomePageState extends State<HomePage> {
         ),
         if (isExpanded)
           ...item['children'].map<Widget>((child) {
-            final flatMenu = _getFlatMenu();
-            int idx = flatMenu.indexWhere((e) => e['title'] == child['title']);
-            return _drawerItem(child['icon'], child['title'], idx, isSubItem: true);
+            return _drawerItem(child['icon'], child['title'], isSubItem: true);
           }).toList(),
       ],
     );
   }
 
-  List<Map<String, dynamic>> _getFlatMenu() {
-    final menu = _getVisibleMenu();
-    final List<Map<String, dynamic>> flatMenu = [];
-    for (var item in menu) {
-      flatMenu.add(item);
-      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
-        for (var child in item['children']) {
-          var childCopy = Map<String, dynamic>.from(child);
-          childCopy['isSubItem'] = true;
-          flatMenu.add(childCopy);
-        }
-      }
-    }
-    return flatMenu;
-  }
-
-  // Helper om spyskaart items te bou met die regte kleure
-  Widget _drawerItem(IconData icon, String title, int index, {bool isSubItem = false}) {
-    bool isSelected = _selectedIndex == index;
+  Widget _drawerItem(IconData icon, String title, {bool isSubItem = false}) {
+    bool isSelected = _selectedTitle == title;
 
     return ListTile(
       contentPadding: EdgeInsets.only(left: isSubItem ? 40.0 : 16.0),
-      selected: isSelected,
-      selectedTileColor: AppColors.gold.withValues(alpha: 0.2),
+      // Verwyder die background highlight soos versoek
+      selected: false, 
       leading: Icon(
           icon,
           color: isSelected ? AppColors.gold : (isSubItem ? Colors.white54 : Colors.white70),
@@ -336,10 +311,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       onTap: () {
-        setState(() => _selectedIndex = index);
-        Navigator.pop(context); // Maak drawer toe
+        setState(() => _selectedTitle = title);
+        Navigator.pop(context);
       },
     );
   }
-
 }
