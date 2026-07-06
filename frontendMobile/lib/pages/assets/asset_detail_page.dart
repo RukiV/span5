@@ -51,13 +51,13 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
   @override
   Widget build(BuildContext context) {
     final relatedReports = ReportService.reportsNotifier.value
-        .where((r) => r.assetId == _currentAsset.id)
+        .where((r) => r.assetId == _currentAsset.serialCode)
         .toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text("BATE #${_currentAsset.id}"),
+        title: Text("BATE #${_currentAsset.serialCode}"),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
@@ -96,11 +96,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                   ),
                   child: Column(
                     children: [
-                      Text(_currentAsset.id, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 16)),
+                      Text(_currentAsset.serialCode, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 16)),
                       const SizedBox(height: 15),
-                      _currentAsset.id.contains('-') 
-                        ? QrImageView(data: _currentAsset.id, size: 140)
-                        : BarcodeWidget(barcode: Barcode.code128(), data: _currentAsset.id, width: 200, height: 80),
+                      _currentAsset.serialCode.contains('-') 
+                        ? QrImageView(data: _currentAsset.serialCode, size: 140)
+                        : BarcodeWidget(barcode: Barcode.code128(), data: _currentAsset.serialCode, width: 200, height: 80),
                       const SizedBox(height: 10),
                       const Text("Klik om te vergroot", style: TextStyle(fontSize: 10, color: Colors.grey)),
                     ],
@@ -247,11 +247,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text("BATE ID: ${_currentAsset.id}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+              Text("BATE KODE: ${_currentAsset.serialCode}", style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
               const SizedBox(height: 25),
-              _currentAsset.id.contains('-') 
-                ? QrImageView(data: _currentAsset.id, size: 250)
-                : BarcodeWidget(barcode: Barcode.code128(), data: _currentAsset.id, width: 300, height: 120),
+              _currentAsset.serialCode.contains('-') 
+                ? QrImageView(data: _currentAsset.serialCode, size: 250)
+                : BarcodeWidget(barcode: Barcode.code128(), data: _currentAsset.serialCode, width: 300, height: 120),
               const SizedBox(height: 25),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
