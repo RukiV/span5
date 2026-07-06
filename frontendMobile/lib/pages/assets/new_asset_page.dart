@@ -248,6 +248,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                               serialCode: serialCode,
                               name: name,
                               category: category,
+                              assetTypeId: Asset.getCategoryId(category),
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               campus: selectedCampus ?? "",

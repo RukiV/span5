@@ -363,6 +363,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                             serialCode: tempSerial,
                             location: tempLocation,
                             status: tempStatus,
+                            assetTypeId: _currentAsset.assetTypeId, // Ensure ID is preserved
                           );
                           final success = await AssetService.updateAsset(updated);
                           if (success && mounted) {

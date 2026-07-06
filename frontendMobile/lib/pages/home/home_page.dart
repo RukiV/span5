@@ -19,6 +19,7 @@ import '../../core/asset_service.dart';
 import '../../core/campus_service.dart';
 import '../../core/report_service.dart';
 import '../../core/contractor_service.dart';
+import '../../core/quote_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -44,6 +45,7 @@ class _HomePageState extends State<HomePage> {
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
         ContractorService.fetchContractors(),
+        QuoteService.fetchQuotes(),
       ]);
     } catch (e) {
       if (mounted) {
