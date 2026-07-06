@@ -30,12 +30,15 @@ class Report {
   // Map vanaf Flutter model na Backend (Faultcard)
   Map<String, dynamic> toJson() {
     // Map prioriteit (Backend verwag: low, medium, high)
-    String backendPriority = "medium";
+    // As dit reeds 'low', 'medium' of 'high' is, gebruik dit net so.
+    String backendPriority = priority.toLowerCase();
     if (priority == "Laag") backendPriority = "low";
+    if (priority == "Medium") backendPriority = "medium";
     if (priority == "Hoog") backendPriority = "high";
 
     // Map status (Backend verwag: wag, open, bevestig, besig, opgelos, verwerp)
-    String backendStatus = "wag";
+    String backendStatus = phase.toLowerCase();
+    if (phase == "Ontvang") backendStatus = "wag";
     if (phase == "Besig") backendStatus = "besig";
     if (phase == "Voltooi") backendStatus = "opgelos";
     if (phase == "Geweier") backendStatus = "verwerp";
@@ -45,6 +48,10 @@ class Report {
     if (category == "Instandhouding") backendType = "maintenance";
     if (category == "Herstel") backendType = "repair";
     if (category == "Opgradering") backendType = "upgrade";
+    // Indien category reeds die backend waarde bevat:
+    if (backendType == null && ["maintenance", "repair", "upgrade"].contains(category.toLowerCase())) {
+      backendType = category.toLowerCase();
+    }
 
     return {
       'fault_description': '$title: $description',
@@ -52,8 +59,8 @@ class Report {
       'fault_priority': backendPriority,
       'fault_status': backendStatus,
       'fault_reportdatetime': timestamp.toIso8601String(),
-      'asset_id': assetId == "0" ? null : int.tryParse(assetId),
-      'user_id': UserSession.userId,
+      'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
+      'user_id': int.tryParse(user) ?? UserSession.userId,
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
     };
@@ -66,11 +73,13 @@ class Report {
     if (bs == "besig") frontendPhase = "Besig";
     if (bs == "opgelos") frontendPhase = "Voltooi";
     if (bs == "verwerp") frontendPhase = "Geweier";
+    if (bs == "open" || bs == "bevestig") frontendPhase = "Ontvang";
 
     // Map backend prioriteit
     String frontendPriority = "Medium";
     String bp = json['fault_priority'] ?? "medium";
     if (bp == "low") frontendPriority = "Laag";
+    if (bp == "medium") frontendPriority = "Medium";
     if (bp == "high") frontendPriority = "Hoog";
 
     // Map backend tipe terug na frontend kategorie

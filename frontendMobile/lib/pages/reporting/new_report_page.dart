@@ -1,10 +1,8 @@
 import '../../widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import '../../models/user_session.dart';
 import '../../core/campus_service.dart';
-import '../../core/camera_service.dart';
 import '../../core/app_colors.dart';
 import 'scan_page.dart';
 
@@ -30,6 +28,7 @@ class _NewReportPageState extends State<NewReportPage> {
   final TextEditingController descController = TextEditingController();
 
   String? selectedCampus;
+  String? selectedBuilding;
   String? selectedLocation;
   String? selectedCategory;
   String selectedPriority = "Laag";
@@ -50,16 +49,20 @@ class _NewReportPageState extends State<NewReportPage> {
     super.dispose();
   }
 
-  List<String> get filteredRooms {
+  List<String> get filteredBuildings {
     if (selectedCampus == null) return [];
-    try {
-      final campus = CampusService.campusesNotifier.value.firstWhere(
-        (c) => c.name == selectedCampus,
-      );
-      return campus.rooms;
-    } catch (_) {
-      return [];
-    }
+    final campus = CampusService.getCampusByName(selectedCampus!);
+    if (campus == null) return [];
+    return campus.buildings.map((b) => b.name).toList();
+  }
+
+  List<String> get filteredRooms {
+    if (selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(selectedCampus ?? '');
+    if (campus == null) return [];
+    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+    if (building == null) return [];
+    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
   bool isInvisibleCode = false;
   bool isUnknownLocation = false;
@@ -138,11 +141,28 @@ class _NewReportPageState extends State<NewReportPage> {
                                 .toList(),
                             onChanged: (v) => setState(() {
                               selectedCampus = v;
+                              selectedBuilding = null;
                               selectedLocation = null;
                             }),
                             validator: (v) => v == null ? "Kampus word vereis" : null,
                           );
                         },
+                      ),
+
+                      const SizedBox(height: sectionGap),
+
+                      CustomDropdown<String>(
+                        label: "Gebou *",
+                        hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies Gebou",
+                        value: selectedBuilding,
+                        items: filteredBuildings
+                            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                            .toList(),
+                        onChanged: (v) => setState(() {
+                          selectedBuilding = v;
+                          selectedLocation = null;
+                        }),
+                        validator: (v) => v == null ? "Gebou word vereis" : null,
                       ),
 
                       const SizedBox(height: sectionGap),
@@ -162,7 +182,7 @@ class _NewReportPageState extends State<NewReportPage> {
                         _buildLocationInput()
                       else
                         CustomDropdown<String>(
-                          hint: selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal",
+                          hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
                           value: selectedLocation,
                           items: filteredRooms.map((r) {
                             final name = r.contains(":") ? r.split(":").last : r;
@@ -204,7 +224,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               if (difference.inMinutes < 10) {
                                 final minutesLeft = 10 - difference.inMinutes;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Wag asseblief nog $minutesLeft minute."), backgroundColor: Colors.orange),
+                                  SnackBar(content: Text("Wag asseblief nog $minutesLeft minute."), backgroundColor: AppColors.warningOrange),
                                 );
                                 return;
                               }
@@ -213,7 +233,7 @@ class _NewReportPageState extends State<NewReportPage> {
                             if (!_canSubmit) {
                               setState(() => showValidationErrors = true);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: Colors.red),
+                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
                               );
                               return;
                             }
@@ -223,7 +243,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               final asset = await AssetService.getAssetBySerialCode(serialController.text);
                               if (asset == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: Colors.red),
+                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: AppColors.errorRed),
                                 );
                                 return;
                               }
@@ -237,11 +257,6 @@ class _NewReportPageState extends State<NewReportPage> {
                               roomId = selectedLocation!.split(":").first;
                             }
 
-                            // Map prioriteit (Backend verwag: laag, medium, hoog)
-                            String backendPriorityStr = "laag";
-                            if (selectedPriority == "Medium") backendPriorityStr = "medium";
-                            if (selectedPriority == "Hoog") backendPriorityStr = "hoog";
-
                             final newReport = Report(
                               id: "0",
                               assetId: finalAssetId,
@@ -249,7 +264,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               title: titleController.text.trim(),
                               description: descController.text.trim(),
                               category: isInvisibleCode ? (selectedCategory ?? "Instandhouding") : "Herstel",
-                              priority: backendPriorityStr,
+                              priority: selectedPriority,
                               phase: "Ontvang",
                               user: UserSession.userId.toString(),
                               timestamp: DateTime.now(),
@@ -262,19 +277,19 @@ class _NewReportPageState extends State<NewReportPage> {
                                 if (success) {
                                   NewReportPage.lastSubmissionTime = DateTime.now();
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: Colors.green),
+                                    const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
                                   );
                                   Navigator.pop(context);
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: Colors.red),
+                                    const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
                                   );
                                 }
                               }
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: Colors.red),
+                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
                                 );
                               }
                             }
@@ -357,7 +372,10 @@ class _NewReportPageState extends State<NewReportPage> {
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
       ),
-      hint: Text(selectedCampus == null ? "Kies eers 'n Kampus" : "Kies Lokaal", style: const TextStyle(fontSize: 14)),
+      hint: Text(
+        selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
+        style: const TextStyle(fontSize: 14),
+      ),
       items: filteredRooms.map((r) {
         final name = r.contains(":") ? r.split(":").last : r;
         return DropdownMenuItem(value: r, child: Text(name));

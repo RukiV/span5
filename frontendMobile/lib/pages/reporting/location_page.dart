@@ -152,7 +152,7 @@ class _LocationPageState extends State<LocationPage> {
   Future<void> _confirmLocation() async {
     if (!_isPointInsideAnyCampus(_selectedLocation)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kies 'n punt binne 'n toegelate kampus area."), backgroundColor: Colors.red),
+        const SnackBar(content: Text("Kies 'n punt binne 'n toegelate kampus area."), backgroundColor: AppColors.errorRed),
       );
       return;
     }
@@ -317,7 +317,7 @@ class _LocationPageState extends State<LocationPage> {
                 BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
               ],
               border: Border.all(
-                color: isOffCampus ? Colors.red.withValues(alpha: 0.3) : (isSelectionInside ? AppColors.gold.withValues(alpha: 0.3) : Colors.orange.withValues(alpha: 0.3)),
+                color: isOffCampus ? AppColors.errorRed.withValues(alpha: 0.3) : (isSelectionInside ? AppColors.gold.withValues(alpha: 0.3) : AppColors.warningOrange.withValues(alpha: 0.3)),
                 width: 1
               )
             ),
@@ -326,7 +326,7 @@ class _LocationPageState extends State<LocationPage> {
                 Icon(
                   isOffCampus ? Icons.block : (!isSelectionInside ? Icons.warning_amber_rounded : Icons.check_circle_outline), 
                   size: 20, 
-                  color: isOffCampus ? Colors.red : (!isSelectionInside ? Colors.orange : Colors.green)
+                  color: isOffCampus ? AppColors.errorRed : (!isSelectionInside ? AppColors.warningOrange : AppColors.successGreen)
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -338,7 +338,7 @@ class _LocationPageState extends State<LocationPage> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold, 
                           fontSize: 12, 
-                          color: isOffCampus ? Colors.red : (isSelectionInside ? AppColors.navy : Colors.orange),
+                          color: isOffCampus ? AppColors.errorRed : (isSelectionInside ? AppColors.navy : AppColors.warningOrange),
                           letterSpacing: 0.5
                         )
                       ),

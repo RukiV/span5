@@ -2,8 +2,6 @@ import '../../widgets/custom_dropdown.dart';
 import 'package:flutter/material.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:barcode_widget/barcode_widget.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../core/asset_service.dart';
@@ -27,6 +25,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
   final List<String> categories = ["Meubels", "IT Voorraad", "Elektronika", "Kombuis", "Ander"];
 
   String? selectedCampus;
+  String? selectedBuilding;
   String? selectedLocation;
   String category = "Meubels";
   String status = "active";
@@ -56,16 +55,20 @@ class _NewAssetPageState extends State<NewAssetPage> {
     });
   }
 
-  List<String> get availableRooms {
+  List<String> get _availableBuildings {
     if (selectedCampus == null) return [];
-    try {
-      final c = CampusService.campusesNotifier.value.firstWhere(
-              (c) => c.name == selectedCampus
-      );
-      return c.rooms;
-    } catch (_) {
-      return [];
-    }
+    final campus = CampusService.getCampusByName(selectedCampus!);
+    if (campus == null) return [];
+    return campus.buildings.map((b) => b.name).toList();
+  }
+
+  List<String> get availableRooms {
+    if (selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(selectedCampus ?? '');
+    if (campus == null) return [];
+    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+    if (building == null) return [];
+    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
 
   Widget _buildCustomTextField({
@@ -172,6 +175,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         onChanged: (v) {
                           setState(() {
                             selectedCampus = v;
+                            selectedBuilding = null;
                             selectedLocation = null;
                           });
                         },
@@ -181,8 +185,26 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   const SizedBox(height: 20),
 
                   CustomDropdown<String>(
+                    label: "Gebou",
+                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "",
+                    value: selectedBuilding,
+                    items: _availableBuildings
+                        .map((b) => DropdownMenuItem(
+                            value: b,
+                            child: Text(b, style: const TextStyle(fontSize: 14))))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        selectedBuilding = v;
+                        selectedLocation = null;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  CustomDropdown<String>(
                     label: "Lokaal",
-                    hint: "",
+                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "",
                     value: selectedLocation,
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
