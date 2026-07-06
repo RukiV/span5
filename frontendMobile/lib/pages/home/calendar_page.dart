@@ -78,7 +78,7 @@ class _CalendarPageState extends State<CalendarPage> {
               eventLoader: (day) => _getEventsForDay(day),
               calendarStyle: CalendarStyle(
                 todayDecoration: BoxDecoration(
-                  color: AppColors.gold.withOpacity(0.3),
+                  color: AppColors.gold.withValues(alpha: 0.3),
                   shape: BoxShape.circle,
                 ),
                 selectedDecoration: const BoxDecoration(

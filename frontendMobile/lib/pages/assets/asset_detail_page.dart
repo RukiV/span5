@@ -43,7 +43,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         );
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Slippie suksesvol bygevoeg!")),
+        const SnackBar(content: Text("Slippie suksesvol bygevoeg!"), backgroundColor: AppColors.successGreen),
       );
     }
   }
@@ -369,7 +369,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                         if (mounted) Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B5E34),
+                        backgroundColor: AppColors.gold,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

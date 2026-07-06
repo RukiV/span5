@@ -57,7 +57,7 @@ class _AssetsPageState extends State<AssetsPage> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Bate nie gevind nie."), backgroundColor: Colors.red),
+            const SnackBar(content: Text("Bate nie gevind nie."), backgroundColor: AppColors.errorRed),
           );
         }
       }
