@@ -223,7 +223,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     items: [
                       {"value": "active", "label": "Aktief"},
                       {"value": "maintenance", "label": "Onderhoud"},
-                      {"value": "decommissioned", "label": "Afgedank"},
+                      {"value": "retired", "label": "Afgedank"},
+                      {"value": "inactive", "label": "Onaktief"},
                     ].map((s) => DropdownMenuItem(
                       value: s["value"] as String, 
                       child: Text(s["label"] as String)
@@ -252,8 +253,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               campus: selectedCampus ?? "",
-                              purchaseDate: DateTime.now(),
-                              campusStartDate: DateTime.now(),
                             );
                             
                             final success = await AssetService.addAsset(newAsset);
