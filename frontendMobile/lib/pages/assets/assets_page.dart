@@ -1,4 +1,3 @@
-import '../../core/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';

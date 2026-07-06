@@ -258,7 +258,7 @@ class _LoginPageState extends State<LoginPage> {
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
               const SizedBox(height: 8),
               Text("Een oomblik asseblief", 
-                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
             ],
           ),
         ),
@@ -281,7 +281,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.3), 
+                        color: Colors.black.withValues(alpha: 0.3), 
                         blurRadius: 15, 
                         offset: const Offset(0, 5)
                       )

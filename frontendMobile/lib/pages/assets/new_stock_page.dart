@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../core/stock_service.dart';
-import '../../models/campus.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
 
@@ -22,6 +20,7 @@ class _NewStockPageState extends State<NewStockPage> {
   String type = "Ander";
   String description = "";
   String? selectedCampus;
+  String? selectedBuilding;
   String? selectedRoom;
 
   @override
@@ -48,14 +47,20 @@ class _NewStockPageState extends State<NewStockPage> {
     });
   }
 
-  List<String> get availableRooms {
+  List<String> get availableBuildings {
     if (selectedCampus == null) return [];
-    try {
-      final c = CampusService.campusesNotifier.value.firstWhere((c) => c.name == selectedCampus);
-      return c.rooms;
-    } catch (_) {
-      return [];
-    }
+    final campus = CampusService.getCampusByName(selectedCampus!);
+    if (campus == null) return [];
+    return campus.buildings.map((b) => b.name).toList();
+  }
+
+  List<String> get availableRooms {
+    if (selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(selectedCampus ?? '');
+    if (campus == null) return [];
+    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+    if (building == null) return [];
+    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
 
   @override
@@ -108,6 +113,20 @@ class _NewStockPageState extends State<NewStockPage> {
                         child: _buildNumberField("Hoeveelheid", (v) => amount = int.tryParse(v) ?? 0),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    value: selectedBuilding,
+                    decoration: _inputDecoration(),
+                    items: availableBuildings.map((b) {
+                      return DropdownMenuItem(value: b, child: Text(b));
+                    }).toList(),
+                    onChanged: (v) => setState(() {
+                      selectedBuilding = v;
+                      selectedRoom = null;
+                    }),
                   ),
                   const SizedBox(height: 20),
                   const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),

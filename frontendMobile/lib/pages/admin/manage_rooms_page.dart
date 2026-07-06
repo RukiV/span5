@@ -3,23 +3,39 @@ import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../models/user_session.dart';
 import '../../models/campus.dart';
+import '../../models/building.dart';
+import '../../models/room.dart';
 import '../assets/assets_page.dart';
 
 class ManageRoomsPage extends StatefulWidget {
-  const ManageRoomsPage({super.key});
+  final Campus? initialCampus;
+  final Building? initialBuilding;
+
+  const ManageRoomsPage({super.key, this.initialCampus, this.initialBuilding});
 
   @override
   State<ManageRoomsPage> createState() => _ManageRoomsPageState();
 }
 
 class _ManageRoomsPageState extends State<ManageRoomsPage> {
-  final TextEditingController _roomController = TextEditingController();
   Campus? _selectedCampus;
+  Building? _selectedBuilding;
 
   @override
   void initState() {
     super.initState();
-    _loadInitialCampus();
+    if (widget.initialCampus != null) {
+      _selectedCampus = widget.initialCampus;
+    }
+    if (widget.initialBuilding != null) {
+      _selectedBuilding = widget.initialBuilding;
+    }
+    if (_selectedCampus == null) {
+      _loadInitialCampus();
+    }
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
   }
 
   void _loadInitialCampus() {
@@ -33,90 +49,21 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     setState(() {});
   }
 
-  void _showEditRoomDialog(BuildContext context, String roomName) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: const Color(0xFF0F172A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Wysig lokaal", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                TextFormField(
-                  initialValue: roomName,
-                  decoration: _popupInputDecoration(),
-                ),
-                const SizedBox(height: 16),
-                const Text("Terrein", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<Campus>(
-                  value: _selectedCampus,
-                  decoration: _popupInputDecoration(),
-                  items: CampusService.campusesNotifier.value.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                  onChanged: (v) => setState(() => _selectedCampus = v),
-                ),
-                const SizedBox(height: 16),
-                const Text("Kapasiteit", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                TextFormField(
-                  initialValue: "30",
-                  decoration: _popupInputDecoration(),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: "Ander",
-                  decoration: _popupInputDecoration(),
-                  items: ["Klas", "Laboratorium", "Kantoor", "Ander"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) {},
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Kanselleer", style: TextStyle(color: Colors.grey))),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B5E34),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text("Opdateer"),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  List<Building> get _availableBuildings {
+    if (_selectedCampus == null) return [];
+    return _selectedCampus!.buildings;
+  }
+
+  List<Room> get _availableRooms {
+    if (_selectedBuilding == null) return [];
+    return _selectedBuilding!.rooms ?? [];
   }
 
   void _showAddRoomDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final capacityController = TextEditingController(text: "30");
+    String type = "other";
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -144,22 +91,18 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextFormField(
-                  controller: _roomController,
+                  controller: nameController,
                   decoration: _popupInputDecoration(),
                 ),
                 const SizedBox(height: 16),
-                const Text("Terrein", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
-                DropdownButtonFormField<Campus>(
-                  value: _selectedCampus,
-                  decoration: _popupInputDecoration(),
-                  items: CampusService.campusesNotifier.value.map((c) => DropdownMenuItem(value: c, child: Text(c.name))).toList(),
-                  onChanged: (v) => setState(() => _selectedCampus = v),
-                ),
+                Text(_selectedBuilding?.name ?? "", style: const TextStyle(fontSize: 14, color: Colors.grey)),
                 const SizedBox(height: 16),
                 const Text("Kapasiteit", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 TextFormField(
+                  controller: capacityController,
                   decoration: _popupInputDecoration(),
                   keyboardType: TextInputType.number,
                 ),
@@ -167,21 +110,40 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
-                  value: "Ander",
+                  initialValue: type,
                   decoration: _popupInputDecoration(),
-                  items: ["Klas", "Laboratorium", "Kantoor", "Ander"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) {},
+                  items: ["klas", "laboratorium", "kantoor", "other"]
+                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .toList(),
+                  onChanged: (v) => type = v ?? "other",
                 ),
                 const SizedBox(height: 32),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Kanselleer", style: TextStyle(color: Colors.grey))),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                    ),
                     const SizedBox(width: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        _addRoom();
+                      onPressed: () async {
+                        if (nameController.text.isEmpty || _selectedBuilding == null) return;
+                        final room = Room(
+                          id: 0,
+                          name: nameController.text.trim(),
+                          type: type,
+                          capacity: int.tryParse(capacityController.text),
+                          buildingId: _selectedBuilding!.id,
+                        );
+                        await CampusService.addRoom(room);
                         Navigator.pop(context);
+                        if (mounted) {
+                          setState(() {});
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("'${room.name}' is bygevoeg"), backgroundColor: Colors.green),
+                          );
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF8B5E34),
@@ -217,48 +179,30 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     );
   }
 
-  Future<void> _addRoom() async {
-    if (_roomController.text.isEmpty || _selectedCampus == null) return;
-
-    final newRoom = _roomController.text.trim();
-    // Die backend verwag dalk die ID van die plek
-    final updatedRooms = List<String>.from(_selectedCampus!.rooms)..add(newRoom);
-
-    await CampusService.updateRooms(_selectedCampus!.id, updatedRooms);
-    _roomController.clear();
-    
-    // Herlaai data
-    await CampusService.fetchCampuses();
-    if (UserSession.isAdmin) {
-      _selectedCampus = CampusService.campusesNotifier.value.firstWhere((c) => c.id == _selectedCampus!.id);
-    } else {
-      _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
-    }
-
-    if (mounted) {
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("'$newRoom' is bygevoeg"), backgroundColor: Colors.green),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (UserSession.isAdmin) ...[
-              const Text("KIES KAMPUS:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-              const SizedBox(height: 8),
-              ValueListenableBuilder<List<Campus>>(
-                valueListenable: CampusService.campusesNotifier,
-                builder: (context, campuses, _) {
-                  return Container(
+      body: ValueListenableBuilder<List<Campus>>(
+        valueListenable: CampusService.campusesNotifier,
+        builder: (context, campuses, _) {
+          if (campuses.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (UserSession.isAdmin && _selectedCampus == null) {
+            _selectedCampus = campuses.first;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (UserSession.isAdmin && widget.initialCampus == null) ...[
+                  const Text("KIES TERREIN:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -268,95 +212,117 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<Campus>(
                         isExpanded: true,
-                        value: campuses.any((c) => c.id == _selectedCampus?.id) 
-                            ? campuses.firstWhere((c) => c.id == _selectedCampus?.id) 
+                        value: campuses.any((c) => c.id == _selectedCampus?.id)
+                            ? campuses.firstWhere((c) => c.id == _selectedCampus?.id)
                             : null,
-                        hint: const Text("Kies 'n kampus"),
+                        hint: const Text("Kies 'n terrein"),
                         items: campuses.map((c) => DropdownMenuItem(
                           value: c,
                           child: Text(c.name),
                         )).toList(),
                         onChanged: (val) {
-                          setState(() => _selectedCampus = val);
+                          setState(() {
+                            _selectedCampus = val;
+                            _selectedBuilding = null;
+                          });
                         },
                       ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-            ] else if (_selectedCampus != null) ...[
-              Text(
-                "Kampus: ${_selectedCampus!.name}",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
-              ),
-              const SizedBox(height: 20),
-            ],
-
-            if (_selectedCampus == null)
-              const Center(child: Text("Geen kampus geselekteer nie."))
-            else ...[
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () => _showAddRoomDialog(context),
-                    icon: const Icon(Icons.add),
-                    label: const Text("NUWE LOKAAL"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.navy,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                ] else if (_selectedCampus != null) ...[
+                  Text(
+                    "Terrein: ${_selectedCampus!.name}",
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+                  ),
+                  const SizedBox(height: 10),
                 ],
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                "BESTAANDE LOKALE (Klik om bates te sien)",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: _selectedCampus!.rooms.isEmpty
-                    ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                        itemCount: _selectedCampus!.rooms.length,
-                        itemBuilder: (context, index) {
-                          final room = _selectedCampus!.rooms[index];
-                          final roomDisplay = room.contains(':') ? room.split(':').last : room;
-                          final roomId = room.contains(':') ? room.split(':').first : room;
 
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            child: ListTile(
-                              title: Text(roomDisplay, style: const TextStyle(fontWeight: FontWeight.w500)),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.grey),
-                                    onPressed: () => _showEditRoomDialog(context, roomDisplay),
-                                  ),
-                                  const Icon(Icons.chevron_right, color: AppColors.gold),
-                                ],
-                              ),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AssetsPage(filterRoomId: roomId),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
+                if (_selectedCampus != null) ...[
+                  const Text("KIES GEBOU:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Building>(
+                        isExpanded: true,
+                        value: _availableBuildings.any((b) => b.id == _selectedBuilding?.id)
+                            ? _availableBuildings.firstWhere((b) => b.id == _selectedBuilding?.id)
+                            : null,
+                        hint: const Text("Kies 'n gebou"),
+                        items: _availableBuildings.map((b) => DropdownMenuItem(
+                          value: b,
+                          child: Text(b.name),
+                        )).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedBuilding = val);
                         },
                       ),
-              ),
-            ],
-          ],
-        ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                if (_selectedBuilding == null)
+                  const Expanded(child: Center(child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey))))
+                else ...[
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _showAddRoomDialog(context),
+                        icon: const Icon(Icons.add),
+                        label: const Text("NUWE LOKAAL"),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.navy,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+                  const Text(
+                    "BESTAANDE LOKALE (Klik om bates te sien)",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: _availableRooms.isEmpty
+                        ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
+                        : ListView.builder(
+                            itemCount: _availableRooms.length,
+                            itemBuilder: (context, index) {
+                              final room = _availableRooms[index];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                child: ListTile(
+                                  title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                  subtitle: Text("ID: ${room.id} | ${room.type}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                  trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
       ),
     );
   }

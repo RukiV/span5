@@ -309,11 +309,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 ValueListenableBuilder<List<Campus>>(
                   valueListenable: CampusService.campusesNotifier,
                   builder: (context, campuses, _) {
-                    final allRooms = campuses.expand((c) => c.rooms).toList();
-                    if (!allRooms.any((r) => r.startsWith("${_currentAsset.location}:"))) {
-                       // Ensure current room is at least in the list if it's missing from loaded data
-                       // though it should ideally be there.
-                    }
+                    final allRooms = campuses
+                        .expand((c) => c.buildings)
+                        .expand((b) => b.rooms ?? [])
+                        .map((r) => '${r.id}:${r.name}')
+                        .toList();
                     return DropdownButtonFormField<String>(
                       value: allRooms.any((r) => r.startsWith("${_currentAsset.location}:")) 
                           ? allRooms.firstWhere((r) => r.startsWith("${_currentAsset.location}:"))

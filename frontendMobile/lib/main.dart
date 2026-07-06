@@ -34,7 +34,6 @@ class MyApp extends StatelessWidget {
 
       // Global App Theme Configuration
       theme: ThemeData(
-        fontFamily: 'Poppins',
         primaryColor: AppColors.navy,
         scaffoldBackgroundColor: AppColors.background,
 

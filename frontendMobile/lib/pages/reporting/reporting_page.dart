@@ -1,5 +1,4 @@
 import '../../core/campus_service.dart';
-import '../../widgets/status_badge.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
@@ -18,7 +17,6 @@ class ReportingPage extends StatefulWidget {
 class _ReportingPageState extends State<ReportingPage> {
   String _searchQuery = "";
   String _statusFilter = "Alles";
-  final String _priorityFilter = "Alles";
 
   @override
   void initState() {
