@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/stock_service.dart';
 import '../../models/stock.dart';
+import '../../models/campus.dart';
 import '../../models/user_session.dart';
 import 'new_stock_page.dart';
 
@@ -78,69 +79,114 @@ class _StockPageState extends State<StockPage> {
   }
 
   void _showEditStockDialog(BuildContext context, Stock stock) {
+    String tempBrand = stock.brand;
+    String tempType = stock.type;
+    int tempAmount = stock.amount;
+    String? tempDescription = stock.description;
+    int? tempRoomId = stock.roomId;
+
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: const Color(0xFF0F172A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SingleChildScrollView(
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Wysig Voorraad", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildPopupField("Merk", stock.brand),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: _buildPopupField("Tipe", stock.type)),
-                    const SizedBox(width: 16),
-                    Expanded(child: _buildPopupField("Hoeveelheid", stock.amount.toString())),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  value: stock.roomId?.toString(),
-                  decoration: _popupInputDecoration(),
-                  items: stock.roomId == null ? [] : [DropdownMenuItem(value: stock.roomId.toString(), child: Text(CampusService.getRoomName(stock.roomId.toString())))],
-                  onChanged: (v) {},
-                ),
-                const SizedBox(height: 16),
-                _buildPopupField("Beskrywing", stock.description ?? "", maxLines: 3),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Kanselleer", style: TextStyle(color: Colors.grey))),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF8B5E34),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Wysig Voorraad", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(dialogContext)),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildPopupField("Merk", tempBrand, (v) => tempBrand = v),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildPopupField("Tipe", tempType, (v) => tempType = v)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildPopupField("Hoeveelheid", tempAmount.toString(), (v) => tempAmount = int.tryParse(v) ?? tempAmount)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  ValueListenableBuilder<List<Campus>>(
+                    valueListenable: CampusService.campusesNotifier,
+                    builder: (context, campuses, _) {
+                      final allRooms = campuses
+                          .expand((c) => c.buildings)
+                          .expand((b) => b.rooms ?? [])
+                          .map((r) => '${r.id}:${r.name}')
+                          .toList();
+                      return DropdownButtonFormField<String>(
+                        value: allRooms.any((r) => r.startsWith("$tempRoomId:")) 
+                            ? allRooms.firstWhere((r) => r.startsWith("$tempRoomId:"))
+                            : null,
+                        decoration: _popupInputDecoration(),
+                        items: allRooms.map<DropdownMenuItem<String>>((r) {
+                          final parts = r.split(":");
+                          final name = parts.last;
+                          return DropdownMenuItem<String>(value: r, child: Text(name));
+                        }).toList(),
+                        onChanged: (v) {
+                          if (v != null) {
+                            setDialogState(() => tempRoomId = int.tryParse(v.split(":").first));
+                          }
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  _buildPopupField("Beskrywing", tempDescription ?? "", (v) => tempDescription = v, maxLines: 3),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                        onPressed: () => _confirmDeleteStock(context, stock),
+                        child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
                       ),
-                      child: const Text("Opdateer"),
-                    ),
-                  ],
-                ),
-              ],
+                      Row(
+                        children: [
+                          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Kanselleer", style: TextStyle(color: Colors.grey))),
+                          const SizedBox(width: 16),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final updated = Stock(
+                                id: stock.id,
+                                brand: tempBrand,
+                                type: tempType,
+                                amount: tempAmount,
+                                description: tempDescription,
+                                roomId: tempRoomId,
+                              );
+                              final success = await StockService.updateStock(updated);
+                              if (success && mounted) {
+                                Navigator.pop(dialogContext);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text("Opdateer"),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -148,7 +194,32 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  Widget _buildPopupField(String label, String initialValue, {int maxLines = 1}) {
+  void _confirmDeleteStock(BuildContext context, Stock stock) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Verwyder Voorraad"),
+        content: Text("Is jy seker jy wil '${stock.brand} ${stock.type}' verwyder?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Kanselleer")),
+          TextButton(
+            onPressed: () async {
+              if (stock.id != null) {
+                final success = await StockService.deleteStock(stock.id!);
+                if (success && mounted) {
+                  Navigator.pop(dialogContext); // Close confirm
+                  Navigator.pop(context); // Close edit dialog
+                }
+              }
+            },
+            child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPopupField(String label, String initialValue, Function(String) onChanged, {int maxLines = 1}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -158,6 +229,7 @@ class _StockPageState extends State<StockPage> {
           initialValue: initialValue,
           maxLines: maxLines,
           decoration: _popupInputDecoration(),
+          onChanged: onChanged,
         ),
       ],
     );

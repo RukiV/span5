@@ -69,15 +69,30 @@ class AssetService {
   }
 
   // FUTURE IDEA: Add an offline 'queue' for assets created while the user has no signal.
-  static Future<void> updateAsset(Asset updatedAsset) async {
+  static Future<bool> updateAsset(Asset updatedAsset) async {
     try {
       final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
       if (response.statusCode == 200) {
         await fetchAssets();
+        return true;
       }
     } catch (e) {
       debugPrint("Error updating asset: $e");
     }
+    return false;
+  }
+
+  static Future<bool> deleteAsset(String id) async {
+    try {
+      final response = await ApiClient().client.delete('/assets/$id');
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        await fetchAssets();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error deleting asset: $e");
+    }
+    return false;
   }
 
   static Future<void> linkReportToAsset(String assetId, String reportId) async {

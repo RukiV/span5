@@ -123,7 +123,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 ),
               ],
 
-              if (UserSession.isAdmin)
+              if (UserSession.hasAdminPrivileges)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SizedBox(
@@ -190,7 +190,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (UserSession.isAdmin) ...[
+                                      if (UserSession.hasAdminPrivileges) ...[
                                         IconButton(
                                           icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
                                           onPressed: () async {
@@ -223,7 +223,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                     );
                                   },
                                 ),
-                                if (roomCount > 0 && UserSession.isAdmin)
+                                if (roomCount > 0 && UserSession.hasAdminPrivileges)
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(15, 0, 15, 10),
                                     child: SizedBox(
