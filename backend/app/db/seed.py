@@ -1,8 +1,8 @@
-﻿from datetime import datetime
+from datetime import datetime
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Location, Room, RoomType, Zipcode
+from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -85,7 +85,25 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
     return location
 
 
-def _get_or_create_room(session: Session, name: str, capacity: int, room_type: RoomType, location_id: int) -> Room:
+def _get_or_create_building(session: Session, name: str, building_type: BuildingType, streetnum: str, streetname: str, location_id: int) -> Building:
+    building = session.exec(select(Building).where(Building.building_name == name)).first()
+    if building:
+        return building
+
+    building = Building(
+        building_name=name,
+        building_type=building_type,
+        building_streetnum=streetnum,
+        building_streetname=streetname,
+        location_id=location_id,
+    )
+    session.add(building)
+    session.commit()
+    session.refresh(building)
+    return building
+
+
+def _get_or_create_room(session: Session, name: str, capacity: int, room_type: RoomType, building_id: int) -> Room:
     room = session.exec(select(Room).where(Room.room_name == name)).first()
     if room:
         return room
@@ -94,7 +112,7 @@ def _get_or_create_room(session: Session, name: str, capacity: int, room_type: R
         room_name=name,
         room_capacity=capacity,
         room_type=room_type,
-        location_id=location_id,
+        building_id=building_id,
     )
     session.add(room)
     session.commit()
@@ -323,12 +341,39 @@ def seed_data():
             zipcode_id=zipcode.zipcode_id,
         )
 
+        bld1 = _get_or_create_building(
+            session,
+            name="Hoofgebou",
+            building_type=BuildingType.ADMIN,
+            streetnum="123",
+            streetname="Universiteitweg",
+            location_id=loc1.location_id,
+        )
+
+        bld2 = _get_or_create_building(
+            session,
+            name="Lesingsentrum",
+            building_type=BuildingType.EDUCATIONAL,
+            streetnum="123A",
+            streetname="Universiteitweg",
+            location_id=loc1.location_id,
+        )
+
+        bld3 = _get_or_create_building(
+            session,
+            name="Tegnologievleuel",
+            building_type=BuildingType.LABORATORY,
+            streetnum="45",
+            streetname="Innovasieblvd",
+            location_id=loc2.location_id,
+        )
+
         room1 = _get_or_create_room(
             session,
             name="Aula A",
             capacity=100,
             room_type=RoomType.OTHER,
-            location_id=loc1.location_id,
+            building_id=bld1.building_id,
         )
 
         room2 = _get_or_create_room(
@@ -336,7 +381,7 @@ def seed_data():
             name="Bedienervertrek",
             capacity=5,
             room_type=RoomType.OTHER,
-            location_id=loc2.location_id,
+            building_id=bld3.building_id,
         )
 
         assettype = _get_or_create_assettype(session)
