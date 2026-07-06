@@ -23,12 +23,11 @@ class _EditCampusPageState extends State<EditCampusPage> {
   @override
   void initState() {
     super.initState();
-    final parts = widget.campus.address.split(' ');
     _nameController = TextEditingController(text: widget.campus.name);
     _typeController = TextEditingController(text: widget.campus.code);
-    _streetNumController = TextEditingController(text: parts.isNotEmpty ? parts[0] : "");
-    _streetNameController = TextEditingController(text: parts.length > 1 ? parts.skip(1).join(' ') : "");
-    _zipIdController = TextEditingController(text: "1"); // Default
+    _streetNumController = TextEditingController(text: widget.campus.streetNum);
+    _streetNameController = TextEditingController(text: widget.campus.streetName);
+    _zipIdController = TextEditingController(text: widget.campus.zipcodeId.toString());
   }
 
   @override
@@ -71,7 +70,9 @@ class _EditCampusPageState extends State<EditCampusPage> {
     final updatedCampus = widget.campus.copyWith(
       name: _nameController.text,
       code: _typeController.text,
-      address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
+      streetNum: _streetNumController.text,
+      streetName: _streetNameController.text,
+      zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
     );
 
     final success = await CampusService.updateCampus(updatedCampus);

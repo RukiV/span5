@@ -145,7 +145,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                               type: _type,
                               streetNum: _streetNumController.text,
                               streetName: _streetNameController.text,
-                              locationId: int.tryParse(widget.campus.id) ?? 0,
+                              locationId: widget.campus.id,
                             );
                             final success = await CampusService.addBuilding(building);
                             if (mounted) {

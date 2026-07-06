@@ -5,6 +5,7 @@ import '../assets/stock_page.dart';
 import '../admin/campus_management_page.dart';
 import '../admin/manage_rooms_page.dart';
 import '../admin/buildings_list_page.dart';
+import '../admin/contractor_management_page.dart';
 import '../contractor/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
@@ -17,6 +18,7 @@ import '../../core/api_client.dart';
 import '../../core/asset_service.dart';
 import '../../core/campus_service.dart';
 import '../../core/report_service.dart';
+import '../../core/contractor_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -41,6 +43,7 @@ class _HomePageState extends State<HomePage> {
         CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
+        ContractorService.fetchContractors(),
       ]);
     } catch (e) {
       if (mounted) {
@@ -118,11 +121,18 @@ class _HomePageState extends State<HomePage> {
         'icon': Icons.report_gmailerrorred_outlined,
         'page': const ReportingPage(),
       },
-      {
-        'title': 'Kontrakteurs',
-        'icon': Icons.engineering_outlined,
-        'page': JobCardsPage(),
-      },
+      if (UserSession.hasAdminPrivileges)
+        {
+          'title': 'Kontrakteurs',
+          'icon': Icons.engineering_outlined,
+          'page': const ContractorManagementPage(),
+        }
+      else if (UserSession.isContractor)
+        {
+          'title': 'Kontrakteurs',
+          'icon': Icons.engineering_outlined,
+          'page': const JobCardsPage(),
+        },
       {
         'title': 'Werksopdragte',
         'icon': Icons.assignment_outlined,
