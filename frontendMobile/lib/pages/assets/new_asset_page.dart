@@ -1,4 +1,5 @@
 import '../../widgets/custom_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
@@ -163,14 +164,12 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
-                      return CustomDropdown<String>(
+                      return SearchableDropdown<String>(
                         label: "Kampus",
-                        hint: "",
+                        hint: "Kies 'n kampus",
                         value: selectedCampus,
                         items: campuses
-                            .map((c) => DropdownMenuItem(
-                                value: c.name,
-                                child: Text(c.name, style: const TextStyle(fontSize: 14))))
+                            .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
                             .toList(),
                         onChanged: (v) {
                           setState(() {
@@ -179,19 +178,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                             selectedLocation = null;
                           });
                         },
+                        validator: (v) => (v == null) ? "Vereis" : null,
                       );
                     },
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Gebou",
-                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "",
+                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
                     value: selectedBuilding,
                     items: _availableBuildings
-                        .map((b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b, style: const TextStyle(fontSize: 14))))
+                        .map((b) => SearchableDropdownItem(value: b, label: b))
                         .toList(),
                     onChanged: (v) {
                       setState(() {
@@ -199,20 +197,20 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         selectedLocation = null;
                       });
                     },
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Lokaal",
-                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "",
+                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
                     value: selectedLocation,
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(
-                          value: r,
-                          child: Text(name, style: const TextStyle(fontSize: 14)));
+                      return SearchableDropdownItem(value: r, label: name);
                     }).toList(),
-                    onChanged: (v) => setState(() => selectedLocation = v!),
+                    onChanged: (v) => setState(() => selectedLocation = v),
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 

@@ -9,6 +9,7 @@ import '../../core/asset_service.dart';
 import '../../core/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class AssetDetailPage extends StatefulWidget {
   final Asset asset;
@@ -230,8 +231,6 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                     onChanged: (v) => setDialogState(() => tempIsOutdoor = v),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
@@ -239,14 +238,13 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                           .expand((c) => c.buildings)
                           .expand((b) => b.rooms ?? [])
                           .toList();
-                      return DropdownButtonFormField<String>(
+                      return SearchableDropdown<String>(
+                        label: "Lokaal",
+                        hint: "Kies Lokaal",
                         value: allRooms.any((r) => r.id.toString() == tempLocation) 
                             ? tempLocation
                             : null,
-                        decoration: _popupInputDecoration(),
-                        items: allRooms.map<DropdownMenuItem<String>>((r) {
-                          return DropdownMenuItem<String>(value: r.id.toString(), child: Text(r.name));
-                        }).toList(),
+                        items: allRooms.map((r) => SearchableDropdownItem(value: r.id.toString(), label: r.name)).toList(),
                         onChanged: (v) {
                           if (v != null) {
                             setDialogState(() => tempLocation = v);
@@ -256,22 +254,18 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  const Text("Status", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdown<String>(
+                    label: "Status",
+                    hint: "Kies Status",
                     value: ["active", "maintenance", "retired", "inactive"].contains(tempStatus.toLowerCase()) 
                         ? tempStatus.toLowerCase() 
                         : "active",
-                    decoration: _popupInputDecoration(),
                     items: [
                       {"value": "active", "label": "Aktief"},
                       {"value": "maintenance", "label": "Onderhoud"},
                       {"value": "retired", "label": "Afgedank"},
                       {"value": "inactive", "label": "Onaktief"},
-                    ].map<DropdownMenuItem<String>>((s) => DropdownMenuItem<String>(
-                      value: s["value"],
-                      child: Text(s["label"]!),
-                    )).toList(),
+                    ].map((s) => SearchableDropdownItem(value: s["value"]!, label: s["label"]!)).toList(),
                     onChanged: (v) {
                       if (v != null) {
                         setDialogState(() => tempStatus = v);

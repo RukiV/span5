@@ -6,6 +6,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../assets/assets_page.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -107,13 +108,12 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
-                const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  decoration: _popupInputDecoration(),
+                SearchableDropdown<String>(
+                  label: "Tipe",
+                  hint: "Kies Tipe",
+                  value: type,
                   items: ["klas", "laboratorium", "kantoor", "other"]
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .map((t) => SearchableDropdownItem(value: t, label: t))
                       .toList(),
                   onChanged: (v) => type = v ?? "other",
                 ),
@@ -207,13 +207,12 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
-                const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
+                SearchableDropdown<String>(
+                  label: "Tipe",
+                  hint: "Kies Tipe",
                   value: type,
-                  decoration: _popupInputDecoration(),
                   items: ["klas", "laboratorium", "kantoor", "other"]
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .map((t) => SearchableDropdownItem(value: t, label: t))
                       .toList(),
                   onChanged: (v) => type = v ?? "other",
                 ),

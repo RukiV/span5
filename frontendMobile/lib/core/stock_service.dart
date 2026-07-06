@@ -62,6 +62,4 @@ class StockService {
     }
     return false;
   }
-  
-  // FUTURE IDEA: Implement low-stock alerts that notify managers when items fall below a threshold.
 }
