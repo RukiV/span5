@@ -61,13 +61,13 @@ class _HandleReportPageState extends State<HandleReportPage> {
       if (mounted) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Verslag goedgekeur en in vordering gestel"), backgroundColor: Colors.green)
+          const SnackBar(content: Text("Verslag goedgekeur en in vordering gestel"), backgroundColor: AppColors.successGreen)
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Fout: $e"), backgroundColor: Colors.red)
+          SnackBar(content: Text("Fout: $e"), backgroundColor: AppColors.errorRed)
         );
       }
     } finally {

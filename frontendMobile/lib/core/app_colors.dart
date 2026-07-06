@@ -10,10 +10,13 @@ class AppColors {
   static const Color background = Color(0xFFF5F5F5);
   static const Color inputFill = Color(0xFFFFFEF0);
   
-  // Foutkleur vir SnackBars en validasie
-  static const Color errorRed = Color(0xFFD32F2F);
+  // Status en Prioriteit Kleure (Sentrale beheer vir konsekwentheid)
+  static const Color successGreen = Color(0xFF2E7D32);
+  static const Color warningOrange = Color(0xFFEF6C00);
+  static const Color errorRed = Color(0xFFC62828);
+  static const Color infoBlue = Color(0xFF1565C0);
 
-  // Nuwe kleure vir Kalender en Events
+  // Aksie en Kalender kleure
   static const Color terracotta = Color(0xFFE2725B);
   static const Color lavender = Color(0xFFE6E6FA);
 }

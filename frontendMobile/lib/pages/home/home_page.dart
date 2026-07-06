@@ -69,7 +69,9 @@ class _HomePageState extends State<HomePage> {
       {
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
-        'page': const DashboardPage(),
+        'page': DashboardPage(onTabRequested: (index) {
+          setState(() => _selectedIndex = index);
+        }),
       },
       {
         'title': 'Bates',

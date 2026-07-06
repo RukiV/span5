@@ -204,7 +204,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               if (difference.inMinutes < 10) {
                                 final minutesLeft = 10 - difference.inMinutes;
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Wag asseblief nog $minutesLeft minute."), backgroundColor: Colors.orange),
+                                  SnackBar(content: Text("Wag asseblief nog $minutesLeft minute."), backgroundColor: AppColors.warningOrange),
                                 );
                                 return;
                               }
@@ -213,7 +213,7 @@ class _NewReportPageState extends State<NewReportPage> {
                             if (!_canSubmit) {
                               setState(() => showValidationErrors = true);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: Colors.red),
+                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
                               );
                               return;
                             }
@@ -223,7 +223,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               final asset = await AssetService.getAssetBySerialCode(serialController.text);
                               if (asset == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: Colors.red),
+                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: AppColors.errorRed),
                                 );
                                 return;
                               }
@@ -262,19 +262,19 @@ class _NewReportPageState extends State<NewReportPage> {
                                 if (success) {
                                   NewReportPage.lastSubmissionTime = DateTime.now();
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: Colors.green),
+                                    const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
                                   );
                                   Navigator.pop(context);
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: Colors.red),
+                                    const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
                                   );
                                 }
                               }
                             } catch (e) {
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: Colors.red),
+                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
                                 );
                               }
                             }

@@ -63,11 +63,11 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
         if (success) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Terrein suksesvol verwyder")),
+            const SnackBar(content: Text("Terrein suksesvol verwyder"), backgroundColor: AppColors.successGreen),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Kon nie terrein verwyder nie."), backgroundColor: Colors.red),
+            const SnackBar(content: Text("Kon nie terrein verwyder nie."), backgroundColor: AppColors.errorRed),
           );
         }
       }
