@@ -195,13 +195,13 @@ class _JobCardsPageState extends State<JobCardsPage> {
       await ReportService.updateReport(updatedReport);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Werkkaart suksesvol opgedateer in databasis"), backgroundColor: Colors.green),
+          const SnackBar(content: Text("Werkkaart suksesvol opgedateer in databasis"), backgroundColor: AppColors.successGreen),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie status opdateer nie. Is die backend aan?"), backgroundColor: Colors.red),
+          const SnackBar(content: Text("Kon nie status opdateer nie. Is die backend aan?"), backgroundColor: AppColors.errorRed),
         );
       }
     }

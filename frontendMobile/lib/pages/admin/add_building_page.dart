@@ -1,25 +1,40 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
+import '../../models/building.dart';
 
-class AddCampusPage extends StatefulWidget {
-  const AddCampusPage({super.key});
+class AddBuildingPage extends StatefulWidget {
+  final Campus campus;
+  const AddBuildingPage({super.key, required this.campus});
 
   @override
-  State<AddCampusPage> createState() => _AddCampusPageState();
+  State<AddBuildingPage> createState() => _AddBuildingPageState();
 }
 
-class _AddCampusPageState extends State<AddCampusPage> {
+class _AddBuildingPageState extends State<AddBuildingPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _typeController = TextEditingController();
   final _streetNumController = TextEditingController();
   final _streetNameController = TextEditingController();
-  final _zipIdController = TextEditingController(text: "1");
+  String _type = 'other';
   bool _isLoading = false;
-  LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
+
+  final List<Map<String, String>> _types = [
+    {'value': 'admin', 'label': 'Administrasie'},
+    {'value': 'onderwys', 'label': 'Onderwys'},
+    {'value': 'laboratory', 'label': 'Laboratorium'},
+    {'value': 'warehouse', 'label': 'Pakhuis'},
+    {'value': 'other', 'label': 'Ander'},
+  ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _streetNumController.dispose();
+    _streetNameController.dispose();
+    super.dispose();
+  }
 
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
@@ -48,7 +63,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Voeg Nuwe Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Voeg Nuwe Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -71,6 +86,9 @@ class _AddCampusPageState extends State<AddCampusPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text("Terrein: ${widget.campus.name}", style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 16),
+
                   const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -79,35 +97,36 @@ class _AddCampusPageState extends State<AddCampusPage> {
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
+
                   const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _typeController,
+                  DropdownButtonFormField<String>(
+                    value: _type,
                     decoration: _inputDecoration(""),
+                    items: _types.map((t) => DropdownMenuItem(
+                      value: t['value'],
+                      child: Text(t['label']!),
+                    )).toList(),
+                    onChanged: (v) => setState(() => _type = v!),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  const Text("Straatnommer (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNumController,
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  const Text("Straatnaam (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNameController,
                     decoration: _inputDecoration(""),
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Poskode ID", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _zipIdController,
-                    decoration: _inputDecoration(""),
-                    keyboardType: TextInputType.number,
-                  ),
                   const SizedBox(height: 32),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -120,17 +139,18 @@ class _AddCampusPageState extends State<AddCampusPage> {
                         onPressed: _isLoading ? null : () async {
                           if (_formKey.currentState!.validate()) {
                             setState(() => _isLoading = true);
-                            final campus = Campus(
-                              id: "0",
+                            final building = Building(
+                              id: 0,
                               name: _nameController.text,
-                              code: _typeController.text,
-                              address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
-                              location: _selectedLocation,
+                              type: _type,
+                              streetNum: _streetNumController.text,
+                              streetName: _streetNameController.text,
+                              locationId: int.tryParse(widget.campus.id) ?? 0,
                             );
-                            final success = await CampusService.addCampus(campus);
+                            final success = await CampusService.addBuilding(building);
                             if (mounted) {
                               setState(() => _isLoading = false);
-                              if (success) Navigator.pop(context);
+                              if (success) Navigator.pop(context, true);
                             }
                           }
                         },
