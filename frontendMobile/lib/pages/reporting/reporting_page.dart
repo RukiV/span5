@@ -117,7 +117,7 @@ class _ReportingPageState extends State<ReportingPage> {
                 dropdownColor: AppColors.navy,
                 icon: const Icon(Icons.filter_list, color: AppColors.gold),
                 style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                items: ["Alles", "Wag", "Oop", "Bevestig", "Besig", "Opgelos", "Verwerp"]
+                items: ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
                     .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                     .toList(),
                 onChanged: (val) => setState(() => _statusFilter = val!),
@@ -197,12 +197,10 @@ class _ReportingPageState extends State<ReportingPage> {
   Widget _buildStatusChip(String status) {
     Color color = Colors.grey;
     switch (status) {
-      case 'Wag': color = Colors.blue; break;
-      case 'Oop': color = Colors.orange; break;
-      case 'Bevestig': color = Colors.purple; break;
-      case 'Besig': color = Colors.blueAccent; break;
-      case 'Opgelos': color = Colors.green; break;
-      case 'Verwerp': color = Colors.red; break;
+      case 'Ontvang': color = AppColors.infoBlue; break;
+      case 'Besig': color = AppColors.warningOrange; break;
+      case 'Voltooi': color = AppColors.successGreen; break;
+      case 'Geweier': color = AppColors.errorRed; break;
     }
 
     return Container(

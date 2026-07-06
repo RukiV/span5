@@ -257,11 +257,6 @@ class _NewReportPageState extends State<NewReportPage> {
                               roomId = selectedLocation!.split(":").first;
                             }
 
-                            // Map prioriteit (Backend verwag: low, medium, high)
-                            String backendPriorityStr = "medium";
-                            if (selectedPriority == "Laag") backendPriorityStr = "low";
-                            if (selectedPriority == "Hoog") backendPriorityStr = "high";
-
                             final newReport = Report(
                               id: "0",
                               assetId: finalAssetId,
@@ -269,7 +264,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               title: titleController.text.trim(),
                               description: descController.text.trim(),
                               category: isInvisibleCode ? (selectedCategory ?? "Instandhouding") : "Herstel",
-                              priority: backendPriorityStr,
+                              priority: selectedPriority,
                               phase: "Ontvang",
                               user: UserSession.userId.toString(),
                               timestamp: DateTime.now(),
