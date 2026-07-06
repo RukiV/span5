@@ -257,10 +257,10 @@ class _NewReportPageState extends State<NewReportPage> {
                               roomId = selectedLocation!.split(":").first;
                             }
 
-                            // Map prioriteit (Backend verwag: Laag, Medium, Hoog)
-                            String backendPriorityStr = "Laag";
-                            if (selectedPriority == "Medium") backendPriorityStr = "Medium";
-                            if (selectedPriority == "Hoog") backendPriorityStr = "Hoog";
+                            // Map prioriteit (Backend verwag: low, medium, high)
+                            String backendPriorityStr = "medium";
+                            if (selectedPriority == "Laag") backendPriorityStr = "low";
+                            if (selectedPriority == "Hoog") backendPriorityStr = "high";
 
                             final newReport = Report(
                               id: "0",
