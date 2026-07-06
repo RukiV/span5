@@ -3,6 +3,8 @@ import '../../core/campus_service.dart';
 import '../../core/stock_service.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
+import '../../widgets/searchable_dropdown.dart';
+import '../../core/app_colors.dart';
 
 class NewStockPage extends StatefulWidget {
   const NewStockPage({super.key});
@@ -47,20 +49,11 @@ class _NewStockPageState extends State<NewStockPage> {
     });
   }
 
-  List<String> get availableBuildings {
+  List<String> get availableRooms {
     if (selectedCampus == null) return [];
     final campus = CampusService.getCampusByName(selectedCampus!);
     if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
-  }
-
-  List<String> get availableRooms {
-    if (selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus ?? '');
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+    return campus.buildings.expand((b) => (b.rooms ?? []).map((r) => '${r.id}:${r.name}')).toList();
   }
 
   @override
@@ -68,7 +61,7 @@ class _NewStockPageState extends State<NewStockPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Wysig Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -115,30 +108,16 @@ class _NewStockPageState extends State<NewStockPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedBuilding,
-                    decoration: _inputDecoration(),
-                    items: availableBuildings.map((b) {
-                      return DropdownMenuItem(value: b, child: Text(b));
-                    }).toList(),
-                    onChanged: (v) => setState(() {
-                      selectedBuilding = v;
-                      selectedRoom = null;
-                    }),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdown<String>(
+                    label: "Lokaal",
+                    hint: "Kies 'n lokaal",
                     value: selectedRoom,
-                    decoration: _inputDecoration(),
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(value: r, child: Text(name));
+                      return SearchableDropdownItem(value: r, label: name);
                     }).toList(),
                     onChanged: (v) => setState(() => selectedRoom = v),
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
                   _buildField("Beskrywing", (v) => description = v, maxLines: 3),
@@ -160,6 +139,7 @@ class _NewStockPageState extends State<NewStockPage> {
                              }
                              
                              final newStock = Stock(
+                               name: name,
                                brand: brand,
                                amount: amount,
                                type: type,
