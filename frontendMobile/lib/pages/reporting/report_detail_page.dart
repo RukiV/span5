@@ -1,3 +1,4 @@
+import '../../core/campus_service.dart';
 import 'edit_report_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
@@ -63,7 +64,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const SizedBox(height: 25),
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
-            _buildDetailRow("Lokaal", _currentReport.location),
+            _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
+            _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
+            _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
             _buildDetailRow("Bate ID", _currentReport.assetId),
             _buildDetailRow("Kategorie", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),

@@ -74,6 +74,19 @@ class CampusService {
     return "Room $roomId";
   }
 
+  static String getBuildingNameByRoomId(String roomId) {
+    for (var campus in _campuses) {
+      for (var building in campus.buildings) {
+        for (var room in (building.rooms ?? [])) {
+          if (room.id.toString() == roomId) {
+            return building.name;
+          }
+        }
+      }
+    }
+    return "Onbekende Gebou";
+  }
+
   static String getCampusNameByRoomId(String roomId) {
     for (var campus in _campuses) {
       for (var building in campus.buildings) {
@@ -84,7 +97,7 @@ class CampusService {
         }
       }
     }
-    return "";
+    return "Onbekende Kampus";
   }
 
   static Campus? getCampusByName(String name) {
