@@ -325,61 +325,105 @@ def seed_data():
 
         loc1 = _get_or_create_location(
             session,
-            name="Hoofkampus",
-            location_type="Onderwys",
-            streetnum="123",
-            streetname="Universiteitweg",
+            name="Leriba-kampus",
+            location_type="Kampus",
+            streetnum="245",
+            streetname="Endstraat",
             zipcode_id=zipcode.zipcode_id,
         )
 
         loc2 = _get_or_create_location(
             session,
-            name="Tegnologiesentrum",
-            location_type="Kantoor",
-            streetnum="45",
-            streetname="Innovasieblvd",
+            name="Gerhardstraat-kampus",
+            location_type="Kampus",
+            streetnum="117",
+            streetname="Gerhardstraat",
             zipcode_id=zipcode.zipcode_id,
         )
 
+        loc3 = _get_or_create_location(
+            session,
+            name="Paarl-kampus",
+            location_type="Kampus",
+            streetnum="1",
+            streetname="Bredastraat",
+            zipcode_id=zipcode.zipcode_id,
+        )
+
+        loc4 = _get_or_create_location(
+            session,
+            name="Moot-sentrum",
+            location_type="Kantoor",
+            streetnum="1120",
+            streetname="Hertzogstraat",
+            zipcode_id=zipcode.zipcode_id,
+        )
+                                                        #NB
+                                                        #verwyder straat info van geboue
         bld1 = _get_or_create_building(
             session,
-            name="Hoofgebou",
+            name="Boerneef",
             building_type=BuildingType.ADMIN,
-            streetnum="123",
-            streetname="Universiteitweg",
+            streetnum="",
+            streetname="",
             location_id=loc1.location_id,
         )
 
         bld2 = _get_or_create_building(
             session,
-            name="Lesingsentrum",
-            building_type=BuildingType.EDUCATIONAL,
-            streetnum="123A",
-            streetname="Universiteitweg",
+            name="Spys",
+            building_type=BuildingType.KAFERERIA,
+            streetnum="",
+            streetname="",
             location_id=loc1.location_id,
         )
 
         bld3 = _get_or_create_building(
             session,
-            name="Tegnologievleuel",
-            building_type=BuildingType.LABORATORY,
-            streetnum="45",
-            streetname="Innovasieblvd",
-            location_id=loc2.location_id,
+            name="Lokaal Blok L",
+            building_type=BuildingType.EDUCATIONAL,
+            streetnum="",
+            streetname="",
+            location_id=loc1.location_id,
+        )
+
+        bld4 = _get_or_create_building(
+            session,
+            name="Kantoor 118 Blok A",
+            building_type=BuildingType.EDUCATIONAL,
+            streetnum="",
+            streetname="",
+            location_id=loc4.location_id,
         )
 
         room1 = _get_or_create_room(
             session,
-            name="Aula A",
-            capacity=100,
-            room_type=RoomType.OTHER,
-            building_id=bld1.building_id,
+            name="Toilette M",
+            capacity=4,
+            room_type=RoomType.BATHROOM,
+            building_id=bld2.building_id,
         )
 
         room2 = _get_or_create_room(
             session,
-            name="Bedienervertrek",
-            capacity=5,
+            name="Toilette F",
+            capacity=4,
+            room_type=RoomType.BATHROOM,
+            building_id=bld2.building_id,
+        )
+
+        room3 = _get_or_create_room(
+            session,
+            name="Lokaal langs Roosmaryn",
+            capacity=15,
+            room_type=RoomType.CONFERENCE,
+            building_id=bld1.building_id,
+        )
+
+        room4 = _get_or_create_room(
+            session,
+            name="Bitterbessie",#L2
+            capacity=40,
             room_type=RoomType.OTHER,
             building_id=bld3.building_id,
         )
