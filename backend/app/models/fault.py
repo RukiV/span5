@@ -27,12 +27,17 @@ class Faultcard(FaultcardBase, Base, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
+    building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
+    location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
 
 
 class FaultcardCreate(FaultcardBase):
     """Input model for creating faultcard records."""
     asset_id: Optional[int] = None
+    room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
 
 
 class FaultcardRead(FaultcardBase):
@@ -41,6 +46,8 @@ class FaultcardRead(FaultcardBase):
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
 
 
@@ -55,4 +62,6 @@ class FaultcardUpdate(SQLModel):
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
