@@ -38,7 +38,7 @@ function TicketPage() {
     category: "",               // Fout-tipe
     status: "Oop",              // Fout-status
     priority: "Medium",         // Prioriteit
-    site_id: "",
+    location_id: "",
     building_id: "",
     room_id: "",
     asset_id: "",
@@ -138,7 +138,7 @@ function TicketPage() {
       category: ticket.fault_type || "",
       status: ticket.fault_status || "Oop",
       priority: ticket.fault_priority || "Medium",
-      site_id: detectedSiteId ? String(detectedSiteId) : "",
+      location_id: detectedSiteId ? String(detectedSiteId) : "",
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
@@ -162,6 +162,8 @@ function TicketPage() {
         fault_priority: newTicket.priority,
         room_id: newTicket.room_id ? Number(newTicket.room_id) : null,
         asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,
+        building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
+        location_id: newTicket.location_id ? Number(newTicket.location_id) : null,
       };
 
       if (isEditing) {
@@ -195,13 +197,13 @@ function TicketPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", site_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
   };
 
   const handleNewTicket = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", site_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
     setShowModal(true);
   };
 
@@ -247,6 +249,10 @@ function TicketPage() {
       const values = {
         id: ticket.fault_id,
         title: extractTitle(description),
+        asset_id: ticket.asset_id,
+        room_id: ticket.room_id,
+        building_id: ticket.building_id,
+        location_id: ticket.location_id,
         category: ticket.fault_type,
         priority: translatePriority(ticket.fault_priority),
         status: translateStatus(ticket.fault_status),
@@ -266,12 +272,12 @@ function TicketPage() {
 
   const getStatusClass = (status) => {
     switch (String(status).toLowerCase()) {
-      case "wag": return "status-wait";
-      case "oop": return "status-open";
-      case "bevestig": return "status-confirmed";
-      case "besig": return "status-in-progress";
-      case "opgelos": return "status-resolved";
-      case "gesluit": return "status-closed";
+      case "Wag": return "status-wait";
+      case "Oop": return "status-open";
+      case "Bevestig": return "status-confirmed";
+      case "Besig": return "status-in-progress";
+      case "Opgelos": return "status-resolved";
+      case "Gesluit": return "status-closed";
       default: return "status-default";
     }
   };
@@ -335,6 +341,10 @@ function TicketPage() {
                 <option value="all">Alle kolomme</option>
                 <option value="id">ID</option>
                 <option value="title">Titel</option>
+                <option value="asset_id">Bate ID</option>
+                <option value="room_id">Lokaal ID</option>
+                <option value="building_id">Gebou ID</option>
+                <option value="location_id">Terrein ID</option>
                 <option value="category">Kategorie</option>
                 <option value="priority">Prioriteit</option>
                 <option value="status">Status</option>
@@ -358,8 +368,12 @@ function TicketPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Kaartjie</th>
+                <th>Kaartjie ID</th>
                 <th>Titel</th>
+                <th>Bate ID</th>
+                <th>Lokaal ID</th>
+                <th>Gebou ID</th>
+                <th>Terrein ID</th>
                 <th>Kategorie</th>
                 <th>Prioriteit</th>
                 <th>Status</th>
@@ -371,6 +385,10 @@ function TicketPage() {
                 <tr key={ticket.fault_id}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
+                  <td>{ticket.asset_id}</td>
+                  <td>{ticket.room_id}</td>
+                  <td>{ticket.building_id}</td>
+                  <td>{ticket.location_id}</td>
                   <td>{translateCategory(ticket.fault_type)}</td>
                   <td>{translatePriority(ticket.fault_priority)}</td>
                   <td>
@@ -407,7 +425,7 @@ function TicketPage() {
                   <option value="">Kies kategorie</option>
                   <option value="Instandhouding">Onderhoud</option>
                   <option value="Herstelwerk">Herstel</option>
-                  <option value="Opgradering">Upgrade</option>
+                  <option value="Opgradering">Opgradeer</option>
                 </select>
               </div>
             </div>
