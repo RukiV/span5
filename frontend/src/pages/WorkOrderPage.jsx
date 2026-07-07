@@ -24,7 +24,7 @@ function WorkOrderPage() {
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
-  const [tickets, setTickets] = useState([]);
+  const [tickets, setTickets] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
