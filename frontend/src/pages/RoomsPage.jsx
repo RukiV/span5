@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import Select from "react-select";
 import Sidebar from '../components/Sidebar';
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -26,10 +27,13 @@ function RoomsPage() {
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  
+  // Opdateer: Verander die standaard room_type na 'Ander' om by die backend te pas
   const [newRoom, setNewRoom] = useState({
     room_name: "",
+    room_code: "",
     room_capacity: "",
-    room_type: "other",
+    room_type: "Ander", 
     location_id: "",
     building_id: "",
   });
@@ -80,19 +84,20 @@ function RoomsPage() {
     }
   };
 
+  // Opdateer: Aangesien die backend reeds die korrekte Afrikaanse stringe stoor en terugstuur, 
+  // hoef ons dit nie meer van Engels af te vertaal nie. Ons gee net die waarde terug.
   const translateRoomType = (type) => {
-    const translations = {
-      classroom: "Klaslokaal",
-      laboratory: "Laboratorium",
-      office: "Kantoor",
-      other: "Ander",
-    };
-    return translations[type] || type;
+    return type || "Ander";
   };
 
   const handleSaveRoom = async () => {
     if (!newRoom.room_name?.trim()) {
       alert("Voer asseblief 'n lokaalnaam in");
+      return;
+    }
+
+    if (!newRoom.room_code?.trim()) {
+      alert("Voer asseblief 'n lokaalkode in");
       return;
     }
 
@@ -103,8 +108,9 @@ function RoomsPage() {
 
     const roomData = {
       room_name: newRoom.room_name,
-      room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : null,
-      room_type: newRoom.room_type,
+      room_code: newRoom.room_code,
+      room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : 0,
+      room_type: newRoom.room_type, // Stuur nou die korrekte waarde (bv. 'Klaskamer')
       building_id: Number(newRoom.building_id),
     };
 
@@ -118,7 +124,9 @@ function RoomsPage() {
       handleCloseModal();
     } catch (error) {
       console.error("Error saving room:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      // Wys 'n meer beskrywende foutboodskap as die backend validasie gooi
+      const errorMsg = error.response?.data?.detail?.[0]?.msg || error.response?.data?.message || "Fout tydens besparing.";
+      alert(`Kon nie lokaal stoor nie:\n${errorMsg}`);
     }
   };
 
@@ -128,8 +136,9 @@ function RoomsPage() {
     setEditingId(room.room_id);
     setNewRoom({
       room_name: room.room_name || "",
+      room_code: room.room_code || "",
       room_capacity: room.room_capacity ?? "",
-      room_type: room.room_type || "other",
+      room_type: room.room_type || "Ander",
       location_id: building ? building.location_id : "",
       building_id: room.building_id ?? "",
     });
@@ -154,8 +163,9 @@ function RoomsPage() {
     setEditingId(null);
     setNewRoom({
       room_name: "",
+      room_code: "",
       room_capacity: "",
-      room_type: "other",
+      room_type: "Ander",
       location_id: "",
       building_id: "",
     });
@@ -168,8 +178,9 @@ function RoomsPage() {
     setEditingId(null);
     setNewRoom({
       room_name: "",
+      room_code: "",
       room_capacity: "",
-      room_type: "other",
+      room_type: "Ander",
       location_id: "",
       building_id: "",
     });
@@ -182,19 +193,9 @@ function RoomsPage() {
 
   const getAssetsForRoom = (roomId) => assets.filter((asset) => asset.room_id === roomId);
 
-  const getTerrainName = (locationId) => {
-    const terrain = terrains.find((t) => t.location_id === locationId);
-    return terrain ? terrain.location_name : "-";
-  };
-
   const getBuildingName = (buildingId) => {
     const building = buildings.find((b) => b.building_id === buildingId);
     return building ? building.building_name : "-";
-  };
-
-  const getBuildingTerrainId = (buildingId) => {
-    const building = buildings.find((b) => b.building_id === buildingId);
-    return building ? building.location_id : null;
   };
 
   const filteredRooms = [...rooms]
@@ -204,7 +205,8 @@ function RoomsPage() {
       const values = {
         id: room.room_id,
         name: room.room_name,
-        type: translateRoomType(room.room_type || 'other'),
+        code: room.room_code,
+        type: translateRoomType(room.room_type || 'Ander'),
         building: getBuildingName(room.building_id),
         capacity: room.room_capacity,
       };
@@ -218,9 +220,51 @@ function RoomsPage() {
       const direction = sortDirection === 'asc' ? 1 : -1;
       if (sortBy === 'id') return (Number(a.room_id || 0) - Number(b.room_id || 0)) * direction;
       if (sortBy === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (sortBy === 'code') return String(a.room_code || '').localeCompare(String(b.room_code || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * direction;
       return 0;
     });
+
+  const filterColumnOptions = [
+    { value: "all", label: "Alle kolomme" },
+    { value: "id", label: "ID" },
+    { value: "name", label: "Naam" },
+    { value: "code", label: "Kode" },
+    { value: "type", label: "Tipe" },
+    { value: "building", label: "Gebou" },
+    { value: "capacity", label: "Kapasiteit" }
+  ];
+
+  const sortByOptions = [
+    { value: "default", label: "Standaard" },
+    { value: "id", label: "ID" },
+    { value: "name", label: "Naam" },
+    { value: "code", label: "Kode" },
+    { value: "capacity", label: "Kapasiteit" }
+  ];
+
+  // Opdateer: Verander die `value` eienskappe om eksak ooreen te stem met die backend se reëls
+  const roomTypeOptions = [
+    { value: "Klaskamer", label: "Klaskamer" },
+    { value: "Laboratorium", label: "Laboratorium" },
+    { value: "Kantoor", label: "Kantoor" },
+    { value: "Konferensiekamer", label: "Konferensiekamer" },
+    { value: "Pakhuis", label: "Pakhuis" },
+    { value: "Badkamer", label: "Badkamer" },
+    { value: "Ander", label: "Ander" }
+  ];
+
+  const terrainOptions = terrains.map((t) => ({
+    value: String(t.location_id),
+    label: t.location_name
+  }));
+
+  const buildingOptions = buildings
+    .filter((b) => b.location_id === Number(newRoom.location_id))
+    .map((b) => ({
+      value: String(b.building_id),
+      label: b.building_name
+    }));
 
   if (loading) {
     return (
@@ -254,22 +298,26 @@ function RoomsPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="type">Tipe</option>
-                <option value="building">Gebou</option>
-                <option value="capacity">Kapasiteit</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={filterColumnOptions.find(o => o.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
+                options={filterColumnOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+              />
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="capacity">Kapasiteit</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={sortByOptions.find(o => o.value === sortBy)}
+                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
+                options={sortByOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+              />
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
@@ -283,6 +331,7 @@ function RoomsPage() {
               <tr>
                 <th>ID Lokaal</th>
                 <th>Naam</th>
+                <th>Kode</th>
                 <th>Tipe</th>
                 <th>Gebou</th>
                 <th>Kapasiteit</th>
@@ -293,8 +342,9 @@ function RoomsPage() {
               {filteredRooms.map((room) => (
                 <tr key={room.room_id}>
                   <td>{room.room_id}</td>
-                      <td>{room.room_name}</td>
-                  <td>{translateRoomType(room.room_type || 'other')}</td>
+                  <td>{room.room_name}</td>
+                  <td>{room.room_code ?? '-'}</td>
+                  <td>{translateRoomType(room.room_type || 'Ander')}</td>
                   <td>{getBuildingName(room.building_id)}</td>
                   <td>{room.room_capacity ?? '-'}</td>
                   <td>
@@ -322,6 +372,7 @@ function RoomsPage() {
               <h3>{isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
                <span className="close" onClick={handleCloseModal}>&times;</span>
             </div>
+            
             <div className="input-row">
               <div className="input-group">
                 <label>Naam</label>
@@ -332,6 +383,18 @@ function RoomsPage() {
                 />
               </div>
               <div className="input-group">
+                <label>Lokaal Kode</label>
+                <input
+                  type="text"
+                  placeholder="Bv. L10"
+                  value={newRoom.room_code}
+                  onChange={(e) => setNewRoom({ ...newRoom, room_code: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="input-row">
+              <div className="input-group">
                 <label>Kapasiteit</label>
                 <input
                   type="number"
@@ -339,75 +402,59 @@ function RoomsPage() {
                   onChange={(e) => setNewRoom({ ...newRoom, room_capacity: e.target.value })}
                 />
               </div>
+              <div className="input-group">
+                <label>Tipe</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={roomTypeOptions.find(o => o.value === newRoom.room_type)}
+                  onChange={(selected) => setNewRoom({ ...newRoom, room_type: selected ? selected.value : "Ander" })}
+                  options={roomTypeOptions}
+                  isSearchable={false}
+                />
+              </div>
             </div>
+
             <div className="input-row">
               <div className="input-group">
                 <label>Terrein</label>
-                <select
-                  value={newRoom.location_id}
-                  onChange={(e) => {
-                    setNewRoom({ ...newRoom, location_id: e.target.value, building_id: "" });
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies 'n terrein..."
+                  isSearchable={true}
+                  options={terrainOptions}
+                  value={terrainOptions.find(o => Number(o.value) === Number(newRoom.location_id)) || null}
+                  onChange={(selected) => {
+                    setNewRoom({ 
+                      ...newRoom, 
+                      location_id: selected ? selected.value : "", 
+                      building_id: "" 
+                    });
                   }}
-                >
-                  <option value="">Kies 'n terrein</option>
-                  {terrains.map((terrain) => (
-                    <option key={terrain.location_id} value={terrain.location_id}>{terrain.location_name}</option>
-                  ))}
-                </select>
+                />
               </div>
+              
               <div className="input-group">
                 <label>Gebou</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  {newRoom.location_id ? (
-                    <>
-                      <input
-                        type="text"
-                        placeholder="Soek gebou..."
-                        onChange={(e) => setNewRoom({ ...newRoom, _buildingSearch: e.target.value })}
-                        style={{ padding: '0.3rem', fontSize: '0.8rem' }}
-                      />
-                      <select
-                        value={newRoom.building_id}
-                        onChange={(e) => setNewRoom({ ...newRoom, building_id: e.target.value })}
-                      >
-                        <option value="">Kies 'n gebou</option>
-                        {buildings
-                          .filter((b) => b.location_id === Number(newRoom.location_id))
-                          .filter((b) => {
-                            const search = (newRoom._buildingSearch || '').toLowerCase();
-                            if (!search) return true;
-                            return b.building_name.toLowerCase().includes(search) ||
-                                   String(b.building_id).includes(search);
-                          })
-                          .map((building) => (
-                            <option key={building.building_id} value={building.building_id}>
-                              {building.building_name}
-                            </option>
-                          ))}
-                      </select>
-                    </>
-                  ) : (
-                    <select disabled>
-                      <option value="">Kies eers 'n terrein</option>
-                    </select>
-                  )}
-                </div>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newRoom.location_id ? "Kies eers 'n terrein" : "Kies 'n gebou..."}
+                  isSearchable={true}
+                  isDisabled={!newRoom.location_id}
+                  options={buildingOptions}
+                  value={buildingOptions.find(o => Number(o.value) === Number(newRoom.building_id)) || null}
+                  onChange={(selected) => {
+                    setNewRoom({ 
+                      ...newRoom, 
+                      building_id: selected ? selected.value : "" 
+                    });
+                  }}
+                />
               </div>
             </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Tipe</label>
-                <select
-                  value={newRoom.room_type}
-                  onChange={(e) => setNewRoom({ ...newRoom, room_type: e.target.value })}
-                >
-                  <option value="classroom">Klaslokaal</option>
-                  <option value="laboratory">Laboratorium</option>
-                  <option value="office">Kantoor</option>
-                  <option value="other">Ander</option>
-                </select>
-              </div>
-            </div>
+
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
