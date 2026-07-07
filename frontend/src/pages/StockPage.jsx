@@ -360,6 +360,16 @@ function StockPage() {
                 />
               </div>
               <div className="input-group">
+                <label>Totaal in eenheid</label>
+                <input
+                  type="number"
+                  value={newStock.stock_amount}
+                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="input-row">
+              <div className="input-group">
                 <label>Hoeveelheid</label>
                 <input
                   type="number"
@@ -368,18 +378,10 @@ function StockPage() {
                 />
               </div>
               <div className="input-group">
-                <label>Minimum</label>
+                <label>Minimum voorraad</label>
                 <input
                   type="number"
                   value={newStock.st}
-                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Boks Totaal</label>
-                <input
-                  type="number"
-                  value={newStock.stock_amount}
                   onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
                 />
               </div>
