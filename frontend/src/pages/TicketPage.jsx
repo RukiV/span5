@@ -31,7 +31,7 @@ function TicketPage() {
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
   
-  // Vorm-data vir foutkaartjie
+  // Vorm-data vir foutkaartjie - Gebruik konsekwent location_id
   const [newTicket, setNewTicket] = useState({
     title: "",                    // Hoofsaak/titel
     description: "",            // Volledige beskrywing
@@ -109,8 +109,8 @@ function TicketPage() {
     const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
 
     let detectedRoomId = ticket.room_id || "";
-    let detectedBuildingId = "";
-    let detectedSiteId = "";
+    let detectedBuildingId = ticket.building_id || "";
+    let detectedSiteId = ticket.location_id || "";
 
     if (!detectedRoomId && ticket.asset_id) {
       const associatedAsset = assets.find((asset) => Number(asset.asset_id) === Number(ticket.asset_id));
@@ -119,15 +119,17 @@ function TicketPage() {
       }
     }
 
-    if (detectedRoomId) {
+    if (detectedRoomId && !detectedBuildingId) {
       const associatedRoom = rooms.find((room) => Number(room.room_id) === Number(detectedRoomId));
       if (associatedRoom) {
         detectedBuildingId = associatedRoom.building_id;
+      }
+    }
 
-        const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
-        if (associatedBuilding) {
-          detectedSiteId = associatedBuilding.location_id;
-        }
+    if (detectedBuildingId && !detectedSiteId) {
+      const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
+      if (associatedBuilding) {
+        detectedSiteId = associatedBuilding.location_id;
       }
     }
 
@@ -272,17 +274,16 @@ function TicketPage() {
 
   const getStatusClass = (status) => {
     switch (String(status).toLowerCase()) {
-      case "Wag": return "status-wait";
-      case "Oop": return "status-open";
-      case "Bevestig": return "status-confirmed";
-      case "Besig": return "status-in-progress";
-      case "Opgelos": return "status-resolved";
-      case "Gesluit": return "status-closed";
+      case "wag": return "status-wait";
+      case "oop": return "status-open";
+      case "bevestig": return "status-confirmed";
+      case "besig": return "status-in-progress";
+      case "opgelos": return "status-resolved";
+      case "gesluit": return "status-closed";
       default: return "status-default";
     }
   };
 
-  // GENEREER DIE OPSIES EN VERGELYK NOU SUIWER AS STRINGE OM PARSING ERRORS TE VERMY
   useEffect(() => {
     if (showModal && isEditing && editingId && tickets.length > 0) {
       const currentTicket = tickets.find((ticket) => Number(ticket.fault_id) === Number(editingId));
@@ -292,13 +293,14 @@ function TicketPage() {
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
+  // Reggemaakte opsies kartering (Mapping) deur slegs location_id te gebruik
   const terrainOptions = (terrains || []).map((terrain) => ({
     value: String(terrain.location_id),
     label: terrain.location_name || terrain.location_desc || `Terrein ${terrain.location_id}`,
   }));
 
   const buildingOptions = (buildings || [])
-    .filter((building) => !newTicket.site_id || String(building.location_id) === String(newTicket.site_id))
+    .filter((building) => !newTicket.location_id || String(building.location_id) === String(newTicket.location_id))
     .map((building) => ({
       value: String(building.building_id),
       label: building.building_name || `Gebou ${building.building_id}`,
@@ -449,8 +451,8 @@ function TicketPage() {
                   placeholder="Kies terrein..."
                   isSearchable
                   options={terrainOptions}
-                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.site_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, site_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
+                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.location_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, location_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
                 />
               </div>
               <div className="input-group">
@@ -458,9 +460,9 @@ function TicketPage() {
                 <Select
                   className="basic-single"
                   classNamePrefix="select"
-                  placeholder={!newTicket.site_id ? "Kies eers terrein" : "Kies gebou..."}
+                  placeholder={!newTicket.location_id ? "Kies eers terrein" : "Kies gebou..."}
                   isSearchable
-                  isDisabled={!newTicket.site_id}
+                  isDisabled={!newTicket.location_id}
                   options={buildingOptions}
                   value={buildingOptions.find((option) => String(option.value) === String(newTicket.building_id)) || null}
                   onChange={(selected) => setNewTicket({ ...newTicket, building_id: selected ? String(selected.value) : "", room_id: "", asset_id: "" })}
