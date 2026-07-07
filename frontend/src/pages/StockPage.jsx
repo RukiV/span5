@@ -28,6 +28,8 @@ function StockPage() {
     stock_name: "",
     stock_brand: "",
     stock_amount: 0,
+    stock_minimum: 0,
+    stock_boxTotal: 0,
     stock_type: "",
     stock_desc: "",
     room_id: "",
@@ -103,6 +105,8 @@ function StockPage() {
         stock_name: newStock.stock_name,
         stock_brand: newStock.stock_brand,
         stock_amount: Number(newStock.stock_amount),
+        stock_minimum: Number(newStock.stock_minimum),
+        stock_boxTotal: Number(newStock.stock_boxTotal),
         stock_type: newStock.stock_type,
         stock_desc: newStock.stock_desc,
         room_id: Number(newStock.room_id),
@@ -146,6 +150,8 @@ function StockPage() {
       stock_name: item.stock_name || "",
       stock_brand: item.stock_brand || "",
       stock_amount: item.stock_amount || 0,
+      stock_minimum: item.stock_minimum || 0,
+      stock_boxTotal: item.stock_boxTotal || 0,
       stock_type: item.stock_type || "",
       stock_desc: item.stock_desc || "",
       room_id: item.room_id ? Number(item.room_id) : "",
@@ -159,13 +165,13 @@ function StockPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
+    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_minimum: 0, stock_boxTotal: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
   };
 
   const handleNewStock = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
+    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_minimum: 0, stock_boxTotal: 0,  stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
     setShowModal(true);
   };
 
@@ -205,6 +211,8 @@ function StockPage() {
         brand: item.stock_brand,
         type: item.stock_type,
         amount: item.stock_amount,
+        minimum: item.stock_minimum,
+        boxTotal: item.stock_boxTotal,
         description: item.stock_desc,
         room: getRoomName(item),
       };
@@ -219,6 +227,8 @@ function StockPage() {
       if (sortBy === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * direction;
       if (sortBy === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * direction;
+      if (sortBy === 'minimum') return (Number(a.stock_minimum || 0) - Number(b.stock_minimum || 0)) * direction;
+      if (sortBy === 'boxTotal') return (Number(a.stock_boxTotal || 0) - Number(b.stock_boxTotal || 0)) * direction;
       return 0;
     });
 
@@ -254,6 +264,8 @@ function StockPage() {
                 <option value="brand">Merk</option>
                 <option value="type">Tipe</option>
                 <option value="amount">Hoeveelheid</option>
+                <option value="minimum">Minimum</option>
+                <option value="boxTotal">Boks Totaal</option>
                 <option value="room">Lokaal</option>
                 <option value="description">Beskrywing</option>
               </select>
@@ -264,6 +276,8 @@ function StockPage() {
                 <option value="id">ID</option>
                 <option value="name">Naam</option>
                 <option value="amount">Hoeveelheid</option>
+                <option value="minimum">Minimum</option>
+                <option value="boxTotal">Boks Totaal</option>
               </select>
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
@@ -281,6 +295,8 @@ function StockPage() {
                 <th>Merk</th>
                 <th>Tipe</th>
                 <th>Hoeveelheid</th>
+                <th>Minimum</th>
+                <th>Boks Totaal</th>
                 <th>Lokaal</th>
                 <th>Beskrywing</th>
                 <th>Aksies</th>
@@ -294,6 +310,8 @@ function StockPage() {
                   <td>{item.stock_brand}</td>
                   <td>{item.stock_type}</td>
                   <td>{item.stock_amount}</td>
+                  <td>{item.stock_minimum}</td>
+                  <td>{item.stock_boxTotal}</td>
                   <td>{getRoomName(item)}</td>
                   <td>{item.stock_desc || '-'}</td>
                   <td>
@@ -343,6 +361,22 @@ function StockPage() {
               </div>
               <div className="input-group">
                 <label>Hoeveelheid</label>
+                <input
+                  type="number"
+                  value={newStock.stock_amount}
+                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Minimum</label>
+                <input
+                  type="number"
+                  value={newStock.st}
+                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Boks Totaal</label>
                 <input
                   type="number"
                   value={newStock.stock_amount}
