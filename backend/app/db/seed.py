@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode
+from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -103,7 +103,7 @@ def _get_or_create_building(session: Session, name: str, building_type: Building
     return building
 
 
-def _get_or_create_room(session: Session, name: str, code:str, capacity: int, room_type: RoomType, building_id: int) -> Room:
+def _get_or_create_room(session: Session, name: str, code:str, capacity: int, room_type: RoomType, room_status: RoomStatus, building_id: int) -> Room:
     room = session.exec(select(Room).where(Room.room_code == code)).first()
     if room:
         return room
@@ -113,6 +113,7 @@ def _get_or_create_room(session: Session, name: str, code:str, capacity: int, ro
         room_code=code,
         room_capacity=capacity,
         room_type=room_type,
+        room_status=room_status,
         building_id=building_id,
     )
     session.add(room)
@@ -207,6 +208,9 @@ def _get_or_create_job(
     job_type: Optional[str],
     created_dt: Optional[datetime],
     asset_id: Optional[int] = None,
+    room_id: Optional[int] = None,
+    building_id: Optional[int] = None,
+    location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
 ) -> Jobcard:
@@ -223,6 +227,9 @@ def _get_or_create_job(
         job_type=job_type,
         job_createddatetime=created_dt,
         asset_id=asset_id,
+        room_id=room_id,
+        building_id=building_id,
+        location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
     )
@@ -241,6 +248,8 @@ def _get_or_create_fault(
     report_dt: Optional[datetime],
     asset_id: Optional[int] = None,
     room_id: Optional[int] = None,
+    building_id: Optional[int] = None,
+    location_id: Optional[int] = None,
     mappoint_id: Optional[int] = None,
 ) -> Faultcard:
     fault = session.exec(
@@ -258,6 +267,8 @@ def _get_or_create_fault(
         fault_reportdatetime=report_dt,
         asset_id=asset_id,
         room_id=room_id,
+        building_id=building_id,
+        location_id=location_id,
         mappoint_id=mappoint_id,
     )
     session.add(fault)
@@ -439,6 +450,7 @@ def seed_data():
             code="T1",
             capacity=4,
             room_type=RoomType.BATHROOM,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld2.building_id,
         )
 
@@ -448,6 +460,7 @@ def seed_data():
             code="T2",
             capacity=4,
             room_type=RoomType.BATHROOM,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld2.building_id,
         )
 
@@ -457,6 +470,7 @@ def seed_data():
             code="L9",
             capacity=15,
             room_type=RoomType.CONFERENCE,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld1.building_id,
         )
 
@@ -466,6 +480,7 @@ def seed_data():
             code="L2",
             capacity=40,
             room_type=RoomType.OTHER,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld3.building_id,
         )
 
@@ -475,6 +490,7 @@ def seed_data():
             code="L10",
             capacity=0,
             room_type=RoomType.WAREHOUSE,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld1.building_id,
         )
 
@@ -633,6 +649,9 @@ def seed_data():
             job_type="maintenance",
             created_dt=datetime.now(),
             asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_job(
@@ -642,6 +661,9 @@ def seed_data():
             job_type="inspection",
             created_dt=datetime.now(),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
+            room_id=room4.room_id,
+            building_id=bld3.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_fault(
@@ -652,6 +674,9 @@ def seed_data():
             fault_type=Type.REPAIR,
             report_dt=datetime(2025, 7, 6, 13, 0, 0),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
+            room_id=room4.room_id,
+            building_id=bld3.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_fault(
@@ -662,6 +687,9 @@ def seed_data():
             fault_type=Type.MAINTENANCE,
             report_dt=datetime(2025, 3, 11, 9, 30, 11),
             asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
         )
 
         # Create audit logs for all assets
