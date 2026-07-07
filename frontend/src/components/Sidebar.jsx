@@ -11,18 +11,18 @@ function Sidebar({ currentPath, isAdmin, onLogout }) {
       <h2>FBS</h2>
       <ul>
         <li><Link to="/dashboard" style={isActive('/dashboard')}>Paneelbord</Link></li>
-        <li className="dropdown">
+        <li className="dropdown" style={isInGroup(['/assets', '/stock'])}>
           <div className="dropdown-trigger">
             <span>Bates & Voorraad</span>
           </div>
           <div className="dropdown-content">
-            <Link to="/assets">Bates</Link>
-            <Link to="/stock">Voorraad</Link>
+            <li><Link to="/assets" style={isActive('/assets')}>Bates</Link></li>
+            <li><Link to="/stock" style={isActive('/stock')}>Voorraad</Link></li>
           </div>
         </li>
         <li className="dropdown" style={isInGroup(['/rooms', '/buildings', '/terrains'])}>
           <div className="dropdown-trigger">
-            <span>Lokale & Terreine</span>
+            <span>Lokale, Geboue & Terreine</span>
           </div>
           <div className="dropdown-content">
             <li><Link to="/rooms" style={isActive('/rooms')}>Lokale</Link></li>

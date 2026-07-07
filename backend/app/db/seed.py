@@ -7,6 +7,7 @@ from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
+from ..models.contractor import Contractor
 from ..models.role import Role
 from ..models.user import User
 
@@ -85,7 +86,7 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
     return location
 
 
-def _get_or_create_building(session: Session, name: str, building_type: BuildingType, streetnum: str, streetname: str, location_id: int) -> Building:
+def _get_or_create_building(session: Session, name: str, building_type: BuildingType, location_id: int) -> Building:
     building = session.exec(select(Building).where(Building.building_name == name)).first()
     if building:
         return building
@@ -93,8 +94,6 @@ def _get_or_create_building(session: Session, name: str, building_type: Building
     building = Building(
         building_name=name,
         building_type=building_type,
-        building_streetnum=streetnum,
-        building_streetname=streetname,
         location_id=location_id,
     )
     session.add(building)
@@ -103,13 +102,14 @@ def _get_or_create_building(session: Session, name: str, building_type: Building
     return building
 
 
-def _get_or_create_room(session: Session, name: str, capacity: int, room_type: RoomType, building_id: int) -> Room:
-    room = session.exec(select(Room).where(Room.room_name == name)).first()
+def _get_or_create_room(session: Session, name: str, code:str, capacity: int, room_type: RoomType, building_id: int) -> Room:
+    room = session.exec(select(Room).where(Room.room_code == code)).first()
     if room:
         return room
 
     room = Room(
         room_name=name,
+        room_code=code,
         room_capacity=capacity,
         room_type=room_type,
         building_id=building_id,
@@ -138,13 +138,14 @@ def _get_or_create_assettype(session: Session) -> Assettype:
     return assettype
 
 
-def _get_or_create_asset(session: Session, name: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int) -> Asset:
-    asset = session.exec(select(Asset).where(Asset.asset_name == name)).first()
+def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int) -> Asset:
+    asset = session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
     if asset:
         return asset
 
     asset = Asset(
         asset_name=name,
+        asset_brand=brand,
         asset_serial=serial,
         asset_status=status,
         asset_isoutdoor=is_outdoor,
@@ -157,7 +158,7 @@ def _get_or_create_asset(session: Session, name: str, serial: str, status: Asset
     return asset
 
 
-def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, stock_type: str, desc: str, room_id: int | None) -> Stock:
+def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, minimum: int, boxTotal: int, stock_type: str, desc: str, room_id: int | None) -> Stock:
     stock = session.exec(select(Stock).where(Stock.stock_brand == brand, Stock.stock_type == stock_type)).first()
     if stock:
         return stock
@@ -166,6 +167,8 @@ def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, s
         stock_name=name,
         stock_brand=brand,
         stock_amount=amount,
+        stock_minimum=minimum,
+        stock_boxTotal=boxTotal,
         stock_type=stock_type,
         stock_desc=desc,
         room_id=room_id,
@@ -174,6 +177,26 @@ def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, s
     session.commit()
     session.refresh(stock)
     return stock
+
+
+def _get_or_create_contractor(session: Session, businessName: str, name: str, surname: str, email: str, number: Optional[str], contractor_type: Optional[str]) -> Contractor:
+    contractor = session.exec(select(Contractor).where(Contractor.contractor_email == email)
+    ).first()
+    if contractor:
+        return contractor
+
+    contractor = Contractor(
+        contractor_businessName=businessName,
+        contractor_name=name,
+        contractor_surname=surname,
+        contractor_email=email,
+        contractor_number=number,
+        contractor_type=contractor_type,
+    )
+    session.add(contractor)
+    session.commit()
+    session.refresh(contractor)
+    return contractor
 
 
 def _get_or_create_job(
@@ -325,71 +348,140 @@ def seed_data():
 
         loc1 = _get_or_create_location(
             session,
-            name="Hoofkampus",
-            location_type="Onderwys",
-            streetnum="123",
-            streetname="Universiteitweg",
+            name="Leriba-kampus",
+            location_type="Kampus",
+            streetnum="245",
+            streetname="Endstraat",
             zipcode_id=zipcode.zipcode_id,
         )
 
         loc2 = _get_or_create_location(
             session,
-            name="Tegnologiesentrum",
+            name="Gerhardstraat-kampus",
+            location_type="Kampus",
+            streetnum="117",
+            streetname="Gerhardstraat",
+            zipcode_id=zipcode.zipcode_id,
+        )
+
+        loc3 = _get_or_create_location(
+            session,
+            name="Paarl-kampus",
+            location_type="Kampus",
+            streetnum="1",
+            streetname="Bredastraat",
+            zipcode_id=zipcode.zipcode_id,
+        )
+
+        loc4 = _get_or_create_location(
+            session,
+            name="Moot-sentrum",
             location_type="Kantoor",
-            streetnum="45",
-            streetname="Innovasieblvd",
+            streetnum="1120",
+            streetname="Hertzogstraat",
             zipcode_id=zipcode.zipcode_id,
         )
 
         bld1 = _get_or_create_building(
             session,
-            name="Hoofgebou",
+            name="Boerneef",
             building_type=BuildingType.ADMIN,
-            streetnum="123",
-            streetname="Universiteitweg",
             location_id=loc1.location_id,
         )
 
         bld2 = _get_or_create_building(
             session,
-            name="Lesingsentrum",
-            building_type=BuildingType.EDUCATIONAL,
-            streetnum="123A",
-            streetname="Universiteitweg",
+            name="Spys",
+            building_type=BuildingType.KAFERERIA,
             location_id=loc1.location_id,
         )
 
         bld3 = _get_or_create_building(
             session,
-            name="Tegnologievleuel",
-            building_type=BuildingType.LABORATORY,
-            streetnum="45",
-            streetname="Innovasieblvd",
-            location_id=loc2.location_id,
+            name="Blok L",
+            building_type=BuildingType.EDUCATIONAL,
+            location_id=loc1.location_id,
+        )
+
+        bld4 = _get_or_create_building(
+            session,
+            name="Kantoor 118 Blok A",
+            building_type=BuildingType.EDUCATIONAL,
+            location_id=loc4.location_id,
         )
 
         room1 = _get_or_create_room(
             session,
-            name="Aula A",
-            capacity=100,
-            room_type=RoomType.OTHER,
-            building_id=bld1.building_id,
+            name="Toilette M",
+            code="T1",
+            capacity=4,
+            room_type=RoomType.BATHROOM,
+            building_id=bld2.building_id,
         )
 
         room2 = _get_or_create_room(
             session,
-            name="Bedienervertrek",
-            capacity=5,
+            name="Toilette F",
+            code="T2",
+            capacity=4,
+            room_type=RoomType.BATHROOM,
+            building_id=bld2.building_id,
+        )
+
+        room3 = _get_or_create_room(
+            session,
+            name="Lokaal langs Roosmaryn",
+            code="L9",
+            capacity=15,
+            room_type=RoomType.CONFERENCE,
+            building_id=bld1.building_id,
+        )
+
+        room4 = _get_or_create_room(
+            session,
+            name="Bitterbessie",
+            code="L2",
+            capacity=40,
             room_type=RoomType.OTHER,
             building_id=bld3.building_id,
+        )
+
+        room5 = _get_or_create_room(
+            session,
+            name="Stoorkamer",
+            code="L10",
+            capacity=0,
+            room_type=RoomType.WAREHOUSE,
+            building_id=bld1.building_id,
+        )
+
+        contractor1 = _get_or_create_contractor(
+            session,
+            businessName="Jan's Woodworking",
+            name="Jan",
+            surname="Botha",
+            email="jan.botha@workfix.co.za",
+            number="+27 21 555 1234",
+            contractor_type="Electrical",
+        )
+
+        contractor2 = _get_or_create_contractor(
+            session,
+            businessName="Bethesda Plumbing",
+            name="Lindy",
+            surname="Bethesda",
+            email="lindiwe.mokoena@plumbright.co.za",
+            number="+27 11 555 6789",
+            contractor_type="Plumbing",
         )
 
         assettype = _get_or_create_assettype(session)
 
         _get_or_create_asset(
             session,
-            name="Projektor 4K",
-            serial="AK-MT000001",
+            name="Handdroër",
+            brand="Dyson",
+            serial="AK-MT000014",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
@@ -398,61 +490,123 @@ def seed_data():
 
         _get_or_create_asset(
             session,
-            name="Buitetoeveiliingskamera",
+            name="Handdroër",
+            brand="Dyson",
+            serial="AK-MT000015",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room2.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Projektor 4k",
+            brand="Epson",
+            serial="AK-MT000001",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room3.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Projektor 4k",
+            brand="Epson",
             serial="AK-MT000002",
             status=AssetStatus.ACTIVE,
-            is_outdoor=True,
-            room_id=room2.room_id,
+            is_outdoor=False,
+            room_id=room4.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Stoel",
+            brand="Dauphin",
+            serial="AK-MT000005",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room4.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Stoel",
+            brand="Cecil Nurse",
+            serial="AK-MT000006",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room4.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Stoel",
+            brand="Cecil Nurse",
+            serial="AK-MT0000010",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room5.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Tafel",
+            brand="Barker Street",
+            serial="AK-MT0000011",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room5.room_id,
+            assettype_id=assettype.assettype_id,
+        )
+
+        _get_or_create_asset(
+            session,
+            name="Stoel",
+            brand="Cecil Nurse",
+            serial="AK-MT0000012",
+            status=AssetStatus.ACTIVE,
+            is_outdoor=False,
+            room_id=room5.room_id,
             assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_stock(
             session,
-            name="Dell Latitude",
-            brand="Dell",
-            amount=50,
-            stock_type="Skootrekenaar",
-            desc="Dell Latitude skootrekenaars vir personeelgebruik",
+            name="Gloeilampe",
+            brand="Spax",
+            amount=30,
+            minimum=5,
+            boxTotal=1,
+            stock_type="Verbruiksgoedere",
+            desc="T8 36W Koel Wit (Cool White) 1200mm fluoresserende ligbuis vir klaskamers.",
             room_id=room2.room_id,
         )
 
         _get_or_create_stock(
             session,
-            name="HP LaserJet",
-            brand="HP",
-            amount=25,
-            stock_type="Drukker",
-            desc="HP LaserJet-drukkers vir kantoorgebruik",
+            name="Houtskroewe",
+            brand="Eureka",
+            amount=10,
+            minimum=3,
+            boxTotal=100,
+            stock_type="Onderdele",
+            desc="4.0 x 40mm sink-plaat (zinc plated) dry-wall en algemene houtskroewe.",
             room_id=room1.room_id,
         )
 
-        _get_or_create_stock(
-            session,
-            name="Cisco Switch",
-            brand="Cisco",
-            amount=10,
-            stock_type="Netwerkskakelaars",
-            desc="Cisco-netwerkskakelaars vir IT-infrastruktuur",
-            room_id=room2.room_id,
-        )
-
-        _get_or_create_stock(
-            session,
-            name="Microsoft Office",
-            brand="Microsoft",
-            amount=100,
-            stock_type="Lisensie",
-            desc="Microsoft Office 365-lisensies",
-            room_id=None,
-        )
-
-        projector_asset = session.exec(select(Asset).where(Asset.asset_name == "Projektor 4K")).first()
-        camera_asset = session.exec(select(Asset).where(Asset.asset_name == "Buitetoeveiliingskamera")).first()
+        projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
+        stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000005")).first()
 
         _get_or_create_job(
             session,
-            desc="Vervang projektorbólpe in Aula A",
-            status=JobStatus.WAIT,
+            desc="Herstel projektor lens.",
+            status=JobStatus.OPEN,
             job_type="maintenance",
             created_dt=datetime.now(),
             asset_id=projector_asset.asset_id if projector_asset else None,
@@ -460,30 +614,30 @@ def seed_data():
 
         _get_or_create_job(
             session,
-            desc="Inspekteer buitetoeveiliingskamerarigting",
-            status=JobStatus.OPEN,
+            desc="Vervang stoel.",
+            status=JobStatus.IN_PROGRESS,
             job_type="inspection",
             created_dt=datetime.now(),
-            asset_id=camera_asset.asset_id if camera_asset else None,
+            asset_id=stoel_asset.asset_id if stoel_asset else None,
         )
 
         _get_or_create_fault(
             session,
-            description="Beveiliingskamera af-lêer vanweë stroomonderbreking",
-            status=FaultStatus.WAIT,
-            priority=Priority.HIGH,
+            description="Stoel het 'n gebreukte poot.",
+            status=FaultStatus.IN_PROGRESS,
+            priority=Priority.LOW,
             fault_type=Type.REPAIR,
-            report_dt=datetime.now(),
-            asset_id=camera_asset.asset_id if camera_asset else None,
+            report_dt=datetime(2025, 7, 6, 13, 0, 0),
+            asset_id=stoel_asset.asset_id if stoel_asset else None,
         )
 
         _get_or_create_fault(
             session,
-            description="Projektorbólpe flikkering tydens lesings",
-            status=FaultStatus.OPEN,
+            description="Projektor lens is gekraak",
+            status=FaultStatus.WAIT,
             priority=Priority.MEDIUM,
             fault_type=Type.MAINTENANCE,
-            report_dt=datetime.now(),
+            report_dt=datetime(2025, 3, 11, 9, 30, 11),
             asset_id=projector_asset.asset_id if projector_asset else None,
         )
 

@@ -41,6 +41,11 @@ def createDBandTables():
             if "quote_selection_reason" not in columns:
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
 
+        if "contractor" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("contractor")}
+            if "contractor_businessName" not in columns:
+                connection.execute(text("ALTER TABLE contractor ADD COLUMN IF NOT EXISTS contractor_businessName VARCHAR(100)"))
+
 def getSession():
     with Session(engine) as session:
         yield session

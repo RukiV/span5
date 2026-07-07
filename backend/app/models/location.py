@@ -45,10 +45,8 @@ class BuildingBase(SQLModel):
     """Base model for building data."""
     building_name: str = Field(max_length=100)
     building_type: BuildingType = Field(default=BuildingType.OTHER)
-    building_streetnum: str = Field(max_length=20)
-    building_streetname: str = Field(max_length=100)
 
-    @field_validator('building_name', 'building_streetnum', 'building_streetname', mode='before')
+    @field_validator('building_name', mode='before')
     @classmethod
     def _sanitize_building(cls, v, info):
         return sanitize_text(v)
@@ -75,8 +73,6 @@ class BuildingUpdate(SQLModel):
     """Input model for updating building records."""
     building_name: Optional[str] = None
     building_type: Optional[BuildingType] = None
-    building_streetnum: Optional[str] = None
-    building_streetname: Optional[str] = None
     location_id: Optional[int] = None
 
 
@@ -122,6 +118,7 @@ class LocationUpdate(SQLModel):
 class RoomBase(SQLModel):
     """Base model for room data."""
     room_name: str = Field(max_length=100)
+    room_code: str = Field(default=None, max_length=20)
     room_capacity: Optional[int] = None
     room_type: RoomType = Field(default=RoomType.OTHER)
 
@@ -156,6 +153,7 @@ class RoomRead(RoomBase):
 class RoomUpdate(SQLModel):
     """Input model for updating room records."""
     room_name: Optional[str] = None
+    room_code: Optional[str] = None
     room_capacity: Optional[int] = None
     room_type: Optional[RoomType] = None
     building_id: Optional[int] = None

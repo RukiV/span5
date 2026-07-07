@@ -52,7 +52,8 @@ class AssettypeUpdate(SQLModel):
 class AssetBase(SQLModel):
     """Base model for asset data."""
     asset_name: str = Field(max_length=100)
-    asset_serial: Optional[str] = Field(default=None, max_length=20)
+    asset_brand: str = Field(max_length=100)
+    asset_serial: str = Field(default=None, max_length=20)
     asset_status: AssetStatus = Field(default=AssetStatus.ACTIVE)
     asset_isoutdoor: Optional[bool] = None
 
@@ -85,6 +86,7 @@ class AssetRead(AssetBase):
 class AssetUpdate(SQLModel):
     """Input model for updating asset records."""
     asset_name: Optional[str] = None
+    asset_brand: Optional[str] = None
     asset_serial: Optional[str] = None
     asset_status: Optional[AssetStatus] = None
     asset_isoutdoor: Optional[bool] = None
