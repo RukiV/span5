@@ -6,6 +6,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../assets/assets_page.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -39,7 +40,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   }
 
   void _loadInitialCampus() {
-    if (UserSession.isAdmin) {
+    if (UserSession.hasAdminPrivileges) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {
         _selectedCampus = CampusService.campusesNotifier.value.first;
       }
@@ -107,13 +108,12 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                   keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 16),
-                const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  initialValue: type,
-                  decoration: _popupInputDecoration(),
+                SearchableDropdown<String>(
+                  label: "Tipe",
+                  hint: "Kies Tipe",
+                  value: type,
                   items: ["klas", "laboratorium", "kantoor", "other"]
-                      .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                      .map((t) => SearchableDropdownItem(value: t, label: t))
                       .toList(),
                   onChanged: (v) => type = v ?? "other",
                 ),
@@ -163,6 +163,121 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     );
   }
 
+  void _showEditRoomDialog(BuildContext context, Room room) {
+    final nameController = TextEditingController(text: room.name);
+    final capacityController = TextEditingController(text: room.capacity?.toString() ?? "");
+    String type = room.type;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: SingleChildScrollView(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Wysig lokaal", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: nameController,
+                  decoration: _popupInputDecoration(),
+                ),
+                const SizedBox(height: 16),
+                const Text("Kapasiteit", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: capacityController,
+                  decoration: _popupInputDecoration(),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 16),
+                SearchableDropdown<String>(
+                  label: "Tipe",
+                  hint: "Kies Tipe",
+                  value: type,
+                  items: ["klas", "laboratorium", "kantoor", "other"]
+                      .map((t) => SearchableDropdownItem(value: t, label: t))
+                      .toList(),
+                  onChanged: (v) => type = v ?? "other",
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (nameController.text.isEmpty) return;
+                        final updatedRoom = room.copyWith(
+                          name: nameController.text.trim(),
+                          type: type,
+                          capacity: int.tryParse(capacityController.text),
+                        );
+                        await CampusService.updateRoom(updatedRoom);
+                        Navigator.pop(context);
+                        if (mounted) {
+                          setState(() {});
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.navy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text("Stoor"),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteRoom(Room room) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Verwyder Lokaal"),
+        content: Text("Is jy seker jy wil '${room.name}' verwyder?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("KANSELLEER")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("VERWYDER", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await CampusService.removeRoom(room.id);
+      if (mounted) setState(() {});
+    }
+  }
+
   InputDecoration _popupInputDecoration() {
     return InputDecoration(
       filled: true,
@@ -190,7 +305,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (UserSession.isAdmin && _selectedCampus == null) {
+          if (UserSession.hasAdminPrivileges && _selectedCampus == null) {
             _selectedCampus = campuses.first;
           }
 
@@ -199,7 +314,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (UserSession.isAdmin && widget.initialCampus == null) ...[
+                if (UserSession.hasAdminPrivileges && widget.initialCampus == null) ...[
                   const Text("KIES TERREIN:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   const SizedBox(height: 8),
                   Container(
@@ -271,20 +386,21 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 if (_selectedBuilding == null)
                   const Expanded(child: Center(child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey))))
                 else ...[
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: () => _showAddRoomDialog(context),
-                        icon: const Icon(Icons.add),
-                        label: const Text("NUWE LOKAAL"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  if (UserSession.hasAdminPrivileges)
+                    Row(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _showAddRoomDialog(context),
+                          icon: const Icon(Icons.add),
+                          label: const Text("NUWE LOKAAL"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.navy,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   const SizedBox(height: 30),
                   const Text(
                     "BESTAANDE LOKALE (Klik om bates te sien)",
@@ -304,7 +420,22 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                 child: ListTile(
                                   title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w500)),
                                   subtitle: Text("ID: ${room.id} | ${room.type}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                  trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (UserSession.hasAdminPrivileges) ...[
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                          onPressed: () => _showEditRoomDialog(context, room),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                          onPressed: () => _deleteRoom(room),
+                                        ),
+                                      ],
+                                      const Icon(Icons.chevron_right, color: AppColors.gold),
+                                    ],
+                                  ),
                                   onTap: () {
                                     Navigator.push(
                                       context,

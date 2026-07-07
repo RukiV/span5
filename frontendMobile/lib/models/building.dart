@@ -34,6 +34,8 @@ class Building {
   Map<String, dynamic> toJson() => {
     'building_name': name,
     'building_type': type,
+    'building_streetnum': streetNum,
+    'building_streetname': streetName,
     'location_id': locationId,
   };
 

@@ -121,10 +121,12 @@ class _AddCampusPageState extends State<AddCampusPage> {
                           if (_formKey.currentState!.validate()) {
                             setState(() => _isLoading = true);
                             final campus = Campus(
-                              id: "0",
+                              id: 0,
                               name: _nameController.text,
                               code: _typeController.text,
-                              address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
+                              streetNum: _streetNumController.text,
+                              streetName: _streetNameController.text,
+                              zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
                               location: _selectedLocation,
                             );
                             final success = await CampusService.addCampus(campus);

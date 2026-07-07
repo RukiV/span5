@@ -22,10 +22,17 @@ class StatusBadge extends StatelessWidget {
         color = Colors.green;
         displayStatus = 'Aktief';
         break;
+      case 'inactive':
+      case 'onaktief':
+        color = Colors.grey;
+        displayStatus = 'Onaktief';
+        break;
+      case 'maintenance':
       case 'onderhoud':
         color = Colors.blueAccent;
         displayStatus = 'Onderhoud';
         break;
+      case 'retired':
       case 'afgedank':
         color = Colors.red;
         displayStatus = 'Afgedank';

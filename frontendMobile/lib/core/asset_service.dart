@@ -24,15 +24,6 @@ class AssetService {
     }
   }
 
-  // Local helper to find a specific asset by its ID.
-  static Asset? getAssetById(String id) {
-    try {
-      return _assets.firstWhere((a) => a.id == id);
-    } catch (_) {
-      return null;
-    }
-  }
-
   // Used by the reporting system to identify an asset from a scanned QR or barcode.
   static Future<Asset?> getAssetBySerialCode(String serialCode) async {
     try {
@@ -68,20 +59,29 @@ class AssetService {
     return false;
   }
 
-  // FUTURE IDEA: Add an offline 'queue' for assets created while the user has no signal.
-  static Future<void> updateAsset(Asset updatedAsset) async {
+  static Future<bool> updateAsset(Asset updatedAsset) async {
     try {
       final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
       if (response.statusCode == 200) {
         await fetchAssets();
+        return true;
       }
     } catch (e) {
       debugPrint("Error updating asset: $e");
     }
+    return false;
   }
 
-  static Future<void> linkReportToAsset(String assetId, String reportId) async {
-    // Relationship is usually handled by the backend via foreign keys in Faultcards.
-    debugPrint("Linking report $reportId to asset $assetId");
+  static Future<bool> deleteAsset(String id) async {
+    try {
+      final response = await ApiClient().client.delete('/assets/$id');
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        await fetchAssets();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error deleting asset: $e");
+    }
+    return false;
   }
 }

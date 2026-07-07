@@ -36,6 +36,30 @@ class StockService {
     }
     return false;
   }
-  
-  // FUTURE IDEA: Implement low-stock alerts that notify managers when items fall below a threshold.
+
+  static Future<bool> updateStock(Stock updatedStock) async {
+    try {
+      final response = await ApiClient().client.patch('/stock/${updatedStock.id}', data: updatedStock.toJson());
+      if (response.statusCode == 200) {
+        await fetchStocks();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error updating stock: $e");
+    }
+    return false;
+  }
+
+  static Future<bool> deleteStock(int id) async {
+    try {
+      final response = await ApiClient().client.delete('/stock/$id');
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        await fetchStocks();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error deleting stock: $e");
+    }
+    return false;
+  }
 }

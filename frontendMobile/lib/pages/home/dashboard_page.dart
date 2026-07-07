@@ -83,6 +83,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
                 final aktief = reports.where((r) => r.phase == "Besig").length;
                 final voltooi = reports.where((r) => r.phase == "Voltooi").length;
+                final werksopdragteTotaal = reports.length;
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
@@ -98,16 +99,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               nuwe.toString(),
                               "(-3%)",
                               AppColors.gold,
-                              5, // Foutkaartjies index
+                              6, // Foutkaartjies index
                               cardWidth,
                             ),
                             _buildMiniStatCard(
                               context,
                               "Werksopdragte",
-                              aktief.toString(),
-                              "(-2%)",
+                              werksopdragteTotaal.toString(),
+                              "",
                               AppColors.successGreen, // Werksopdragte is nou Groen
-                              6, // Werksopdragte index
+                              8, // Werksopdragte index
                               cardWidth,
                             ),
                             _buildMiniStatCard(
@@ -116,7 +117,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               voltooi.toString(),
                               "(+10%)",
                               AppColors.infoBlue,
-                              8, // Verslae index
+                              10, // Verslae index
                               cardWidth,
                             ),
                           ],
