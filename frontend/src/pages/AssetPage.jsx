@@ -283,7 +283,6 @@ function AssetPage() {
 
       const getColumnValue = (column) => {
         switch (column) {
-          case "asset_id": return asset.asset_id;
           case "asset_name": return asset.asset_name;
           case "asset_brand": return asset.asset_brand;
           case "asset_serial": return asset.asset_serial;
@@ -304,7 +303,6 @@ function AssetPage() {
     .sort((a, b) => {
       if (sortBy === "default") return 0;
       const direction = sortDirection === "asc" ? 1 : -1;
-      if (sortBy === "asset_id") return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * direction;
       if (sortBy === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * direction;
       if (sortBy === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * direction;
       return 0;
@@ -341,7 +339,6 @@ function AssetPage() {
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
-    { value: "asset_id", label: "ID" },
     { value: "asset_name", label: "Naam" },
     { value: "asset_brand", label: "Brand" },
     { value: "asset_serial", label: "Serienommer" },
@@ -352,7 +349,6 @@ function AssetPage() {
 
   const sortByOptions = [
     { value: "default", label: "Standaard" },
-    { value: "asset_id", label: "ID" },
     { value: "asset_name", label: "Naam" },
     { value: "status", label: "Status" }
   ];
@@ -438,8 +434,8 @@ function AssetPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Bate</th>
                 <th>Naam</th>
+                <th>Merk</th>
                 <th>Serienommer</th>
                 <th>Buite</th>
                 <th>Lokaal</th>
@@ -450,8 +446,8 @@ function AssetPage() {
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.asset_id}>
-                  <td>{item.asset_id}</td>
                   <td>{item.asset_name}</td>
+                  <td>{item.asset_brand}</td>
                   <td>{item.asset_serial}</td>
                   <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>
                   <td>{getRoomName(item)}</td>
