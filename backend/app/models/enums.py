@@ -36,6 +36,13 @@ class AssetStatus(Enum):
     MAINTENANCE = "Instandhouding"
     DECOMMISSIONED = "Afgedank"
 
+class RoomStatus(Enum):
+    """Enumeration for room statuses."""
+    OPERATIONAL = "Operasioneel"
+    ISSUE_REPORTED = "Fout Aangemeld"
+    MAINTENANCE = "Instandhouding"
+    OUT_OF_SERVICE = "Buite Werking"
+
 class BuildingType(Enum):
     """Enumeration for building type values."""
     ADMIN = "Kantoorgebou"
