@@ -33,6 +33,7 @@ class StatusBadge extends StatelessWidget {
         displayStatus = 'Onderhoud';
         break;
       case 'retired':
+      case 'decommissioned':
       case 'afgedank':
         color = Colors.red;
         displayStatus = 'Afgedank';
