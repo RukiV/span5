@@ -4,6 +4,7 @@ import '../../core/app_colors.dart';
 import '../../core/stock_service.dart';
 import '../../models/stock.dart';
 import '../../models/campus.dart';
+import '../../models/room.dart';
 import '../../models/user_session.dart';
 import 'new_stock_page.dart';
 import '../../widgets/searchable_dropdown.dart';
@@ -100,14 +101,15 @@ class _StockPageState extends State<StockPage> {
                       .expand((b) => b.rooms ?? <Room>[])
                       .toList();
                   
-                  final items = ["Almal", ...allRooms.map((r) => r.name).toSet()];
+                  final Set<String> roomNames = allRooms.map((r) => r.name).toSet();
+                  final List<String> items = ["Almal", ...roomNames];
 
                   return DropdownButton<String>(
                     value: _roomFilter,
                     dropdownColor: AppColors.navy,
                     icon: const Icon(Icons.filter_list, color: AppColors.gold),
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                    items: items.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                    items: items.map((s) => DropdownMenuItem<String>(value: s, child: Text(s))).toList(),
                     onChanged: (val) => setState(() => _roomFilter = val!),
                   );
                 },
@@ -219,8 +221,9 @@ class _StockPageState extends State<StockPage> {
                                 roomId: tempRoomId,
                               );
                               final success = await StockService.updateStock(updated);
-                              if (success && mounted) {
-                                Navigator.pop(dialogContext);
+                              if (!mounted) return;
+                              if (success) {
+                                Navigator.of(dialogContext).pop();
                               }
                             },
                             style: ElevatedButton.styleFrom(
@@ -256,9 +259,10 @@ class _StockPageState extends State<StockPage> {
             onPressed: () async {
               if (stock.id != null) {
                 final success = await StockService.deleteStock(stock.id!);
-                if (success && mounted) {
-                  Navigator.pop(dialogContext); // Close confirm
-                  Navigator.pop(context); // Close edit dialog
+                if (!mounted) return;
+                if (success) {
+                  Navigator.of(dialogContext).pop(); // Close confirm
+                  Navigator.of(context).pop(); // Close edit dialog
                 }
               }
             },
@@ -323,7 +327,8 @@ class _StockPageState extends State<StockPage> {
           }
 
           // Search query
-          return s.brand.toLowerCase().contains(_query) ||
+          return s.name.toLowerCase().contains(_query) ||
+              s.brand.toLowerCase().contains(_query) ||
               s.type.toLowerCase().contains(_query) ||
               (s.id?.toString().contains(_query) ?? false);
         }).toList();
