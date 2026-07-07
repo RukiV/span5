@@ -1,7 +1,8 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
-import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI } from "../services/api";
+import Select from "react-select"; // Bygevoeg vir React-Select dropdowns
+import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
@@ -21,6 +22,8 @@ function WorkOrderPage() {
   const [workOrders, setWorkOrders] = useState([]);
   const [assets, setAssets] = useState([]);               // Bates vir toekenning
   const [rooms, setRooms] = useState([]);
+  const [buildings, setBuildings] = useState([]);
+  const [terrains, setTerrains] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
@@ -41,6 +44,10 @@ function WorkOrderPage() {
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
+
+  // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
+  const [selectedTerrein, setSelectedTerrein] = useState(null);
+  const [selectedGebou, setSelectedGebou] = useState(null);
   
   // Vorm-data vir werksopdrag (uitgebreide velde)
   const [formData, setFormData] = useState({
@@ -51,7 +58,7 @@ function WorkOrderPage() {
     job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
-    job_schedule_type: "enkel",    // Herhalingstipe
+    job_schedule_type: "enkel",     // Herhalingstipe
     
     // Aanspreekpunt-inligting
     contact_name: "",               // Naam van persoon
@@ -61,6 +68,9 @@ function WorkOrderPage() {
     // Asset en Lokasie
     asset_id: "",                   // Bate-ID
     room_id: "",                    // Kamer/Lokasie
+    site_id: "",
+    building_id: "",
+    fault_id: "",
     
     // Werk-inligting
     nature: "",                     // Aard van werk
@@ -88,9 +98,29 @@ function WorkOrderPage() {
     fetchWorkOrders();
     fetchAssets();
     fetchRooms();
+    fetchBuildings();
+    fetchTerrains();
     fetchTickets();
     fetchContractors();
   }, []);
+
+  const fetchTerrains = async () => {
+    try {
+      const response = await locationAPI.getAll();
+      setTerrains(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal terreine:", error);
+    }
+  };
+
+  const fetchBuildings = async () => {
+    try {
+      const response = await buildingsAPI.getAll();
+      setBuildings(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal geboue:", error);
+    }
+  };
 
   const fetchContractors = async () => {
     try {
@@ -158,7 +188,6 @@ function WorkOrderPage() {
   // Hulpfunksie: Formateer datetime na date-only (YYYY-MM-DD)
   const formatDateForInput = (dateString) => {
     if (!dateString) return "";
-    // Haal net die datum-deel uit (eerste 10 karakters: YYYY-MM-DD)
     return dateString.split('T')[0];
   };
 
@@ -378,18 +407,37 @@ function WorkOrderPage() {
       cost_recovery_notes: order.cost_recovery_notes || "",
     });
 
+    // Stel koppelings-tipe vas
     if (order.asset_id) {
       setConnectionType("asset");
       setConnectionTargetId(String(order.asset_id));
+      // Probeer terrein en gebou vooraf kies op grond van die bate se lokaal
+      const matchingAsset = assets.find(a => String(a.asset_id) === String(order.asset_id));
+      if (matchingAsset && matchingAsset.room_id) {
+        const matchingRoom = rooms.find(r => String(r.room_id) === String(matchingAsset.room_id));
+        if (matchingRoom) {
+          setSelectedTerrein(matchingRoom.terrein ? { value: matchingRoom.terrein, label: matchingRoom.terrein } : null);
+          setSelectedGebou(matchingRoom.gebou ? { value: matchingRoom.gebou, label: matchingRoom.gebou } : null);
+        }
+      }
     } else if (order.room_id) {
       setConnectionType("room");
       setConnectionTargetId(String(order.room_id));
+      const matchingRoom = rooms.find(r => String(r.room_id) === String(order.room_id));
+      if (matchingRoom) {
+        setSelectedTerrein(matchingRoom.terrein ? { value: matchingRoom.terrein, label: matchingRoom.terrein } : null);
+        setSelectedGebou(matchingRoom.gebou ? { value: matchingRoom.gebou, label: matchingRoom.gebou } : null);
+      }
     } else if (order.fault_id) {
       setConnectionType("fault");
       setConnectionTargetId(String(order.fault_id));
+      setSelectedTerrein(null);
+      setSelectedGebou(null);
     } else {
       setConnectionType("");
       setConnectionTargetId("");
+      setSelectedTerrein(null);
+      setSelectedGebou(null);
     }
 
     const quoteIds = parseQuoteIds(order.quote_ids || (order.quote_id ? String(order.quote_id) : ""));
@@ -572,7 +620,6 @@ function WorkOrderPage() {
     setNewQuote({ contractor_id: "", amount: "", description: "" });
   };
 
-
   const handleDeleteQuote = (quoteId) => {
     setQuotes(quotes.filter(q => q.id !== quoteId));
     setQuoteSelectionReasons((prev) => {
@@ -610,6 +657,8 @@ function WorkOrderPage() {
     setNewQuote({ contractor_id: "", amount: "", description: "" });
     setConnectionType("");
     setConnectionTargetId("");
+    setSelectedTerrein(null);
+    setSelectedGebou(null);
     setFormData({
       job_desc: "",
       job_type: "",
@@ -635,6 +684,8 @@ function WorkOrderPage() {
   const handleNewWorkOrder = () => {
     setIsEditing(false);
     setEditingId(null);
+    setSelectedTerrein(null);
+    setSelectedGebou(null);
     setFormData({
       job_desc: "",
       job_type: "",
@@ -674,7 +725,7 @@ function WorkOrderPage() {
     }
   };
 
-  // Filter en sorteer werksopdragte
+  // Filter en sorteer werksopdragte vir tabel
   const filteredWorkOrders = [...workOrders]
     .filter((order) => {
       const query = searchTerm.trim().toLowerCase();
@@ -694,15 +745,15 @@ function WorkOrderPage() {
       return matchesColumn;
     })
     .sort((a, b) => {
-    switch (sortBy) {
-      case "date":
-        return new Date(b.job_createddatetime) - new Date(a.job_createddatetime);
-      case "status":
-        return (a.job_status || "").localeCompare(b.job_status || "");
-      default:
-        return (a.jobcard_id || 0) - (b.jobcard_id || 0);
-    }
-  });
+      switch (sortBy) {
+        case "date":
+          return new Date(b.job_createddatetime) - new Date(a.job_createddatetime);
+        case "status":
+          return (a.job_status || "").localeCompare(b.job_status || "");
+        default:
+          return (a.jobcard_id || 0) - (b.jobcard_id || 0);
+      }
+    });
 
   const translateStatus = (status) => {
     const translations = {
@@ -724,6 +775,47 @@ function WorkOrderPage() {
     return "status-default";
   };
 
+  // Unieke Terrein Opsies opgebou vanaf kamers
+  const uniqueTerreine = [...new Set(rooms.map(r => r.terrein).filter(Boolean))];
+  const terreinOptions = uniqueTerreine.map(t => ({ value: t, label: t }));
+
+  // Unieke Geboue opsies gebaseer op gekose Terrein
+  const gefilterdeGeboue = selectedTerrein 
+    ? [...new Set(rooms.filter(r => r.terrein === selectedTerrein.value).map(r => r.gebou).filter(Boolean))]
+    : [];
+  const gebouOptions = gefilterdeGeboue.map(g => ({ value: g, label: g }));
+
+  // Lokale (Rooms) gefiltreer op basis van gekose Terrein en Gebou
+  const gefilterdeRooms = rooms.filter(r => {
+    if (selectedTerrein && r.terrein !== selectedTerrein.value) return false;
+    if (selectedGebou && r.gebou !== selectedGebou.value) return false;
+    return true;
+  });
+  const roomOptions = gefilterdeRooms.map(r => ({
+    value: String(r.room_id),
+    label: `${r.room_number || r.room_id} - ${r.room_name || r.room_desc || 'Lokaal'}`
+  }));
+
+  // Bates gefiltreer op lokasies indien gekies
+  const gefilterdeAssets = assets.filter(a => {
+    if (!a.room_id) return !selectedTerrein; // as terrein gekies is maar bate het nie 'n lokaal nie, verberg dit
+    const assetRoom = rooms.find(r => String(r.room_id) === String(a.room_id));
+    if (!assetRoom) return false;
+    if (selectedTerrein && assetRoom.terrein !== selectedTerrein.value) return false;
+    if (selectedGebou && assetRoom.gebou !== selectedGebou.value) return false;
+    return true;
+  });
+  const assetOptions = gefilterdeAssets.map(a => ({
+    value: String(a.asset_id),
+    label: `${a.asset_id} - ${a.asset_name}`
+  }));
+
+  // Foutkaartjies dropdown opsies
+  const ticketOptions = tickets.map(t => ({
+    value: String(t.fault_id),
+    label: `${t.fault_id} - ${t.fault_desc || t.fault_title || 'Foutkaartjie'}`
+  }));
+
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -739,7 +831,7 @@ function WorkOrderPage() {
         </div>
 
         <div className="content">
-          {/* Beheer-reeks: Soek, Filter, Sorteer, Voeg By */}
+          {/* Beheer-reeks */}
           <div className="controls">
             <div className="controls-left">
               <input 
@@ -823,7 +915,7 @@ function WorkOrderPage() {
                       </span>
                     </td>
                     <td>
-                        <button 
+                      <button 
                         type="button"
                         className="btn-edit"
                         onClick={() => handleEditWorkOrder(order)}
@@ -847,10 +939,9 @@ function WorkOrderPage() {
           </table>
         </div>
       </div>
-
-      {/* MODAL: Werksopdrag-Kaart */}
+{/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
-        <div className="modal" >
+        <div className="modal">
           <div className="modal-content-workorder" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
@@ -926,62 +1017,124 @@ function WorkOrderPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Bate en Aard */}
+{/* Bate en Aard Seksie met React-Select Dropdowns */}
               <div className="mri-row flex">
                 <div className="mri-cell w-50 border-r">
-                  <div className="mri-fld">
-                    <span>Koppel aan</span>
-                    <select
-                      value={connectionType}
-                      onChange={(e) => {
-                        setConnectionType(e.target.value);
-                        setConnectionTargetId("");
-                      }}
-                      className="inp-full"
-                    >
-                      <option value="">Geen gekies</option>
-                      <option value="asset">Bate</option>
-                      <option value="room">Lokaal</option>
-                      <option value="fault">Foutkaartjie</option>
-                    </select>
+                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Ligging & Koppeling</label>
+                  
+                  {/* 1. Terrein Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Terrein</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Terrein..."
+                      isClearable
+                      value={formData.site_id ? { value: formData.site_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.site_id))?.location_name || formData.site_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        site_id: selectedOption ? selectedOption.value : "",
+                        building_id: "",
+                        room_id: "",
+                        asset_id: ""
+                      })}
+                      options={(terrains || []).map((terrain) => ({
+                        value: terrain.location_id,
+                        label: `${terrain.location_id} - ${terrain.location_name || terrain.location_desc || "Terrein"}`
+                      }))}
+                    />
                   </div>
-                  <div className="mri-fld">
-                    <span style={{color: (connectionType=== "")  ? "#9ca3af" : ""}}>{connectionType === "asset"
-                      ? "Bate" 
-                      : connectionType === "room"
-                      ? "Lokaal" 
-                      : connectionType === "room"
-                      ? "Foutkaartjie"
-                      : "Item"}
-                      </span>
-                    <select
-                      style={{color: (connectionType=== "")  ? "#9ca3af" : ""}}
-                      value={connectionTargetId}
-                      onChange={(e) => setConnectionTargetId(e.target.value)}
-                      className="inp-full"
-                      disabled={connectionType=== ""}
-                    >
-                      <option value="" >Geen item gekies</option>
-                      {connectionType === "asset" && assets.map((asset) => (
-                        <option key={asset.asset_id} value={asset.asset_id}>
-                          {asset.asset_id} - {asset.asset_name}
-                        </option>
-                      ))}
-                      {connectionType === "room" && rooms.map((room) => (
-                        <option key={room.room_id} value={room.room_id}>
-                          {room.room_id} - {room.room_name || room.room_number || room.room_desc || 'Lokaal'}
-                        </option>
-                      ))}
-                      {connectionType === "fault" && tickets.map((ticket) => (
-                        <option key={ticket.fault_id} value={ticket.fault_id}>
-                          {ticket.fault_id} - {ticket.fault_desc || ticket.fault_title || ticket.fault_type || 'Foutkaartjie'}
-                        </option>
-                      ))}
-                    </select>
+
+                  {/* 2. Gebou Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Gebou</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Gebou..."
+                      isClearable
+                      isDisabled={!formData.site_id}
+                      value={formData.building_id ? { value: formData.building_id, label: buildings?.find((building) => Number(building.building_id) === Number(formData.building_id))?.building_name || formData.building_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        building_id: selectedOption ? selectedOption.value : "",
+                        room_id: "",
+                        asset_id: ""
+                      })}
+                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.site_id)).map((building) => ({
+                        value: building.building_id,
+                        label: `${building.building_id} - ${building.building_name || "Gebou"}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 3. Lokaal Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Lokaal (Kamer)</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Lokaal..."
+                      isClearable
+                      isDisabled={!formData.building_id}
+                      value={formData.room_id ? { value: formData.room_id, label: rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_name || rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_number || formData.room_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        room_id: selectedOption ? selectedOption.value : "",
+                        asset_id: ""
+                      })}
+                      options={(rooms || []).filter((room) => Number(room.building_id) === Number(formData.building_id)).map((room) => ({
+                        value: room.room_id,
+                        label: `${room.room_id} - ${room.room_name || room.room_number || "Lokaal"}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 4. Bate Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Gekoppelde Bate</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Bate..."
+                      isClearable
+                      isDisabled={!formData.room_id}
+                      value={formData.asset_id ? { value: formData.asset_id, label: assets?.find((asset) => Number(asset.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        asset_id: selectedOption ? selectedOption.value : ""
+                      })}
+                      options={(assets || []).filter((asset) => Number(asset.room_id) === Number(formData.room_id)).map((asset) => ({
+                        value: asset.asset_id,
+                        label: `${asset.asset_id} - ${asset.asset_name}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 5. Foutkaartjie Dropdown */}
+                  <div className="mri-fld-select" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
+                    <span className="select-label">Foutkaartjie Verwysing</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Soek/Kies Foutkaartjie..."
+                      isClearable
+                      value={formData.fault_id ? { value: formData.fault_id, label: tickets?.find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || formData.fault_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        fault_id: selectedOption ? selectedOption.value : ""
+                      })}
+                      options={(tickets || []).map((ticket) => ({
+                        value: ticket.fault_id,
+                        label: `${ticket.fault_id} - ${ticket.fault_desc || ticket.fault_title || "Foutkaartjie"}`
+                      }))}
+                    />
                   </div>
                 </div>
+
+                {/* Regterkant: Aard en Prioriteit (Bly gewone HTML HTML-selects vir nou, of jy kan hulle ook vervang) */}
                 <div className="mri-cell w-50">
+                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Kategorisering</label>
                   <div className="mri-fld"><span>Aard</span> 
                     <select
                       value={formData.nature}
@@ -1046,16 +1199,15 @@ function WorkOrderPage() {
               {/* Voeg Nuwe Kwotasie By */}
               <div className="quote-form">
                 <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
-               <div className="mri-row">
+                <div className="mri-row">
                   <div className="mri-cell w-50">
-                      <div className="mri-fld">
+                    <div className="mri-fld">
                       <span>Kontrakteur</span>
                       <select
                         value={newQuote.contractor_id}
                         onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
                         className="quote-input"
                       >
-                        
                         <option value="">Kies Kontrakteur</option>
                         {contractors.map((contractor) => (
                           <option key={contractor.contractor_id} value={contractor.contractor_id}>

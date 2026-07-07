@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { roomsAPI, stockAPI } from "../services/api";
+import Select from "react-select"; // Bygevoeg vir react-select
+import { roomsAPI, stockAPI, buildingsAPI, locationAPI } from "../services/api"; // Bygevoeg buildingsAPI en locationAPI
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 import "../styles/App.css";
@@ -13,6 +14,8 @@ function StockPage() {
   const logout = useLogout();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [buildings, setBuildings] = useState([]); // Bygevoeg
+  const [terrains, setTerrains] = useState([]); // Bygevoeg
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -28,17 +31,21 @@ function StockPage() {
     stock_type: "",
     stock_desc: "",
     room_id: "",
+    location_id: "", // Bygevoeg vir cascading logika
+    building_id: ""  // Bygevoeg vir cascading logika
   });
 
   useEffect(() => {
-    fetchStock();
-    fetchRooms();
+    const loadInitialData = async () => {
+      await Promise.all([fetchStock(), fetchRooms(), fetchBuildings(), fetchTerrains()]);
+    };
+    loadInitialData();
   }, []);
 
   const fetchStock = async () => {
     try {
       const response = await stockAPI.getAll();
-      setStock(response.data);
+      setStock(response.data || []);
     } catch (error) {
       console.error("Error fetching stock:", error);
     } finally {
@@ -49,9 +56,27 @@ function StockPage() {
   const fetchRooms = async () => {
     try {
       const response = await roomsAPI.getAll();
-      setRooms(response.data);
+      setRooms(response.data || []);
     } catch (error) {
       console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchBuildings = async () => {
+    try {
+      const response = await buildingsAPI.getAll();
+      setBuildings(response.data || []);
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const fetchTerrains = async () => {
+    try {
+      const response = await locationAPI.getAll();
+      setTerrains(response.data || []);
+    } catch (error) {
+      console.error("Error fetching terrains:", error);
     }
   };
 
@@ -69,6 +94,10 @@ function StockPage() {
         alert("Voer asseblief 'n tipe in");
         return;
       }
+      if (!newStock.room_id) {
+        alert("Kies asseblief 'n lokaal vir hierdie voorraad.");
+        return;
+      }
 
       const stockData = {
         stock_name: newStock.stock_name,
@@ -76,7 +105,7 @@ function StockPage() {
         stock_amount: Number(newStock.stock_amount),
         stock_type: newStock.stock_type,
         stock_desc: newStock.stock_desc,
-        room_id: newStock.room_id ? Number(newStock.room_id) : null,
+        room_id: Number(newStock.room_id),
       };
 
       if (isEditing) {
@@ -107,6 +136,10 @@ function StockPage() {
   };
 
   const handleEditStock = (item) => {
+    // Vind die geassosieerde kamer en gebou vir die geselekteerde item
+    const room = rooms.find((r) => r.room_id === item.room_id);
+    const building = room ? buildings.find((b) => b.building_id === room.building_id) : null;
+
     setIsEditing(true);
     setEditingId(item.stock_id);
     setNewStock({
@@ -115,7 +148,9 @@ function StockPage() {
       stock_amount: item.stock_amount || 0,
       stock_type: item.stock_type || "",
       stock_desc: item.stock_desc || "",
-      room_id: item.room_id || "",
+      room_id: item.room_id ? Number(item.room_id) : "",
+      location_id: building ? building.location_id : "",
+      building_id: room ? room.building_id : ""
     });
     setShowModal(true);
   };
@@ -124,13 +159,13 @@ function StockPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
   };
 
   const handleNewStock = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "" });
+    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
     setShowModal(true);
   };
 
@@ -139,6 +174,26 @@ function StockPage() {
     const room = rooms.find((roomItem) => roomItem.room_id === item.room_id);
     return room ? room.room_name : `Room ${item.room_id}`;
   };
+
+  // Dropdown opsies kartering (Mapping)
+  const terrainOptions = terrains.map(t => ({
+    value: String(t.location_id),
+    label: t.location_name
+  }));
+
+  const buildingOptions = buildings
+    .filter(b => Number(b.location_id) === Number(newStock.location_id))
+    .map(b => ({
+      value: String(b.building_id),
+      label: b.building_name
+    }));
+
+  const roomOptions = rooms
+    .filter(r => Number(r.building_id) === Number(newStock.building_id))
+    .map(r => ({
+      value: String(r.room_id),
+      label: r.room_name
+    }));
 
   const filteredStock = [...stock]
     .filter((item) => {
@@ -295,20 +350,75 @@ function StockPage() {
                 />
               </div>
             </div>
+
+            {/* Nuwe Gekoppelde Dropdowns begin hier */}
             <div className="input-row">
+              {/* Terrein Dropdown */}
               <div className="input-group">
-                <label>Lokaal</label>
-                <select
-                  value={newStock.room_id}
-                  onChange={(e) => setNewStock({ ...newStock, room_id: e.target.value })}
-                >
-                  <option value="">Geen lokaal</option>
-                  {rooms.map((room) => (
-                    <option key={room.room_id} value={room.room_id}>{room.room_name}</option>
-                  ))}
-                </select>
+                <label>Terrein</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies 'n terrein..."
+                  isSearchable={true}
+                  options={terrainOptions}
+                  value={terrainOptions.find(o => Number(o.value) === Number(newStock.location_id)) || null}
+                  onChange={(selected) => {
+                    setNewStock({
+                      ...newStock,
+                      location_id: selected ? Number(selected.value) : "",
+                      building_id: "",
+                      room_id: ""
+                    });
+                  }}
+                />
+              </div>
+
+              {/* Gebou Dropdown */}
+              <div className="input-group">
+                <label>Gebou</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newStock.location_id ? "Kies eers 'n terrein" : "Kies 'n gebou..."}
+                  isSearchable={true}
+                  isDisabled={!newStock.location_id}
+                  options={buildingOptions}
+                  value={buildingOptions.find(o => Number(o.value) === Number(newStock.building_id)) || null}
+                  onChange={(selected) => {
+                    setNewStock({
+                      ...newStock,
+                      building_id: selected ? Number(selected.value) : "",
+                      room_id: ""
+                    });
+                  }}
+                />
               </div>
             </div>
+
+            <div className="input-row">
+              {/* Lokaal Dropdown */}
+              <div className="input-group" style={{ width: "50%" }}>
+                <label>Lokaal *</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newStock.building_id ? "Kies eers 'n gebou" : "Kies lokaal *"}
+                  isSearchable={true}
+                  isDisabled={!newStock.building_id}
+                  options={roomOptions}
+                  value={roomOptions.find(o => Number(o.value) === Number(newStock.room_id)) || null}
+                  onChange={(selected) => {
+                    setNewStock({
+                      ...newStock,
+                      room_id: selected ? Number(selected.value) : ""
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            {/* Nuwe Gekoppelde Dropdowns eindig hier */}
+
             <div className="input-row">
               <div className="input-group">
                 <label>Beskrywing</label>
