@@ -239,7 +239,7 @@ class _LocationPageState extends State<LocationPage> {
               )
             },
             circles: CampusService.campusesNotifier.value.map((c) => Circle(
-              circleId: CircleId(c.id),
+              circleId: CircleId(c.id.toString()),
               center: LatLng(c.location.latitude, c.location.longitude),
               radius: c.radius,
               fillColor: AppColors.gold.withValues(alpha: 0.2),

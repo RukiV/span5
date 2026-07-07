@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../core/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class AddBuildingPage extends StatefulWidget {
   final Campus campus;
@@ -98,14 +99,13 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdown<String>(
+                    label: "Tipe",
+                    hint: "Kies Tipe",
                     value: _type,
-                    decoration: _inputDecoration(""),
-                    items: _types.map((t) => DropdownMenuItem(
-                      value: t['value'],
-                      child: Text(t['label']!),
+                    items: _types.map((t) => SearchableDropdownItem(
+                      value: t['value']!,
+                      label: t['label']!,
                     )).toList(),
                     onChanged: (v) => setState(() => _type = v!),
                   ),
@@ -145,7 +145,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                               type: _type,
                               streetNum: _streetNumController.text,
                               streetName: _streetNameController.text,
-                              locationId: int.tryParse(widget.campus.id) ?? 0,
+                              locationId: widget.campus.id,
                             );
                             final success = await CampusService.addBuilding(building);
                             if (mounted) {

@@ -1,5 +1,6 @@
 class Stock {
   final int? id;
+  final String name;
   final String brand;
   final int amount;
   final String type;
@@ -8,6 +9,7 @@ class Stock {
 
   Stock({
     this.id,
+    required this.name,
     required this.brand,
     required this.amount,
     required this.type,
@@ -17,15 +19,16 @@ class Stock {
 
   factory Stock.fromJson(Map<String, dynamic> json) => Stock(
     id: json['stock_id'],
-    brand: json['stock_brand'],
-    amount: json['stock_amount'],
-    type: json['stock_type'],
+    name: json['stock_name'] ?? "",
+    brand: json['stock_brand'] ?? "",
+    amount: json['stock_amount'] ?? 0,
+    type: json['stock_type'] ?? "",
     description: json['stock_desc'],
     roomId: json['room_id'],
   );
 
   Map<String, dynamic> toJson() => {
-    'stock_name': "$brand $type", // Backend mag dalk hierdie veld verwag
+    'stock_name': name,
     'stock_brand': brand,
     'stock_amount': amount,
     'stock_type': type,

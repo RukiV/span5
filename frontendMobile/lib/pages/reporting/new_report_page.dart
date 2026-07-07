@@ -1,4 +1,4 @@
-import '../../widgets/custom_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../models/user_session.dart';
@@ -115,12 +115,12 @@ class _NewReportPageState extends State<NewReportPage> {
                         const SizedBox(height: labelGap),
                         _buildAssetInput(),
                       ] else ...[
-                        CustomDropdown<String>(
+                        SearchableDropdown<String>(
                           label: "Kategorie (Onsigbare Kode) *",
                           hint: "Kies Kategorie",
                           value: selectedCategory,
                           items: ["Instandhouding", "Herstel", "Opgradering", "Ander"]
-                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                              .map((c) => SearchableDropdownItem(value: c, label: c))
                               .toList(),
                           onChanged: (v) => setState(() => selectedCategory = v),
                           validator: (v) => v == null ? "Kategorie word vereis" : null,
@@ -132,12 +132,12 @@ class _NewReportPageState extends State<NewReportPage> {
                       ValueListenableBuilder<List<Campus>>(
                         valueListenable: CampusService.campusesNotifier,
                         builder: (context, campuses, _) {
-                          return CustomDropdown<String>(
+                          return SearchableDropdown<String>(
                             label: "Kampus *",
                             hint: "Kies Kampus",
                             value: selectedCampus,
                             items: campuses
-                                .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
+                                .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
                                 .toList(),
                             onChanged: (v) => setState(() {
                               selectedCampus = v;
@@ -151,12 +151,12 @@ class _NewReportPageState extends State<NewReportPage> {
 
                       const SizedBox(height: sectionGap),
 
-                      CustomDropdown<String>(
+                      SearchableDropdown<String>(
                         label: "Gebou *",
                         hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies Gebou",
                         value: selectedBuilding,
                         items: filteredBuildings
-                            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
+                            .map((b) => SearchableDropdownItem(value: b, label: b))
                             .toList(),
                         onChanged: (v) => setState(() {
                           selectedBuilding = v;
@@ -181,12 +181,13 @@ class _NewReportPageState extends State<NewReportPage> {
                       if (isUnknownLocation)
                         _buildLocationInput()
                       else
-                        CustomDropdown<String>(
+                        SearchableDropdown<String>(
+                          label: "", // Label is reeds in header
                           hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
                           value: selectedLocation,
                           items: filteredRooms.map((r) {
                             final name = r.contains(":") ? r.split(":").last : r;
-                            return DropdownMenuItem(value: r, child: Text(name));
+                            return SearchableDropdownItem(value: r, label: name);
                           }).toList(),
                           onChanged: (v) => setState(() => selectedLocation = v),
                           validator: (v) => v == null ? "Lokaal word vereis" : null,
@@ -360,25 +361,13 @@ class _NewReportPageState extends State<NewReportPage> {
       );
     }
 
-    return DropdownButtonFormField<String>(
-      initialValue: selectedLocation,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: const Color(0xFFFEFBEA),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-      ),
-      hint: Text(
-        selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
-        style: const TextStyle(fontSize: 14),
-      ),
+    return SearchableDropdown<String>(
+      label: "",
+      hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
+      value: selectedLocation,
       items: filteredRooms.map((r) {
         final name = r.contains(":") ? r.split(":").last : r;
-        return DropdownMenuItem(value: r, child: Text(name));
+        return SearchableDropdownItem(value: r, label: name);
       }).toList(),
       onChanged: (v) => setState(() => selectedLocation = v),
       validator: (v) => v == null ? "Lokaal word vereis" : null,
