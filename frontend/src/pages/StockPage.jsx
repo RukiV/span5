@@ -171,7 +171,7 @@ function StockPage() {
   const handleNewStock = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_minimum: 0, stock_boxTotal: 0,  stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
+    setNewStock({ stock_name: "", stock_brand: "", stock_amount: 0, stock_minimum: 0, stock_boxTotal: 0, stock_type: "", stock_desc: "", room_id: "", location_id: "", building_id: "" });
     setShowModal(true);
   };
 
@@ -367,20 +367,22 @@ function StockPage() {
                   onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="input-row">
               <div className="input-group">
                 <label>Minimum</label>
                 <input
                   type="number"
-                  value={newStock.st}
-                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                  value={newStock.stock_minimum}
+                  onChange={(e) => setNewStock({ ...newStock, stock_minimum: e.target.value })}
                 />
               </div>
               <div className="input-group">
                 <label>Boks Totaal</label>
                 <input
                   type="number"
-                  value={newStock.stock_amount}
-                  onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                  value={newStock.stock_boxTotal}
+                  onChange={(e) => setNewStock({ ...newStock, stock_boxTotal: e.target.value })}
                 />
               </div>
             </div>
