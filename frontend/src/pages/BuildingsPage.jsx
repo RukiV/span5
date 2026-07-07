@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import Select from "react-select";
 import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -200,6 +201,36 @@ function BuildingsPage() {
       return 0;
     });
 
+  // Opsies vir dropdowns
+  const filterColumnOptions = [
+    { value: "all", label: "Alle kolomme" },
+    { value: "id", label: "ID" },
+    { value: "name", label: "Naam" },
+    { value: "type", label: "Tipe" },
+    { value: "streetnum", label: "Straatnommer" },
+    { value: "streetname", label: "Straatnaam" },
+    { value: "terrain", label: "Terrein" }
+  ];
+
+  const sortByOptions = [
+    { value: "default", label: "Standaard" },
+    { value: "id", label: "ID" },
+    { value: "name", label: "Naam" }
+  ];
+
+  const buildingTypeOptions = [
+    { value: "admin", label: "Admin" },
+    { value: "onderwys", label: "Onderwys" },
+    { value: "laboratory", label: "Laboratorium" },
+    { value: "warehouse", label: "Pakhuis" },
+    { value: "other", label: "Ander" }
+  ];
+
+  const terrainOptions = terrains.map((t) => ({
+    value: String(t.location_id),
+    label: t.location_name
+  }));
+
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -226,22 +257,26 @@ function BuildingsPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="type">Tipe</option>
-                <option value="streetnum">Straatnommer</option>
-                <option value="streetname">Straatnaam</option>
-                <option value="terrain">Terrein</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={filterColumnOptions.find(o => o.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
+                options={filterColumnOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+              />
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={sortByOptions.find(o => o.value === sortBy)}
+                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
+                options={sortByOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+              />
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
@@ -301,16 +336,14 @@ function BuildingsPage() {
               </div>
               <div className="input-group">
                 <label>Tipe</label>
-                <select
-                  value={newBuilding.building_type}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_type: e.target.value })}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="onderwys">Onderwys</option>
-                  <option value="laboratory">Laboratorium</option>
-                  <option value="warehouse">Pakhuis</option>
-                  <option value="other">Ander</option>
-                </select>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
+                  options={buildingTypeOptions}
+                  isSearchable={false}
+                />
               </div>
             </div>
             <div className="input-row">
@@ -334,15 +367,15 @@ function BuildingsPage() {
             <div className="input-row">
               <div className="input-group">
                 <label>Terrein</label>
-                <select
-                  value={newBuilding.location_id}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, location_id: e.target.value })}
-                >
-                  <option value="">Kies 'n terrein</option>
-                  {terrains.map((terrain) => (
-                    <option key={terrain.location_id} value={terrain.location_id}>{terrain.location_name}</option>
-                  ))}
-                </select>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies 'n terrein..."
+                  isSearchable={true}
+                  options={terrainOptions}
+                  value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
+                />
               </div>
             </div>
             <div className="modal-footer">
