@@ -370,7 +370,7 @@ function StockPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Minimum</label>
+                <label>Minimum voorraad</label>
                 <input
                   type="number"
                   value={newStock.stock_minimum}

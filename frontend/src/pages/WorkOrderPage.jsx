@@ -1035,10 +1035,10 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies Terrein..."
                       isClearable
-                      value={formData.site_id ? { value: formData.site_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.site_id))?.location_name || formData.site_id } : null}
+                      value={formData.location_id ? { value: formData.location_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.location_id))?.location_name || formData.location_id } : null}
                       onChange={(selectedOption) => setFormData({
                         ...formData,
-                        site_id: selectedOption ? selectedOption.value : "",
+                        location_id: selectedOption ? selectedOption.value : "",
                         building_id: "",
                         room_id: "",
                         asset_id: ""
@@ -1058,7 +1058,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies Gebou..."
                       isClearable
-                      isDisabled={!formData.site_id}
+                      isDisabled={!formData.location_id}
                       value={formData.building_id ? { value: formData.building_id, label: buildings?.find((building) => Number(building.building_id) === Number(formData.building_id))?.building_name || formData.building_id } : null}
                       onChange={(selectedOption) => setFormData({
                         ...formData,
@@ -1066,7 +1066,7 @@ function WorkOrderPage() {
                         room_id: "",
                         asset_id: ""
                       })}
-                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.site_id)).map((building) => ({
+                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.location_id)).map((building) => ({
                         value: building.building_id,
                         label: `${building.building_id} - ${building.building_name || "Gebou"}`
                       }))}
@@ -1124,12 +1124,38 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Soek/Kies Foutkaartjie..."
                       isClearable
-                      value={formData.fault_id ? { value: formData.fault_id, label: tickets?.find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || formData.fault_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        fault_id: selectedOption ? selectedOption.value : ""
-                      })}
-                      options={(tickets || []).map((ticket) => ({
+                      value={formData.fault_id ? { value: formData.fault_id, label: `${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_id} - ${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_title || tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || "Foutkaartjie"}` } : null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) {
+                          setFormData({
+                            ...formData,
+                            fault_id: "",
+                            brief_description: "",
+                            location_id: "",
+                            building_id: "",
+                            room_id: "",
+                            asset_id: ""
+                          });
+                          return;
+                        }
+                        const ticket=(tickets||[]).find(t=>Number(t.fault_id)===Number(selectedOption.value));
+                        setFormData({
+                          ...formData,
+                          fault_id: ticket?.fault_id || "",
+                          brief_description: ticket?.fault_desc || "",
+                          location_id: ticket?.location_id || "",
+                          building_id: ticket?.building_id || "",
+                          room_id: ticket?.room_id || "",
+                          asset_id: ticket?.asset_id || ""
+                        });
+                      }}
+                      options={(tickets || []).filter(ticket=>{
+                        if(formData.location_id && Number(ticket.location_id)!==Number(formData.location_id)) return false;
+                        if(formData.building_id && Number(ticket.building_id)!==Number(formData.building_id)) return false;
+                        if(formData.room_id && Number(ticket.room_id)!==Number(formData.room_id)) return false;
+                        if(formData.asset_id && Number(ticket.asset_id)!==Number(formData.asset_id)) return false;
+                        return true;
+                      }).map((ticket) => ({
                         value: ticket.fault_id,
                         label: `${ticket.fault_id} - ${ticket.fault_desc || ticket.fault_title || "Foutkaartjie"}`
                       }))}
@@ -1155,11 +1181,14 @@ function WorkOrderPage() {
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
-                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
+                    <select 
+                      value={formData.job_priority} 
+                      onChange={(e) => setFormData({...formData, job_priority: e.target.value})}
+                    >
                       <option>Laag</option>
                       <option>Normal</option>
                       <option>Hoog</option>
-                      <option>Spoedeisend</option>
+                      <option>Dringend</option>
                     </select>
                   </div>
                 </div>
