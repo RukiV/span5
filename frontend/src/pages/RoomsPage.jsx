@@ -34,6 +34,7 @@ function RoomsPage() {
     room_code: "",
     room_capacity: "",
     room_type: "Ander", 
+    room_status: "Operasioneel",
     location_id: "",
     building_id: "",
   });
@@ -90,6 +91,10 @@ function RoomsPage() {
     return type || "Ander";
   };
 
+  const translateRoomStatus = (status) => {
+    return status || "Operasioneel";
+  };
+
   const handleSaveRoom = async () => {
     if (!newRoom.room_name?.trim()) {
       alert("Voer asseblief 'n lokaalnaam in");
@@ -111,6 +116,7 @@ function RoomsPage() {
       room_code: newRoom.room_code,
       room_capacity: newRoom.room_capacity ? Number(newRoom.room_capacity) : 0,
       room_type: newRoom.room_type, // Stuur nou die korrekte waarde (bv. 'Klaskamer')
+      room_status: newRoom.room_status,
       building_id: Number(newRoom.building_id),
     };
 
@@ -139,6 +145,7 @@ function RoomsPage() {
       room_code: room.room_code || "",
       room_capacity: room.room_capacity ?? "",
       room_type: room.room_type || "Ander",
+      room_status: room.room_status || "Operasioneel",
       location_id: building ? building.location_id : "",
       building_id: room.building_id ?? "",
     });
@@ -166,6 +173,7 @@ function RoomsPage() {
       room_code: "",
       room_capacity: "",
       room_type: "Ander",
+      room_status: "Operasioneel",
       location_id: "",
       building_id: "",
     });
@@ -181,6 +189,7 @@ function RoomsPage() {
       room_code: "",
       room_capacity: "",
       room_type: "Ander",
+      room_status: "Operasioneel",
       location_id: "",
       building_id: "",
     });
@@ -203,10 +212,10 @@ function RoomsPage() {
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
-        id: room.room_id,
         name: room.room_name,
         code: room.room_code,
         type: translateRoomType(room.room_type || 'Ander'),
+        status: translateRoomStatus(room.room_status || 'Operasioneel'),
         building: getBuildingName(room.building_id),
         capacity: room.room_capacity,
       };
@@ -218,7 +227,6 @@ function RoomsPage() {
     .sort((a, b) => {
       if (sortBy === 'default') return 0;
       const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.room_id || 0) - Number(b.room_id || 0)) * direction;
       if (sortBy === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'code') return String(a.room_code || '').localeCompare(String(b.room_code || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * direction;
@@ -227,17 +235,16 @@ function RoomsPage() {
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
-    { value: "id", label: "ID" },
     { value: "name", label: "Naam" },
     { value: "code", label: "Kode" },
     { value: "type", label: "Tipe" },
+    { value: "status", label: "Status" },
     { value: "building", label: "Gebou" },
     { value: "capacity", label: "Kapasiteit" }
   ];
 
   const sortByOptions = [
     { value: "default", label: "Standaard" },
-    { value: "id", label: "ID" },
     { value: "name", label: "Naam" },
     { value: "code", label: "Kode" },
     { value: "capacity", label: "Kapasiteit" }
@@ -252,6 +259,13 @@ function RoomsPage() {
     { value: "Pakhuis", label: "Pakhuis" },
     { value: "Badkamer", label: "Badkamer" },
     { value: "Ander", label: "Ander" }
+  ];
+
+  const roomStatusOptions = [
+    { value: "Operasioneel", label: "Operasioneel" },
+    { value: "Fout Aangemeld", label: "Fout Aangemeld" },
+    { value: "Instandhouding", label: "Instandhouding" },
+    { value: "Buite Werking", label: "Buite Werking" }
   ];
 
   const terrainOptions = terrains.map((t) => ({
@@ -329,10 +343,10 @@ function RoomsPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Lokaal</th>
                 <th>Naam</th>
                 <th>Kode</th>
                 <th>Tipe</th>
+                <th>Status</th>
                 <th>Gebou</th>
                 <th>Kapasiteit</th>
                 <th>Aksies</th>
@@ -341,10 +355,10 @@ function RoomsPage() {
             <tbody>
               {filteredRooms.map((room) => (
                 <tr key={room.room_id}>
-                  <td>{room.room_id}</td>
                   <td>{room.room_name}</td>
                   <td>{room.room_code ?? '-'}</td>
                   <td>{translateRoomType(room.room_type || 'Ander')}</td>
+                  <td>{translateRoomStatus(room.room_status || 'Operasioneel')}</td>
                   <td>{getBuildingName(room.building_id)}</td>
                   <td>{room.room_capacity ?? '-'}</td>
                   <td>
@@ -413,6 +427,17 @@ function RoomsPage() {
                   isSearchable={false}
                 />
               </div>
+              <div className="input-group">
+                <label>Status</label>
+                <Select 
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={roomStatusOptions.find(option => option.value === newRoom.room_status)}
+                  onChange={(selectedOption) => setNewRoom({ ...newRoom, room_status: selectedOption ? selectedOption.value : "Operasioneel" })}
+                  options={roomStatusOptions}
+                  isSearchable={false}
+                />
+              </div>
             </div>
 
             <div className="input-row">
@@ -476,7 +501,8 @@ function RoomsPage() {
                   <thead>
                     <tr>
                       <th>Naam</th>
-                      <th>Tipe</th>
+                      <th>Serienommer</th>
+                      <th>Buite</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -484,7 +510,8 @@ function RoomsPage() {
                     {getAssetsForRoom(selectedRoom.room_id).map((asset) => (
                       <tr key={asset.asset_id}>
                         <td>{asset.asset_name}</td>
-                        <td>{asset.asset_type}</td>
+                        <td>{asset.asset_serial}</td>
+                        <td>{asset.asset_isoutdoor ? "Ja" : "Nee"}</td>
                         <td>{asset.asset_status}</td>
                       </tr>
                     ))}

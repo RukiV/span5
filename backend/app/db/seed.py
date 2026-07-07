@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode
+from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -10,6 +10,7 @@ from ..models.fault import Faultcard, FaultStatus, Priority, Type
 from ..models.contractor import Contractor
 from ..models.role import Role
 from ..models.user import User
+from ..models.audit import Auditlog
 
 def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
     """
@@ -102,7 +103,7 @@ def _get_or_create_building(session: Session, name: str, building_type: Building
     return building
 
 
-def _get_or_create_room(session: Session, name: str, code:str, capacity: int, room_type: RoomType, building_id: int) -> Room:
+def _get_or_create_room(session: Session, name: str, code:str, capacity: int, room_type: RoomType, room_status: RoomStatus, building_id: int) -> Room:
     room = session.exec(select(Room).where(Room.room_code == code)).first()
     if room:
         return room
@@ -112,6 +113,7 @@ def _get_or_create_room(session: Session, name: str, code:str, capacity: int, ro
         room_code=code,
         room_capacity=capacity,
         room_type=room_type,
+        room_status=room_status,
         building_id=building_id,
     )
     session.add(room)
@@ -206,6 +208,9 @@ def _get_or_create_job(
     job_type: Optional[str],
     created_dt: Optional[datetime],
     asset_id: Optional[int] = None,
+    room_id: Optional[int] = None,
+    building_id: Optional[int] = None,
+    location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
 ) -> Jobcard:
@@ -222,6 +227,9 @@ def _get_or_create_job(
         job_type=job_type,
         job_createddatetime=created_dt,
         asset_id=asset_id,
+        room_id=room_id,
+        building_id=building_id,
+        location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
     )
@@ -240,6 +248,8 @@ def _get_or_create_fault(
     report_dt: Optional[datetime],
     asset_id: Optional[int] = None,
     room_id: Optional[int] = None,
+    building_id: Optional[int] = None,
+    location_id: Optional[int] = None,
     mappoint_id: Optional[int] = None,
 ) -> Faultcard:
     fault = session.exec(
@@ -257,6 +267,8 @@ def _get_or_create_fault(
         fault_reportdatetime=report_dt,
         asset_id=asset_id,
         room_id=room_id,
+        building_id=building_id,
+        location_id=location_id,
         mappoint_id=mappoint_id,
     )
     session.add(fault)
@@ -302,6 +314,28 @@ def _get_or_create_fk_role(session: Session) -> Role:
     session.commit()
     session.refresh(role)
     return role
+
+
+def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
+    """Helper function to create audit logs for assets."""
+    full_record = asset.model_dump(mode="json")
+    
+    if new_value is None:
+        new_value = full_record
+    
+    audit_log = Auditlog(
+        action=action,
+        affectedtable="asset",
+        affectedcolumn=affected_columns,
+        affectedid=asset.asset_id,
+        previous_value=previous_value,
+        new_value=new_value,
+        json_data=full_record,
+        actiondatetime=timestamp or datetime.utcnow(),
+        user_id=None,  # Seed data has no user context
+    )
+    session.add(audit_log)
+    session.commit()
 
 
 def seed_data():
@@ -416,6 +450,7 @@ def seed_data():
             code="T1",
             capacity=4,
             room_type=RoomType.BATHROOM,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld2.building_id,
         )
 
@@ -425,6 +460,7 @@ def seed_data():
             code="T2",
             capacity=4,
             room_type=RoomType.BATHROOM,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld2.building_id,
         )
 
@@ -434,6 +470,7 @@ def seed_data():
             code="L9",
             capacity=15,
             room_type=RoomType.CONFERENCE,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld1.building_id,
         )
 
@@ -443,6 +480,7 @@ def seed_data():
             code="L2",
             capacity=40,
             room_type=RoomType.OTHER,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld3.building_id,
         )
 
@@ -452,6 +490,7 @@ def seed_data():
             code="L10",
             capacity=0,
             room_type=RoomType.WAREHOUSE,
+            room_status=RoomStatus.OPERATIONAL,
             building_id=bld1.building_id,
         )
 
@@ -547,7 +586,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT0000010",
+            serial="AK-MT000010",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -558,7 +597,7 @@ def seed_data():
             session,
             name="Tafel",
             brand="Barker Street",
-            serial="AK-MT0000011",
+            serial="AK-MT000011",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -569,7 +608,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT0000012",
+            serial="AK-MT000012",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -610,6 +649,9 @@ def seed_data():
             job_type="maintenance",
             created_dt=datetime.now(),
             asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_job(
@@ -619,6 +661,9 @@ def seed_data():
             job_type="inspection",
             created_dt=datetime.now(),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
+            room_id=room4.room_id,
+            building_id=bld3.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_fault(
@@ -629,6 +674,9 @@ def seed_data():
             fault_type=Type.REPAIR,
             report_dt=datetime(2025, 7, 6, 13, 0, 0),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
+            room_id=room4.room_id,
+            building_id=bld3.building_id,
+            location_id=loc1.location_id,
         )
 
         _get_or_create_fault(
@@ -639,7 +687,87 @@ def seed_data():
             fault_type=Type.MAINTENANCE,
             report_dt=datetime(2025, 3, 11, 9, 30, 11),
             asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
         )
+
+        # Create audit logs for all assets
+        print("Creating audit logs for assets...")
+        all_assets = session.exec(select(Asset)).all()
+        base_time = datetime(2025, 1, 1, 8, 0, 0)
+        
+        for idx, asset in enumerate(all_assets):
+            # Create audit log for initial creation
+            create_time = base_time + timedelta(days=idx)
+            _create_asset_audit_log(
+                session,
+                asset,
+                action="create",
+                timestamp=create_time,
+            )
+        
+        # Create update audit logs for some assets (room changes)
+        # Projector 1 (AK-MT000001): moved twice
+        projector1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
+        if projector1:
+            # First update: moved from room3 to room4
+            _create_asset_audit_log(
+                session,
+                projector1,
+                action="update",
+                affected_columns=["room_id"],
+                previous_value={"room_id": room3.room_id},
+                new_value={"room_id": room4.room_id},
+                timestamp=datetime(2025, 2, 15, 10, 30, 0),
+            )
+            # Second update: moved back from room4 to room5
+            _create_asset_audit_log(
+                session,
+                projector1,
+                action="update",
+                affected_columns=["room_id"],
+                previous_value={"room_id": room4.room_id},
+                new_value={"room_id": room5.room_id},
+                timestamp=datetime(2025, 5, 20, 14, 15, 0),
+            )
+        
+        # Chair (AK-MT000006): moved once
+        chair1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000006")).first()
+        if chair1:
+            _create_asset_audit_log(
+                session,
+                chair1,
+                action="update",
+                affected_columns=["room_id"],
+                previous_value={"room_id": room4.room_id},
+                new_value={"room_id": room1.room_id},
+                timestamp=datetime(2025, 3, 10, 9, 0, 0),
+            )
+        
+        # Table (AK-MT000011): moved twice
+        table = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000011")).first()
+        if table:
+            # First update: moved from room5 to room2
+            _create_asset_audit_log(
+                session,
+                table,
+                action="update",
+                affected_columns=["room_id"],
+                previous_value={"room_id": room5.room_id},
+                new_value={"room_id": room2.room_id},
+                timestamp=datetime(2025, 4, 5, 11, 45, 0),
+            )
+            # Second update: moved back to room5
+            _create_asset_audit_log(
+                session,
+                table,
+                action="update",
+                affected_columns=["room_id"],
+                previous_value={"room_id": room2.room_id},
+                new_value={"room_id": room5.room_id},
+                timestamp=datetime(2025, 6, 1, 16, 20, 0),
+            )
 
         session.commit()
         print("Database seeded successfully!")

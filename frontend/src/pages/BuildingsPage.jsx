@@ -28,8 +28,6 @@ function BuildingsPage() {
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
     building_type: "other",
-    building_streetnum: "",
-    building_streetname: "",
     location_id: "",
   });
 
@@ -112,8 +110,6 @@ function BuildingsPage() {
     const buildingData = {
       building_name: newBuilding.building_name,
       building_type: newBuilding.building_type,
-      building_streetnum: newBuilding.building_streetnum,
-      building_streetname: newBuilding.building_streetname,
       location_id: Number(newBuilding.location_id),
     };
 
@@ -150,8 +146,6 @@ function BuildingsPage() {
     setNewBuilding({
       building_name: item.building_name || "",
       building_type: item.building_type || "other",
-      building_streetnum: item.building_streetnum || "",
-      building_streetname: item.building_streetname || "",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -161,13 +155,13 @@ function BuildingsPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", building_streetnum: "", building_streetname: "", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", building_streetnum: "", building_streetname: "", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
     setShowModal(true);
   };
 
@@ -184,8 +178,6 @@ function BuildingsPage() {
         id: building.building_id,
         name: building.building_name,
         type: translateBuildingType(building.building_type),
-        streetnum: building.building_streetnum,
-        streetname: building.building_streetname,
         terrain: getTerrainName(building.location_id),
       };
       if (filterColumn === 'all') {
@@ -204,17 +196,13 @@ function BuildingsPage() {
   // Opsies vir dropdowns
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
-    { value: "id", label: "ID" },
     { value: "name", label: "Naam" },
     { value: "type", label: "Tipe" },
-    { value: "streetnum", label: "Straatnommer" },
-    { value: "streetname", label: "Straatnaam" },
     { value: "terrain", label: "Terrein" }
   ];
 
   const sortByOptions = [
     { value: "default", label: "Standaard" },
-    { value: "id", label: "ID" },
     { value: "name", label: "Naam" }
   ];
 
@@ -288,11 +276,8 @@ function BuildingsPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Gebou</th>
                 <th>Naam</th>
                 <th>Tipe</th>
-                <th>Straatnommer</th>
-                <th>Straatnaam</th>
                 <th>Terrein</th>
                 <th>Aksies</th>
               </tr>
@@ -300,11 +285,8 @@ function BuildingsPage() {
             <tbody>
               {filteredBuildings.map((building) => (
                 <tr key={building.building_id}>
-                  <td>{building.building_id}</td>
                   <td>{building.building_name}</td>
                   <td>{translateBuildingType(building.building_type)}</td>
-                  <td>{building.building_streetnum || '-'}</td>
-                  <td>{building.building_streetname || '-'}</td>
                   <td>{getTerrainName(building.location_id)}</td>
                   <td>
                     <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
@@ -348,24 +330,6 @@ function BuildingsPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Straatnommer</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_streetnum}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_streetnum: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Straatnaam</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_streetname}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_streetname: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
                 <label>Terrein</label>
                 <Select
                   className="basic-single"
@@ -399,7 +363,9 @@ function BuildingsPage() {
                   <thead>
                     <tr>
                       <th>Naam</th>
+                      <th>Kode</th>
                       <th>Tipe</th>
+                      <th>Status</th>
                       <th>Kapasiteit</th>
                     </tr>
                   </thead>
@@ -407,7 +373,9 @@ function BuildingsPage() {
                     {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
                       <tr key={room.room_id}>
                         <td>{room.room_name}</td>
+                        <td>{room.room_code}</td>
                         <td>{translateRoomType(room.room_type || 'other')}</td>
+                        <td>{room.room_status}</td>
                         <td>{room.room_capacity ?? '-'}</td>
                       </tr>
                     ))}
