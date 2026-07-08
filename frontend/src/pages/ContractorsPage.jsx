@@ -21,6 +21,7 @@ function ContractorsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
+    contractor_businessName: '',
     contractor_name: '',
     contractor_surname: '',
     contractor_email: '',
@@ -50,6 +51,7 @@ function ContractorsPage() {
     setIsEditing(false);
     setEditingId(null);
     setFormData({
+      contractor_businessName: '',
       contractor_name: '',
       contractor_surname: '',
       contractor_email: '',
@@ -65,6 +67,7 @@ function ContractorsPage() {
     setIsEditing(true);
     setEditingId(contractor.contractor_id);
     setFormData({
+      contractor_businessName: contractor.contractor_businessName || '',
       contractor_name: contractor.contractor_name || '',
       contractor_surname: contractor.contractor_surname || '',
       contractor_email: contractor.contractor_email || '',
@@ -121,12 +124,13 @@ function ContractorsPage() {
     setError('');
     setSuccess('');
 
-    if (!formData.contractor_name?.trim() || !formData.contractor_surname?.trim() || !formData.contractor_email?.trim()) {
-      setError('Naam, van, en e-pos is vereis');
+    if (!formData.contractor_businessName?.trim() || !formData.contractor_name?.trim() || !formData.contractor_surname?.trim() || !formData.contractor_email?.trim()) {
+      setError('Besigheid, naam, van, en e-pos is vereis');
       return;
     }
 
     const payload = {
+      contractor_businessName: formData.contractor_businessName.trim(),
       contractor_name: formData.contractor_name.trim(),
       contractor_surname: formData.contractor_surname.trim(),
       contractor_email: formData.contractor_email.trim(),
@@ -157,6 +161,7 @@ function ContractorsPage() {
     setIsEditing(false);
     setEditingId(null);
     setFormData({
+      contractor_businessName: '',
       contractor_name: '',
       contractor_surname: '',
       contractor_email: '',
@@ -173,6 +178,7 @@ function ContractorsPage() {
       if (!query) return true;
       const values = {
         id: contractor.contractor_id,
+        name: contractor.contractor_businessName,
         name: contractor.contractor_name,
         surname: contractor.contractor_surname,
         email: contractor.contractor_email,
@@ -187,6 +193,7 @@ function ContractorsPage() {
     .sort((a, b) => {
       if (sortBy === 'default') return 0;
       const direction = sortDirection === 'asc' ? 1 : -1;
+      if (sortBy === 'businessName') return String(a.contractor_businessName || '').localeCompare(String(b.contractor_businessName || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'name') return String(a.contractor_name || '').localeCompare(String(b.contractor_name || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'surname') return String(a.contractor_surname || '').localeCompare(String(b.contractor_surname || ''), 'af', { sensitivity: 'base' }) * direction;
       if (sortBy === 'id') return (Number(a.contractor_id || 0) - Number(b.contractor_id || 0)) * direction;
@@ -228,6 +235,7 @@ function ContractorsPage() {
               <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
                 <option value="all">Alle kolomme</option>
                 <option value="id">ID</option>
+                <option value="businessName">Besigheid</option>
                 <option value="name">Naam</option>
                 <option value="surname">Van</option>
                 <option value="email">E-pos</option>
@@ -239,6 +247,7 @@ function ContractorsPage() {
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                 <option value="default">Standaard</option>
                 <option value="id">ID</option>
+                <option value="businessName">Besigheid</option>
                 <option value="name">Naam</option>
                 <option value="surname">Van</option>
               </select>
@@ -255,6 +264,7 @@ function ContractorsPage() {
                 <thead>
                 <tr>
                     <th>ID</th>
+                    <th>Besigheid</th>
                     <th>Naam</th>
                     <th>Van</th>
                     <th>E-pos</th>
@@ -272,6 +282,7 @@ function ContractorsPage() {
                     filteredContractors.map((contractor) => (
                     <tr key={contractor.contractor_id}>
                         <td>{contractor.contractor_id ?? '-'}</td>
+                        <td>{contractor.contractor_businessName || '-'}</td>
                         <td>{contractor.contractor_name || '-'}</td>
                         <td>{contractor.contractor_surname || '-'}</td>
                         <td>{contractor.contractor_email || '-'}</td>
@@ -294,6 +305,10 @@ function ContractorsPage() {
                 <div className="modal-header">
                     <h3>{isEditing ? 'Wysig Kontrakteur' : 'Nuwe Kontrakteur'}</h3>
                     <span className="close" onClick={handleCloseModal}>&times;</span>
+                </div>
+                <div className="form-group">
+                    <label>Besigheid</label>
+                    <input type="text" value={formData.contractor_businessName} onChange={(e) => setFormData({ ...formData, contractor_businessName: e.target.value })} />
                 </div>
                 <div className="form-group">
                     <label>Naam</label>
