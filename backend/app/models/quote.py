@@ -3,9 +3,11 @@ from typing import Optional
 from datetime import date
 from decimal import Decimal
 from pydantic import field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from .base import Base
 from .validators import sanitize_text
+
+from .image import ImageAsset, ImageAssetRead
 
 class QuoteBase(SQLModel):
     """Base model for quote data."""
@@ -25,7 +27,12 @@ class QuoteBase(SQLModel):
 class Quote(QuoteBase, Base, table=True):
     """Model for quote data."""
     quote_id: Optional[int] = Field(default=None, primary_key=True)
+            
+    # Universal Foreign Key linking to the separate image module
     image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
+    
+    # Unidirectional relationship 
+    image: Optional[ImageAsset] = Relationship()
 
 
 class QuoteCreate(QuoteBase):
@@ -39,6 +46,8 @@ class QuoteRead(QuoteBase):
     quote_id: int
     contractor_id: Optional[int] = None
     image_id: Optional[int] = None
+    
+    image: Optional[ImageAssetRead] = None
 
 
 class QuoteUpdate(SQLModel):
