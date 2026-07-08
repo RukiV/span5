@@ -29,65 +29,147 @@ class Report {
 
   // Map vanaf Flutter model na Backend (Faultcard)
   Map<String, dynamic> toJson() {
-    // Map prioriteit (Backend verwag: low, medium, high)
-    // As dit reeds 'low', 'medium' of 'high' is, gebruik dit net so.
-    String backendPriority = priority.toLowerCase();
-    if (priority == "Laag") backendPriority = "low";
-    if (priority == "Medium") backendPriority = "medium";
-    if (priority == "Hoog") backendPriority = "high";
-
-    // Map status (Backend verwag: wag, open, bevestig, besig, opgelos, verwerp)
-    String backendStatus = phase.toLowerCase();
-    if (phase == "Ontvang") backendStatus = "wag";
-    if (phase == "Besig") backendStatus = "besig";
-    if (phase == "Voltooi") backendStatus = "opgelos";
-    if (phase == "Geweier") backendStatus = "verwerp";
-
-    // Map tipe (Backend verwag: maintenance, repair, upgrade)
-    String? backendType;
-    if (category == "Instandhouding") backendType = "maintenance";
-    if (category == "Herstel") backendType = "repair";
-    if (category == "Opgradering") backendType = "upgrade";
-    // Indien category reeds die backend waarde bevat:
-    if (backendType == null && ["maintenance", "repair", "upgrade"].contains(category.toLowerCase())) {
-      backendType = category.toLowerCase();
-    }
-
     return {
       'fault_description': '$title: $description',
-      'fault_type': backendType,
-      'fault_priority': backendPriority,
-      'fault_status': backendStatus,
+      'fault_type': _backendFaultType(category),
+      'fault_priority': _backendPriority(priority),
+      'fault_status': _backendFaultStatus(phase),
       'fault_reportdatetime': timestamp.toIso8601String(),
       'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
-      'user_id': int.tryParse(user) ?? UserSession.userId,
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
     };
   }
 
+  static String? _backendFaultType(String cat) {
+    switch (cat.toLowerCase()) {
+      case 'instandhouding':
+      case 'maintenance':
+        return 'Instandhouding';
+      case 'herstel':
+      case 'herstelwerk':
+      case 'repair':
+        return 'Herstelwerk';
+      case 'opgradering':
+      case 'upgrade':
+        return 'Opgradering';
+      default:
+        return null;
+    }
+  }
+
+  static String _backendPriority(String prio) {
+    switch (prio.toLowerCase()) {
+      case 'laag':
+      case 'low':
+        return 'Laag';
+      case 'medium':
+        return 'Medium';
+      case 'hoog':
+      case 'high':
+        return 'Hoog';
+      default:
+        return 'Medium';
+    }
+  }
+
+  static String _backendFaultStatus(String ph) {
+    switch (ph.toLowerCase()) {
+      case 'ontvang':
+      case 'wag':
+      case 'wait':
+        return 'Wag';
+      case 'oop':
+      case 'open':
+        return 'Oop';
+      case 'bevestig':
+      case 'confirmed':
+      case 'confrimed':
+        return 'Bevestig';
+      case 'besig':
+      case 'in_progress':
+      case 'in progress':
+        return 'Besig';
+      case 'voltooi':
+      case 'opgelos':
+      case 'resolved':
+        return 'Opgelos';
+      case 'geweier':
+      case 'verwerp':
+      case 'closed':
+      case 'gesluit':
+        return 'Gesluit';
+      default:
+        return 'Wag';
+    }
+  }
+
+  static String _frontendFaultStatus(String s) {
+    switch (s) {
+      case 'WAIT':
+      case 'Wag':
+        return 'Ontvang';
+      case 'OPEN':
+      case 'Oop':
+        return 'Ontvang';
+      case 'CONFRIMED':
+      case 'Bevestig':
+        return 'Ontvang';
+      case 'IN_PROGRESS':
+      case 'Besig':
+        return 'Besig';
+      case 'RESOLVED':
+      case 'Opgelos':
+        return 'Voltooi';
+      case 'CLOSED':
+      case 'Gesluit':
+        return 'Geweier';
+      default:
+        return 'Ontvang';
+    }
+  }
+
+  static String _frontendPriority(String p) {
+    switch (p) {
+      case 'LOW':
+      case 'Laag':
+        return 'Laag';
+      case 'MEDIUM':
+      case 'Medium':
+        return 'Medium';
+      case 'HIGH':
+      case 'Hoog':
+        return 'Hoog';
+      default:
+        return 'Medium';
+    }
+  }
+
+  static String _frontendFaultType(String? t) {
+    switch (t) {
+      case 'MAINTENANCE':
+      case 'Instandhouding':
+        return 'Instandhouding';
+      case 'REPAIR':
+      case 'Herstelwerk':
+        return 'Herstel';
+      case 'UPGRADE':
+      case 'Opgradering':
+        return 'Opgradering';
+      default:
+        return 'Algemeen';
+    }
+  }
+
   factory Report.fromJson(Map<String, dynamic> json) {
     // Map backend status terug na frontend fase
-    String frontendPhase = "Ontvang";
-    String bs = json['fault_status'] ?? "wag";
-    if (bs == "besig") frontendPhase = "Besig";
-    if (bs == "opgelos") frontendPhase = "Voltooi";
-    if (bs == "verwerp") frontendPhase = "Geweier";
-    if (bs == "open" || bs == "bevestig") frontendPhase = "Ontvang";
+    String frontendPhase = _frontendFaultStatus(json['fault_status'] ?? "Wag");
 
     // Map backend prioriteit
-    String frontendPriority = "Medium";
-    String bp = json['fault_priority'] ?? "medium";
-    if (bp == "low") frontendPriority = "Laag";
-    if (bp == "medium") frontendPriority = "Medium";
-    if (bp == "high") frontendPriority = "Hoog";
+    String frontendPriority = _frontendPriority(json['fault_priority'] ?? "Medium");
 
     // Map backend tipe terug na frontend kategorie
-    String frontendCategory = "Algemeen";
-    String? bt = json['fault_type'];
-    if (bt == "maintenance") frontendCategory = "Instandhouding";
-    if (bt == "repair") frontendCategory = "Herstel";
-    if (bt == "upgrade") frontendCategory = "Opgradering";
+    String frontendCategory = _frontendFaultType(json['fault_type']);
 
     // Beskrywing split (backend stoor as "Title: Description")
     String fullDesc = json['fault_description'] ?? "";

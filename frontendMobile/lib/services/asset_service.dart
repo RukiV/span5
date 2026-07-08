@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'dart:math';
 import '../models/asset.dart';
-import 'api_client.dart';
+import '../core/api_client.dart';
 
 // AssetService: Manages the lifecycle and state of assets (equipment/hardware) in the app.
 class AssetService {
@@ -21,15 +22,6 @@ class AssetService {
       }
     } catch (e) {
       debugPrint("Error loading assets: $e");
-    }
-  }
-
-  // Local helper to find a specific asset by its ID.
-  static Asset? getAssetById(String id) {
-    try {
-      return _assets.firstWhere((a) => a.id == id);
-    } catch (_) {
-      return null;
     }
   }
 
@@ -57,31 +49,48 @@ class AssetService {
   // Adds a new asset to the backend and refreshes the local list.
   static Future<bool> addAsset(Asset asset) async {
     try {
-      final response = await ApiClient().client.post('/assets', data: asset.toJson());
+      final payload = asset.toJson();
+      debugPrint("📤 POST /assets payload: $payload");
+      final response = await ApiClient().client.post('/assets', data: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchAssets();
         return true;
       }
+    } on DioException catch (e) {
+      debugPrint("❌ Error adding asset: ${e.response?.statusCode} ${e.response?.data}");
     } catch (e) {
-      debugPrint("Error adding asset: $e");
+      debugPrint("❌ Error adding asset: $e");
     }
     return false;
   }
 
-  // FUTURE IDEA: Add an offline 'queue' for assets created while the user has no signal.
-  static Future<void> updateAsset(Asset updatedAsset) async {
+  static Future<bool> updateAsset(Asset updatedAsset) async {
     try {
-      final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
+      final payload = updatedAsset.toJson();
+      debugPrint("📤 PATCH /assets/${updatedAsset.id} payload: $payload");
+      final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: payload);
       if (response.statusCode == 200) {
         await fetchAssets();
+        return true;
       }
+    } on DioException catch (e) {
+      debugPrint("❌ Error updating asset: ${e.response?.statusCode} ${e.response?.data}");
     } catch (e) {
-      debugPrint("Error updating asset: $e");
+      debugPrint("❌ Error updating asset: $e");
     }
+    return false;
   }
 
-  static Future<void> linkReportToAsset(String assetId, String reportId) async {
-    // Relationship is usually handled by the backend via foreign keys in Faultcards.
-    debugPrint("Linking report $reportId to asset $assetId");
+  static Future<bool> deleteAsset(String id) async {
+    try {
+      final response = await ApiClient().client.delete('/assets/$id');
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        await fetchAssets();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error deleting asset: $e");
+    }
+    return false;
   }
 }

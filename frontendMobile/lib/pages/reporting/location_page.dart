@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart' as model;
 
 class LocationPage extends StatefulWidget {
@@ -85,13 +85,19 @@ class _LocationPageState extends State<LocationPage> {
   void _startTracking() async {
     try {
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.best,
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 1,
+        ),
       );
       _handleNewPosition(position, moveMap: true);
     } catch (_) {}
 
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best, distanceFilter: 1)
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 1,
+      ),
     ).listen((Position position) {
       _handleNewPosition(position, moveMap: false);
     });
@@ -239,7 +245,7 @@ class _LocationPageState extends State<LocationPage> {
               )
             },
             circles: CampusService.campusesNotifier.value.map((c) => Circle(
-              circleId: CircleId(c.id),
+              circleId: CircleId(c.id.toString()),
               center: LatLng(c.location.latitude, c.location.longitude),
               radius: c.radius,
               fillColor: AppColors.gold.withValues(alpha: 0.2),

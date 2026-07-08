@@ -15,7 +15,7 @@ class UserBase(SQLModel):
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
-    
+
     @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
     @classmethod
     def sanitize_input(cls, v: Any, info) -> Any:

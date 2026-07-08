@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/building.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class EditBuildingPage extends StatefulWidget {
   final Building building;
@@ -47,7 +48,7 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
+      labelStyle: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -61,7 +62,7 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.gold, width: 2),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
     );
   }
@@ -131,14 +132,13 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdown<String>(
+                    label: "Tipe",
+                    hint: "Kies Tipe",
                     value: _type,
-                    decoration: _inputDecoration(""),
-                    items: _types.map((t) => DropdownMenuItem(
-                      value: t['value'],
-                      child: Text(t['label']!),
+                    items: _types.map((t) => SearchableDropdownItem(
+                      value: t['value']!,
+                      label: t['label']!,
                     )).toList(),
                     onChanged: (v) => setState(() => _type = v!),
                   ),
