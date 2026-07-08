@@ -1,5 +1,6 @@
 class Contractor {
   final int id;
+  final String businessName;
   final String name;
   final String surname;
   final String email;
@@ -8,6 +9,7 @@ class Contractor {
 
   Contractor({
     required this.id,
+    this.businessName = '',
     required this.name,
     required this.surname,
     required this.email,
@@ -17,6 +19,7 @@ class Contractor {
 
   factory Contractor.fromJson(Map<String, dynamic> json) => Contractor(
     id: json['contractor_id'] ?? 0,
+    businessName: json['contractor_businessName'] ?? '',
     name: json['contractor_name'] ?? '',
     surname: json['contractor_surname'] ?? '',
     email: json['contractor_email'] ?? '',
@@ -25,6 +28,7 @@ class Contractor {
   );
 
   Map<String, dynamic> toJson() => {
+    'contractor_businessName': businessName,
     'contractor_name': name,
     'contractor_surname': surname,
     'contractor_email': email,
@@ -36,6 +40,7 @@ class Contractor {
 
   Contractor copyWith({
     int? id,
+    String? businessName,
     String? name,
     String? surname,
     String? email,
@@ -44,6 +49,7 @@ class Contractor {
   }) {
     return Contractor(
       id: id ?? this.id,
+      businessName: businessName ?? this.businessName,
       name: name ?? this.name,
       surname: surname ?? this.surname,
       email: email ?? this.email,

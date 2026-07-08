@@ -159,7 +159,7 @@ class CampusService {
 
   static Future<bool> updateCampus(Campus campus) async {
     try {
-      final response = await ApiClient().client.put('/location/${campus.id}', data: campus.toJson());
+      final response = await ApiClient().client.patch('/location/${campus.id}', data: campus.toJson());
 
       if (response.statusCode == 200) {
         await fetchCampuses();
@@ -202,7 +202,7 @@ class CampusService {
 
   static Future<bool> updateBuilding(Building building) async {
     try {
-      final response = await ApiClient().client.put('/building/${building.id}', data: building.toJson());
+      final response = await ApiClient().client.patch('/building/${building.id}', data: building.toJson());
 
       if (response.statusCode == 200) {
         await fetchCampuses();
@@ -244,7 +244,7 @@ class CampusService {
 
   static Future<bool> updateRoom(Room room) async {
     try {
-      final response = await ApiClient().client.put('/rooms/${room.id}', data: room.toJson());
+      final response = await ApiClient().client.patch('/rooms/${room.id}', data: room.toJson());
       if (response.statusCode == 200) {
         await fetchCampuses();
         return true;

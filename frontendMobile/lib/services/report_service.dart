@@ -64,10 +64,7 @@ class ReportService {
   // Dateer slegs die status op
   static Future<bool> updateReportStatus(String id, String phase) async {
     try {
-      String backendStatus = "wag";
-      if (phase == "Besig") backendStatus = "besig";
-      if (phase == "Voltooi") backendStatus = "opgelos";
-      if (phase == "Geweier") backendStatus = "verwerp";
+      String backendStatus = _mapStatusToBackend(phase);
 
       final response = await ApiClient().client.patch('/fault/$id', data: {'fault_status': backendStatus});
       if (response.statusCode == 200) {
@@ -87,9 +84,7 @@ class ReportService {
   // Dateer slegs die prioriteit op
   static Future<bool> updateReportPriority(String id, String priority) async {
     try {
-      String backendPriority = "medium";
-      if (priority == "Laag") backendPriority = "low";
-      if (priority == "Hoog") backendPriority = "high";
+      String backendPriority = _mapPriorityToBackend(priority);
 
       final response = await ApiClient().client.patch('/fault/$id', data: {'fault_priority': backendPriority});
       if (response.statusCode == 200) {
@@ -109,13 +104,11 @@ class ReportService {
   // Goedkeuring (skuif na 'besig' en stel prioriteit)
   static Future<bool> approveReport(String id, String priority, String notes) async {
     try {
-      String backendPriority = "medium";
-      if (priority == "Laag") backendPriority = "low";
-      if (priority == "Hoog") backendPriority = "high";
+      String backendPriority = _mapPriorityToBackend(priority);
 
       final response = await ApiClient().client.patch('/fault/$id', data: {
         'fault_priority': backendPriority,
-        'fault_status': 'besig'
+        'fault_status': 'Besig'
       });
       
       if (response.statusCode == 200) {
@@ -138,7 +131,7 @@ class ReportService {
   // Verwerp (skuif na 'verwerp')
   static Future<bool> disapproveReport(String id, String notes) async {
     try {
-      final response = await ApiClient().client.patch('/fault/$id', data: {'fault_status': 'verwerp'});
+      final response = await ApiClient().client.patch('/fault/$id', data: {'fault_status': 'Gesluit'});
       if (response.statusCode == 200) {
         final index = _reports.indexWhere((r) => r.id == id);
         if (index != -1) {
@@ -166,5 +159,29 @@ class ReportService {
       debugPrint("Fout met verwydering van verslag: $e");
     }
     return false;
+  }
+
+  static String _mapStatusToBackend(String phase) {
+    switch (phase) {
+      case "Besig":
+        return "Besig";
+      case "Voltooi":
+        return "Opgelos";
+      case "Geweier":
+        return "Gesluit";
+      default:
+        return "Wag";
+    }
+  }
+
+  static String _mapPriorityToBackend(String priority) {
+    switch (priority) {
+      case "Laag":
+        return "Laag";
+      case "Hoog":
+        return "Hoog";
+      default:
+        return "Medium";
+    }
   }
 }

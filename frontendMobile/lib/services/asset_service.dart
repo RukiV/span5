@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'dart:math';
 import '../models/asset.dart';
 import '../core/api_client.dart';
@@ -48,26 +49,34 @@ class AssetService {
   // Adds a new asset to the backend and refreshes the local list.
   static Future<bool> addAsset(Asset asset) async {
     try {
-      final response = await ApiClient().client.post('/assets', data: asset.toJson());
+      final payload = asset.toJson();
+      debugPrint("📤 POST /assets payload: $payload");
+      final response = await ApiClient().client.post('/assets', data: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchAssets();
         return true;
       }
+    } on DioException catch (e) {
+      debugPrint("❌ Error adding asset: ${e.response?.statusCode} ${e.response?.data}");
     } catch (e) {
-      debugPrint("Error adding asset: $e");
+      debugPrint("❌ Error adding asset: $e");
     }
     return false;
   }
 
   static Future<bool> updateAsset(Asset updatedAsset) async {
     try {
-      final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: updatedAsset.toJson());
+      final payload = updatedAsset.toJson();
+      debugPrint("📤 PATCH /assets/${updatedAsset.id} payload: $payload");
+      final response = await ApiClient().client.patch('/assets/${updatedAsset.id}', data: payload);
       if (response.statusCode == 200) {
         await fetchAssets();
         return true;
       }
+    } on DioException catch (e) {
+      debugPrint("❌ Error updating asset: ${e.response?.statusCode} ${e.response?.data}");
     } catch (e) {
-      debugPrint("Error updating asset: $e");
+      debugPrint("❌ Error updating asset: $e");
     }
     return false;
   }

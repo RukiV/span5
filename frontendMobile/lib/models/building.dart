@@ -24,20 +24,67 @@ class Building {
     name: json['building_name'] ?? '',
     streetNum: json['building_streetnum'] ?? '',
     streetName: json['building_streetname'] ?? '',
-    type: json['building_type'] ?? 'other',
+    type: _frontendBuildingType(json['building_type'] ?? 'other'),
     locationId: json['location_id'] ?? 0,
     rooms: json['rooms'] != null
         ? (json['rooms'] as List).map((r) => Room.fromJson(r)).toList()
         : null,
   );
 
+  static String _frontendBuildingType(String t) {
+    switch (t) {
+      case 'ADMIN':
+      case 'Kantoorgebou':
+        return 'admin';
+      case 'EDUCATIONAL':
+      case 'Onderwys':
+        return 'onderwys';
+      case 'LABORATORY':
+      case 'Laboratorium':
+        return 'laboratory';
+      case 'WAREHOUSE':
+      case 'warehouse':
+      case 'Pakhuis':
+        return 'warehouse';
+      case 'KAFERERIA':
+      case 'Kafeteria':
+        return 'kafeteria';
+      case 'OTHER':
+      case 'Ander':
+        return 'other';
+      default:
+        return 'other';
+    }
+  }
+
   Map<String, dynamic> toJson() => {
     'building_name': name,
-    'building_type': type,
-    'building_streetnum': streetNum,
-    'building_streetname': streetName,
+    'building_type': _backendBuildingType(type),
     'location_id': locationId,
   };
+
+  static String _backendBuildingType(String t) {
+    switch (t.toLowerCase()) {
+      case 'admin':
+        return 'Kantoorgebou';
+      case 'onderwys':
+      case 'educational':
+        return 'Onderwys';
+      case 'laboratory':
+      case 'laboratorium':
+        return 'Laboratorium';
+      case 'warehouse':
+      case 'pakhuis':
+        return 'warehouse';
+      case 'kafeteria':
+        return 'Kafeteria';
+      case 'other':
+      case 'ander':
+        return 'Ander';
+      default:
+        return t;
+    }
+  }
 
   Building copyWith({
     int? id,
