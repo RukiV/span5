@@ -1,7 +1,7 @@
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/stock_service.dart';
+import '../../services/stock_service.dart';
 import '../../models/stock.dart';
 import '../../models/campus.dart';
 import '../../models/room.dart';
@@ -223,7 +223,9 @@ class _StockPageState extends State<StockPage> {
                               final success = await StockService.updateStock(updated);
                               if (!mounted) return;
                               if (success) {
-                                Navigator.of(dialogContext).pop();
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop();
+                                }
                               }
                             },
                             style: ElevatedButton.styleFrom(
@@ -261,8 +263,12 @@ class _StockPageState extends State<StockPage> {
                 final success = await StockService.deleteStock(stock.id!);
                 if (!mounted) return;
                 if (success) {
-                  Navigator.of(dialogContext).pop(); // Close confirm
-                  Navigator.of(context).pop(); // Close edit dialog
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(); // Close confirm
+                  }
+                  if (context.mounted) {
+                    Navigator.of(context).pop(); // Close edit dialog
+                  }
                 }
               }
             },

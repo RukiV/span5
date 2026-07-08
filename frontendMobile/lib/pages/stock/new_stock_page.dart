@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/campus_service.dart';
-import '../../core/stock_service.dart';
-import '../../models/stock.dart';
+import '../../services/campus_service.dart';
+import '../../services/stock_service.dart';
 import '../../models/user_session.dart';
+import '../../models/stock.dart';
 import '../../widgets/searchable_dropdown.dart';
-import '../../core/app_colors.dart';
 
 class NewStockPage extends StatefulWidget {
   const NewStockPage({super.key});
@@ -22,7 +21,6 @@ class _NewStockPageState extends State<NewStockPage> {
   String type = "Ander";
   String description = "";
   String? selectedCampus;
-  String? selectedBuilding;
   String? selectedRoom;
 
   @override
@@ -148,8 +146,11 @@ class _NewStockPageState extends State<NewStockPage> {
                              );
 
                              final success = await StockService.addStock(newStock);
-                             if (mounted && success) {
-                               Navigator.pop(context);
+                             if (!mounted) return;
+                             if (success) {
+                               if (context.mounted) {
+                                 Navigator.pop(context);
+                               }
                              }
                           }
                         },

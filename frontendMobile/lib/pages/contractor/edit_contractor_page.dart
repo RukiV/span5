@@ -1,23 +1,34 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/contractor_service.dart';
+import '../../services/contractor_service.dart';
 import '../../models/contractor.dart';
 
-class AddContractorPage extends StatefulWidget {
-  const AddContractorPage({super.key});
+class EditContractorPage extends StatefulWidget {
+  final Contractor contractor;
+  const EditContractorPage({super.key, required this.contractor});
 
   @override
-  State<AddContractorPage> createState() => _AddContractorPageState();
+  State<EditContractorPage> createState() => _EditContractorPageState();
 }
 
-class _AddContractorPageState extends State<AddContractorPage> {
+class _EditContractorPageState extends State<EditContractorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _surnameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _typeController = TextEditingController();
+  late TextEditingController _nameController;
+  late TextEditingController _surnameController;
+  late TextEditingController _emailController;
+  late TextEditingController _phoneController;
+  late TextEditingController _typeController;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.contractor.name);
+    _surnameController = TextEditingController(text: widget.contractor.surname);
+    _emailController = TextEditingController(text: widget.contractor.email);
+    _phoneController = TextEditingController(text: widget.contractor.phone ?? '');
+    _typeController = TextEditingController(text: widget.contractor.type ?? '');
+  }
 
   @override
   void dispose() {
@@ -34,8 +45,7 @@ class _AddContractorPageState extends State<AddContractorPage> {
 
     setState(() => _isLoading = true);
     
-    final contractor = Contractor(
-      id: 0,
+    final updatedContractor = widget.contractor.copyWith(
       name: _nameController.text.trim(),
       surname: _surnameController.text.trim(),
       email: _emailController.text.trim(),
@@ -43,18 +53,18 @@ class _AddContractorPageState extends State<AddContractorPage> {
       type: _typeController.text.trim(),
     );
 
-    final success = await ContractorService.addContractor(contractor);
+    final success = await ContractorService.updateContractor(updatedContractor);
     
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kontrakteur suksesvol bygevoeg"), backgroundColor: AppColors.successGreen),
+          const SnackBar(content: Text("Kontrakteur suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie kontrakteur byvoeg nie"), backgroundColor: AppColors.errorRed),
+          const SnackBar(content: Text("Kon nie kontrakteur opdateer nie"), backgroundColor: AppColors.errorRed),
         );
       }
     }
@@ -65,7 +75,7 @@ class _AddContractorPageState extends State<AddContractorPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("VOEG KONTRAKTEUR BY"),
+        title: const Text("WYSIG KONTRAKTEUR"),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
       ),
@@ -96,7 +106,7 @@ class _AddContractorPageState extends State<AddContractorPage> {
                         backgroundColor: AppColors.gold,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Text("STAAR KONTRAKTEUR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: const Text("UPDATEER KONTRAKTEUR", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ),
                 ],

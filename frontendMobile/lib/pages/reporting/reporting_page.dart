@@ -1,8 +1,8 @@
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
 import '../../models/report.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/contractor_service.dart';
+import '../../services/contractor_service.dart';
 import '../../models/contractor.dart';
 import '../../models/user_session.dart';
 import 'add_contractor_page.dart';

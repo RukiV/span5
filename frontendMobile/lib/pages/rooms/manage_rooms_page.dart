@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/user_session.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
-import '../assets/assets_page.dart';
+import '../asset/asset_page.dart';
 import '../../widgets/searchable_dropdown.dart';
 
 class ManageRoomsPage extends StatefulWidget {
@@ -137,8 +137,9 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                           buildingId: _selectedBuilding!.id,
                         );
                         await CampusService.addRoom(room);
-                        Navigator.pop(context);
-                        if (mounted) {
+                        if (!mounted) return;
+                        if (context.mounted) {
+                          Navigator.pop(context);
                           setState(() {});
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text("'${room.name}' is bygevoeg"), backgroundColor: Colors.green),
@@ -234,8 +235,9 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                           capacity: int.tryParse(capacityController.text),
                         );
                         await CampusService.updateRoom(updatedRoom);
-                        Navigator.pop(context);
-                        if (mounted) {
+                        if (!mounted) return;
+                        if (context.mounted) {
+                          Navigator.pop(context);
                           setState(() {});
                         }
                       },

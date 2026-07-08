@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';

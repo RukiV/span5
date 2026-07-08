@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/stock.dart';
-import 'api_client.dart';
+import '../core/api_client.dart';
 
 // StockService: Manages the inventory levels and stock items available in the system.
 class StockService {

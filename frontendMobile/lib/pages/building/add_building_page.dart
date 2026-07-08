@@ -1,30 +1,46 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
+import '../../models/building.dart';
+import '../../widgets/searchable_dropdown.dart';
 
-class AddCampusPage extends StatefulWidget {
-  const AddCampusPage({super.key});
+class AddBuildingPage extends StatefulWidget {
+  final Campus campus;
+  const AddBuildingPage({super.key, required this.campus});
 
   @override
-  State<AddCampusPage> createState() => _AddCampusPageState();
+  State<AddBuildingPage> createState() => _AddBuildingPageState();
 }
 
-class _AddCampusPageState extends State<AddCampusPage> {
+class _AddBuildingPageState extends State<AddBuildingPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _typeController = TextEditingController();
   final _streetNumController = TextEditingController();
   final _streetNameController = TextEditingController();
-  final _zipIdController = TextEditingController(text: "1");
+  String _type = 'other';
   bool _isLoading = false;
-  LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
+
+  final List<Map<String, String>> _types = [
+    {'value': 'admin', 'label': 'Administrasie'},
+    {'value': 'onderwys', 'label': 'Onderwys'},
+    {'value': 'laboratory', 'label': 'Laboratorium'},
+    {'value': 'warehouse', 'label': 'Pakhuis'},
+    {'value': 'other', 'label': 'Ander'},
+  ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _streetNumController.dispose();
+    _streetNameController.dispose();
+    super.dispose();
+  }
 
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
+      labelStyle: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -38,7 +54,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.gold, width: 2),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
     );
   }
@@ -48,7 +64,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Voeg Nuwe Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Voeg Nuwe Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -71,6 +87,9 @@ class _AddCampusPageState extends State<AddCampusPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text("Terrein: ${widget.campus.name}", style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  const SizedBox(height: 16),
+
                   const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -79,35 +98,35 @@ class _AddCampusPageState extends State<AddCampusPage> {
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
-                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _typeController,
-                    decoration: _inputDecoration(""),
+
+                  SearchableDropdown<String>(
+                    label: "Tipe",
+                    hint: "Kies Tipe",
+                    value: _type,
+                    items: _types.map((t) => SearchableDropdownItem(
+                      value: t['value']!,
+                      label: t['label']!,
+                    )).toList(),
+                    onChanged: (v) => setState(() => _type = v!),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  const Text("Straatnommer (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNumController,
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
+
+                  const Text("Straatnaam (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNameController,
                     decoration: _inputDecoration(""),
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Poskode ID", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _zipIdController,
-                    decoration: _inputDecoration(""),
-                    keyboardType: TextInputType.number,
-                  ),
                   const SizedBox(height: 32),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -120,19 +139,21 @@ class _AddCampusPageState extends State<AddCampusPage> {
                         onPressed: _isLoading ? null : () async {
                           if (_formKey.currentState!.validate()) {
                             setState(() => _isLoading = true);
-                            final campus = Campus(
+                            final building = Building(
                               id: 0,
                               name: _nameController.text,
-                              code: _typeController.text,
+                              type: _type,
                               streetNum: _streetNumController.text,
                               streetName: _streetNameController.text,
-                              zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
-                              location: _selectedLocation,
+                              locationId: widget.campus.id,
                             );
-                            final success = await CampusService.addCampus(campus);
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                              if (success) Navigator.pop(context);
+                            final success = await CampusService.addBuilding(building);
+                            if (!mounted) return;
+                            setState(() => _isLoading = false);
+                            if (success) {
+                              if (context.mounted) {
+                                Navigator.pop(context, true);
+                              }
                             }
                           }
                         },

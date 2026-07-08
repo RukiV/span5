@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/contractor.dart';
-import 'api_client.dart';
+import '../core/api_client.dart';
 
 class ContractorService {
   static final List<Contractor> _contractors = [];
