@@ -28,7 +28,10 @@ function TerrainsPage() {
     location_type: "",
     location_streetnum: "",
     location_streetname: "",
-    zipcode_id: "",
+    location_suburb: "",
+    location_city: "",
+    location_province: "",
+    location_country: "",
   });
 
   useEffect(() => {
@@ -72,7 +75,10 @@ function TerrainsPage() {
         location_type: newTerrain.location_type,
         location_streetnum: newTerrain.location_streetnum,
         location_streetname: newTerrain.location_streetname,
-        zipcode_id: newTerrain.zipcode_id ? Number(newTerrain.zipcode_id) : null,
+        location_suburb: newTerrain.location_suburb || null,
+        location_city: newTerrain.location_city || null,
+        location_province: newTerrain.location_province || null,
+        location_country: newTerrain.location_country || null,
       };
 
       if (isEditing) {
@@ -128,7 +134,10 @@ function TerrainsPage() {
       location_type: item.location_type || "",
       location_streetnum: item.location_streetnum || "",
       location_streetname: item.location_streetname || "",
-      zipcode_id: item.zipcode_id || "",
+      location_suburb: item.location_suburb || "",
+      location_city: item.location_city || "",
+      location_province: item.location_province || "",
+      location_country: item.location_country || "",
     });
     setShowModal(true);
   };
@@ -137,13 +146,13 @@ function TerrainsPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", zipcode_id: "" });
+    setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
   };
 
   const handleNewTerrain = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", zipcode_id: "" });
+    setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
     setShowModal(true);
   };
 
@@ -228,6 +237,9 @@ function TerrainsPage() {
                 <th>Tipe</th>
                 <th>Straatnommer</th>
                 <th>Straatnaam</th>
+                <th>Suburb</th>
+                <th>Stad</th>
+                <th>Provinsie</th>
                 <th>Aksies</th>
               </tr>
             </thead>
@@ -239,6 +251,9 @@ function TerrainsPage() {
                   <td>{terrain.location_type}</td>
                   <td>{terrain.location_streetnum || '-'}</td>
                   <td>{terrain.location_streetname || '-'}</td>
+                  <td>{terrain.location_suburb || '-'}</td>
+                  <td>{terrain.location_city || '-'}</td>
+                  <td>{terrain.location_province || '-'}</td>
                   <td>
                     <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
                     <button className="btn-edit" onClick={() => handleEditTerrain(terrain)}>Wysig</button>
@@ -296,11 +311,37 @@ function TerrainsPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Poskode ID</label>
+                <label>Suburb</label>
                 <input
-                  type="number"
-                  value={newTerrain.zipcode_id}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, zipcode_id: e.target.value })}
+                  type="text"
+                  value={newTerrain.location_suburb}
+                  onChange={(e) => setNewTerrain({ ...newTerrain, location_suburb: e.target.value })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Stad</label>
+                <input
+                  type="text"
+                  value={newTerrain.location_city}
+                  onChange={(e) => setNewTerrain({ ...newTerrain, location_city: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="input-row">
+              <div className="input-group">
+                <label>Provinsie</label>
+                <input
+                  type="text"
+                  value={newTerrain.location_province}
+                  onChange={(e) => setNewTerrain({ ...newTerrain, location_province: e.target.value })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Land</label>
+                <input
+                  type="text"
+                  value={newTerrain.location_country}
+                  onChange={(e) => setNewTerrain({ ...newTerrain, location_country: e.target.value })}
                 />
               </div>
             </div>
