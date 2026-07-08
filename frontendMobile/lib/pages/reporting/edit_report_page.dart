@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
 import '../../models/report.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class EditReportPage extends StatefulWidget {
   final Report report;
@@ -138,21 +139,12 @@ class _EditReportPageState extends State<EditReportPage> {
   }
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          value: value,
-          items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-          onChanged: onChanged,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          ),
-        ),
-      ],
+    return SearchableDropdown<String>(
+      label: label,
+      hint: "Kies $label",
+      value: value,
+      items: items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+      onChanged: onChanged,
     );
   }
 }

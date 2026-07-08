@@ -1,10 +1,11 @@
 import '../../widgets/custom_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 import '../../models/user_session.dart';
 
 class NewAssetPage extends StatefulWidget {
@@ -163,14 +164,12 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
-                      return CustomDropdown<String>(
+                      return SearchableDropdown<String>(
                         label: "Kampus",
-                        hint: "",
+                        hint: "Kies 'n kampus",
                         value: selectedCampus,
                         items: campuses
-                            .map((c) => DropdownMenuItem(
-                                value: c.name,
-                                child: Text(c.name, style: const TextStyle(fontSize: 14))))
+                            .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
                             .toList(),
                         onChanged: (v) {
                           setState(() {
@@ -179,19 +178,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                             selectedLocation = null;
                           });
                         },
+                        validator: (v) => (v == null) ? "Vereis" : null,
                       );
                     },
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Gebou",
-                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "",
+                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
                     value: selectedBuilding,
                     items: _availableBuildings
-                        .map((b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b, style: const TextStyle(fontSize: 14))))
+                        .map((b) => SearchableDropdownItem(value: b, label: b))
                         .toList(),
                     onChanged: (v) {
                       setState(() {
@@ -199,20 +197,20 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         selectedLocation = null;
                       });
                     },
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Lokaal",
-                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "",
+                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
                     value: selectedLocation,
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(
-                          value: r,
-                          child: Text(name, style: const TextStyle(fontSize: 14)));
+                      return SearchableDropdownItem(value: r, label: name);
                     }).toList(),
-                    onChanged: (v) => setState(() => selectedLocation = v!),
+                    onChanged: (v) => setState(() => selectedLocation = v),
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
@@ -223,7 +221,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     items: [
                       {"value": "active", "label": "Aktief"},
                       {"value": "maintenance", "label": "Onderhoud"},
-                      {"value": "decommissioned", "label": "Afgedank"},
+                      {"value": "retired", "label": "Afgedank"},
+                      {"value": "inactive", "label": "Onaktief"},
                     ].map((s) => DropdownMenuItem(
                       value: s["value"] as String, 
                       child: Text(s["label"] as String)
@@ -248,16 +247,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                               serialCode: serialCode,
                               name: name,
                               category: category,
+                              assetTypeId: Asset.getCategoryId(category),
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               campus: selectedCampus ?? "",
-                              purchaseDate: DateTime.now(),
-                              campusStartDate: DateTime.now(),
                             );
                             
                             final success = await AssetService.addAsset(newAsset);
-                            if (mounted && success) {
-                              Navigator.pop(context);
+                            if (!mounted) return;
+                            if (success) {
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
                             }
                           }
                         },
