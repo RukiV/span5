@@ -2,6 +2,7 @@
 class Report {
   final String id;
   final String assetId;
+  final String? assetSerialCode;
   final String location; // Word gemap na room_id op backend
   final String title;
   final String description;
@@ -16,6 +17,7 @@ class Report {
   Report({
     required this.id,
     required this.assetId,
+    this.assetSerialCode,
     required this.location,
     required this.title,
     required this.description,
@@ -204,6 +206,7 @@ class Report {
   Report copyWith({
     String? id,
     String? assetId,
+    String? assetSerialCode,
     String? location,
     String? title,
     String? description,
@@ -218,6 +221,7 @@ class Report {
     return Report(
       id: id ?? this.id,
       assetId: assetId ?? this.assetId,
+      assetSerialCode: assetSerialCode ?? this.assetSerialCode,
       location: location ?? this.location,
       title: title ?? this.title,
       description: description ?? this.description,
