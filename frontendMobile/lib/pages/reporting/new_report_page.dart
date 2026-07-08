@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
@@ -34,8 +33,6 @@ class _NewReportPageState extends State<NewReportPage> {
   String selectedPriority = "Medium";
   File? _photoFile;
   bool _isAutoFilling = false;
-  Timer? _debounce;
-
   @override
   void initState() {
     super.initState();
@@ -45,24 +42,14 @@ class _NewReportPageState extends State<NewReportPage> {
     if (UserSession.hasAdminPrivileges) {
       selectedCategory = "Instandhouding";
     }
-    serialController.addListener(_onSerialChanged);
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    serialController.removeListener(_onSerialChanged);
     serialController.dispose();
     titleController.dispose();
     descController.dispose();
     super.dispose();
-  }
-
-  void _onSerialChanged() {
-    _debounce?.cancel();
-    final code = serialController.text.trim();
-    if (code.isEmpty) return;
-    _debounce = Timer(const Duration(milliseconds: 600), () => _autoFillFromCode(code));
   }
 
   Future<void> _autoFillFromCode(String serialCode) async {
@@ -154,13 +141,31 @@ class _NewReportPageState extends State<NewReportPage> {
                   if (UserSession.hasAdminPrivileges)
                     Row(
                       children: [
-                        Expanded(child: _buildSimpleDropdown("Kategorie *", selectedCategory.isNotEmpty ? selectedCategory : null, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v))),
+                        Expanded(
+                          child: SearchableDropdown<String>(
+                            label: "Kategorie *",
+                            hint: "Kies Kategorie",
+                            value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                            items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                                .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                            onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                            validator: (v) => v == null ? "Kategorie word vereis" : null,
+                          ),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(child: _buildSimpleDropdown("Prioriteit *", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
                       ],
                     )
                   else
-                    _buildSimpleDropdown("Kategorie *", selectedCategory.isNotEmpty ? selectedCategory : null, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v)),
+                    SearchableDropdown<String>(
+                      label: "Kategorie *",
+                      hint: "Kies Kategorie",
+                      value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                      items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                          .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                      onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                      validator: (v) => v == null ? "Kategorie word vereis" : null,
+                    ),
 
                   const SizedBox(height: 20),
 
@@ -249,14 +254,6 @@ class _NewReportPageState extends State<NewReportPage> {
                           if (!_formKey.currentState!.validate()) {
                             return;
                           }
-                          if (selectedCategory.isEmpty) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Kies asseblief 'n kategorie"), backgroundColor: AppColors.errorRed),
-                              );
-                            }
-                            return;
-                          }
 
                           int? imageId;
                           if (_photoFile != null) {
@@ -280,6 +277,19 @@ class _NewReportPageState extends State<NewReportPage> {
                             roomId = selectedLocation!.split(":").first;
                           }
 
+                          int? resolvedLocationId;
+                          int? resolvedBuildingId;
+                          if (selectedCampus != null) {
+                            final campus = CampusService.getCampusByName(selectedCampus!);
+                            if (campus != null) {
+                              resolvedLocationId = campus.id;
+                              if (selectedBuilding != null) {
+                                final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+                                resolvedBuildingId = building?.id;
+                              }
+                            }
+                          }
+
                           final newReport = Report(
                             id: "0",
                             assetId: finalAssetId,
@@ -293,6 +303,8 @@ class _NewReportPageState extends State<NewReportPage> {
                             user: UserSession.userId.toString(),
                             timestamp: DateTime.now(),
                             imageId: imageId,
+                            locationId: resolvedLocationId,
+                            buildingId: resolvedBuildingId,
                           );
 
                           try {
@@ -425,17 +437,7 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  Widget _buildSimpleDropdown(String label, String? value, List<String> items, ValueChanged<String> onChanged) {
-    final allItems = [
-      if (value == null)
-        DropdownMenuItem<String>(
-          value: "",
-          enabled: false,
-          child: Text("Kies Kategorie", style: TextStyle(color: Colors.grey[500], fontStyle: FontStyle.italic)),
-        ),
-      ...items.map((e) => DropdownMenuItem(value: e, child: Text(e))),
-    ];
-    final currentValue = value ?? "";
+  Widget _buildSimpleDropdown(String label, String value, List<String> items, ValueChanged<String> onChanged) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -451,12 +453,12 @@ class _NewReportPageState extends State<NewReportPage> {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: currentValue,
+              value: value,
               isExpanded: true,
               icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5E34)),
               style: const TextStyle(fontSize: 14, color: Colors.black87),
-              items: allItems,
-              onChanged: (v) { if (v != null && v.isNotEmpty) onChanged(v); },
+              items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) { if (v != null) onChanged(v); },
             ),
           ),
         ),
