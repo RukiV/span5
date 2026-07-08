@@ -370,15 +370,18 @@
     background: none !important;
   }
 
+  /* Behou die oorspronklike 1200px-uitleg presies soos op die skerm (sodat
+     rye, react-select-kolomme en die kwotasie-tabel nie anders herfloed nie),
+     maar verklein dit proporsioneel sodat dit op die drukbare bladsy-breedte pas.
+     Pas die zoom-waarde aan indien jou papiergrootte/marges verskil. */
   .modal-content-workorder {
     position: static !important;
     top: auto !important;
     left: auto !important;
     right: auto !important;
     transform: none !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
+    width: 1200px !important;
+    max-width: none !important;
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
@@ -388,23 +391,14 @@
     margin: 0 auto !important;
     padding: 0 !important;
     box-sizing: border-box !important;
+    zoom: 0.6;
   }
 
-  /* Enige interne skuifbare of vaste-breedte areas moet ook uitgevou en ingepas word */
+  /* Enige interne skuifbare areas moet steeds uitgevou word, sonder om die
+     oorspronklike breedtes/kolomme te verander */
   .modal-content-workorder * {
     overflow: visible !important;
     max-height: none !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-
-  .mri-row {
-    width: 100% !important;
-    flex-wrap: wrap !important;
-  }
-
-  .mri-cell {
-    min-width: 0 !important;
   }
 
   /* Verberg knoppies en ander elemente wat nie gedruk hoef te word nie */
