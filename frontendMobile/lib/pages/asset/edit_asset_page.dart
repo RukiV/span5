@@ -8,51 +8,52 @@ import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../models/user_session.dart';
 
-class NewAssetPage extends StatefulWidget {
-  const NewAssetPage({super.key});
+class EditAssetPage extends StatefulWidget {
+  final Asset asset;
+
+  const EditAssetPage({super.key, required this.asset});
 
   @override
-  State<NewAssetPage> createState() => _NewAssetPageState();
+  State<EditAssetPage> createState() => _EditAssetPageState();
 }
 
-class _NewAssetPageState extends State<NewAssetPage> {
+class _EditAssetPageState extends State<EditAssetPage> {
   final _formKey = GlobalKey<FormState>();
 
-  // Veranderlikes wat voorheen ontbreek het:
-  String name = "";
-  String serialCode = "";
-  String brand = "";
-  String assetCode = "";
-  bool isFixed = false;
-  String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
-  final List<String> categories = ["Meubels", "IT Voorraad", "Elektronika", "Kombuis", "Ander"];
+  late String name;
+  late String serialCode;
+  late String brand;
+  late bool isFixed;
+  late String location;
+  late String category;
+  late String status;
 
   String? selectedCampus;
   String? selectedBuilding;
   String? selectedLocation;
-  String category = "Meubels";
-  String status = "active";
-  
+
   @override
   void initState() {
     super.initState();
+    final a = widget.asset;
+    name = a.name;
+    serialCode = a.serialCode;
+    brand = a.brand;
+    isFixed = a.isOutdoor;
+    location = a.location;
+    category = a.category;
+    status = a.status;
+
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
-    
-    // Autofill campus and restrict if not admin
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
-          try {
-            selectedCampus = CampusService.campusesNotifier.value
-                .firstWhere((c) => c.name == UserSession.userCampus || UserSession.userCampus.contains(c.name))
-                .name;
-          } catch (_) {
-            if (CampusService.campusesNotifier.value.isNotEmpty) {
-               selectedCampus = CampusService.campusesNotifier.value.first.name;
-            }
-          }
+          selectedCampus = CampusService.getCampusNameByRoomId(a.location);
+          selectedBuilding = CampusService.getBuildingNameByRoomId(a.location);
+          selectedLocation = a.location;
         });
       }
     });
@@ -117,7 +118,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Nuwe Bate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Wysig Bate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -143,6 +144,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   _buildCustomTextField(
                     label: "Naam",
                     hint: "",
+                    initialValue: name,
                     onChanged: (v) => name = v,
                     validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
                   ),
@@ -151,6 +153,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   _buildCustomTextField(
                     label: "Serienommer",
                     hint: "",
+                    initialValue: serialCode,
                     onChanged: (v) => serialCode = v,
                     validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
                   ),
@@ -159,6 +162,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   _buildCustomTextField(
                     label: "Merk",
                     hint: "",
+                    initialValue: brand,
                     onChanged: (v) => brand = v,
                   ),
                   const SizedBox(height: 20),
@@ -166,8 +170,10 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   if (UserSession.hasAdminPrivileges)
                     _buildCustomTextField(
                       label: "Bate Kode",
-                      hint: "Laat leeg vir outomaties",
-                      onChanged: (v) => assetCode = v,
+                      hint: "",
+                      initialValue: widget.asset.id,
+                      readOnly: true,
+                      onChanged: (_) {},
                     ),
                   if (UserSession.hasAdminPrivileges)
                     const SizedBox(height: 20),
@@ -242,7 +248,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                       {"value": "retired", "label": "Afgedank"},
                       {"value": "inactive", "label": "Onaktief"},
                     ].map((s) => DropdownMenuItem(
-                      value: s["value"] as String, 
+                      value: s["value"] as String,
                       child: Text(s["label"] as String)
                     )).toList(),
                     onChanged: (v) => setState(() => status = v!),
@@ -260,25 +266,23 @@ class _NewAssetPageState extends State<NewAssetPage> {
                       ElevatedButton(
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            final newAsset = Asset(
-                              id: assetCode.isNotEmpty && UserSession.hasAdminPrivileges
-                                  ? assetCode
-                                  : AssetService.generateUniqueId(category, selectedCampus ?? "GEN"),
-                              serialCode: serialCode,
+                            final updated = widget.asset.copyWith(
                               name: name,
+                              serialCode: serialCode,
                               brand: brand,
                               category: category,
                               assetTypeId: Asset.getCategoryId(category),
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
+                              isOutdoor: isFixed,
                               campus: selectedCampus ?? "",
                             );
-                            
-                            final success = await AssetService.addAsset(newAsset);
+
+                            final success = await AssetService.updateAsset(updated);
                             if (!mounted) return;
                             if (success) {
                               if (context.mounted) {
-                                Navigator.pop(context);
+                                Navigator.pop(context, true);
                               }
                             }
                           }
@@ -289,7 +293,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        child: const Text("Stoor"),
+                        child: const Text("Opdateer"),
                       ),
                     ],
                   ),

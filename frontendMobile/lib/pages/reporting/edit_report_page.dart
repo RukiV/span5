@@ -1,7 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
+import '../../services/camera_service.dart';
+import '../../services/image_service.dart';
 import '../../models/report.dart';
+import '../../models/campus.dart';
 import '../../widgets/searchable_dropdown.dart';
 
 class EditReportPage extends StatefulWidget {
@@ -20,20 +25,29 @@ class _EditReportPageState extends State<EditReportPage> {
   late String _category;
   late String _priority;
   late String _status;
+  String? _selectedCampus;
+  String? _selectedBuilding;
+  String? _selectedLocation;
+  File? _photoFile;
   bool _isLoading = false;
 
-  final List<String> _categories = ["Herstel", "Instandhouding", "Opgradering", "Algemeen"];
+  final List<String> _categories = ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
-  final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier", "Oop", "Bevestig", "Opgelos", "Verwerp"];
+  final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.report.title);
     _descriptionController = TextEditingController(text: widget.report.description);
-    _category = _categories.contains(widget.report.category) ? widget.report.category : "Algemeen";
+    _category = _categories.contains(widget.report.category) ? widget.report.category : "Ander";
     _priority = widget.report.priority;
     _status = widget.report.phase;
+    _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
+    _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
   }
 
   @override
@@ -43,10 +57,36 @@ class _EditReportPageState extends State<EditReportPage> {
     super.dispose();
   }
 
+  List<String> get _filteredBuildings {
+    if (_selectedCampus == null) return [];
+    final campus = CampusService.getCampusByName(_selectedCampus!);
+    if (campus == null) return [];
+    return campus.buildings.map((b) => b.name).toList();
+  }
+
+  List<String> get _filteredRooms {
+    if (_selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(_selectedCampus ?? '');
+    if (campus == null) return [];
+    final building = campus.buildings.where((b) => b.name == _selectedBuilding).firstOrNull;
+    if (building == null) return [];
+    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  }
+
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+
+    int? imageId = widget.report.imageId;
+    if (_photoFile != null) {
+      imageId = await ImageService.uploadImage(_photoFile!);
+    }
+
+    String roomId = _selectedLocation ?? widget.report.location;
+    if (roomId.contains(":")) {
+      roomId = roomId.split(":").first;
+    }
 
     final updatedReport = widget.report.copyWith(
       title: _titleController.text,
@@ -54,6 +94,8 @@ class _EditReportPageState extends State<EditReportPage> {
       category: _category,
       priority: _priority,
       phase: _status,
+      location: roomId,
+      imageId: imageId,
     );
 
     final success = await ReportService.updateReport(updatedReport);
@@ -92,13 +134,61 @@ class _EditReportPageState extends State<EditReportPage> {
                   children: [
                     _buildTextField("Titel", _titleController),
                     const SizedBox(height: 20),
-                    _buildDropdown("Kategorie", _category, _categories, (val) => setState(() => _category = val!)),
-                    const SizedBox(height: 20),
-                    _buildDropdown("Prioriteit", _priority, _priorities, (val) => setState(() => _priority = val!)),
+                    Row(
+                      children: [
+                        Expanded(child: _buildDropdown("Kategorie", _category, _categories, (val) => setState(() => _category = val!))),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities, (val) => setState(() => _priority = val!))),
+                      ],
+                    ),
                     const SizedBox(height: 20),
                     _buildDropdown("Status", _status, _statuses, (val) => setState(() => _status = val!)),
                     const SizedBox(height: 20),
+                    ValueListenableBuilder<List<Campus>>(
+                      valueListenable: CampusService.campusesNotifier,
+                      builder: (context, campuses, _) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: SearchableDropdown<String>(
+                                label: "Kampus",
+                                hint: "Kies Kampus",
+                                value: _selectedCampus,
+                                items: campuses
+                                    .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                                    .toList(),
+                                onChanged: (v) => setState(() {
+                                  _selectedCampus = v;
+                                  _selectedBuilding = null;
+                                  _selectedLocation = null;
+                                }),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SearchableDropdown<String>(
+                                label: "Gebou",
+                                hint: "Kies Gebou",
+                                value: _selectedBuilding,
+                                items: _filteredBuildings
+                                    .map((b) => SearchableDropdownItem(value: b, label: b))
+                                    .toList(),
+                                onChanged: (v) => setState(() {
+                                  _selectedBuilding = v;
+                                  _selectedLocation = null;
+                                }),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    _buildRoomDropdown(),
+                    const SizedBox(height: 20),
                     _buildTextField("Beskrywing", _descriptionController, maxLines: 5),
+                    const SizedBox(height: 16),
+                    _buildPhotoSection(),
                     const SizedBox(height: 40),
                     SizedBox(
                       width: double.infinity,
@@ -116,6 +206,62 @@ class _EditReportPageState extends State<EditReportPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildRoomDropdown() {
+    return SearchableDropdown<String>(
+      label: "Lokaal",
+      hint: "Kies Lokaal",
+      value: _selectedLocation ?? widget.report.location,
+      items: _filteredRooms.map((r) {
+        final name = r.contains(":") ? r.split(":").last : r;
+        return SearchableDropdownItem(value: r, label: name);
+      }).toList(),
+      onChanged: (v) => setState(() => _selectedLocation = v),
+    );
+  }
+
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Foto", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            InkWell(
+              onTap: () async {
+                final photo = await CameraService.takePhoto();
+                if (photo != null) {
+                  setState(() => _photoFile = photo);
+                }
+              },
+              child: Container(
+                height: 80, width: 80,
+                decoration: BoxDecoration(
+                  color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
+                ),
+                child: _photoFile != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: Image.file(_photoFile!, fit: BoxFit.cover),
+                      )
+                    : const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+              ),
+            ),
+            if (_photoFile != null) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => setState(() => _photoFile = null),
+                child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 
