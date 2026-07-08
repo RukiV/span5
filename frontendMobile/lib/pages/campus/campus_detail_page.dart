@@ -81,7 +81,7 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
         actions: [
-          if (UserSession.isAdmin) ...[
+          if (UserSession.hasAdminPrivileges) ...[
             IconButton(
               icon: const Icon(Icons.edit, color: AppColors.gold),
               onPressed: () => Navigator.push(

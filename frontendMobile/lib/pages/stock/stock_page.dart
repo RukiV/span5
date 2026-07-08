@@ -315,15 +315,8 @@ class _StockPageState extends State<StockPage> {
     return ValueListenableBuilder<List<Stock>>(
       valueListenable: StockService.stocksNotifier,
       builder: (context, allStocks, _) {
-        // ROL-GEBASEERDE DATA FILTRERING
+        // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
         List<Stock> baseStocks = allStocks;
-        if (UserSession.isManager) {
-          baseStocks = allStocks.where((s) {
-            if (s.roomId == null) return false;
-            final stockCampus = CampusService.getCampusNameByRoomId(s.roomId.toString());
-            return stockCampus == UserSession.userCampus;
-          }).toList();
-        }
 
         final filtered = baseStocks.where((s) {
           // Room filter

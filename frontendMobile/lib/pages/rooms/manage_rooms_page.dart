@@ -40,6 +40,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   }
 
   void _loadInitialCampus() {
+    // Bestuurder moet nou presies dieselfde begin-ervaring as Admin hê
     if (UserSession.hasAdminPrivileges) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {
         _selectedCampus = CampusService.campusesNotifier.value.first;

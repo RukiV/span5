@@ -33,7 +33,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   }
 
   void _loadInitialCampus() {
-    if (UserSession.isAdmin) {
+    if (UserSession.hasAdminPrivileges) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {
         _selectedCampus = CampusService.campusesNotifier.value.first;
       }
@@ -74,7 +74,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (UserSession.isAdmin && _selectedCampus == null) {
+          if (UserSession.hasAdminPrivileges && _selectedCampus == null) {
             _selectedCampus = campuses.first;
           }
 
@@ -85,7 +85,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
 
           return Column(
             children: [
-              if (UserSession.isAdmin) ...[
+              if (UserSession.hasAdminPrivileges) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                   child: Container(

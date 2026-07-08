@@ -58,6 +58,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<Map<String, dynamic>> _getVisibleMenu() {
+    // 1. STUDENTE: Slegs foutkaartjies
     if (UserSession.isStudent) {
       return [
         {
@@ -68,89 +69,101 @@ class _HomePageState extends State<HomePage> {
       ];
     }
 
-    return [
-      {
-        'title': 'Paneelbord',
-        'icon': Icons.dashboard_outlined,
-        'page': DashboardPage(onTabRequested: (index) {
-          // Hierdie index verwys na die "flat" menu sonder expandable items oop
-          // Ons map dit na spesifieke titels vir stabiliteit
-          final titles = [
-            "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
-            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
-          ];
-          if (index >= 0 && index < titles.length) {
-            setState(() => _selectedTitle = titles[index]);
-          }
-        }),
-      },
-      {
-        'title': 'Bates & Voorraad',
-        'icon': Icons.inventory_2_outlined,
-        'isExpandable': true,
-        'children': [
-          {
-            'title': 'Bates',
-            'icon': Icons.inventory_2_outlined,
-            'page': const AssetsPage(),
-          },
-          {
-            'title': 'Voorraad',
-            'icon': Icons.construction_outlined,
-            'page': const StockPage(),
-          },
-        ],
-      },
-      {
-        'title': 'Lokale & Terreine',
-        'icon': Icons.map_outlined,
-        'isExpandable': true,
-        'children': [
-          {
-            'title': 'Terreine',
-            'icon': Icons.map_outlined,
-            'page': const CampusManagementPage(),
-          },
-          {
-            'title': 'Geboue',
-            'icon': Icons.business_outlined,
-            'page': const BuildingsListPage(),
-          },
-          {
-            'title': 'Lokale',
-            'icon': Icons.room_outlined,
-            'page': const ManageRoomsPage(),
-          },
-        ],
-      },
-      {
-        'title': 'Foutkaartjies',
-        'icon': Icons.report_gmailerrorred_outlined,
-        'page': const ReportingPage(),
-      },
-      if (UserSession.hasAdminPrivileges)
+    // 2. KONTRAKTEURS: Slegs take en kalender
+    if (UserSession.isContractor) {
+      return [
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.engineering_outlined,
+          'page': const JobCardsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
+    }
+
+    // 3. ADMIN & BESTUURDERS: Volle navigasie
+    if (UserSession.isAdmin || UserSession.isManager) {
+      return [
+        {
+          'title': 'Paneelbord',
+          'icon': Icons.dashboard_outlined,
+          'page': DashboardPage(onTabRequested: (index) {
+            final titles = [
+              "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
+              "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
+            ];
+            if (index >= 0 && index < titles.length) {
+              setState(() => _selectedTitle = titles[index]);
+            }
+          }),
+        },
+        {
+          'title': 'Bates & Voorraad',
+          'icon': Icons.inventory_2_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Bates',
+              'icon': Icons.inventory_2_outlined,
+              'page': const AssetsPage(),
+            },
+            {
+              'title': 'Voorraad',
+              'icon': Icons.construction_outlined,
+              'page': const StockPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Lokale & Terreine',
+          'icon': Icons.map_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Terreine',
+              'icon': Icons.map_outlined,
+              'page': const CampusManagementPage(),
+            },
+            {
+              'title': 'Geboue',
+              'icon': Icons.business_outlined,
+              'page': const BuildingsListPage(),
+            },
+            {
+              'title': 'Lokale',
+              'icon': Icons.room_outlined,
+              'page': const ManageRoomsPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Foutkaartjies',
+          'icon': Icons.report_gmailerrorred_outlined,
+          'page': const ReportingPage(),
+        },
         {
           'title': 'Kontrakteurs',
           'icon': Icons.engineering_outlined,
           'page': const ContractorManagementPage(),
-        }
-      else if (UserSession.isContractor)
-        {
-          'title': 'Kontrakteurs',
-          'icon': Icons.engineering_outlined,
-          'page': const JobCardsPage(),
         },
-      {
-        'title': 'Werksopdragte',
-        'icon': Icons.assignment_outlined,
-        'page': const WorksAssignmentsPage(),
-      },
-      {
-        'title': 'Kalender',
-        'icon': Icons.calendar_today_outlined,
-        'page': const CalendarPage(),
-      },
-    ];
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.assignment_outlined,
+          'page': const WorksAssignmentsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
+    }
+
+    return []; // Beveiliging as geen rol pas nie
   }
 
   List<Map<String, dynamic>> _getFlatMenu() {
