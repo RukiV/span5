@@ -18,9 +18,10 @@ class UserSession {
     userId = data['user_id'] ?? 0;
     userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
     userEmail = data['user_email'] ?? "";
-    
+    userCampus = data['location_name'] ?? "Hoofkampus (Centurion)";
+
     // Roldoewysing gebaseer op ID vanaf die backend.
-    // 3 = Admin, 2 = Manager (FK), 1 = Student.
+    // 3 = Admin, 2 = Manager (FK), 1 = Student, 4 = Contractor.
     final int roleId = data['role_id'] ?? 1;
     switch (roleId) {
       case 3:
@@ -28,6 +29,9 @@ class UserSession {
         break;
       case 2:
         role = UserRole.manager;
+        break;
+      case 4:
+        role = UserRole.contractor;
         break;
       default:
         role = UserRole.student;
