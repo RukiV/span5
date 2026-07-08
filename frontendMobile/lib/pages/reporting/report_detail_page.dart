@@ -2,6 +2,7 @@ import '../../services/campus_service.dart';
 import 'edit_report_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/api_client.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../models/user_session.dart';
@@ -49,14 +50,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text("FBS VERSLAG #${_currentReport.id}"),
-        actions: [
-          if (UserSession.hasAdminPrivileges)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppColors.errorRed),
-              onPressed: () => _showDeleteDialog(context),
-            ),
-        ],
+        title: Text("FBS FOUTKAARTJIE #${_currentReport.id}"),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -64,8 +58,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildStatusCard(context),
-            const SizedBox(height: 25),
-            _buildImageSection(),
             const SizedBox(height: 25),
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
@@ -86,6 +78,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
             // LET WEL: Admin Notas is hier verwyder totdat backend dit ondersteun.
 
+            const SizedBox(height: 25),
+            _buildImageSection(),
             const SizedBox(height: 25),
             _buildSectionHeader("Tydlyn (Audit Log)"),
             const SizedBox(height: 15),
@@ -332,12 +326,14 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildImageSection() {
-    if (widget.screenshot == null) return const SizedBox.shrink();
+    if (_currentReport.imageId == null) return const SizedBox.shrink();
+
+    final imageUrl = '${ApiClient().client.options.baseUrl}/image/${_currentReport.imageId}/file';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Ligging Kaart"),
+        _buildSectionHeader("Foto"),
         const SizedBox(height: 12),
         SizedBox(
           height: 250,
@@ -346,13 +342,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               showDialog(
                 context: context,
                 builder: (context) => Dialog(
-                  child: InteractiveViewer(child: Image.memory(widget.screenshot!, fit: BoxFit.contain)),
+                  child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
                 ),
               );
             },
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.memory(widget.screenshot!, fit: BoxFit.cover),
+              child: Image.network(
+                imageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: Colors.grey[200],
+                  child: const Center(child: Text("Foto nie beskikbaar")),
+                ),
+              ),
             ),
           ),
         ),
