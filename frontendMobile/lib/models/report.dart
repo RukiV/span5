@@ -13,6 +13,8 @@ class Report {
   final DateTime timestamp;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
   final int? imageId;
+  final int? locationId; // Kampus (location_id op backend)
+  final int? buildingId; // Gebou (building_id op backend)
 
   Report({
     required this.id,
@@ -28,6 +30,8 @@ class Report {
     required this.timestamp,
     this.gpsCoords,
     this.imageId,
+    this.locationId,
+    this.buildingId,
   });
 
   // Map vanaf Flutter model na Backend (Faultcard)
@@ -41,6 +45,8 @@ class Report {
       'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
+      'location_id': locationId,
+      'building_id': buildingId,
       if (imageId != null) 'image_id': imageId,
     };
   }
@@ -200,6 +206,8 @@ class Report {
           : DateTime.now(),
       gpsCoords: json['mappoint_id']?.toString(),
       imageId: json['image_id'],
+      locationId: json['location_id'],
+      buildingId: json['building_id'],
     );
   }
 
@@ -217,6 +225,8 @@ class Report {
     DateTime? timestamp,
     String? gpsCoords,
     int? imageId,
+    int? locationId,
+    int? buildingId,
   }) {
     return Report(
       id: id ?? this.id,
@@ -232,6 +242,8 @@ class Report {
       timestamp: timestamp ?? this.timestamp,
       gpsCoords: gpsCoords ?? this.gpsCoords,
       imageId: imageId ?? this.imageId,
+      locationId: locationId ?? this.locationId,
+      buildingId: buildingId ?? this.buildingId,
     );
   }
 }
