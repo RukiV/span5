@@ -810,11 +810,11 @@ function WorkOrderPage() {
   }));
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <div className="page-layout" style={{ display: "flex" }}>
       <Sidebar currentPath="/work-orders" isAdmin={isAdmin} onLogout={logout} />
 
       <div className="main">
@@ -958,7 +958,7 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
-                <span className="close" onClick={handleCloseModal}>&times;</span>
+                <span className="close no-print" onClick={handleCloseModal}>&times;</span>
             </div>
 
             {/* Vorm */}
@@ -1004,7 +1004,6 @@ function WorkOrderPage() {
                       <option value="repair">Herstel</option>
                       <option value="inspection">Inspeksie</option>
                       <option value="installation">Installasie</option>
-                      <option value="emergency">Nood</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Status</span> 
@@ -1177,7 +1176,6 @@ function WorkOrderPage() {
                       <option value="Siviel">Siviel</option>
                       <option value="Buite">Buite</option>
                       <option value="Algemeen">Algemeen</option>
-                      <option value="Nood">Nood</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
