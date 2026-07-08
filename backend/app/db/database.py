@@ -42,11 +42,19 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
 
         
-        if "auditlog" in inspector.get_table_names():
-            columns = {column["name"] for column in inspector.get_columns("auditlog")}
-            if "affectedid" not in columns:
-                connection.execute(text("ALTER TABLE auditlog ADD COLUMN IF NOT EXISTS affectedid INTEGER"))
-                
+        if "contractor" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("contractor")}
+            if "contractor_businessName" not in columns:
+                connection.execute(text("ALTER TABLE contractor ADD COLUMN IF NOT EXISTS contractor_businessName VARCHAR(100)"))
+
+        if "faultcard" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("faultcard")}
+            if "image_id_2" not in columns:
+                connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_2 INTEGER"))
+            if "image_id_3" not in columns:
+                connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_3 INTEGER"))
+
+
 def getSession():
     with Session(engine) as session:
         yield session
