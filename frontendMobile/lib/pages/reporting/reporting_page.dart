@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../models/report.dart';
@@ -28,14 +27,8 @@ class _ReportingPageState extends State<ReportingPage> {
     return ValueListenableBuilder<List<Report>>(
       valueListenable: ReportService.reportsNotifier,
       builder: (context, allReports, child) {
-        // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
-        List<Report> baseReports = allReports;
-        if (UserSession.isStudent) {
-          baseReports = allReports.where((r) => r.user.toString() == UserSession.userId.toString()).toList();
-        }
-
         // SOEK EN FILTRERING
-        List<Report> filtered = baseReports.where((r) {
+        List<Report> filtered = allReports.where((r) {
           final matchesSearch = _searchQuery.isEmpty || 
               r.id.toLowerCase().contains(_searchQuery.toLowerCase()) ||
               r.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
