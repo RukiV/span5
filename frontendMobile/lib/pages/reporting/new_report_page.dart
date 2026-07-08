@@ -2,14 +2,14 @@ import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'dart:typed_data';
 import '../../models/user_session.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../core/app_colors.dart';
 import 'scan_page.dart';
 
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
 import '../../models/report.dart';
 import '../../models/campus.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -119,7 +119,7 @@ class _NewReportPageState extends State<NewReportPage> {
                           label: "Kategorie (Onsigbare Kode) *",
                           hint: "Kies Kategorie",
                           value: selectedCategory,
-                          items: ["Instandhouding", "Herstel", "Opgradering", "Ander"]
+                          items: const ["Instandhouding", "Herstel", "Opgradering", "Ander"]
                               .map((c) => SearchableDropdownItem(value: c, label: c))
                               .toList(),
                           onChanged: (v) => setState(() => selectedCategory = v),
@@ -233,19 +233,24 @@ class _NewReportPageState extends State<NewReportPage> {
 
                             if (!_canSubmit) {
                               setState(() => showValidationErrors = true);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
-                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
+                                );
+                              }
                               return;
                             }
 
                             int? finalAssetIdInt;
                             if (!isInvisibleCode) {
                               final asset = await AssetService.getAssetBySerialCode(serialController.text);
+                              if (!mounted) return;
                               if (asset == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: AppColors.errorRed),
-                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: AppColors.errorRed),
+                                  );
+                                }
                                 return;
                               }
                               finalAssetIdInt = int.tryParse(asset.id);
@@ -274,14 +279,17 @@ class _NewReportPageState extends State<NewReportPage> {
 
                             try {
                               final success = await ReportService.addReport(newReport);
-                              if (mounted) {
-                                if (success) {
-                                  NewReportPage.lastSubmissionTime = DateTime.now();
+                              if (!mounted) return;
+                              if (success) {
+                                NewReportPage.lastSubmissionTime = DateTime.now();
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
                                   );
                                   Navigator.pop(context);
-                                } else {
+                                }
+                              } else {
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
                                   );
@@ -289,9 +297,11 @@ class _NewReportPageState extends State<NewReportPage> {
                               }
                             } catch (e) {
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
-                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+                                  );
+                                }
                               }
                             }
                           },

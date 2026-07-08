@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
 import '../../models/report.dart';
 import '../../widgets/searchable_dropdown.dart';
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/campus.dart';
 import '../models/building.dart';
 import '../models/room.dart';
-import 'api_client.dart';
+import '../core/api_client.dart';
 
 class CampusService {
   static final List<Campus> _campuses = [];

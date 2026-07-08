@@ -1,9 +1,9 @@
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import 'edit_report_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
-import '../../core/quote_service.dart';
+import '../../services/report_service.dart';
+import '../../services/quote_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
 import '../../models/quote.dart';
@@ -290,10 +290,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               );
 
               final success = await QuoteService.addQuote(newQuote);
-              if (mounted) {
+              if (!mounted) return;
+              if (context.mounted) {
                 Navigator.pop(context);
-                if (success) {
-                  _refreshData();
+              }
+              if (success) {
+                _refreshData();
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Kwotasie suksesvol ingedien"), backgroundColor: AppColors.successGreen));
                 }
               }
@@ -459,9 +462,10 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
             onPressed: () async {
               final success = await ReportService.deleteReport(_currentReport.id);
-              if (mounted) {
-                Navigator.pop(context); // Maak dialoog toe
-                if (success) {
+              if (!mounted) return;
+              if (success) {
+                if (context.mounted) {
+                  Navigator.pop(context); // Maak dialoog toe
                   Navigator.pop(context); // Gaan terug na lys
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: AppColors.errorRed),
@@ -488,15 +492,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
-  Future<void> _updatePriorityOnly(String priority, Color color) async {
-    final success = await ReportService.updateReportPriority(_currentReport.id, priority);
-    if (success && mounted) {
-      _refreshData();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Prioriteit verander na $priority"), backgroundColor: color));
-      }
-    }
-  }
 
   Widget _buildSectionHeader(String title) {
     return Text(title.toUpperCase(), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2));

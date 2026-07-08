@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/user_session.dart';
-import '../assets/assets_page.dart';
+import '../asset/asset_page.dart';
 import 'edit_campus_page.dart';
-import 'buildings_list_page.dart';
+import '../building/buildings_list_page.dart';
 
 class CampusDetailPage extends StatefulWidget {
   final Campus campus;

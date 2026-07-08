@@ -1,11 +1,11 @@
 import '../../widgets/custom_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 import '../../models/user_session.dart';
 
 class NewAssetPage extends StatefulWidget {
@@ -254,8 +254,11 @@ class _NewAssetPageState extends State<NewAssetPage> {
                             );
                             
                             final success = await AssetService.addAsset(newAsset);
-                            if (mounted && success) {
-                              Navigator.pop(context);
+                            if (!mounted) return;
+                            if (success) {
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
                             }
                           }
                         },

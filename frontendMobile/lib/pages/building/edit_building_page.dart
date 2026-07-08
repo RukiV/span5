@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
-import '../../models/campus.dart';
+import '../../services/campus_service.dart';
 import '../../models/building.dart';
 import '../../widgets/searchable_dropdown.dart';
 
-class AddBuildingPage extends StatefulWidget {
-  final Campus campus;
-  const AddBuildingPage({super.key, required this.campus});
+class EditBuildingPage extends StatefulWidget {
+  final Building building;
+  const EditBuildingPage({super.key, required this.building});
 
   @override
-  State<AddBuildingPage> createState() => _AddBuildingPageState();
+  State<EditBuildingPage> createState() => _EditBuildingPageState();
 }
 
-class _AddBuildingPageState extends State<AddBuildingPage> {
+class _EditBuildingPageState extends State<EditBuildingPage> {
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _streetNumController = TextEditingController();
-  final _streetNameController = TextEditingController();
-  String _type = 'other';
-  bool _isLoading = false;
+  late TextEditingController _nameController;
+  late TextEditingController _streetNumController;
+  late TextEditingController _streetNameController;
+  late String _type;
+  bool _isSaving = false;
 
   final List<Map<String, String>> _types = [
     {'value': 'admin', 'label': 'Administrasie'},
@@ -28,6 +27,15 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
     {'value': 'warehouse', 'label': 'Pakhuis'},
     {'value': 'other', 'label': 'Ander'},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.building.name);
+    _streetNumController = TextEditingController(text: widget.building.streetNum);
+    _streetNameController = TextEditingController(text: widget.building.streetName);
+    _type = widget.building.type;
+  }
 
   @override
   void dispose() {
@@ -40,7 +48,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
+      labelStyle: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -54,9 +62,37 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.gold, width: 2),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
     );
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _isSaving = true);
+
+    final updated = widget.building.copyWith(
+      name: _nameController.text,
+      type: _type,
+      streetNum: _streetNumController.text,
+      streetName: _streetNameController.text,
+    );
+
+    final success = await CampusService.updateBuilding(updated);
+
+    if (mounted) {
+      setState(() => _isSaving = false);
+      if (success) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Gebou suksesvol opgedateer")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kon nie opdateer nie."), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -64,7 +100,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Voeg Nuwe Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Wysig Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -87,9 +123,6 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Terrein: ${widget.campus.name}", style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                  const SizedBox(height: 16),
-
                   const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
@@ -111,7 +144,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Straatnommer (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNumController,
@@ -119,7 +152,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Straatnaam (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _streetNameController,
@@ -136,33 +169,16 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: _isLoading ? null : () async {
-                          if (_formKey.currentState!.validate()) {
-                            setState(() => _isLoading = true);
-                            final building = Building(
-                              id: 0,
-                              name: _nameController.text,
-                              type: _type,
-                              streetNum: _streetNumController.text,
-                              streetName: _streetNameController.text,
-                              locationId: widget.campus.id,
-                            );
-                            final success = await CampusService.addBuilding(building);
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                              if (success) Navigator.pop(context, true);
-                            }
-                          }
-                        },
+                        onPressed: _isSaving ? null : _save,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF8B5E34),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
-                        child: _isLoading
+                        child: _isSaving
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("Stoor"),
+                            : const Text("Opdateer"),
                       ),
                     ],
                   ),

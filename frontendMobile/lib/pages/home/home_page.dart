@@ -1,25 +1,23 @@
 import 'package:flutter/material.dart';
 import '../reporting/reporting_page.dart';
-import '../assets/assets_page.dart';
-import '../assets/stock_page.dart';
-import '../admin/campus_management_page.dart';
-import '../admin/manage_rooms_page.dart';
-import '../admin/buildings_list_page.dart';
-import '../admin/contractor_management_page.dart';
+import '../asset/asset_page.dart';
+import '../stock/stock_page.dart';
+import '../campus/campus_management_page.dart';
+import '../rooms/manage_rooms_page.dart';
+import '../building/buildings_list_page.dart';
+import '../contractor/contractor_management_page.dart';
 import '../contractor/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
-import 'reports_page.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
-
 import '../../core/api_client.dart';
-import '../../core/asset_service.dart';
-import '../../core/campus_service.dart';
-import '../../core/report_service.dart';
-import '../../core/contractor_service.dart';
-import '../../core/quote_service.dart';
+import '../../services/asset_service.dart';
+import '../../services/campus_service.dart';
+import '../../services/report_service.dart';
+import '../../services/contractor_service.dart';
+import '../../services/quote_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -79,7 +77,7 @@ class _HomePageState extends State<HomePage> {
           // Ons map dit na spesifieke titels vir stabiliteit
           final titles = [
             "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
-            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender", "Verslae"
+            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
           ];
           if (index >= 0 && index < titles.length) {
             setState(() => _selectedTitle = titles[index]);
@@ -152,11 +150,6 @@ class _HomePageState extends State<HomePage> {
         'icon': Icons.calendar_today_outlined,
         'page': const CalendarPage(),
       },
-      {
-        'title': 'Verslae',
-        'icon': Icons.analytics_outlined,
-        'page': const ReportsPage(),
-      },
     ];
   }
 
@@ -186,8 +179,11 @@ class _HomePageState extends State<HomePage> {
     String roleTitle = "";
     if (UserSession.isAdmin) {
       roleTitle = "Admin Mode";
-    } else if (UserSession.isManager) roleTitle = "Bestuurder: ${UserSession.userCampus}";
-    else if (UserSession.isContractor) roleTitle = "Kontrakteur";
+    } else if (UserSession.isManager) {
+      roleTitle = "Bestuurder: ${UserSession.userCampus}";
+    } else if (UserSession.isContractor) {
+      roleTitle = "Kontrakteur";
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -248,7 +244,8 @@ class _HomePageState extends State<HomePage> {
               onTap: () async {
                 await ApiClient().clearToken();
                 UserSession.clear();
-                if (mounted) {
+                if (!mounted) return;
+                if (context.mounted) {
                   Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
                 }
               },

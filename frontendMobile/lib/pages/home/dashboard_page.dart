@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
-import '../../core/asset_service.dart';
+import '../../services/report_service.dart';
+import '../../services/asset_service.dart';
 import '../../models/report.dart';
 import '../../models/asset.dart';
 import '../../models/user_session.dart';
@@ -81,7 +81,6 @@ class _DashboardPageState extends State<DashboardPage> {
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
-                final aktief = reports.where((r) => r.phase == "Besig").length;
                 final voltooi = reports.where((r) => r.phase == "Voltooi").length;
                 final werksopdragteTotaal = reports.length;
 
@@ -204,7 +203,7 @@ class _DashboardPageState extends State<DashboardPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
           border: Border(bottom: BorderSide(color: color, width: 3)),
         ),
         child: Column(
@@ -233,7 +232,7 @@ class _DashboardPageState extends State<DashboardPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

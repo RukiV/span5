@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../models/campus.dart';
-import '../../core/asset_service.dart';
-import '../../core/report_service.dart';
+import '../../services/asset_service.dart';
+import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
 import '../../widgets/searchable_dropdown.dart';
@@ -288,9 +288,12 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                             isOutdoor: tempIsOutdoor,
                           );
                           final success = await AssetService.updateAsset(updated);
-                          if (success && mounted) {
+                          if (!mounted) return;
+                          if (success) {
                             setState(() => _currentAsset = updated);
-                            Navigator.pop(dialogContext);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
                           }
                         },
                         style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.white),
@@ -318,9 +321,12 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
           TextButton(
             onPressed: () async {
               final success = await AssetService.deleteAsset(_currentAsset.id);
-              if (success && mounted) {
-                Navigator.pop(dialogContext);
-                Navigator.pop(context);
+              if (!mounted) return;
+              if (success) {
+                if (context.mounted) {
+                  Navigator.pop(context); // Close dialog
+                  Navigator.pop(context); // Go back
+                }
               }
             },
             child: const Text("Verwyder", style: TextStyle(color: Colors.redAccent)),
