@@ -1,8 +1,8 @@
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
 import '../../models/report.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';
@@ -29,14 +29,9 @@ class _ReportingPageState extends State<ReportingPage> {
     return ValueListenableBuilder<List<Report>>(
       valueListenable: ReportService.reportsNotifier,
       builder: (context, allReports, child) {
-        // ROL-GEBASEERDE DATA FILTRERING
+        // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
         List<Report> baseReports = allReports;
-        if (UserSession.isManager) {
-          baseReports = allReports.where((r) {
-            final reportCampus = CampusService.getCampusNameByRoomId(r.location);
-            return reportCampus == UserSession.userCampus;
-          }).toList();
-        } else if (UserSession.isStudent) {
+        if (UserSession.isStudent) {
           baseReports = allReports.where((r) => r.user.toString() == UserSession.userId.toString()).toList();
         }
 

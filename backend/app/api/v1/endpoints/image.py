@@ -6,7 +6,7 @@ from ....db.database import getSession  # Your actual central session dependency
 from ....models.image import ImageAssetRead, ImageAssetUpdate
 from ....services.image_service import ImageAssetService
 
-router = APIRouter(prefix="/images", tags=["images"])
+router = APIRouter(prefix="", tags=["images"])
 
 
 # 1. UPLOAD IMAGE
