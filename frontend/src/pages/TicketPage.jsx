@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -13,6 +13,7 @@ function TicketPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
+  const navigate = useNavigate();
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
@@ -279,6 +280,10 @@ function TicketPage() {
     }
   };
 
+  const handleCreateWorkOrder = (ticket) => {
+    navigate('/work-orders', { state: { ticket } });
+  };
+
   const extractTitle = (faultDescription) => {
     if (!faultDescription) return "-";
     const parts = faultDescription.split(":");
@@ -455,6 +460,7 @@ function TicketPage() {
                     </span>
                   </td>
                   <td>
+                    <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
                     <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
                   </td>
