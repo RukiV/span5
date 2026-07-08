@@ -68,12 +68,14 @@ class Asset(AssetBase, Base, table=True):
     asset_id: Optional[int] = Field(default=None, primary_key=True)
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     assettype_id: int = Field(foreign_key="assettype.assettype_id")
+    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
 
 
 class AssetCreate(AssetBase):
     """Input model for creating asset records."""
     assettype_id: int
     room_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class AssetRead(AssetBase):
@@ -81,6 +83,7 @@ class AssetRead(AssetBase):
     asset_id: int
     room_id: Optional[int] = None
     assettype_id: int
+    image_id: Optional[int] = None
 
 
 class AssetUpdate(SQLModel):
@@ -92,6 +95,7 @@ class AssetUpdate(SQLModel):
     asset_isoutdoor: Optional[bool] = None
     room_id: Optional[int] = None
     assettype_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class AssetHistoryEventBase(SQLModel):
