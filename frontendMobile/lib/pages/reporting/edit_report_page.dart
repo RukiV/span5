@@ -88,6 +88,19 @@ class _EditReportPageState extends State<EditReportPage> {
       roomId = roomId.split(":").first;
     }
 
+    int? resolvedLocationId;
+    int? resolvedBuildingId;
+    if (_selectedCampus != null) {
+      final campus = CampusService.getCampusByName(_selectedCampus!);
+      if (campus != null) {
+        resolvedLocationId = campus.id;
+        if (_selectedBuilding != null) {
+          final building = campus.buildings.where((b) => b.name == _selectedBuilding).firstOrNull;
+          resolvedBuildingId = building?.id;
+        }
+      }
+    }
+
     final updatedReport = widget.report.copyWith(
       title: _titleController.text,
       description: _descriptionController.text,
@@ -96,6 +109,8 @@ class _EditReportPageState extends State<EditReportPage> {
       phase: _status,
       location: roomId,
       imageId: imageId,
+      locationId: resolvedLocationId,
+      buildingId: resolvedBuildingId,
     );
 
     final success = await ReportService.updateReport(updatedReport);
