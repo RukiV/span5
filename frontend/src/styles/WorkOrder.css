@@ -333,3 +333,83 @@
   color: #64748b;
   font-size: 1rem;
 }
+
+/* ===== Druk-styl vir Werksopdrag-Kaart ===== */
+@media print {
+  @page {
+    margin: 1.2cm;
+  }
+
+  html, body {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Die buitenste bladsy-uitleg is 'n flex-ry (Sidebar + hoofinhoud + modal).
+     Vir druk maak ons dit 'n gewone blok sodat die modal nie ingepers word
+     langs die (versteekte) Sidebar/hoofinhoud nie. */
+  .page-layout {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Verwyder die Sidebar en hoofinhoud heeltemal uit die uitleg (nie net onsigbaar nie,
+     sodat hulle geen ruimte meer opneem en die modal nie na regs afdruk nie) */
+  .page-layout > *:not(.modal) {
+    display: none !important;
+  }
+
+  /* Die modal is nou die enigste sigbare, volle-breedte blok-element */
+  .modal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  .modal-content-workorder {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Enige interne skuifbare of vaste-breedte areas moet ook uitgevou en ingepas word */
+  .modal-content-workorder * {
+    overflow: visible !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .mri-row {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+  }
+
+  .mri-cell {
+    min-width: 0 !important;
+  }
+
+  /* Verberg knoppies en ander elemente wat nie gedruk hoef te word nie */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+}
