@@ -1,4 +1,3 @@
-import 'user_session.dart';
 
 class Report {
   final String id;
@@ -12,6 +11,7 @@ class Report {
   final String user;
   final DateTime timestamp;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
+  final int? imageId;
 
   Report({
     required this.id,
@@ -25,6 +25,7 @@ class Report {
     required this.user,
     required this.timestamp,
     this.gpsCoords,
+    this.imageId,
   });
 
   // Map vanaf Flutter model na Backend (Faultcard)
@@ -38,6 +39,7 @@ class Report {
       'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
+      if (imageId != null) 'image_id': imageId,
     };
   }
 
@@ -195,6 +197,7 @@ class Report {
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
       gpsCoords: json['mappoint_id']?.toString(),
+      imageId: json['image_id'],
     );
   }
 
@@ -210,6 +213,7 @@ class Report {
     String? user,
     DateTime? timestamp,
     String? gpsCoords,
+    int? imageId,
   }) {
     return Report(
       id: id ?? this.id,
@@ -223,6 +227,7 @@ class Report {
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
       gpsCoords: gpsCoords ?? this.gpsCoords,
+      imageId: imageId ?? this.imageId,
     );
   }
 }

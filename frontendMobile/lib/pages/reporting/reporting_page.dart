@@ -1,4 +1,3 @@
-import '../../services/campus_service.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
@@ -67,7 +66,7 @@ class _ReportingPageState extends State<ReportingPage> {
             backgroundColor: AppColors.gold,
             elevation: 4,
             icon: const Icon(Icons.add_a_photo, color: Colors.white),
-            label: const Text("Rapporteer", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            label: const Text("Nuwe Foutkaartjie", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             onPressed: () => _handleNewReport(context),
           ),
         );

@@ -4,12 +4,11 @@ import '../../services/campus_service.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
-import '../../models/campus.dart';
 import '../../services/asset_service.dart';
 import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
-import '../../widgets/searchable_dropdown.dart';
+import 'edit_asset_page.dart';
 
 class AssetDetailPage extends StatefulWidget {
   final Asset asset;
@@ -47,7 +46,21 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () => _showEditAssetDialog(context),
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
+              );
+              if (result == true && mounted) {
+                setState(() {
+                  final updated = AssetService.assetsNotifier.value.firstWhere(
+                    (a) => a.id == _currentAsset.id,
+                    orElse: () => _currentAsset,
+                  );
+                  _currentAsset = updated;
+                });
+              }
+            },
           ),
           if (UserSession.hasAdminPrivileges)
             IconButton(
@@ -118,6 +131,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
           _buildDetailRow("Plasing", Text(_currentAsset.isOutdoor ? "Buite" : "Binne", style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
           _buildDetailRow("Kategorie", Text(_currentAsset.category, style: const TextStyle(fontWeight: FontWeight.bold))),
+          const Divider(height: 24),
+          _buildDetailRow("Merk", Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand, style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
           _buildDetailRow("Status", StatusBadge(status: _currentAsset.status)),
         ],
@@ -198,175 +213,6 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     );
   }
 
-  void _showEditAssetDialog(BuildContext context) {
-    String tempName = _currentAsset.name;
-    String tempSerial = _currentAsset.serialCode;
-    String tempLocation = _currentAsset.location;
-    String tempStatus = _currentAsset.status;
-    bool tempIsOutdoor = _currentAsset.isOutdoor;
-    String? tempSelectedCampus = CampusService.getCampusNameByRoomId(_currentAsset.location);
-    String? tempSelectedBuilding = CampusService.getBuildingNameByRoomId(_currentAsset.location);
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => Dialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Wysig Bate", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 20),
-                  _buildPopupField("Naam", tempName, (v) => tempName = v),
-                  const SizedBox(height: 16),
-                  _buildPopupField("Serienommer", tempSerial, (v) => tempSerial = v),
-                  const SizedBox(height: 16),
-                  const Text("Plasing", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  SwitchListTile(
-                    title: Text(tempIsOutdoor ? "Buite" : "Binne"),
-                    value: tempIsOutdoor,
-                    onChanged: (v) => setDialogState(() => tempIsOutdoor = v),
-                  ),
-                  const SizedBox(height: 16),
-                  ValueListenableBuilder<List<Campus>>(
-                    valueListenable: CampusService.campusesNotifier,
-                    builder: (context, campuses, _) {
-                      return Column(
-                        children: [
-                          SearchableDropdown<String>(
-                            label: "Kampus",
-                            hint: "Kies kampus",
-                            value: tempSelectedCampus,
-                            items: campuses
-                                .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                                .toList(),
-                            onChanged: (v) {
-                              if (v != null) {
-                                setDialogState(() {
-                                  tempSelectedCampus = v;
-                                  tempSelectedBuilding = null;
-                                  tempLocation = "1";
-                                });
-                              }
-                            },
-                          ),
-                          if (tempSelectedCampus != null) const SizedBox(height: 16),
-                          if (tempSelectedCampus != null)
-                            SearchableDropdown<String>(
-                              label: "Gebou",
-                              hint: "Kies gebou",
-                              value: tempSelectedBuilding,
-                              items: () {
-                                try {
-                                  return campuses
-                                      .firstWhere((c) => c.name == tempSelectedCampus)
-                                      .buildings
-                                      .map((b) => SearchableDropdownItem(value: b.name, label: b.name))
-                                      .toList();
-                                } catch (_) {
-                                  return <SearchableDropdownItem<String>>[];
-                                }
-                              }(),
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setDialogState(() {
-                                    tempSelectedBuilding = v;
-                                    tempLocation = "1";
-                                  });
-                                }
-                              },
-                            ),
-                          if (tempSelectedBuilding != null) const SizedBox(height: 16),
-                          if (tempSelectedBuilding != null)
-                            SearchableDropdown<String>(
-                              label: "Lokaal",
-                              hint: "Kies lokaal",
-                              value: tempLocation,
-                              items: () {
-                                try {
-                                  return campuses
-                                      .firstWhere((c) => c.name == tempSelectedCampus)
-                                      .buildings
-                                      .firstWhere((b) => b.name == tempSelectedBuilding)
-                                      .rooms
-                                      ?.map((r) => SearchableDropdownItem(value: r.id.toString(), label: r.name))
-                                      .toList() ?? [];
-                                } catch (_) {
-                                  return <SearchableDropdownItem<String>>[];
-                                }
-                              }(),
-                              onChanged: (v) {
-                                if (v != null) {
-                                  setDialogState(() => tempLocation = v);
-                                }
-                              },
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  SearchableDropdown<String>(
-                    label: "Status",
-                    hint: "Kies Status",
-                    value: ["active", "maintenance", "retired", "inactive", "decommissioned"].contains(tempStatus.toLowerCase()) 
-                        ? tempStatus.toLowerCase() 
-                        : "active",
-                    items: [
-                      {"value": "active", "label": "Aktief"},
-                      {"value": "maintenance", "label": "Onderhoud"},
-                      {"value": "decommissioned", "label": "Afgedank"},
-                      {"value": "inactive", "label": "Onaktief"},
-                    ].map((s) => SearchableDropdownItem(value: s["value"]!, label: s["label"]!)).toList(),
-                    onChanged: (v) {
-                      if (v != null) {
-                        setDialogState(() => tempStatus = v);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Kanselleer")),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          final updated = _currentAsset.copyWith(
-                            name: tempName,
-                            serialCode: tempSerial,
-                            location: tempLocation,
-                            status: tempStatus,
-                            isOutdoor: tempIsOutdoor,
-                          );
-                          final success = await AssetService.updateAsset(updated);
-                          if (!mounted) return;
-                          if (success) {
-                            setState(() => _currentAsset = updated);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.white),
-                        child: const Text("Opdateer"),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _confirmDelete(BuildContext context) {
     showDialog(
       context: context,
@@ -393,28 +239,4 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     );
   }
 
-  Widget _buildPopupField(String label, String initialValue, Function(String) onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          initialValue: initialValue,
-          decoration: _popupInputDecoration(),
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _popupInputDecoration() {
-    return InputDecoration(
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey[300]!)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey[300]!)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-    );
-  }
 }
