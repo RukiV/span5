@@ -22,7 +22,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -47,8 +47,8 @@ def _get_or_create_test_user(session: Session, user_email: str, user_password: s
 
     # Skep nuwe toetsgebruiker met gegewe parameters
     user = User(
-        user_name="Test",
-        user_surname="User",
+        user_name=user_name,
+        user_surname=user_surname,
         user_email=user_email,
         user_password=user_password,
         user_number="0000000000",
@@ -389,6 +389,8 @@ def seed_data():
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
         _get_or_create_test_user(
             session,
+            user_name="test",
+            user_surname="user",
             user_email="test@example.com",
             user_password="password123",
             role_id=user_role.role_id,  # role_id = 1 (geweier)
@@ -397,6 +399,8 @@ def seed_data():
         # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
+            user_name="fk",
+            user_surname="user",
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
@@ -405,6 +409,8 @@ def seed_data():
         # Administrateur - KAN aanmeld EN vol toegang
         _get_or_create_test_user(
             session,
+            user_name="admin",
+            user_surname="user",
             user_email="admin@example.com",
             user_password="admin123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
@@ -412,6 +418,8 @@ def seed_data():
 
         _get_or_create_test_user(
             session,
+            user_name="Piet",
+            user_surname="Botha",
             user_email="piet@gmail.com",
             user_password="piet123",
             role_id=user_role.role_id,  # role_id = 1 (geweier)
@@ -420,7 +428,9 @@ def seed_data():
         # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
-            user_email="jaco@gmail.com.com",
+            user_name="Jaco",
+            user_surname="Venster",
+            user_email="jaco@gmail.com",
             user_password="jaco123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
         )
@@ -428,6 +438,8 @@ def seed_data():
         # Administrateur - KAN aanmeld EN vol toegang
         _get_or_create_test_user(
             session,
+            user_name="Kobus",
+            user_surname="Dewald",
             user_email="kobus@gmail.com",
             user_password="kobus123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
