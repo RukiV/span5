@@ -1181,11 +1181,14 @@ function WorkOrderPage() {
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
-                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
+                    <select 
+                      value={formData.job_priority} 
+                      onChange={(e) => setFormData({...formData, job_priority: e.target.value})}
+                    >
                       <option>Laag</option>
                       <option>Normal</option>
                       <option>Hoog</option>
-                      <option>Spoedeisend</option>
+                      <option>Dringend</option>
                     </select>
                   </div>
                 </div>
