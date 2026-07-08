@@ -218,7 +218,7 @@ async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password="microsoft_oauth",
+                user_password="microsoft_oauth",                                                            #Default password
                 user_status="active",
                 role_id=1  # Standaard rol
             )

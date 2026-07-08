@@ -1,10 +1,12 @@
 from typing import Optional
 from datetime import datetime
 from pydantic import field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from .base import Base
 from .enums import FaultStatus, Priority, Type
 from .validators import sanitize_text
+
+from .image import ImageAsset, ImageAssetRead
 
 class FaultcardBase(SQLModel):
     """Base model for faultcard data."""
@@ -30,6 +32,12 @@ class Faultcard(FaultcardBase, Base, table=True):
     building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
     location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
+            
+    # Universal Foreign Key linking to the separate image module
+    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
+    
+    # Unidirectional relationship 
+    image: Optional[ImageAsset] = Relationship()
 
 
 class FaultcardCreate(FaultcardBase):
@@ -38,6 +46,7 @@ class FaultcardCreate(FaultcardBase):
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class FaultcardRead(FaultcardBase):
@@ -49,6 +58,9 @@ class FaultcardRead(FaultcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    image_id: Optional[int] = None
+    
+    image: Optional[ImageAssetRead] = None
 
 
 class FaultcardUpdate(SQLModel):
@@ -65,3 +77,4 @@ class FaultcardUpdate(SQLModel):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    image_id: Optional[int] = None
