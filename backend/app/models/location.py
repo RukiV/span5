@@ -5,41 +5,6 @@ from .base import Base
 from .enums import BuildingType, RoomType, RoomStatus
 from .validators import sanitize_text, validate_positive_int
 
-class ZipcodeBase(SQLModel):
-    """Base model for zipcode data."""
-    zipcode_suburb: str = Field(max_length=100)
-    zipcode_city: str = Field(max_length=100)
-    zipcode_province: str = Field(max_length=100)
-    zipcode_country: str = Field(max_length=100)
-
-    @field_validator('zipcode_suburb', 'zipcode_city', 'zipcode_province', 'zipcode_country', mode='before')
-    @classmethod
-    def _sanitize_zip(cls, v, info):
-        return sanitize_text(v)
-
-
-class Zipcode(ZipcodeBase, Base, table=True):
-    """Model for zipcode data."""
-    zipcode_id: Optional[int] = Field(default=None, primary_key=True)
-
-
-class ZipcodeCreate(ZipcodeBase):
-    """Input model for creating zipcode records."""
-    pass
-
-
-class ZipcodeRead(ZipcodeBase):
-    """Output model for reading zipcode records."""
-    zipcode_id: int
-
-
-class ZipcodeUpdate(SQLModel):
-    """Input model for updating zipcode records."""
-    zipcode_suburb: Optional[str] = None
-    zipcode_city: Optional[str] = None
-    zipcode_province: Optional[str] = None
-    zipcode_country: Optional[str] = None
-
 
 class BuildingBase(SQLModel):
     """Base model for building data."""
@@ -82,8 +47,13 @@ class LocationBase(SQLModel):
     location_type: str = Field(max_length=50)
     location_streetnum: str = Field(max_length=20)
     location_streetname: str = Field(max_length=100)
+    location_suburb: str = Field(default="", max_length=100)
+    location_city: str = Field(default="", max_length=100)
+    location_province: str = Field(default="", max_length=100)
+    location_country: str = Field(default="", max_length=100)
 
-    @field_validator('location_name', 'location_type', 'location_streetnum', 'location_streetname', mode='before')
+    @field_validator('location_name', 'location_type', 'location_streetnum', 'location_streetname',
+                     'location_suburb', 'location_city', 'location_province', 'location_country', mode='before')
     @classmethod
     def _sanitize_location(cls, v, info):
         return sanitize_text(v)
@@ -92,18 +62,16 @@ class LocationBase(SQLModel):
 class Location(LocationBase, Base, table=True):
     """Model for location data."""
     location_id: Optional[int] = Field(default=None, primary_key=True)
-    zipcode_id: int = Field(foreign_key="zipcode.zipcode_id")
 
 
 class LocationCreate(LocationBase):
     """Input model for creating location records."""
-    zipcode_id: int
+    pass
 
 
 class LocationRead(LocationBase):
     """Output model for reading location records."""
     location_id: int
-    zipcode_id: int
 
 
 class LocationUpdate(SQLModel):
@@ -112,7 +80,10 @@ class LocationUpdate(SQLModel):
     location_type: Optional[str] = None
     location_streetnum: Optional[str] = None
     location_streetname: Optional[str] = None
-    zipcode_id: Optional[int] = None
+    location_suburb: Optional[str] = None
+    location_city: Optional[str] = None
+    location_province: Optional[str] = None
+    location_country: Optional[str] = None
 
 
 class RoomBase(SQLModel):
