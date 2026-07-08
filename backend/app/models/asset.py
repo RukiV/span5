@@ -13,13 +13,14 @@ class AssettypeBase(SQLModel):
     assettype_min_lifespan: Optional[int] = None
     assettype_max_lifespan: Optional[int] = None
     assettype_service_interval: Optional[int] = None
+    assettype_replacement_threshold: Optional[int] = None
 
     @field_validator('assettype_name', mode='before')
     @classmethod
     def _sanitize_name(cls, v, info):
         return sanitize_text(v)
 
-    @field_validator('assettype_avg_lifespan', 'assettype_min_lifespan', 'assettype_max_lifespan', 'assettype_service_interval', mode='before')
+    @field_validator('assettype_avg_lifespan', 'assettype_min_lifespan', 'assettype_max_lifespan', 'assettype_service_interval', 'assettype_replacement_threshold', mode='before')
     @classmethod
     def _positive_ints(cls, v, info):
         return validate_positive_int(v)
@@ -47,6 +48,7 @@ class AssettypeUpdate(SQLModel):
     assettype_min_lifespan: Optional[int] = None
     assettype_max_lifespan: Optional[int] = None
     assettype_service_interval: Optional[int] = None
+    assettype_replacement_threshold: Optional[int] = None
 
 
 class AssetBase(SQLModel):
@@ -56,6 +58,7 @@ class AssetBase(SQLModel):
     asset_serial: str = Field(default=None, max_length=20)
     asset_status: AssetStatus = Field(default=AssetStatus.ACTIVE)
     asset_isoutdoor: Optional[bool] = None
+    asset_created_datetime: Optional[datetime] = None
 
     @field_validator('asset_name', 'asset_serial', mode='before')
     @classmethod
@@ -90,6 +93,7 @@ class AssetUpdate(SQLModel):
     asset_serial: Optional[str] = None
     asset_status: Optional[AssetStatus] = None
     asset_isoutdoor: Optional[bool] = None
+    asset_created_datetime: Optional[datetime] = None
     room_id: Optional[int] = None
     assettype_id: Optional[int] = None
 

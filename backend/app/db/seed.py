@@ -122,17 +122,18 @@ def _get_or_create_room(session: Session, name: str, code:str, capacity: int, ro
     return room
 
 
-def _get_or_create_assettype(session: Session) -> Assettype:
-    assettype = session.exec(select(Assettype)).first()
+def _get_or_create_assettype(session: Session, name: str, avg: int | None = None, min_: int | None = None, max_: int | None = None, interval: int | None = None, threshold: int | None = None) -> Assettype:
+    assettype = session.exec(select(Assettype).where(Assettype.assettype_name == name)).first()
     if assettype:
         return assettype
 
     assettype = Assettype(
-        assettype_name="Algemene Toerusting",
-        assettype_avg_lifespan=5,
-        assettype_min_lifespan=3,
-        assettype_max_lifespan=7,
-        assettype_service_interval=12,
+        assettype_name=name,
+        assettype_avg_lifespan=avg,
+        assettype_min_lifespan=min_,
+        assettype_max_lifespan=max_,
+        assettype_service_interval=interval,
+        assettype_replacement_threshold=threshold,
     )
     session.add(assettype)
     session.commit()
@@ -140,7 +141,7 @@ def _get_or_create_assettype(session: Session) -> Assettype:
     return assettype
 
 
-def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int) -> Asset:
+def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int, created_dt: datetime | None = None) -> Asset:
     asset = session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
     if asset:
         return asset
@@ -153,6 +154,7 @@ def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, s
         asset_isoutdoor=is_outdoor,
         room_id=room_id,
         assettype_id=assettype_id,
+        asset_created_datetime=created_dt or datetime.utcnow(),
     )
     session.add(asset)
     session.commit()
@@ -207,6 +209,7 @@ def _get_or_create_job(
     status: JobStatus,
     job_type: Optional[str],
     created_dt: Optional[datetime],
+    finished_dt: Optional[datetime] = None,
     asset_id: Optional[int] = None,
     room_id: Optional[int] = None,
     building_id: Optional[int] = None,
@@ -226,6 +229,7 @@ def _get_or_create_job(
         job_status=status,
         job_type=job_type,
         job_createddatetime=created_dt,
+        job_finisheddatetime=finished_dt,
         asset_id=asset_id,
         room_id=room_id,
         building_id=building_id,
@@ -514,7 +518,11 @@ def seed_data():
             contractor_type="Plumbing",
         )
 
-        assettype = _get_or_create_assettype(session)
+        type_elek = _get_or_create_assettype(session, "Elektriese Toerusting", avg=60, min_=36, max_=84, interval=6, threshold=3)
+        type_meubels = _get_or_create_assettype(session, "Meubels", avg=120, min_=60, max_=180, interval=24, threshold=2)
+        type_alge = _get_or_create_assettype(session, "Algemene Toerusting", avg=36, min_=12, max_=60, interval=12, threshold=4)
+
+        now = datetime.utcnow()
 
         _get_or_create_asset(
             session,
@@ -524,7 +532,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=540),
         )
 
         _get_or_create_asset(
@@ -535,7 +544,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room2.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=420),
         )
 
         _get_or_create_asset(
@@ -546,7 +556,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room3.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=200),
         )
 
         _get_or_create_asset(
@@ -557,7 +568,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=90),
         )
 
         _get_or_create_asset(
@@ -568,7 +580,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=60),
         )
 
         _get_or_create_asset(
@@ -579,7 +592,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=120),
         )
 
         _get_or_create_asset(
@@ -590,7 +604,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=365),
         )
 
         _get_or_create_asset(
@@ -601,7 +616,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=150),
         )
 
         _get_or_create_asset(
@@ -612,7 +628,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=30),
         )
 
         _get_or_create_stock(
@@ -644,10 +661,23 @@ def seed_data():
 
         _get_or_create_job(
             session,
+            desc="Projektor lens skoonmaak en kalibrasie.",
+            status=JobStatus.COMPLETED,
+            job_type="maintenance",
+            created_dt=now - timedelta(days=180),
+            finished_dt=now - timedelta(days=178),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
+        )
+
+        _get_or_create_job(
+            session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
             job_type="maintenance",
-            created_dt=datetime.now(),
+            created_dt=now - timedelta(days=5),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
@@ -672,7 +702,7 @@ def seed_data():
             status=FaultStatus.IN_PROGRESS,
             priority=Priority.LOW,
             fault_type=Type.REPAIR,
-            report_dt=datetime(2025, 7, 6, 13, 0, 0),
+            report_dt=now - timedelta(days=10),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
             room_id=room4.room_id,
             building_id=bld3.building_id,
@@ -684,8 +714,28 @@ def seed_data():
             description="Projektor lens is gekraak",
             status=FaultStatus.WAIT,
             priority=Priority.MEDIUM,
-            fault_type=Type.MAINTENANCE,
-            report_dt=datetime(2025, 3, 11, 9, 30, 11),
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=45),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Projektor oorverhit na lang gebruik",
+            status=FaultStatus.CLOSED,
+            priority=Priority.HIGH,
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=120),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Projektor skakel nie aan nie",
+            status=FaultStatus.RESOLVED,
+            priority=Priority.HIGH,
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=200),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
