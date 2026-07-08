@@ -1,7 +1,7 @@
 import '../../models/user_session.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
 import 'campus_detail_page.dart';
@@ -27,18 +27,15 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
       body: ValueListenableBuilder<List<Campus>>(
         valueListenable: CampusService.campusesNotifier,
         builder: (context, allCampuses, child) {
-          // ROL-GEBASEERDE DATA FILTRERING
+          // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
           List<Campus> campuses = allCampuses;
-          if (UserSession.isManager) {
-            campuses = allCampuses.where((c) => c.name == UserSession.userCampus).toList();
-          }
 
           if (campuses.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (UserSession.isAdmin)
+                  if (UserSession.hasAdminPrivileges)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: ElevatedButton.icon(
@@ -69,7 +66,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
             onRefresh: () => CampusService.fetchCampuses(),
             child: Column(
               children: [
-                if (UserSession.isAdmin)
+                if (UserSession.hasAdminPrivileges)
                   Padding(
                     padding: const EdgeInsets.all(15.0),
                     child: SizedBox(

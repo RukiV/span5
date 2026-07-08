@@ -24,7 +24,7 @@ function WorkOrderPage() {
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
-  const [tickets, setTickets] = useState([]); 
+  const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
@@ -759,7 +759,6 @@ function WorkOrderPage() {
     return "status-default";
   };
 
-
   // Unieke Terrein Opsies opgebou vanaf kamers
   const uniqueTerreine = [...new Set(rooms.map(r => r.terrein).filter(Boolean))];
   const terreinOptions = uniqueTerreine.map(t => ({ value: t, label: t }));
@@ -1014,6 +1013,19 @@ function WorkOrderPage() {
                       <option value="Gekanselleer">Gekanselleer</option>
                     </select>
                   </div>
+                  <div className="mri-fld"><span>Werksoort</span> 
+                    <select 
+                      value={formData.job_type}
+                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="maintenance">Onderhoud</option>
+                      <option value="repair">Herstel</option>
+                      <option value="inspection">Inspeksie</option>
+                      <option value="installation">Installasie</option>
+                      <option value="emergency">Nood</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 {/* Bate en Aard Seksie met React-Select Dropdowns */}
@@ -1171,13 +1183,11 @@ function WorkOrderPage() {
                       <option value="Siviel">Siviel</option>
                       <option value="Buite">Buite</option>
                       <option value="Algemeen">Algemeen</option>
+                      <option value="Nood">Nood</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
-                    <select 
-                      value={formData.job_priority} 
-                      onChange={(e) => setFormData({...formData, job_priority: e.target.value})}
-                    >
+                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
                       <option>Laag</option>
                       <option>Normal</option>
                       <option>Hoog</option>

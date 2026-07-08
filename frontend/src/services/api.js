@@ -114,13 +114,12 @@ export const locationAPI = {
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
+  upload: (formData) => apiClient.post('/image/', formData),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
   create: (data) => {
-    // As data bevat FormData, gebruik multipart form data header
+    // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
     if (data instanceof FormData) {
-      return apiClient.post('/fault', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      return apiClient.post('/fault', data);
     }
     // Anders stuur as JSON
     return apiClient.post('/fault', data);
@@ -201,6 +200,33 @@ export const auditsAPI = {
   getRoomChangesForAsset: (asset_id) => apiClient.get(`/audit/asset/${asset_id}`),
 };
 
+// ===== BEELDE-API =====
+/**
+ * imagesAPI - Beeld-bestuur (gebruik deur foutkaartjies ens.)
+ *
+ * Let wel: die backend-roete is gemonteer as "/image" (enkelvoud), nie
+ * "/images" nie. Die router self definieer sy lys/skep-roetes op "/", dus
+ * gebruik ons "/image/" (met skuinsstreep) hier om 'n 307-herleiding op
+ * POST te vermy.
+ *
+ * - upload: Laai 'n nuwe beeld op (multipart form data, veld "file")
+ * - getAll: Haal alle beeld-metadata
+ * - getById: Haal metadata vir 'n spesifieke beeld
+ * - getFileUrl: Bou die URL wat die rou beeld-grepe bedien (vir <img src>)
+ * - update: Opdateer beeld-metadata (bv. lêernaam)
+ * - delete: Verwyder beeld en sy grepe
+ */
+export const imageAPI = {
+  upload: (formData) => apiClient.post('/image/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getAll: (skip = 0, limit = 100) => apiClient.get('/image/', { params: { skip, limit } }),
+  getById: (id) => apiClient.get(`/image/${id}`),
+  getFileUrl: (id) => `${apiClient.defaults.baseURL}/image/${id}/file`,
+  update: (id, data) => apiClient.patch(`/image/${id}`, data),
+  delete: (id) => apiClient.delete(`/image/${id}`),
+};
+
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
 apiClient.stock = stockAPI;
@@ -213,6 +239,7 @@ apiClient.auth = authAPI;
 apiClient.users = usersAPI;
 apiClient.contractors = contractorsAPI;
 apiClient.quotes = quotesAPI;
+apiClient.image = imageAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

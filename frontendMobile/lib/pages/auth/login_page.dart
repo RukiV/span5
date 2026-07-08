@@ -123,11 +123,15 @@ class _LoginPageState extends State<LoginPage> {
       } on DioException catch (e) {
         String msg = "Aanmelding het misluk.";
         
+        debugPrint("❌ Login error: status=${e.response?.statusCode} body=${e.response?.data}");
+        
         // Verbeterde foutbestuur vir netwerk en spesifieke statuskodes.
         if (e.type == DioExceptionType.connectionError) {
           msg = "Kon nie die bediener bereik nie. Kontroleer jou internetverbinding of IP-adres.";
         } else if (e.response?.statusCode == 401) {
-          msg = "Ongeldige e-pos of wagwoord.";
+          final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+          msg = detail ?? "Ongeldige e-pos of wagwoord.";
+          debugPrint("   Login 401 detail: $detail");
         } else if (e.response?.statusCode == 403) {
           // Hanteer die platform-hekwagter boodskap vanaf die backend.
           msg = e.response?.data['detail'] ?? "Jy het nie toegang tot hierdie stelsel nie.";
