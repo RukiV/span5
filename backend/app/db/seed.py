@@ -410,6 +410,29 @@ def seed_data():
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
         )
 
+        _get_or_create_test_user(
+            session,
+            user_email="piet@gmail.com",
+            user_password="piet123",
+            role_id=user_role.role_id,  # role_id = 1 (geweier)
+        )
+
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        _get_or_create_test_user(
+            session,
+            user_email="jaco@gmail.com.com",
+            user_password="jaco123",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
+        # Administrateur - KAN aanmeld EN vol toegang
+        _get_or_create_test_user(
+            session,
+            user_email="kobus@gmail.com",
+            user_password="kobus123",
+            role_id=admin_role.role_id,  # role_id = 3 (toelaat)
+        )
+
         # Skep toetsdata vir lokasies, kamers, bates, ens.
 
         loc1 = _get_or_create_location(
@@ -418,10 +441,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+            suburb="Clubview",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         loc2 = _get_or_create_location(
@@ -430,10 +453,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+            suburb="Die Hoewes",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         loc3 = _get_or_create_location(
@@ -442,10 +465,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+            suburb="Esterville",
+            city="Paarl",
+            province="Wes Kaap",
+            country="Suid Afrika",
         )
 
         loc4 = _get_or_create_location(
@@ -454,10 +477,10 @@ def seed_data():
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+            suburb="Villieria",
+            city="Pretoria",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         bld1 = _get_or_create_building(
