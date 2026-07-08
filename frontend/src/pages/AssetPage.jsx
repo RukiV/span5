@@ -496,6 +496,24 @@ function AssetPage() {
         </div>
 
         <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Bates</h4>
+              <p className="analytics-value">{assets.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Aktief</h4>
+              <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Instandhouding</h4>
+              <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Buitelug</h4>
+              <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>

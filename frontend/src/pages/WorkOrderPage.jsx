@@ -54,7 +54,7 @@ function WorkOrderPage() {
     // Hoofinligting
     job_desc: "",                   // Hoofbeskrywing
     job_type: "",                   // Werksoort (maintenance, repair, inspection, installation, emergency)
-    job_status: "open",             // Status (open, wag, voltooid)
+    job_status: "Oop",              // Status (Oop, Wag, Voltooid)
     job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
@@ -648,7 +648,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "OPEN",
+      job_status: "Oop",
       job_priority: "Normal",
       job_createddatetime: "",
       job_scheduled_datetime: "",
@@ -677,7 +677,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "OPEN",
+      job_status: "Oop",
       job_priority: "Normal",
       job_createddatetime: new Date().toISOString().split('T')[0],
       job_scheduled_datetime: new Date().toISOString().slice(0, 16),

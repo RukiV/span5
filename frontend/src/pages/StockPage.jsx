@@ -246,7 +246,25 @@ function StockPage() {
           <UserProfileHeader />
         </div>
 
-        <div className="content">
+          <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Voorraad</h4>
+              <p className="analytics-value">{stock.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Minimum Voorraad</h4>
+              <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Uit Voorraad</h4>
+              <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Tipes</h4>
+              <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

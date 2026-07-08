@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, Zipcode, RoomStatus
+from ..models.location import Building, BuildingType, Location, Room, RoomType, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -52,24 +52,7 @@ def _get_or_create_test_user(session: Session, user_email: str, user_password: s
     session.refresh(user)
     return user
 
-def _get_or_create_zipcode(session: Session) -> Zipcode:
-    zipcode = session.exec(select(Zipcode)).first()
-    if zipcode:
-        return zipcode
-
-    zipcode = Zipcode(
-        zipcode_suburb="Sentraal",
-        zipcode_city="Tegnopolis",
-        zipcode_province="Provinsie",
-        zipcode_country="Land"
-    )
-    session.add(zipcode)
-    session.commit()
-    session.refresh(zipcode)
-    return zipcode
-
-
-def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, zipcode_id: int) -> Location:
+def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
     if location:
         return location
@@ -79,7 +62,10 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
         location_type=location_type,
         location_streetnum=streetnum,
         location_streetname=streetname,
-        zipcode_id=zipcode_id,
+        location_suburb=suburb,
+        location_city=city,
+        location_province=province,
+        location_country=country,
     )
     session.add(location)
     session.commit()
@@ -382,15 +368,16 @@ def seed_data():
         )
 
         # Skep toetsdata vir lokasies, kamers, bates, ens.
-        zipcode = _get_or_create_zipcode(session)
-
         loc1 = _get_or_create_location(
             session,
             name="Leriba-kampus",
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-            zipcode_id=zipcode.zipcode_id,
+            suburb="Sentraal",
+            city="Tegnopolis",
+            province="Provinsie",
+            country="Land",
         )
 
         loc2 = _get_or_create_location(
@@ -399,7 +386,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-            zipcode_id=zipcode.zipcode_id,
+            suburb="Sentraal",
+            city="Tegnopolis",
+            province="Provinsie",
+            country="Land",
         )
 
         loc3 = _get_or_create_location(
@@ -408,7 +398,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-            zipcode_id=zipcode.zipcode_id,
+            suburb="Sentraal",
+            city="Tegnopolis",
+            province="Provinsie",
+            country="Land",
         )
 
         loc4 = _get_or_create_location(
@@ -417,7 +410,10 @@ def seed_data():
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-            zipcode_id=zipcode.zipcode_id,
+            suburb="Sentraal",
+            city="Tegnopolis",
+            province="Provinsie",
+            country="Land",
         )
 
         bld1 = _get_or_create_building(

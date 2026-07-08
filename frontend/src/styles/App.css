@@ -326,3 +326,50 @@
   opacity: 1;                  
   color: var(--wit);        
 }
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.analytics-card {
+  background: #fff;
+  border: 1px solid #e8d8c4;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.analytics-card h4 {
+  margin: 0 0 8px;
+  color: #6b3f1d;
+  font-size: 14px;
+}
+
+.analytics-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #935e28;
+  margin: 0 0 6px;
+}
+
+.analytics-value.warning {
+  color: #c97c3c;
+}
+
+.analytics-value.danger {
+  color: #b91c1c;
+}
+
+.analytics-caption {
+  font-size: 13px;
+  color: #6f6f6f;
+}
+
+@media (max-width: 1024px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
