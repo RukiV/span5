@@ -323,21 +323,15 @@ function TerrainsPage() {
                 <table className="standard-table">
                   <thead>
                     <tr>
-                      <th>ID Gebou</th>
                       <th>Naam</th>
                       <th>Tipe</th>
-                      <th>Straatnommer</th>
-                      <th>Straatnaam</th>
                     </tr>
                   </thead>
                   <tbody>
                     {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
                       <tr key={building.building_id}>
-                        <td>{building.building_id}</td>
                         <td>{building.building_name}</td>
                         <td>{translateBuildingType(building.building_type)}</td>
-                        <td>{building.building_streetnum || '-'}</td>
-                        <td>{building.building_streetname || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

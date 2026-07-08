@@ -49,7 +49,7 @@ class StockUpdate(SQLModel):
     stock_brand: Optional[str] = None
     stock_amount: Optional[int] = None
     stock_minimum: Optional[int] = None
-    stock_boxTotal: Optional[str] = None
+    stock_boxTotal: Optional[int] = None
     stock_type: Optional[str] = None
     stock_desc: Optional[str] = None
     room_id: Optional[int] = None
