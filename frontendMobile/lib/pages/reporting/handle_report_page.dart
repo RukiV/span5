@@ -21,7 +21,6 @@ class _HandleReportPageState extends State<HandleReportPage> {
   
   String _selectedPriority = "Medium";
   String? _geverifiseerdeKode;
-  bool _kodeOnsigbaar = false;
   bool _isLoading = false;
 
   @override
@@ -42,8 +41,7 @@ class _HandleReportPageState extends State<HandleReportPage> {
   }
 
   bool get _isVerified => (_geverifiseerdeKode != null) || 
-                         (_manualIdController.text.isNotEmpty) || 
-                         _kodeOnsigbaar;
+                         (_manualIdController.text.isNotEmpty);
 
   Future<void> _handleApprove() async {
     if (!_isVerified) return;
@@ -61,7 +59,7 @@ class _HandleReportPageState extends State<HandleReportPage> {
       if (mounted) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Verslag goedgekeur en in vordering gestel"), backgroundColor: AppColors.successGreen)
+          const SnackBar(content: Text("Foutkaartjie goedgekeur en in vordering gestel"), backgroundColor: AppColors.successGreen)
         );
       }
     } catch (e) {
@@ -80,7 +78,7 @@ class _HandleReportPageState extends State<HandleReportPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text("HANTEER VERSLAG #${widget.report.id}"),
+        title: Text("HANTEER FOUTKAARTJIE #${widget.report.id}"),
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
@@ -141,17 +139,9 @@ class _HandleReportPageState extends State<HandleReportPage> {
                                 filled: true,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      CheckboxListTile(
-                        title: const Text("Kode Onsigbaar / Beskadig", style: TextStyle(fontSize: 14, color: Colors.red)),
-                        value: _kodeOnsigbaar,
-                        activeColor: Colors.red,
-                        onChanged: (v) => setState(() => _kodeOnsigbaar = v ?? false),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                      ),
+                        ),
+                      ],
+                    ),
                     ],
                   ),
                 ),
