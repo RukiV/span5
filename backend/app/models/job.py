@@ -70,6 +70,8 @@ class Jobcard(JobcardBase, Base, table=True):
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
+    building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
+    location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
     fault_id: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
@@ -80,6 +82,8 @@ class JobcardCreate(JobcardBase):
     """Input model for creating jobcard records."""
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
     fault_id: Optional[int] = None
 
 
@@ -89,6 +93,8 @@ class JobcardRead(JobcardBase):
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
@@ -108,6 +114,8 @@ class JobcardUpdate(SQLModel):
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
+    building_id: Optional[int] = None
+    location_id: Optional[int] = None
     fault_id: Optional[int] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
