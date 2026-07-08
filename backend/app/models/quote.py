@@ -25,10 +25,12 @@ class QuoteBase(SQLModel):
 class Quote(QuoteBase, Base, table=True):
     """Model for quote data."""
     quote_id: Optional[int] = Field(default=None, primary_key=True)
+    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
 
 
 class QuoteCreate(QuoteBase):
     """Input model for creating quote records."""
+    image_id: Optional[int] = None
     pass
 
 
@@ -36,6 +38,7 @@ class QuoteRead(QuoteBase):
     """Output model for reading quote records."""
     quote_id: int
     contractor_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class QuoteUpdate(SQLModel):
@@ -46,4 +49,5 @@ class QuoteUpdate(SQLModel):
     quote_status: Optional[str] = None
     quote_selection_reason: Optional[str] = None
     contractor_id: Optional[int] = None
+    image_id: Optional[int] = None
 
