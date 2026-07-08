@@ -33,11 +33,12 @@ function BuildingsPage() {
 
   const translateBuildingType = (type) => {
     const translations = {
-      admin: "Admin",
-      onderwys: "Onderwys",
-      laboratory: "Laboratorium",
-      warehouse: "Pakhuis",
-      other: "Ander",
+      "Kantoorgebou": "Admin",
+      "Onderwys": "Onderwys",
+      "Laboratorium": "Laboratorium",
+      "warehouse": "Pakhuis",
+      "Kafeteria": "Kafeteria",
+      "Ander": "Ander",
     };
     return translations[type] || type;
   };
@@ -145,7 +146,7 @@ function BuildingsPage() {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_type: item.building_type || "other",
+      building_type: item.building_type || "Ander",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -155,13 +156,13 @@ function BuildingsPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
     setShowModal(true);
   };
 
@@ -207,11 +208,12 @@ function BuildingsPage() {
   ];
 
   const buildingTypeOptions = [
-    { value: "admin", label: "Admin" },
-    { value: "onderwys", label: "Onderwys" },
-    { value: "laboratory", label: "Laboratorium" },
+    { value: "Kantoorgebou", label: "Admin" },
+    { value: "Onderwys", label: "Onderwys" },
+    { value: "Laboratorium", label: "Laboratorium" },
     { value: "warehouse", label: "Pakhuis" },
-    { value: "other", label: "Ander" }
+    { value: "Kafeteria", label: "Kafeteria" },
+    { value: "Ander", label: "Ander" }
   ];
 
   const terrainOptions = terrains.map((t) => ({

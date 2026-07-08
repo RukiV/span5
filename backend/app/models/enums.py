@@ -16,7 +16,7 @@ class FaultStatus(Enum):
     """Enumeration for fault status values."""
     WAIT = "Wag"
     OPEN = "Oop"
-    CONFRIMED = "Bevestig"
+    CONFIRMED = "Bevestig"
     IN_PROGRESS = "Besig"
     RESOLVED = "Opgelos"
     CLOSED = "Gesluit"
