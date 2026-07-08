@@ -1085,7 +1085,6 @@ function WorkOrderPage() {
                   <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
                     <input 
                       type="datetime-local"
-                      value={formData.job_scheduled_datetime}
                       onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
                     />
                   </div>
