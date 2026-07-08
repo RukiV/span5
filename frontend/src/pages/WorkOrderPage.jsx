@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select from "react-select"; // Bygevoeg vir React-Select dropdowns
 import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI } from "../services/api";
@@ -17,6 +17,7 @@ function WorkOrderPage() {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const { instance } = useMsal();
+  const location = useLocation();
   
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
@@ -85,6 +86,70 @@ function WorkOrderPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const applyTicketSelectionToForm = (ticket) => {
+    if (!ticket) return;
+
+    const description = ticket.fault_description || "";
+    const colonIndex = description.indexOf(":");
+    const briefDesc = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+
+    let detectedRoomId = ticket.room_id || "";
+    let detectedBuildingId = ticket.building_id || "";
+    let detectedSiteId = ticket.location_id || "";
+
+    if (!detectedRoomId && ticket.asset_id) {
+      const associatedAsset = assets.find((asset) => Number(asset.asset_id) === Number(ticket.asset_id));
+      if (associatedAsset) {
+        detectedRoomId = associatedAsset.room_id;
+      }
+    }
+
+    if (detectedRoomId && !detectedBuildingId) {
+      const associatedRoom = rooms.find((room) => Number(room.room_id) === Number(detectedRoomId));
+      if (associatedRoom) {
+        detectedBuildingId = associatedRoom.building_id;
+      }
+    }
+
+    if (detectedBuildingId && !detectedSiteId) {
+      const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
+      if (associatedBuilding) {
+        detectedSiteId = associatedBuilding.location_id;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      job_desc: description,
+      job_type: normalizeWorkTypeValue(ticket.fault_type) || "",
+      job_priority: normalizePriorityValue(ticket.fault_priority) || "Normal",
+      job_status: "Oop",
+      brief_description: briefDesc,
+      job_notes: details,
+      nature: ticket.fault_type || "",
+      asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
+      room_id: detectedRoomId ? String(detectedRoomId) : "",
+      building_id: detectedBuildingId ? String(detectedBuildingId) : "",
+      location_id: detectedSiteId ? String(detectedSiteId) : "",
+      fault_id: ticket.fault_id ? String(ticket.fault_id) : "",
+    }));
+
+    setConnectionType("fault");
+    setConnectionTargetId(String(ticket.fault_id || ""));
+
+    if (detectedRoomId) {
+      const matchingRoom = rooms.find((room) => String(room.room_id) === String(detectedRoomId));
+      if (matchingRoom) {
+        setSelectedTerrein(matchingRoom.terrein ? { value: matchingRoom.terrein, label: matchingRoom.terrein } : null);
+        setSelectedGebou(matchingRoom.gebou ? { value: matchingRoom.gebou, label: matchingRoom.gebou } : null);
+      }
+    } else {
+      setSelectedTerrein(null);
+      setSelectedGebou(null);
+    }
+  };
+
   // Haal almal data wanneer blad laai
   useEffect(() => {
     const requestedJobcardId = searchParams.get('jobcard_id');
@@ -103,6 +168,15 @@ function WorkOrderPage() {
     fetchTickets();
     fetchContractors();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.ticket) {
+      setShowModal(true);
+      setIsEditing(false);
+      setEditingId(null);
+      applyTicketSelectionToForm(location.state.ticket);
+    }
+  }, [location.state?.ticket, assets, rooms, buildings, terrains]);
 
   const fetchTerrains = async () => {
     try {
@@ -230,6 +304,39 @@ function WorkOrderPage() {
       .filter(Boolean)
       .map((item) => Number(item))
       .filter((item) => !Number.isNaN(item));
+  };
+
+  const normalizeWorkTypeValue = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["maintenance", "onderhoud", "instandhouding"].includes(normalized)) return "Onderhoud";
+    if (["repair", "herstel", "herstelwerk"].includes(normalized)) return "Herstel";
+    if (["inspection", "inspeksie"].includes(normalized)) return "Inspeksie";
+    if (["installation", "installasie"].includes(normalized)) return "Installasie";
+    return String(value || "").trim();
+  };
+
+  const normalizePriorityValue = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (["laag", "low"].includes(normalized)) return "Laag";
+    if (["normal", "medium", "normaal"].includes(normalized)) return "Normal";
+    if (["hoog", "high"].includes(normalized)) return "Hoog";
+    if (["dringend", "urgent"].includes(normalized)) return "Dringend";
+    return String(value || "").trim() || "Normal";
+  };
+
+  const getTicketDisplayTitle = (ticket) => {
+    const rawValue = ticket?.fault_title || ticket?.title || ticket?.fault_desc || ticket?.fault_description || ticket?.description || "";
+    const text = String(rawValue || "").trim();
+    if (!text) return "Foutkaartjie";
+
+    const colonIndex = text.indexOf(":");
+    return colonIndex > 0 ? text.substring(0, colonIndex).trim() : text;
+  };
+
+  const getTicketOptionLabel = (ticket) => {
+    const ticketId = ticket?.fault_id ?? ticket?.id ?? "";
+    const title = getTicketDisplayTitle(ticket);
+    return ticketId ? `${ticketId} - ${title}` : title;
   };
 
   const getMicrosoftAccessToken = async () => {
@@ -378,7 +485,7 @@ function WorkOrderPage() {
 
     setFormData({
       job_desc: description,
-      job_type: order.job_type || "",
+      job_type: normalizeWorkTypeValue(order.job_type) || "",
       job_status: order.job_status,
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
@@ -391,6 +498,7 @@ function WorkOrderPage() {
       room_id: order.room_id || "",
       building_id: order.building_id || "",
       location_id: order.location_id || "",
+      fault_id: order.fault_id || "",
       nature: order.nature || "",
       brief_description: briefDesc,
       job_notes: details,
@@ -490,6 +598,8 @@ function WorkOrderPage() {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
         job_type: formData.job_type || null,
         job_status: formData.job_status,
+        job_priority: formData.job_priority || "Normal",
+        nature: formData.nature || null,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_schedule_type: formData.job_schedule_type || "enkel",
@@ -660,6 +770,7 @@ function WorkOrderPage() {
       room_id: "",
       building_id: "",
       location_id: "",
+      fault_id: "",
       nature: "",
       brief_description: "",
       job_notes: "",
@@ -689,6 +800,7 @@ function WorkOrderPage() {
       room_id: "",
       building_id: "",
       location_id: "",
+      fault_id: "",
       nature: "",
       brief_description: "",
       job_notes: "",
@@ -988,18 +1100,6 @@ function WorkOrderPage() {
                       <option value="jaarliks">Jaarliks</option>
                     </select>
                   </div>
-                  <div className="mri-fld"><span>Werksoort</span> 
-                    <select 
-                      value={formData.job_type}
-                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
-                    >
-                      <option value="">Kies...</option>
-                      <option value="Onderhoud">Onderhoud</option>
-                      <option value="Herstel">Herstel</option>
-                      <option value="Inspeksie">Inspeksie</option>
-                      <option value="Installasie">Installasie</option>
-                    </select>
-                  </div>
                   <div className="mri-fld"><span>Status</span> 
                     <select 
                       value={formData.job_status}
@@ -1011,19 +1111,6 @@ function WorkOrderPage() {
                       <option value="Besig">Besig</option>
                       <option value="Voltooid">Voltooid</option>
                       <option value="Gekanselleer">Gekanselleer</option>
-                    </select>
-                  </div>
-                  <div className="mri-fld"><span>Werksoort</span> 
-                    <select 
-                      value={formData.job_type}
-                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
-                    >
-                      <option value="">Kies...</option>
-                      <option value="maintenance">Onderhoud</option>
-                      <option value="repair">Herstel</option>
-                      <option value="inspection">Inspeksie</option>
-                      <option value="installation">Installasie</option>
-                      <option value="emergency">Nood</option>
                     </select>
                   </div>
                 </div>
@@ -1130,12 +1217,14 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Soek/Kies Foutkaartjie..."
                       isClearable
-                      value={formData.fault_id ? { value: formData.fault_id, label: `${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_id} - ${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_title || tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || "Foutkaartjie"}` } : null}
+                      value={formData.fault_id ? { value: formData.fault_id, label: getTicketOptionLabel((tickets || []).find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))) } : null}
                       onChange={(selectedOption) => {
                         if (!selectedOption) {
                           setFormData({
                             ...formData,
                             fault_id: "",
+                            job_type: "",
+                            job_priority: "Normal",
                             brief_description: "",
                             location_id: "",
                             building_id: "",
@@ -1148,7 +1237,9 @@ function WorkOrderPage() {
                         setFormData({
                           ...formData,
                           fault_id: ticket?.fault_id || "",
-                          brief_description: ticket?.fault_desc || "",
+                          job_type: normalizeWorkTypeValue(ticket?.fault_type) || "",
+                          job_priority: normalizePriorityValue(ticket?.fault_priority) || "Normal",
+                          brief_description: getTicketDisplayTitle(ticket),
                           location_id: ticket?.location_id || "",
                           building_id: ticket?.building_id || "",
                           room_id: ticket?.room_id || "",
@@ -1163,7 +1254,7 @@ function WorkOrderPage() {
                         return true;
                       }).map((ticket) => ({
                         value: ticket.fault_id,
-                        label: `${ticket.fault_id} - ${ticket.fault_desc || ticket.fault_title || "Foutkaartjie"}`
+                        label: getTicketOptionLabel(ticket)
                       }))}
                     />
                   </div>
@@ -1183,7 +1274,18 @@ function WorkOrderPage() {
                       <option value="Siviel">Siviel</option>
                       <option value="Buite">Buite</option>
                       <option value="Algemeen">Algemeen</option>
-                      <option value="Nood">Nood</option>
+                    </select>
+                  </div>
+                  <div className="mri-fld"><span>Werksoort</span> 
+                    <select 
+                      value={formData.job_type}
+                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="Onderhoud">Onderhoud</option>
+                      <option value="Herstel">Herstel</option>
+                      <option value="Inspeksie">Inspeksie</option>
+                      <option value="Installasie">Installasie</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
