@@ -8,7 +8,7 @@ import '../styles/Dashboard.css';
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
-import { auditsAPI, workOrdersAPI } from '../services/api';
+import { auditsAPI, workOrdersAPI, assetsAPI, ticketsAPI } from '../services/api';
 import { apiClient } from '../services/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement);
@@ -28,21 +28,46 @@ const mapAssetStatusLabel = (status) => {
   }
 };
 
+const calcChange = (current, previous) => {
+  if (previous === 0) return current > 0 ? '+Nuut' : '';
+  const diff = ((current - previous) / previous) * 100;
+  return `${diff >= 0 ? '+' : ''}${Math.round(diff)}% van verlede maand`;
+};
+
 const DashboardPage = () => {
-  // Haal huidige gebruiker se info en admin-status
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const [recentRepairs, setRecentRepairs] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
   const [predictionSummary, setPredictionSummary] = useState({ total: 0, attention: 0, replacement: 0, overdue: 0 });
+  const [statsData, setStatsData] = useState({
+    totalAssets: 0,
+    activeRepairs: 0,
+    completedTickets: 0,
+    newTickets: 0,
+    assetChange: '',
+    repairChange: '',
+    completedChange: '',
+    newChange: '',
+  });
+  const [repairTrendData, setRepairTrendData] = useState({
+    labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa', 'So'],
+    datasets: [{
+      label: 'Voltooide Take',
+      data: [0, 0, 0, 0, 0, 0, 0],
+      borderColor: '#10b981',
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      fill: true,
+      tension: 0.3
+    }]
+  });
 
   const formatActivityTime = (value) => {
     if (!value) return 'Onlangs';
 
-    const date = new Date(value); // Parse as UTC
+    const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Onlangs';
 
-    // Convert to UTC+2
     date.setHours(date.getHours() + 2);
 
     const day = String(date.getDate()).padStart(2, '0');
@@ -98,18 +123,102 @@ const DashboardPage = () => {
     return `${actionLabel} ${label}${nameText}`;
   };
 
+  const getMonthRange = (year, month) => {
+    const start = new Date(year, month, 1);
+    const end = new Date(year, month + 1, 1);
+    return { start, end };
+  };
+
   useEffect(() => {
     const fetchRecentData = async () => {
       try {
-        const [workOrdersResponse, auditResponse, predictionsResponse] = await Promise.all([
+        const [assetsResponse, workOrdersResponse, ticketsResponse, auditResponse, predictionsResponse] = await Promise.all([
+          assetsAPI.getAll(),
           workOrdersAPI.getAll(),
+          ticketsAPI.getAll(),
           auditsAPI.getAll(),
           apiClient.get('/predictions'),
         ]);
 
+        const assets = Array.isArray(assetsResponse?.data) ? assetsResponse.data : [];
         const orders = Array.isArray(workOrdersResponse?.data) ? workOrdersResponse.data : [];
+        const tickets = Array.isArray(ticketsResponse?.data) ? ticketsResponse.data : [];
         const auditEntries = Array.isArray(auditResponse?.data) ? auditResponse.data : [];
 
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const thisYear = now.getFullYear();
+        const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+        const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+        const { start: thisStart, end: thisEnd } = getMonthRange(thisYear, thisMonth);
+        const { start: lastStart, end: lastEnd } = getMonthRange(lastMonthYear, lastMonth);
+
+        // Stat: Totale Bates
+        const totalAssets = assets.length;
+
+        // Stat: Aktiewe Herstelwerk
+        const activeRepairs = orders.filter(o => o.job_status === 'Besig').length;
+        const lastActiveRepairs = orders.filter(o => {
+          const d = new Date(o.job_createddatetime);
+          return o.job_status === 'Besig' && d >= lastStart && d < lastEnd;
+        }).length;
+
+        // Stat: Voltooide Foutkaartjies
+        const completedTickets = tickets.filter(t => t.fault_status === 'Gesluit' || t.fault_status === 'Opgelos').length;
+        const lastCompletedTickets = tickets.filter(t => {
+          const d = new Date(t.fault_reportdatetime);
+          return (t.fault_status === 'Gesluit' || t.fault_status === 'Opgelos') && d >= lastStart && d < lastEnd;
+        }).length;
+
+        // Stat: Nuwe Foutkaartjies (dié maand)
+        const newTickets = tickets.filter(t => {
+          const d = new Date(t.fault_reportdatetime);
+          return d >= thisStart && d < thisEnd;
+        }).length;
+        const lastNewTickets = tickets.filter(t => {
+          const d = new Date(t.fault_reportdatetime);
+          return d >= lastStart && d < lastEnd;
+        }).length;
+
+        setStatsData({
+          totalAssets,
+          activeRepairs,
+          completedTickets,
+          newTickets,
+          assetChange: calcChange(totalAssets, assets.filter(a => {
+            const d = new Date(a.asset_created_datetime);
+            return d >= lastStart && d < lastEnd;
+          }).length),
+          repairChange: calcChange(activeRepairs, lastActiveRepairs),
+          completedChange: calcChange(completedTickets, lastCompletedTickets),
+          newChange: calcChange(newTickets, lastNewTickets),
+        });
+
+        // Repair trend (voltooide take per dag van week)
+        const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa', 'So'];
+        const dayCounts = [0, 0, 0, 0, 0, 0, 0];
+        const completedOrders = orders.filter(o => o.job_status === 'Voltooid' && o.job_finisheddatetime);
+        completedOrders.forEach(o => {
+          const d = new Date(o.job_finisheddatetime);
+          const dayIdx = d.getDay();
+          const adjustedIdx = dayIdx === 0 ? 6 : dayIdx - 1;
+          dayCounts[adjustedIdx]++;
+        });
+
+        setRepairTrendData({
+          labels: dayNames,
+          datasets: [{
+            label: 'Voltooide Take',
+            data: dayCounts,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        });
+
+        // Recent repairs
         const repairOrders = orders
           .filter((order) => order?.job_type && String(order.job_type).toLowerCase() !== 'inspection')
           .sort((a, b) => {
@@ -121,6 +230,7 @@ const DashboardPage = () => {
 
         setRecentRepairs(repairOrders);
 
+        // Activity log
         const activities = auditEntries
           .map((entry) => {
             const action = String(entry?.action || '').toLowerCase();
@@ -165,6 +275,7 @@ const DashboardPage = () => {
 
         setActivityItems(activities);
 
+        // Predictions
         const preds = Array.isArray(predictionsResponse?.data) ? predictionsResponse.data : [];
         setPredictionSummary({
           total: preds.length,
@@ -201,20 +312,6 @@ const DashboardPage = () => {
     datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }]
   });
   const [assetStatusLoading, setAssetStatusLoading] = useState(true);
-
-  // Data vir trendlyn-grafiek (herstelwerk per dag van week)
-  // Toon hoeveel take voltooide is, met groene kleur-skema
-  const repairTrendData = {
-    labels: ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Sa', 'So'],
-    datasets: [{
-      label: 'Voltooide Take',
-      data: [2, 5, 3, 8, 4, 1, 2],
-      borderColor: '#10b981',        // Groen lyn
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',  // Ligte groen vulling
-      fill: true,
-      tension: 0.3
-    }]
-  };
 
   useEffect(() => {
     let isMounted = true;
@@ -270,31 +367,29 @@ const DashboardPage = () => {
         </div>
 
         <div className="content">
-          {/* Hoofskakelstatistieke met tellings en maandeligse tendense */}
           <div className="stats-grid">
             <div className="stat-card">
               <h4>Totale Bates</h4>
-              <div className="stat-number">150</div>
-              <div className="stat-change positive">+5% van verlede maand</div>
+              <div className="stat-number">{statsData.totalAssets}</div>
+              <div className="stat-change positive">{statsData.assetChange}</div>
             </div>
             <div className="stat-card">
               <h4>Aktiewe Herstelwerk</h4>
-              <div className="stat-number">12</div>
-              <div className="stat-change negative">-2% van verlede maand</div>
+              <div className="stat-number">{statsData.activeRepairs}</div>
+              <div className="stat-change negative">{statsData.repairChange}</div>
             </div>
             <div className="stat-card">
               <h4>Voltooide Foutkaartjies</h4>
-              <div className="stat-number">45</div>
-              <div className="stat-change positive">+10% van verlede maand</div>
+              <div className="stat-number">{statsData.completedTickets}</div>
+              <div className="stat-change positive">{statsData.completedChange}</div>
             </div>
             <div className="stat-card">
               <h4>Nuwe Foutkaartjies</h4>
-              <div className="stat-number">8</div>
-              <div className="stat-change negative">-3% van verlede maand</div>
+              <div className="stat-number">{statsData.newTickets}</div>
+              <div className="stat-change negative">{statsData.newChange}</div>
             </div>
           </div>
 
-          {/* Voorspellings opsomming */}
           <div className="stats-grid" style={{ marginBottom: '20px' }}>
             <div className="stat-card" style={{ borderLeft: '4px solid #c97c3c' }}>
               <h4>Bate Voorspellings</h4>
@@ -319,7 +414,6 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Tabel en aktiwiteit-log */}
           <div className="dashboard-grid">
             <div className="data-panel">
               <h3>Onlangse Herstelwerk</h3>
@@ -343,7 +437,7 @@ const DashboardPage = () => {
                         <td>{order.asset_id || '-'}</td>
                         <td>{order.job_desc || order.brief_description || 'Geen beskrywing'}</td>
                         <td>
-                          <span className={`status ${order.job_status === 'completed' ? 'completed' : order.job_status === 'in_progress' ? 'in-progress' : 'pending'}`}>
+                          <span className={`status ${order.job_status === 'Voltooid' ? 'completed' : order.job_status === 'Besig' ? 'in-progress' : 'pending'}`}>
                             {order.job_status || 'Onbekend'}
                           </span>
                         </td>
@@ -382,12 +476,10 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Trendgrafieke en verspreidingsgrafieke vir visuele analise */}
           <div className="charts-container">
             <div className="data-panel">
               <h3>Herstelwerk Tendens (7 Dae)</h3>
               <div className="chart-container">
-                {/* Trendlyn-grafiek toon herstelwerk oor week */}
                 <Line data={repairTrendData} options={{ responsive: true, maintainAspectRatio: false }} />
               </div>
             </div>
