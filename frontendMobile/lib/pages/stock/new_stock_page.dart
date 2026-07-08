@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../core/campus_service.dart';
-import '../../core/stock_service.dart';
-import '../../models/stock.dart';
+import '../../services/campus_service.dart';
+import '../../services/stock_service.dart';
 import '../../models/user_session.dart';
+import '../../models/stock.dart';
+import '../../widgets/searchable_dropdown.dart';
 
 class NewStockPage extends StatefulWidget {
   const NewStockPage({super.key});
@@ -17,6 +18,8 @@ class _NewStockPageState extends State<NewStockPage> {
   String brand = "";
   String name = "";
   int amount = 0;
+  int minimum = 0;
+  int boxTotal = 0;
   String type = "Ander";
   String description = "";
   String? selectedCampus;
@@ -47,7 +50,7 @@ class _NewStockPageState extends State<NewStockPage> {
     });
   }
 
-  List<String> get availableBuildings {
+  List<String> get _availableBuildings {
     if (selectedCampus == null) return [];
     final campus = CampusService.getCampusByName(selectedCampus!);
     if (campus == null) return [];
@@ -55,8 +58,8 @@ class _NewStockPageState extends State<NewStockPage> {
   }
 
   List<String> get availableRooms {
-    if (selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus ?? '');
+    if (selectedCampus == null || selectedBuilding == null) return [];
+    final campus = CampusService.getCampusByName(selectedCampus!);
     if (campus == null) return [];
     final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
     if (building == null) return [];
@@ -68,7 +71,7 @@ class _NewStockPageState extends State<NewStockPage> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Wysig Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -115,30 +118,61 @@ class _NewStockPageState extends State<NewStockPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    value: selectedBuilding,
-                    decoration: _inputDecoration(),
-                    items: availableBuildings.map((b) {
-                      return DropdownMenuItem(value: b, child: Text(b));
-                    }).toList(),
-                    onChanged: (v) => setState(() {
-                      selectedBuilding = v;
-                      selectedRoom = null;
-                    }),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildNumberField("Minimum Voorraad", (v) => minimum = int.tryParse(v) ?? 0),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildNumberField("Boks Totaal", (v) => boxTotal = int.tryParse(v) ?? 0),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
-                  const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
+                  SearchableDropdown<String>(
+                    label: "Kampus",
+                    hint: "Kies 'n kampus",
+                    value: selectedCampus,
+                    items: CampusService.campusesNotifier.value
+                        .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        selectedCampus = v;
+                        selectedBuilding = null;
+                        selectedRoom = null;
+                      });
+                    },
+                    validator: (v) => (v == null) ? "Vereis" : null,
+                  ),
+                  const SizedBox(height: 20),
+                  SearchableDropdown<String>(
+                    label: "Gebou",
+                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
+                    value: selectedBuilding,
+                    items: _availableBuildings
+                        .map((b) => SearchableDropdownItem(value: b, label: b))
+                        .toList(),
+                    onChanged: (v) {
+                      setState(() {
+                        selectedBuilding = v;
+                        selectedRoom = null;
+                      });
+                    },
+                    validator: (v) => (v == null) ? "Vereis" : null,
+                  ),
+                  const SizedBox(height: 20),
+                  SearchableDropdown<String>(
+                    label: "Lokaal",
+                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
                     value: selectedRoom,
-                    decoration: _inputDecoration(),
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(value: r, child: Text(name));
+                      return SearchableDropdownItem(value: r, label: name);
                     }).toList(),
                     onChanged: (v) => setState(() => selectedRoom = v),
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
                   _buildField("Beskrywing", (v) => description = v, maxLines: 3),
@@ -159,17 +193,23 @@ class _NewStockPageState extends State<NewStockPage> {
                                roomId = int.tryParse(selectedRoom!.split(":").first);
                              }
                              
-                             final newStock = Stock(
-                               brand: brand,
-                               amount: amount,
-                               type: type,
-                               description: description,
-                               roomId: roomId,
-                             );
+                              final newStock = Stock(
+                                name: name,
+                                brand: brand,
+                                amount: amount,
+                                minimum: minimum,
+                                boxTotal: boxTotal,
+                                type: type,
+                                description: description,
+                                roomId: roomId,
+                              );
 
                              final success = await StockService.addStock(newStock);
-                             if (mounted && success) {
-                               Navigator.pop(context);
+                             if (!mounted) return;
+                             if (success) {
+                               if (context.mounted) {
+                                 Navigator.pop(context);
+                               }
                              }
                           }
                         },

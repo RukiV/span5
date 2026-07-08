@@ -1,10 +1,12 @@
 from typing import Optional
 from datetime import date, datetime
 from pydantic import field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from .base import Base
 from .enums import JobStatus
 from .validators import sanitize_text, validate_positive_int
+
+from .image import ImageAsset, ImageAssetRead
 
 class JobrecurringBase(SQLModel):
     """Base model for jobrecurring data."""
@@ -76,6 +78,12 @@ class Jobcard(JobcardBase, Base, table=True):
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
+            
+    # Universal Foreign Key linking to the separate image module
+    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
+    
+    # Unidirectional relationship 
+    image: Optional[ImageAsset] = Relationship()
 
 
 class JobcardCreate(JobcardBase):
@@ -85,6 +93,7 @@ class JobcardCreate(JobcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):
@@ -99,6 +108,9 @@ class JobcardRead(JobcardBase):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    image_id: Optional[int] = None
+    
+    image: Optional[ImageAssetRead] = None
 
 
 class JobcardUpdate(SQLModel):
@@ -120,3 +132,4 @@ class JobcardUpdate(SQLModel):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    image_id: Optional[int] = None

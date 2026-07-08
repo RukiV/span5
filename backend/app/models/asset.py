@@ -1,10 +1,12 @@
 from typing import Optional, Any
 from datetime import datetime
 from pydantic import field_validator
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from .base import Base
 from .enums import AssetStatus
 from .validators import sanitize_text, validate_positive_int
+
+from .image import ImageAsset, ImageAssetRead
 
 class AssettypeBase(SQLModel):
     """Base model for assettype data."""
@@ -71,12 +73,19 @@ class Asset(AssetBase, Base, table=True):
     asset_id: Optional[int] = Field(default=None, primary_key=True)
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     assettype_id: int = Field(foreign_key="assettype.assettype_id")
+        
+    # Universal Foreign Key linking to the separate image module
+    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
+    
+    # Unidirectional relationship 
+    image: Optional[ImageAsset] = Relationship()
 
 
 class AssetCreate(AssetBase):
     """Input model for creating asset records."""
     assettype_id: int
     room_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class AssetRead(AssetBase):
@@ -84,6 +93,7 @@ class AssetRead(AssetBase):
     asset_id: int
     room_id: Optional[int] = None
     assettype_id: int
+    image_id: Optional[int] = None
 
 
 class AssetUpdate(SQLModel):
@@ -96,6 +106,7 @@ class AssetUpdate(SQLModel):
     asset_created_datetime: Optional[datetime] = None
     room_id: Optional[int] = None
     assettype_id: Optional[int] = None
+    image_id: Optional[int] = None
 
 
 class AssetHistoryEventBase(SQLModel):

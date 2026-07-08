@@ -1,15 +1,17 @@
-import '../../widgets/custom_dropdown.dart';
+import 'dart:io';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
-import 'dart:typed_data';
 import '../../models/user_session.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../core/app_colors.dart';
 import 'scan_page.dart';
 
-import '../../core/report_service.dart';
+import '../../services/report_service.dart';
+import '../../services/image_service.dart';
+import '../../services/camera_service.dart';
 import '../../models/report.dart';
 import '../../models/campus.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
@@ -21,8 +23,6 @@ class NewReportPage extends StatefulWidget {
 }
 
 class _NewReportPageState extends State<NewReportPage> {
-  String? gpsCoords;
-  Uint8List? mapScreenshot;
   final TextEditingController serialController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descController = TextEditingController();
@@ -30,8 +30,11 @@ class _NewReportPageState extends State<NewReportPage> {
   String? selectedCampus;
   String? selectedBuilding;
   String? selectedLocation;
-  String? selectedCategory;
-  String selectedPriority = "Laag";
+  String selectedCategory = "Instandhouding";
+  String selectedPriority = "Medium";
+  String selectedStatus = "Ontvang";
+  File? _photoFile;
+  bool showValidationErrors = false;
 
   @override
   void initState() {
@@ -64,34 +67,21 @@ class _NewReportPageState extends State<NewReportPage> {
     if (building == null) return [];
     return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
-  bool isInvisibleCode = false;
-  bool isUnknownLocation = false;
-  bool showValidationErrors = false;
-
-  void _handleScanResult(String? result) {
-    if (result == null) return;
-    setState(() {
-      isInvisibleCode = false;
-      serialController.text = result;
-    });
-  }
 
   bool get _canSubmit {
-    bool hasAsset = isInvisibleCode ? (selectedCategory != null) : serialController.text.isNotEmpty;
-    bool hasLocation = isUnknownLocation ? (gpsCoords != null) : (selectedLocation != null);
+    bool hasLocation = selectedLocation != null;
     bool hasDescription = titleController.text.trim().isNotEmpty && descController.text.trim().length > 3;
-    return hasAsset && hasLocation && hasDescription;
+    return hasLocation && hasDescription;
   }
 
   @override
   Widget build(BuildContext context) {
-    const double sectionGap = 22.0;
-    const double labelGap = 6.0;
+    const double sectionGap = 20.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text("Nuwe Fout Verslag"),
+        title: const Text("Nuwe Foutkaartjie"),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -104,112 +94,84 @@ class _NewReportPageState extends State<NewReportPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!isInvisibleCode) ...[
-                        _buildLabelWithAction(
-                            "Bate Serial Kode (Sigbare Kode) *",
-                            "Kode Onsigbaar",
-                            () => setState(() {
-                                  isInvisibleCode = true;
-                                  serialController.clear();
-                                })),
-                        const SizedBox(height: labelGap),
-                        _buildAssetInput(),
-                      ] else ...[
-                        CustomDropdown<String>(
-                          label: "Kategorie (Onsigbare Kode) *",
-                          hint: "Kies Kategorie",
-                          value: selectedCategory,
-                          items: ["Instandhouding", "Herstel", "Opgradering", "Ander"]
-                              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                              .toList(),
-                          onChanged: (v) => setState(() => selectedCategory = v),
-                          validator: (v) => v == null ? "Kategorie word vereis" : null,
-                        ),
-                      ],
+                      _buildLabel("Bate Kode (Opsioneel)"),
+                      const SizedBox(height: 6),
+                      _buildAssetInput(),
+                      const SizedBox(height: sectionGap),
+
+                      if (UserSession.hasAdminPrivileges)
+                        Row(
+                          children: [
+                            Expanded(child: _buildSimpleDropdown("Kategorie", selectedCategory, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v))),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSimpleDropdown("Prioriteit", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
+                          ],
+                        )
+                      else
+                        _buildSimpleDropdown("Kategorie", selectedCategory, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v)),
 
                       const SizedBox(height: sectionGap),
 
                       ValueListenableBuilder<List<Campus>>(
                         valueListenable: CampusService.campusesNotifier,
                         builder: (context, campuses, _) {
-                          return CustomDropdown<String>(
-                            label: "Kampus *",
-                            hint: "Kies Kampus",
-                            value: selectedCampus,
-                            items: campuses
-                                .map((c) => DropdownMenuItem(value: c.name, child: Text(c.name)))
-                                .toList(),
-                            onChanged: (v) => setState(() {
-                              selectedCampus = v;
-                              selectedBuilding = null;
-                              selectedLocation = null;
-                            }),
-                            validator: (v) => v == null ? "Kampus word vereis" : null,
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: SearchableDropdown<String>(
+                                  label: "Kampus *",
+                                  hint: "Kies Kampus",
+                                  value: selectedCampus,
+                                  items: campuses
+                                      .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                                      .toList(),
+                                  onChanged: (v) => setState(() {
+                                    selectedCampus = v;
+                                    selectedBuilding = null;
+                                    selectedLocation = null;
+                                  }),
+                                  validator: (v) => v == null ? "Kampus word vereis" : null,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: SearchableDropdown<String>(
+                                  label: "Gebou *",
+                                  hint: selectedCampus == null ? "Kies eers kampus" : "Kies Gebou",
+                                  value: selectedBuilding,
+                                  items: filteredBuildings
+                                      .map((b) => SearchableDropdownItem(value: b, label: b))
+                                      .toList(),
+                                  onChanged: (v) => setState(() {
+                                    selectedBuilding = v;
+                                    selectedLocation = null;
+                                  }),
+                                  validator: (v) => v == null ? "Gebou word vereis" : null,
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
 
                       const SizedBox(height: sectionGap),
 
-                      CustomDropdown<String>(
-                        label: "Gebou *",
-                        hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies Gebou",
-                        value: selectedBuilding,
-                        items: filteredBuildings
-                            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-                            .toList(),
-                        onChanged: (v) => setState(() {
-                          selectedBuilding = v;
-                          selectedLocation = null;
-                        }),
-                        validator: (v) => v == null ? "Gebou word vereis" : null,
-                      ),
-
-                      const SizedBox(height: sectionGap),
-
-                      _buildSectionHeader("Lokaal *",
-                          actionText: isUnknownLocation ? "Kies Uit Lys" : "Nie Gelys Nie",
-                          onAction: () => setState(() {
-                                isUnknownLocation = !isUnknownLocation;
-                                if (isUnknownLocation) {
-                                  selectedLocation = null;
-                                } else {
-                                  gpsCoords = null;
-                                }
-                              })),
-                      const SizedBox(height: labelGap),
-                      if (isUnknownLocation)
-                        _buildLocationInput()
+                      if (UserSession.hasAdminPrivileges)
+                        Row(
+                          children: [
+                            Expanded(child: _buildRoomDropdown()),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildSimpleDropdown("Status", selectedStatus, ["Ontvang", "Besig", "Voltooi", "Geweier"], (v) => setState(() => selectedStatus = v))),
+                          ],
+                        )
                       else
-                        CustomDropdown<String>(
-                          hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
-                          value: selectedLocation,
-                          items: filteredRooms.map((r) {
-                            final name = r.contains(":") ? r.split(":").last : r;
-                            return DropdownMenuItem(value: r, child: Text(name));
-                          }).toList(),
-                          onChanged: (v) => setState(() => selectedLocation = v),
-                          validator: (v) => v == null ? "Lokaal word vereis" : null,
-                        ),
+                        _buildRoomDropdown(),
 
                       const SizedBox(height: sectionGap),
 
-                      _buildSectionHeader("Beskrywing van Probleem *"),
-                      const SizedBox(height: labelGap),
+                      _buildLabel("Beskrywing van Probleem *"),
+                      const SizedBox(height: 6),
                       _buildEmailStyleDescription(),
-
-                      if (UserSession.hasAdminPrivileges) ...[
-                        const SizedBox(height: sectionGap),
-                        _buildLabel("Prioriteit (Aktiveer na voltooiing)"),
-                        const SizedBox(height: labelGap),
-                        AbsorbPointer(
-                          absorbing: !_canSubmit,
-                          child: Opacity(
-                            opacity: _canSubmit ? 1.0 : 0.5,
-                            child: _buildPrioritySelector(),
-                          ),
-                        ),
-                      ],
 
                       const Spacer(),
                       const SizedBox(height: 30),
@@ -232,22 +194,25 @@ class _NewReportPageState extends State<NewReportPage> {
 
                             if (!_canSubmit) {
                               setState(() => showValidationErrors = true);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
-                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
+                                );
+                              }
                               return;
                             }
 
+                            int? imageId;
+                            if (_photoFile != null) {
+                              imageId = await ImageService.uploadImage(_photoFile!);
+                            }
+
                             int? finalAssetIdInt;
-                            if (!isInvisibleCode) {
+                            if (serialController.text.isNotEmpty) {
                               final asset = await AssetService.getAssetBySerialCode(serialController.text);
-                              if (asset == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Bate met hierdie serial kode nie gevind nie."), backgroundColor: AppColors.errorRed),
-                                );
-                                return;
+                              if (asset != null) {
+                                finalAssetIdInt = int.tryParse(asset.id);
                               }
-                              finalAssetIdInt = int.tryParse(asset.id);
                             }
 
                             final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
@@ -260,27 +225,30 @@ class _NewReportPageState extends State<NewReportPage> {
                             final newReport = Report(
                               id: "0",
                               assetId: finalAssetId,
-                              location: isUnknownLocation ? "1" : roomId,
+                              location: roomId,
                               title: titleController.text.trim(),
                               description: descController.text.trim(),
-                              category: isInvisibleCode ? (selectedCategory ?? "Instandhouding") : "Herstel",
-                              priority: selectedPriority,
-                              phase: "Ontvang",
+                              category: selectedCategory,
+                              priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
+                              phase: UserSession.hasAdminPrivileges ? selectedStatus : "Ontvang",
                               user: UserSession.userId.toString(),
                               timestamp: DateTime.now(),
-                              gpsCoords: gpsCoords,
+                              imageId: imageId,
                             );
 
                             try {
                               final success = await ReportService.addReport(newReport);
-                              if (mounted) {
-                                if (success) {
-                                  NewReportPage.lastSubmissionTime = DateTime.now();
+                              if (!mounted) return;
+                              if (success) {
+                                NewReportPage.lastSubmissionTime = DateTime.now();
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Verslag suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
+                                    const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
                                   );
                                   Navigator.pop(context);
-                                } else {
+                                }
+                              } else {
+                                if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
                                   );
@@ -288,9 +256,11 @@ class _NewReportPageState extends State<NewReportPage> {
                               }
                             } catch (e) {
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
-                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+                                  );
+                                }
                               }
                             }
                           },
@@ -298,7 +268,7 @@ class _NewReportPageState extends State<NewReportPage> {
                             backgroundColor: _canSubmit ? AppColors.gold : Colors.grey[400],
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: const Text("STOOR VERSLAG", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          child: const Text("STOOR FOUTKAARTJIE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
                       ),
                       if (showValidationErrors && !_canSubmit)
@@ -326,92 +296,81 @@ class _NewReportPageState extends State<NewReportPage> {
     return Row(
       children: [
         Expanded(
-          child: _buildCustomTextField(
-            controller: serialController,
-            hint: "Tik Serial Kode of Skandeer...",
-            hasError: showValidationErrors && serialController.text.isEmpty,
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEFBEA),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[400]!),
+            ),
+            child: TextField(
+              controller: serialController,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                hintText: "Tik Serial Kode of Skandeer...",
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 8),
-        _buildScanButton(() async {
-          final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
-          if (scannedCode != null) _handleScanResult(scannedCode);
-        }),
+        InkWell(
+          onTap: () async {
+            final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
+            if (scannedCode != null) {
+              setState(() => serialController.text = scannedCode);
+            }
+          },
+          child: Container(
+            height: 48, width: 48,
+            decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildLocationInput() {
-    if (isUnknownLocation) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFEFBEA),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: (showValidationErrors && gpsCoords == null) ? Colors.red : Colors.grey[400]!),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.location_on, color: gpsCoords != null ? Colors.green : Colors.grey),
-            const SizedBox(width: 10),
-            Text(gpsCoords ?? "GPS Koördinate word vereis", style: TextStyle(fontSize: 13, color: gpsCoords != null ? Colors.black : Colors.grey)),
-          ],
-        ),
-      );
-    }
-
-    return DropdownButtonFormField<String>(
-      initialValue: selectedLocation,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: const Color(0xFFFEFBEA),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 15),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-      ),
-      hint: Text(
-        selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
-        style: const TextStyle(fontSize: 14),
-      ),
+  Widget _buildRoomDropdown() {
+    return SearchableDropdown<String>(
+      label: "Lokaal *",
+      hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
+      value: selectedLocation,
       items: filteredRooms.map((r) {
         final name = r.contains(":") ? r.split(":").last : r;
-        return DropdownMenuItem(value: r, child: Text(name));
+        return SearchableDropdownItem(value: r, label: name);
       }).toList(),
       onChanged: (v) => setState(() => selectedLocation = v),
       validator: (v) => v == null ? "Lokaal word vereis" : null,
     );
   }
 
-  Widget _buildCustomTextField({required TextEditingController controller, required String hint, bool hasError = false}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEFBEA),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: hasError ? Colors.red : Colors.grey[400]!),
-      ),
-      child: TextField(
-        controller: controller,
-        onChanged: (_) => setState(() {}),
-        decoration: InputDecoration(
-          hintText: hint,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  Widget _buildSimpleDropdown(String label, String value, List<String> items, ValueChanged<String> onChanged) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        const SizedBox(height: 6),
+        Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFEFBEA),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.grey[400]!),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              icon: const Icon(Icons.arrow_drop_down, color: AppColors.gold),
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+              onChanged: (v) { if (v != null) onChanged(v); },
+            ),
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildScanButton(VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 48, width: 48,
-        decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
-        child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-      ),
+      ],
     );
   }
 
@@ -458,21 +417,27 @@ class _NewReportPageState extends State<NewReportPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _buildCompactActionButton(
-                  icon: gpsCoords != null ? Icons.location_on : Icons.location_on_outlined,
-                  isActive: gpsCoords != null,
-                  isMandatory: isUnknownLocation && gpsCoords == null && showValidationErrors,
-                  mapScreenshot: mapScreenshot,
+                InkWell(
                   onTap: () async {
-                    bool isFirstTime = gpsCoords == null;
-                    final result = await Navigator.pushNamed(context, '/location', arguments: {'autoConfirm': isFirstTime});
-                    if (result != null && result is Map<String, dynamic>) {
-                      setState(() {
-                        gpsCoords = result['coords'];
-                        mapScreenshot = result['screenshot'];
-                      });
+                    final photo = await CameraService.takePhoto();
+                    if (photo != null) {
+                      setState(() => _photoFile = photo);
                     }
                   },
+                  child: Container(
+                    height: 40, width: 40,
+                    decoration: BoxDecoration(
+                      color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
+                    ),
+                    child: _photoFile != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: Image.file(_photoFile!, fit: BoxFit.cover),
+                          )
+                        : const Icon(Icons.camera_alt, color: Colors.grey, size: 20),
+                  ),
                 ),
               ],
             ),
@@ -482,72 +447,7 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  Widget _buildCompactActionButton({required IconData icon, bool isActive = false, bool isMandatory = false, Uint8List? mapScreenshot, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 40, width: 40,
-        decoration: BoxDecoration(
-          color: (isActive || mapScreenshot != null) ? AppColors.gold.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: isMandatory ? Colors.red : ((isActive || mapScreenshot != null) ? AppColors.gold : Colors.grey[300]!)),
-        ),
-        child: mapScreenshot != null
-            ? ClipRRect(borderRadius: BorderRadius.circular(5), child: Image.memory(mapScreenshot, fit: BoxFit.cover))
-            : Icon(icon, color: isMandatory ? Colors.red : ((isActive || mapScreenshot != null) ? AppColors.gold : Colors.grey[600]), size: 20),
-      ),
-    );
-  }
-
-  Widget _buildPrioritySelector() {
-    final priorities = ["Laag", "Medium", "Hoog"];
-    return Row(
-      children: priorities.map((p) {
-        bool isSelected = selectedPriority == p;
-        Color pColor = p == "Hoog" ? Colors.red : (p == "Medium" ? Colors.orange : Colors.green);
-        return Expanded(
-          child: GestureDetector(
-            onTap: () => setState(() => selectedPriority = p),
-            child: Container(
-              margin: EdgeInsets.only(right: p == "Hoog" ? 0 : 8),
-              height: 40,
-              decoration: BoxDecoration(
-                color: isSelected ? pColor.withValues(alpha: 0.1) : const Color(0xFFFEFBEA),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isSelected ? pColor : Colors.grey[400]!),
-              ),
-              child: Center(
-                child: Text(p, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? pColor : Colors.grey[600])),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, {String? actionText, VoidCallback? onAction}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        if (actionText != null && onAction != null)
-          GestureDetector(onTap: onAction, child: Text(actionText, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
-      ],
-    );
-  }
-
   Widget _buildLabel(String text) {
     return Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14));
-  }
-
-  Widget _buildLabelWithAction(String text, String actionText, VoidCallback onAction) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-        GestureDetector(onTap: onAction, child: Text(actionText, style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline))),
-      ],
-    );
   }
 }

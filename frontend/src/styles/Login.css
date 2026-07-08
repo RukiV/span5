@@ -1,4 +1,14 @@
 /* Login Page Styles */
+
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
 .login-form {
   max-width: 400px;
   margin: 0 auto;
@@ -13,7 +23,7 @@
   padding: 35px;
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  border-top: 5px solid --bruin;
+  border-top: 5px solid var(--bruin);
   width: 100%;
   max-width: 380px;
 }
@@ -43,7 +53,7 @@
 .btn-login {
   width: 100%;
   padding: 12px;
-  background-color: #935e28;
+  background-color: var(--blou);
   color: white;
   border: none;
   border-radius: 5px;
@@ -54,7 +64,7 @@
 }
 
 .btn-login:hover {
-  background-color: #0e1e3b;
+  background-color: var(--bruin);
 }
 
 .divider {
@@ -75,7 +85,7 @@
 .btn-microsoft {
   width: 100%;
   padding: 12px;
-  background-color: #0078d4;
+  background-color: var(--blou);
   color: white;
   border: none;
   border-radius: 5px;
@@ -90,7 +100,7 @@
 }
 
 .btn-microsoft:hover {
-  background-color: #005a9e;
+  background-color: var(--bruin);
 }
 
 .btn-microsoft svg {

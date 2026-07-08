@@ -759,7 +759,6 @@ function WorkOrderPage() {
     return "status-default";
   };
 
-
   // Unieke Terrein Opsies opgebou vanaf kamers
   const uniqueTerreine = [...new Set(rooms.map(r => r.terrein).filter(Boolean))];
   const terreinOptions = uniqueTerreine.map(t => ({ value: t, label: t }));
@@ -802,11 +801,11 @@ function WorkOrderPage() {
   }));
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <div className="page-layout" style={{ display: "flex" }}>
       <Sidebar currentPath="/work-orders" isAdmin={isAdmin} onLogout={logout} />
 
       <div className="main">
@@ -837,6 +836,7 @@ function WorkOrderPage() {
                 <option value="room_id">Lokaal ID</option>
                 <option value="building_id">Gebou ID</option>
                 <option value="location_id">Terrein ID</option>
+                <option value="fault_id">Terrein ID</option>
                 <option value="scheduled">Datum</option>
                 <option value="status">Status</option>
               </select>
@@ -882,6 +882,7 @@ function WorkOrderPage() {
                 <th>Lokaal ID</th>
                 <th>Gebou ID</th>
                 <th>Terrein ID</th>
+                <th>Fault ID</th>
                 <th>Datum</th>
                 <th>Status</th>
                 <th>Aksies</th>
@@ -902,6 +903,7 @@ function WorkOrderPage() {
                     <td>{order.room_id || "-"}</td>
                     <td>{order.building_id || "-"}</td>
                     <td>{order.location_id || "-"}</td>
+                    <td>{order.fault_id || "-"}</td>
                     <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
                     <td>
                       <span className={`status-badge ${getStatusClass(order.job_status)}`}>
@@ -950,7 +952,7 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
-                <span className="close" onClick={handleCloseModal}>&times;</span>
+                <span className="close no-print" onClick={handleCloseModal}>&times;</span>
             </div>
 
             {/* Vorm */}
@@ -992,11 +994,10 @@ function WorkOrderPage() {
                       onChange={(e) => setFormData({...formData, job_type: e.target.value})}
                     >
                       <option value="">Kies...</option>
-                      <option value="maintenance">Onderhoud</option>
-                      <option value="repair">Herstel</option>
-                      <option value="inspection">Inspeksie</option>
-                      <option value="installation">Installasie</option>
-                      <option value="emergency">Nood</option>
+                      <option value="Onderhoud">Onderhoud</option>
+                      <option value="Herstel">Herstel</option>
+                      <option value="Inspeksie">Inspeksie</option>
+                      <option value="Installasie">Installasie</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Status</span> 
@@ -1019,6 +1020,19 @@ function WorkOrderPage() {
                       <option value="Besig">Besig</option>
                       <option value="Voltooid">Voltooid</option>
                       <option value="Gekanselleer">Gekanselleer</option>
+                    </select>
+                  </div>
+                  <div className="mri-fld"><span>Werksoort</span> 
+                    <select 
+                      value={formData.job_type}
+                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="maintenance">Onderhoud</option>
+                      <option value="repair">Herstel</option>
+                      <option value="inspection">Inspeksie</option>
+                      <option value="installation">Installasie</option>
+                      <option value="emergency">Nood</option>
                     </select>
                   </div>
                 </div>
@@ -1182,10 +1196,7 @@ function WorkOrderPage() {
                     </select>
                   </div>
                   <div className="mri-fld"><span>Prioriteit</span> 
-                    <select 
-                      value={formData.job_priority} 
-                      onChange={(e) => setFormData({...formData, job_priority: e.target.value})}
-                    >
+                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
                       <option>Laag</option>
                       <option>Normal</option>
                       <option>Hoog</option>

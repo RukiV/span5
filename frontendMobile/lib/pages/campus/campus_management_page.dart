@@ -1,7 +1,7 @@
 import '../../models/user_session.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
 import 'campus_detail_page.dart';
@@ -14,10 +14,24 @@ class CampusManagementPage extends StatefulWidget {
 }
 
 class _CampusManagementPageState extends State<CampusManagementPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = "";
+
   @override
   void initState() {
     super.initState();
     CampusService.fetchCampuses();
+    _searchController.addListener(() {
+      setState(() {
+        _query = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -27,18 +41,14 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
       body: ValueListenableBuilder<List<Campus>>(
         valueListenable: CampusService.campusesNotifier,
         builder: (context, allCampuses, child) {
-          // ROL-GEBASEERDE DATA FILTRERING
           List<Campus> campuses = allCampuses;
-          if (UserSession.isManager) {
-            campuses = allCampuses.where((c) => c.name == UserSession.userCampus).toList();
-          }
 
           if (campuses.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (UserSession.isAdmin)
+                  if (UserSession.hasAdminPrivileges)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: ElevatedButton.icon(
@@ -65,13 +75,38 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
             );
           }
 
+          final filtered = campuses.where((c) =>
+              c.name.toLowerCase().contains(_query) ||
+              c.address.toLowerCase().contains(_query)
+          ).toList();
+
           return RefreshIndicator(
             onRefresh: () => CampusService.fetchCampuses(),
             child: Column(
               children: [
-                if (UserSession.isAdmin)
+                Container(
+                  color: AppColors.navy,
+                  padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
+                  child: TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: "Soek terreine...",
+                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                      fillColor: Colors.white.withValues(alpha: 30 / 255),
+                      filled: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(30),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                if (UserSession.hasAdminPrivileges)
                   Padding(
-                    padding: const EdgeInsets.all(15.0),
+                    padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
                     child: SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
@@ -94,9 +129,9 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 15),
-                    itemCount: campuses.length,
+                    itemCount: filtered.length,
                     itemBuilder: (context, index) {
-                      final campus = campuses[index];
+                      final campus = filtered[index];
                       return Card(
                         elevation: 2,
                         margin: const EdgeInsets.only(bottom: 15),
