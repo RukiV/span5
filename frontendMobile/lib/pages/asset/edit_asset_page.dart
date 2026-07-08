@@ -167,6 +167,17 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  if (UserSession.hasAdminPrivileges)
+                    _buildCustomTextField(
+                      label: "Bate Kode",
+                      hint: "",
+                      initialValue: widget.asset.id,
+                      readOnly: true,
+                      onChanged: (_) {},
+                    ),
+                  if (UserSession.hasAdminPrivileges)
+                    const SizedBox(height: 20),
+
                   const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   Checkbox(
                     value: isFixed,
