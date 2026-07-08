@@ -32,7 +32,6 @@ class _NewReportPageState extends State<NewReportPage> {
   String? selectedLocation;
   String selectedCategory = "Instandhouding";
   String selectedPriority = "Medium";
-  String selectedStatus = "Ontvang";
   File? _photoFile;
   bool showValidationErrors = false;
 
@@ -156,16 +155,7 @@ class _NewReportPageState extends State<NewReportPage> {
 
                       const SizedBox(height: sectionGap),
 
-                      if (UserSession.hasAdminPrivileges)
-                        Row(
-                          children: [
-                            Expanded(child: _buildRoomDropdown()),
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildSimpleDropdown("Status", selectedStatus, ["Ontvang", "Besig", "Voltooi", "Geweier"], (v) => setState(() => selectedStatus = v))),
-                          ],
-                        )
-                      else
-                        _buildRoomDropdown(),
+                      _buildRoomDropdown(),
 
                       const SizedBox(height: sectionGap),
 
@@ -230,7 +220,7 @@ class _NewReportPageState extends State<NewReportPage> {
                               description: descController.text.trim(),
                               category: selectedCategory,
                               priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
-                              phase: UserSession.hasAdminPrivileges ? selectedStatus : "Ontvang",
+                              phase: "Ontvang",
                               user: UserSession.userId.toString(),
                               timestamp: DateTime.now(),
                               imageId: imageId,

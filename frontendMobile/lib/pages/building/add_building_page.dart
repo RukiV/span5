@@ -16,8 +16,6 @@ class AddBuildingPage extends StatefulWidget {
 class _AddBuildingPageState extends State<AddBuildingPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _streetNumController = TextEditingController();
-  final _streetNameController = TextEditingController();
   String _type = 'other';
   bool _isLoading = false;
 
@@ -32,8 +30,6 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _streetNumController.dispose();
-    _streetNameController.dispose();
     super.dispose();
   }
 
@@ -109,22 +105,6 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                     )).toList(),
                     onChanged: (v) => setState(() => _type = v!),
                   ),
-                  const SizedBox(height: 20),
-
-                  const Text("Straatnommer (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNumController,
-                    decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-
-                  const Text("Straatnaam (opsioneel)", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNameController,
-                    decoration: _inputDecoration(""),
-                  ),
                   const SizedBox(height: 32),
 
                   Row(
@@ -143,8 +123,6 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                               id: 0,
                               name: _nameController.text,
                               type: _type,
-                              streetNum: _streetNumController.text,
-                              streetName: _streetNameController.text,
                               locationId: widget.campus.id,
                             );
                             final success = await CampusService.addBuilding(building);
