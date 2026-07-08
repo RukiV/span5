@@ -34,6 +34,7 @@ const DashboardPage = () => {
   const logout = useLogout();
   const [recentRepairs, setRecentRepairs] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
+  const [predictionSummary, setPredictionSummary] = useState({ total: 0, attention: 0, replacement: 0, overdue: 0 });
 
   const formatActivityTime = (value) => {
     if (!value) return 'Onlangs';
@@ -100,9 +101,10 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchRecentData = async () => {
       try {
-        const [workOrdersResponse, auditResponse] = await Promise.all([
+        const [workOrdersResponse, auditResponse, predictionsResponse] = await Promise.all([
           workOrdersAPI.getAll(),
           auditsAPI.getAll(),
+          apiClient.get('/predictions'),
         ]);
 
         const orders = Array.isArray(workOrdersResponse?.data) ? workOrdersResponse.data : [];
@@ -162,6 +164,14 @@ const DashboardPage = () => {
           .slice(0, 5);
 
         setActivityItems(activities);
+
+        const preds = Array.isArray(predictionsResponse?.data) ? predictionsResponse.data : [];
+        setPredictionSummary({
+          total: preds.length,
+          attention: preds.filter(p => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested).length,
+          replacement: preds.filter(p => p.replacement_suggested).length,
+          overdue: preds.filter(p => p.maintenance_overdue).length,
+        });
       } catch (error) {
         console.error('Fout by laai van paneelbord-data:', error);
         setRecentRepairs([]);
@@ -281,6 +291,31 @@ const DashboardPage = () => {
               <h4>Nuwe Foutkaartjies</h4>
               <div className="stat-number">8</div>
               <div className="stat-change negative">-3% van verlede maand</div>
+            </div>
+          </div>
+
+          {/* Voorspellings opsomming */}
+          <div className="stats-grid" style={{ marginBottom: '20px' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #c97c3c' }}>
+              <h4>Bate Voorspellings</h4>
+              <div className="stat-number">{predictionSummary.total}</div>
+              <div className="stat-change" style={{ color: predictionSummary.attention > 0 ? '#b91c1c' : '#065f46' }}>
+                {predictionSummary.attention} benodig aandag
+              </div>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #b91c1c' }}>
+              <h4>Vervanging Voorgestel</h4>
+              <div className="stat-number">{predictionSummary.replacement}</div>
+              <Link to="/predictions" className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>
+                Bekyk voorspellings →
+              </Link>
+            </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #b91c1c' }}>
+              <h4>Onderhoud Agterstallig</h4>
+              <div className="stat-number">{predictionSummary.overdue}</div>
+              <Link to="/predictions" className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>
+                Bekyk besonderhede →
+              </Link>
             </div>
           </div>
 

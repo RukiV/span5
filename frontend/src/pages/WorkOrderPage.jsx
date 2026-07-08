@@ -493,21 +493,13 @@ function WorkOrderPage() {
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_schedule_type: formData.job_schedule_type || "enkel",
-        asset_id: null,
-        room_id: null,
-        building_id: null,
-        location_id: null,
-        fault_id: null,
+        asset_id: formData.asset_id ? Number(formData.asset_id) : null,
+        room_id: formData.room_id ? Number(formData.room_id) : null,
+        building_id: formData.building_id ? Number(formData.building_id) : null,
+        location_id: formData.location_id ? Number(formData.location_id) : null,
+        fault_id: formData.fault_id ? Number(formData.fault_id) : null,
         job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
       };
-
-      if (connectionType === "asset" && connectionTargetId) {
-        payload.asset_id = Number(connectionTargetId);
-      } else if (connectionType === "room" && connectionTargetId) {
-        payload.room_id = Number(connectionTargetId);
-      } else if (connectionType === "fault" && connectionTargetId) {
-        payload.fault_id = Number(connectionTargetId);
-      }
 
       const savedWorkOrderResponse = isEditing
         ? await workOrdersAPI.update(editingId, payload)
@@ -1010,7 +1002,16 @@ function WorkOrderPage() {
                   <div className="mri-fld"><span>Status</span> 
                     <select 
                       value={formData.job_status}
-                      onChange={(e) => setFormData({...formData, job_status: e.target.value})}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          job_status: newStatus,
+                          completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
+                            ? new Date().toISOString().split('T')[0]
+                            : prev.completed_date,
+                        }));
+                      }}
                     >
                       <option value="">Kies...</option>
                       <option value="Wag">Wag</option>
