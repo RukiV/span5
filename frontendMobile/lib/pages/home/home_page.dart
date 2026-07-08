@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import '../reporting/reporting_page.dart';
-import '../assets/assets_page.dart';
-import '../assets/stock_page.dart';
-import '../admin/campus_management_page.dart';
-import '../admin/manage_rooms_page.dart';
-import '../admin/buildings_list_page.dart';
+import '../asset/asset_page.dart';
+import '../stock/stock_page.dart';
+import '../campus/campus_management_page.dart';
+import '../rooms/manage_rooms_page.dart';
+import '../building/buildings_list_page.dart';
+import '../contractor/contractor_management_page.dart';
 import '../contractor/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
-import 'reports_page.dart';
 import '../../models/user_session.dart';
 import '../../core/app_colors.dart';
-
 import '../../core/api_client.dart';
-import '../../core/asset_service.dart';
-import '../../core/campus_service.dart';
-import '../../core/report_service.dart';
+import '../../services/asset_service.dart';
+import '../../services/campus_service.dart';
+import '../../services/report_service.dart';
+import '../../services/contractor_service.dart';
+import '../../services/quote_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -26,7 +27,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _selectedIndex = 0;
+  String _selectedTitle = "Paneelbord";
+  final Map<String, bool> _expandedStates = {};
 
   @override
   void initState() {
@@ -36,11 +38,12 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _initialDataSync() async {
     try {
-      // Laai data van die backend af wanneer die app oopmaak
       await Future.wait([
         CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
+        ContractorService.fetchContractors(),
+        QuoteService.fetchQuotes(),
       ]);
     } catch (e) {
       if (mounted) {
@@ -54,8 +57,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Bereken die beskikbare items op grond van rol
   List<Map<String, dynamic>> _getVisibleMenu() {
+    // 1. STUDENTE: Slegs foutkaartjies
     if (UserSession.isStudent) {
       return [
         {
@@ -66,114 +69,134 @@ class _HomePageState extends State<HomePage> {
       ];
     }
 
-    return [
-      {
-        'title': 'Paneelbord',
-        'icon': Icons.dashboard_outlined,
-        'page': DashboardPage(onTabRequested: (index) {
-          setState(() => _selectedIndex = index);
-        }),
-      },
-      {
-        'title': 'Bates & Voorraad',
-        'icon': Icons.inventory_2_outlined,
-        'isExpandable': true,
-        'children': [
-          {
-            'title': 'Bates',
-            'icon': Icons.inventory_2_outlined,
-            'page': const AssetsPage(),
-          },
-          {
-            'title': 'Voorraad',
-            'icon': Icons.construction_outlined,
-            'page': const StockPage(),
-          },
-        ],
-      },
-      {
-        'title': 'Lokale & Terreine',
-        'icon': Icons.map_outlined,
-        'isExpandable': true,
-        'children': [
-          {
-            'title': 'Terreine',
-            'icon': Icons.map_outlined,
-            'page': const CampusManagementPage(),
-          },
-          {
-            'title': 'Geboue',
-            'icon': Icons.business_outlined,
-            'page': const BuildingsListPage(),
-          },
-          {
-            'title': 'Lokale',
-            'icon': Icons.room_outlined,
-            'page': const ManageRoomsPage(),
-          },
-        ],
-      },
-      {
-        'title': 'Foutkaartjies',
-        'icon': Icons.report_gmailerrorred_outlined,
-        'page': const ReportingPage(),
-      },
-      {
-        'title': 'Kontrakteurs',
-        'icon': Icons.engineering_outlined,
-        'page': JobCardsPage(),
-      },
-      {
-        'title': 'Werksopdragte',
-        'icon': Icons.assignment_outlined,
-        'page': const WorksAssignmentsPage(),
-      },
-      {
-        'title': 'Kalender',
-        'icon': Icons.calendar_today_outlined,
-        'page': const CalendarPage(),
-      },
-      {
-        'title': 'Verslae',
-        'icon': Icons.analytics_outlined,
-        'page': const ReportsPage(),
-      },
-    ];
+    // 2. KONTRAKTEURS: Slegs take en kalender
+    if (UserSession.isContractor) {
+      return [
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.engineering_outlined,
+          'page': const JobCardsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
+    }
+
+    // 3. ADMIN & BESTUURDERS: Volle navigasie
+    if (UserSession.isAdmin || UserSession.isManager) {
+      return [
+        {
+          'title': 'Paneelbord',
+          'icon': Icons.dashboard_outlined,
+          'page': DashboardPage(onTabRequested: (index) {
+            final titles = [
+              "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
+              "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
+            ];
+            if (index >= 0 && index < titles.length) {
+              setState(() => _selectedTitle = titles[index]);
+            }
+          }),
+        },
+        {
+          'title': 'Bates & Voorraad',
+          'icon': Icons.inventory_2_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Bates',
+              'icon': Icons.inventory_2_outlined,
+              'page': const AssetsPage(),
+            },
+            {
+              'title': 'Voorraad',
+              'icon': Icons.construction_outlined,
+              'page': const StockPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Lokale & Terreine',
+          'icon': Icons.map_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Terreine',
+              'icon': Icons.map_outlined,
+              'page': const CampusManagementPage(),
+            },
+            {
+              'title': 'Geboue',
+              'icon': Icons.business_outlined,
+              'page': const BuildingsListPage(),
+            },
+            {
+              'title': 'Lokale',
+              'icon': Icons.room_outlined,
+              'page': const ManageRoomsPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Foutkaartjies',
+          'icon': Icons.report_gmailerrorred_outlined,
+          'page': const ReportingPage(),
+        },
+        {
+          'title': 'Kontrakteurs',
+          'icon': Icons.engineering_outlined,
+          'page': const ContractorManagementPage(),
+        },
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.assignment_outlined,
+          'page': const WorksAssignmentsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
+    }
+
+    return []; // Beveiliging as geen rol pas nie
   }
 
-  // Ons stoor watter dropdowns oop is
-  final Map<String, bool> _expandedStates = {};
+  List<Map<String, dynamic>> _getFlatMenu() {
+    final menu = _getVisibleMenu();
+    final List<Map<String, dynamic>> flat = [];
+    for (var item in menu) {
+      if (item['isExpandable'] == true) {
+        for (var child in item['children']) {
+          flat.add(child);
+        }
+      } else {
+        flat.add(item);
+      }
+    }
+    return flat;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final menu = _getVisibleMenu();
-
-    // Lys van alle plat items (insluitend kinders as hulle oop is)
-    final List<Map<String, dynamic>> flatMenu = [];
-    final List<int> parentIndices = [];
-
-    for (var item in menu) {
-      flatMenu.add(item);
-      parentIndices.add(flatMenu.length - 1);
-      
-      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
-        for (var child in item['children']) {
-          var childCopy = Map<String, dynamic>.from(child);
-          childCopy['isSubItem'] = true;
-          flatMenu.add(childCopy);
-        }
-      }
-    }
-    
-    if (_selectedIndex >= flatMenu.length) {
-      _selectedIndex = 0;
-    }
+    final flatMenu = _getFlatMenu();
+    final activeItem = flatMenu.firstWhere(
+      (item) => item['title'] == _selectedTitle,
+      orElse: () => flatMenu.first,
+    );
 
     String roleTitle = "";
     if (UserSession.isAdmin) {
       roleTitle = "Admin Mode";
-    } else if (UserSession.isManager) roleTitle = "Bestuurder: ${UserSession.userCampus}";
-    else if (UserSession.isContractor) roleTitle = "Kontrakteur";
+    } else if (UserSession.isManager) {
+      roleTitle = "Bestuurder: ${UserSession.userCampus}";
+    } else if (UserSession.isContractor) {
+      roleTitle = "Kontrakteur";
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -186,7 +209,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         title: Text(
-            "FBS - ${flatMenu[_selectedIndex]['title']}",
+            "FBS - ${activeItem['title']}",
             style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1, color: Colors.white)
         ),
         centerTitle: false,
@@ -215,20 +238,14 @@ class _HomePageState extends State<HomePage> {
             ),
 
             Expanded(
-              child: ListView.builder(
+              child: ListView(
                 padding: EdgeInsets.zero,
-                itemCount: menu.length,
-                itemBuilder: (context, index) {
-                  final item = menu[index];
+                children: _getVisibleMenu().map((item) {
                   if (item['isExpandable'] == true) {
                     return _buildExpandableItem(item);
                   }
-                  return _drawerItem(
-                    item['icon'], 
-                    item['title'], 
-                    _getFlatIndex(flatMenu, item['title']),
-                  );
-                },
+                  return _drawerItem(item['icon'], item['title']);
+                }).toList(),
               ),
             ),
 
@@ -240,7 +257,8 @@ class _HomePageState extends State<HomePage> {
               onTap: () async {
                 await ApiClient().clearToken();
                 UserSession.clear();
-                if (mounted) {
+                if (!mounted) return;
+                if (context.mounted) {
                   Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
                 }
               },
@@ -250,22 +268,20 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      body: flatMenu[_selectedIndex]['page'],
+      body: activeItem['page'],
     );
-  }
-
-  int _getFlatIndex(List<Map<String, dynamic>> flatMenu, String title) {
-    return flatMenu.indexWhere((element) => element['title'] == title);
   }
 
   Widget _buildExpandableItem(Map<String, dynamic> item) {
     bool isExpanded = _expandedStates[item['title']] ?? false;
+    bool containsSelected = (item['children'] as List).any((child) => child['title'] == _selectedTitle);
     
     return Column(
       children: [
         ListTile(
-          leading: Icon(item['icon'], color: Colors.white70),
-          title: Text(item['title'], style: const TextStyle(color: Colors.white)),
+          leading: Icon(item['icon'], color: containsSelected ? AppColors.gold : Colors.white70),
+          title: Text(item['title'], 
+            style: TextStyle(color: containsSelected ? AppColors.gold : Colors.white, fontWeight: containsSelected ? FontWeight.bold : FontWeight.normal)),
           trailing: Icon(
             isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
             color: Colors.white54,
@@ -278,38 +294,19 @@ class _HomePageState extends State<HomePage> {
         ),
         if (isExpanded)
           ...item['children'].map<Widget>((child) {
-            final flatMenu = _getFlatMenu();
-            int idx = flatMenu.indexWhere((e) => e['title'] == child['title']);
-            return _drawerItem(child['icon'], child['title'], idx, isSubItem: true);
+            return _drawerItem(child['icon'], child['title'], isSubItem: true);
           }).toList(),
       ],
     );
   }
 
-  List<Map<String, dynamic>> _getFlatMenu() {
-    final menu = _getVisibleMenu();
-    final List<Map<String, dynamic>> flatMenu = [];
-    for (var item in menu) {
-      flatMenu.add(item);
-      if (item['isExpandable'] == true && (_expandedStates[item['title']] ?? false)) {
-        for (var child in item['children']) {
-          var childCopy = Map<String, dynamic>.from(child);
-          childCopy['isSubItem'] = true;
-          flatMenu.add(childCopy);
-        }
-      }
-    }
-    return flatMenu;
-  }
-
-  // Helper om spyskaart items te bou met die regte kleure
-  Widget _drawerItem(IconData icon, String title, int index, {bool isSubItem = false}) {
-    bool isSelected = _selectedIndex == index;
+  Widget _drawerItem(IconData icon, String title, {bool isSubItem = false}) {
+    bool isSelected = _selectedTitle == title;
 
     return ListTile(
       contentPadding: EdgeInsets.only(left: isSubItem ? 40.0 : 16.0),
-      selected: isSelected,
-      selectedTileColor: AppColors.gold.withValues(alpha: 0.2),
+      // Verwyder die background highlight soos versoek
+      selected: false, 
       leading: Icon(
           icon,
           color: isSelected ? AppColors.gold : (isSubItem ? Colors.white54 : Colors.white70),
@@ -324,10 +321,9 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       onTap: () {
-        setState(() => _selectedIndex = index);
-        Navigator.pop(context); // Maak drawer toe
+        setState(() => _selectedTitle = title);
+        Navigator.pop(context);
       },
     );
   }
-
 }

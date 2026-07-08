@@ -12,6 +12,16 @@ from ..models.role import Role
 from ..models.user import User
 from ..models.audit import Auditlog
 
+from ..models.image import ImageAsset, ImageBlob
+
+def generate_mock_image_bytes(color_hex: str) -> bytes:
+    """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
+    so your BYTEA database fields contain authentic image data structures.
+    """
+    # Base64 decoded transparent pixel sequence used as an authentic fallback bytes array
+    return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+
+
 def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
@@ -126,10 +136,45 @@ def _get_or_create_assettype(session: Session, name: str, avg: int | None = None
     session.refresh(assettype)
     return assettype
 
+# 2. ADDED HELPER: New method to query or persist unique image records into your standalone cache table
+def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes) -> ImageAsset:
+    """Finds an existing image by name, or saves a new one with its isolated data blob."""
+    image = session.exec(select(ImageAsset).where(ImageAsset.filename == filename)).first()
+    if image:
+        return image
 
-def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, status: AssetStatus, is_outdoor: bool, room_id: int | None, assettype_id: int, created_dt: datetime | None = None) -> Asset:
+    blob_data = ImageBlob(file_bytes=raw_data)
+    image = ImageAsset(
+        filename=filename,
+        mime_type=mime_type,
+        size_bytes=len(raw_data),
+        file_blob=blob_data
+    )
+    session.add(image)
+    session.commit()
+    session.refresh(image)
+    return image
+
+
+def _get_or_create_asset(
+    session: Session,
+    name: str,
+    brand: str,
+    serial: str,
+    status: AssetStatus,
+    is_outdoor: bool,
+    room_id: int | None,
+    assettype_id: int,
+    created_dt: datetime | None = None,
+    image_id: Optional[int] = None,
+) -> Asset:
     asset = session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
     if asset:
+        if image_id and asset.image_id != image_id:
+            asset.image_id = image_id
+            session.add(asset)
+            session.commit()
+            session.refresh(asset)
         return asset
 
     asset = Asset(
@@ -141,6 +186,7 @@ def _get_or_create_asset(session: Session, name: str, brand: str, serial: str, s
         room_id=room_id,
         assettype_id=assettype_id,
         asset_created_datetime=created_dt or datetime.utcnow(),
+        image_id=image_id,
     )
     session.add(asset)
     session.commit()
@@ -520,8 +566,20 @@ def seed_data():
 
         now = datetime.utcnow()
 
+        # 1. Define your mock image bytes
+        mock_bytes = generate_mock_image_bytes("FF0000")
+
+        # 2. Use the helper function to save the image first and extract a valid ID
+        img1 = _get_or_create_image(
+            session=session,
+            filename="hq_projector_ceiling_mount.png",
+            mime_type="image/png",
+            raw_data=mock_bytes
+        )
+
+        # 3. Pass the valid image_id to your asset creator
         _get_or_create_asset(
-            session,
+            session=session,
             name="Handdroër",
             brand="Dyson",
             serial="AK-MT000014",
@@ -530,6 +588,7 @@ def seed_data():
             room_id=room1.room_id,
             assettype_id=type_elek.assettype_id,
             created_dt=now - timedelta(days=540),
+            image_id=img1.image_id,
         )
 
         _get_or_create_asset(
@@ -596,7 +655,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT000010",
+            serial="AK-MT003767",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -608,7 +667,7 @@ def seed_data():
             session,
             name="Tafel",
             brand="Barker Street",
-            serial="AK-MT000011",
+            serial="AK-MT003701",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,

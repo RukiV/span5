@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 
 class EditCampusPage extends StatefulWidget {
@@ -23,12 +23,11 @@ class _EditCampusPageState extends State<EditCampusPage> {
   @override
   void initState() {
     super.initState();
-    final parts = widget.campus.address.split(' ');
     _nameController = TextEditingController(text: widget.campus.name);
     _typeController = TextEditingController(text: widget.campus.code);
-    _streetNumController = TextEditingController(text: parts.isNotEmpty ? parts[0] : "");
-    _streetNameController = TextEditingController(text: parts.length > 1 ? parts.skip(1).join(' ') : "");
-    _zipIdController = TextEditingController(text: "1"); // Default
+    _streetNumController = TextEditingController(text: widget.campus.streetNum);
+    _streetNameController = TextEditingController(text: widget.campus.streetName);
+    _zipIdController = TextEditingController(text: widget.campus.zipcodeId.toString());
   }
 
   @override
@@ -41,13 +40,11 @@ class _EditCampusPageState extends State<EditCampusPage> {
     super.dispose();
   }
 
-  InputDecoration _inputDecoration(String label) {
+  InputDecoration _inputDecoration() {
     return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: Colors.grey.shade300),
@@ -58,7 +55,25 @@ class _EditCampusPageState extends State<EditCampusPage> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: AppColors.gold, width: 2),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: AppColors.errorRed),
+      ),
+    );
+  }
+
+  Widget _buildFieldLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.navy,
+          fontSize: 13,
+        ),
       ),
     );
   }
@@ -71,7 +86,9 @@ class _EditCampusPageState extends State<EditCampusPage> {
     final updatedCampus = widget.campus.copyWith(
       name: _nameController.text,
       code: _typeController.text,
-      address: "${_streetNumController.text} ${_streetNameController.text}".trim(),
+      streetNum: _streetNumController.text,
+      streetName: _streetNameController.text,
+      zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
     );
 
     final success = await CampusService.updateCampus(updatedCampus);
@@ -79,7 +96,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
     if (mounted) {
       setState(() => _isSaving = false);
       if (success) {
-        Navigator.pop(context);
+        Navigator.pop(context, true); // Stuur true terug vir verfrissing
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Terrein suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
         );
@@ -94,7 +111,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // Donker agtergrond soos in voorbeeld
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text("Wysig Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
@@ -106,12 +123,19 @@ class _EditCampusPageState extends State<EditCampusPage> {
       ),
       body: Center(
         child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Container(
-            margin: const EdgeInsets.all(20),
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
             ),
             child: Form(
               key: _formKey,
@@ -119,62 +143,87 @@ class _EditCampusPageState extends State<EditCampusPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  _buildFieldLabel("Naam"),
                   TextFormField(
                     controller: _nameController,
-                    decoration: _inputDecoration(""),
+                    decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
+                  
+                  _buildFieldLabel("Tipe / Kode"),
                   TextFormField(
                     controller: _typeController,
-                    decoration: _inputDecoration(""),
+                    decoration: _inputDecoration(),
+                    validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNumController,
-                    decoration: _inputDecoration(""),
+                  const SizedBox(height: 16),
+
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFieldLabel("Nr"),
+                            TextFormField(
+                              controller: _streetNumController,
+                              decoration: _inputDecoration(),
+                              validator: (v) => v!.isEmpty ? "Vereis" : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildFieldLabel("Straatnaam"),
+                            TextFormField(
+                              controller: _streetNameController,
+                              decoration: _inputDecoration(),
+                              validator: (v) => v!.isEmpty ? "Vereis" : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNameController,
-                    decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text("Poskode ID", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Poskode ID"),
                   TextFormField(
                     controller: _zipIdController,
-                    decoration: _inputDecoration(""),
+                    decoration: _inputDecoration(),
                     keyboardType: TextInputType.number,
+                    validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 32),
+                  
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
                         onPressed: _isSaving ? null : _save,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold, // Bruinagtige kleur soos in prent
+                          backgroundColor: AppColors.gold,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 15),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          elevation: 0,
                         ),
                         child: _isSaving
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("Opdateer"),
+                            : const Text("OPDATEER", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
                       ),
                     ],
                   ),

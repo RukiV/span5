@@ -1,10 +1,11 @@
 import '../../widgets/custom_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
-import '../../core/asset_service.dart';
+import '../../services/asset_service.dart';
 import '../../models/user_session.dart';
 
 class NewAssetPage extends StatefulWidget {
@@ -20,6 +21,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
   // Veranderlikes wat voorheen ontbreek het:
   String name = "";
   String serialCode = "";
+  String brand = "";
+  String assetCode = "";
   bool isFixed = false;
   String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
   final List<String> categories = ["Meubels", "IT Voorraad", "Elektronika", "Kombuis", "Ander"];
@@ -153,6 +156,22 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  _buildCustomTextField(
+                    label: "Merk",
+                    hint: "",
+                    onChanged: (v) => brand = v,
+                  ),
+                  const SizedBox(height: 20),
+
+                  if (UserSession.hasAdminPrivileges)
+                    _buildCustomTextField(
+                      label: "Bate Kode",
+                      hint: "Laat leeg vir outomaties",
+                      onChanged: (v) => assetCode = v,
+                    ),
+                  if (UserSession.hasAdminPrivileges)
+                    const SizedBox(height: 20),
+
                   const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   Checkbox(
                     value: isFixed,
@@ -163,14 +182,12 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
-                      return CustomDropdown<String>(
+                      return SearchableDropdown<String>(
                         label: "Kampus",
-                        hint: "",
+                        hint: "Kies 'n kampus",
                         value: selectedCampus,
                         items: campuses
-                            .map((c) => DropdownMenuItem(
-                                value: c.name,
-                                child: Text(c.name, style: const TextStyle(fontSize: 14))))
+                            .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
                             .toList(),
                         onChanged: (v) {
                           setState(() {
@@ -179,19 +196,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                             selectedLocation = null;
                           });
                         },
+                        validator: (v) => (v == null) ? "Vereis" : null,
                       );
                     },
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Gebou",
-                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "",
+                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
                     value: selectedBuilding,
                     items: _availableBuildings
-                        .map((b) => DropdownMenuItem(
-                            value: b,
-                            child: Text(b, style: const TextStyle(fontSize: 14))))
+                        .map((b) => SearchableDropdownItem(value: b, label: b))
                         .toList(),
                     onChanged: (v) {
                       setState(() {
@@ -199,20 +215,20 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         selectedLocation = null;
                       });
                     },
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
-                  CustomDropdown<String>(
+                  SearchableDropdown<String>(
                     label: "Lokaal",
-                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "",
+                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
                     value: selectedLocation,
                     items: availableRooms.map((r) {
                       final name = r.contains(":") ? r.split(":").last : r;
-                      return DropdownMenuItem(
-                          value: r,
-                          child: Text(name, style: const TextStyle(fontSize: 14)));
+                      return SearchableDropdownItem(value: r, label: name);
                     }).toList(),
-                    onChanged: (v) => setState(() => selectedLocation = v!),
+                    onChanged: (v) => setState(() => selectedLocation = v),
+                    validator: (v) => (v == null) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
@@ -223,7 +239,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     items: [
                       {"value": "active", "label": "Aktief"},
                       {"value": "maintenance", "label": "Onderhoud"},
-                      {"value": "decommissioned", "label": "Afgedank"},
+                      {"value": "retired", "label": "Afgedank"},
+                      {"value": "inactive", "label": "Onaktief"},
                     ].map((s) => DropdownMenuItem(
                       value: s["value"] as String, 
                       child: Text(s["label"] as String)
@@ -244,20 +261,25 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
                             final newAsset = Asset(
-                              id: AssetService.generateUniqueId(category, selectedCampus ?? "GEN"),
+                              id: assetCode.isNotEmpty && UserSession.hasAdminPrivileges
+                                  ? assetCode
+                                  : AssetService.generateUniqueId(category, selectedCampus ?? "GEN"),
                               serialCode: serialCode,
                               name: name,
+                              brand: brand,
                               category: category,
+                              assetTypeId: Asset.getCategoryId(category),
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               campus: selectedCampus ?? "",
-                              purchaseDate: DateTime.now(),
-                              campusStartDate: DateTime.now(),
                             );
                             
                             final success = await AssetService.addAsset(newAsset);
-                            if (mounted && success) {
-                              Navigator.pop(context);
+                            if (!mounted) return;
+                            if (success) {
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
                             }
                           }
                         },

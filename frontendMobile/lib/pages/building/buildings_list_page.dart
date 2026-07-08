@@ -1,12 +1,12 @@
 import '../../models/user_session.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/campus_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
 import 'add_building_page.dart';
 import 'edit_building_page.dart';
-import 'manage_rooms_page.dart';
+import '../rooms/manage_rooms_page.dart';
 
 class BuildingsListPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -33,7 +33,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   }
 
   void _loadInitialCampus() {
-    if (UserSession.isAdmin) {
+    if (UserSession.hasAdminPrivileges) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {
         _selectedCampus = CampusService.campusesNotifier.value.first;
       }
@@ -74,7 +74,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (UserSession.isAdmin && _selectedCampus == null) {
+          if (UserSession.hasAdminPrivileges && _selectedCampus == null) {
             _selectedCampus = campuses.first;
           }
 
@@ -85,7 +85,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
 
           return Column(
             children: [
-              if (UserSession.isAdmin) ...[
+              if (UserSession.hasAdminPrivileges) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                   child: Container(
@@ -123,7 +123,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 ),
               ],
 
-              if (UserSession.isAdmin)
+              if (UserSession.hasAdminPrivileges)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SizedBox(
@@ -190,7 +190,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (UserSession.isAdmin) ...[
+                                      if (UserSession.hasAdminPrivileges) ...[
                                         IconButton(
                                           icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
                                           onPressed: () async {
@@ -223,7 +223,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                     );
                                   },
                                 ),
-                                if (roomCount > 0 && UserSession.isAdmin)
+                                if (roomCount > 0 && UserSession.hasAdminPrivileges)
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(15, 0, 15, 10),
                                     child: SizedBox(

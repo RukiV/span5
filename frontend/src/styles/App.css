@@ -282,24 +282,32 @@
   border-radius: 5px 0px 0px 5px;
 }
 
-.dropdown-content{
+.dropdown-content, .dropdown-content2{
   display: none;
   position: absolute;
   min-width: 160px;
   text-align: center;
   z-index: 1;
   left: 250px;
-  bottom: -30px;
+  
  
 }
 
-.dropdown-content a {
+.dropdown-content {
+  bottom: -60px;
+}
+
+.dropdown-content2{
+  bottom: -30px;
+}
+
+.dropdown-content a,.dropdown-content2 a {
   display: block;
   border-radius: 0px 5px 5px 0px !important;
   background-color: var(--blou);
 }
 
-.dropdown:hover .dropdown-content {display: block;}
+.dropdown:hover .dropdown-content, .dropdown:hover .dropdown-content2  {display: block;}
 
 /* Kode vir arrow vir dropdown*/
 .sidebar ul li.dropdown .dropdown-trigger {

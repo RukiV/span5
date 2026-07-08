@@ -15,7 +15,7 @@ function Sidebar({ currentPath, isAdmin, onLogout }) {
           <div className="dropdown-trigger">
             <span>Bates & Voorraad</span>
           </div>
-          <div className="dropdown-content">
+          <div className="dropdown-content2">
             <li><Link to="/assets" style={isActive('/assets')}>Bates</Link></li>
             <li><Link to="/stock" style={isActive('/stock')}>Voorraad</Link></li>
           </div>

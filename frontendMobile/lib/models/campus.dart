@@ -2,10 +2,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'building.dart';
 
 class Campus {
-  final String id;
+  final int id;
   final String name;
   final String code;
-  final String address;
+  final String streetNum;
+  final String streetName;
+  final int zipcodeId;
   final LatLng location;
   final double radius;
   final String? imageAsset;
@@ -15,18 +17,24 @@ class Campus {
     required this.id,
     required this.name,
     required this.code,
-    required this.address,
+    required this.streetNum,
+    required this.streetName,
+    this.zipcodeId = 1,
     required this.location,
     this.radius = 110,
     this.imageAsset,
     this.buildings = const [],
   });
 
+  String get address => "$streetNum $streetName".trim();
+
   Campus copyWith({
-    String? id,
+    int? id,
     String? name,
     String? code,
-    String? address,
+    String? streetNum,
+    String? streetName,
+    int? zipcodeId,
     LatLng? location,
     double? radius,
     String? imageAsset,
@@ -36,7 +44,9 @@ class Campus {
       id: id ?? this.id,
       name: name ?? this.name,
       code: code ?? this.code,
-      address: address ?? this.address,
+      streetNum: streetNum ?? this.streetNum,
+      streetName: streetName ?? this.streetName,
+      zipcodeId: zipcodeId ?? this.zipcodeId,
       location: location ?? this.location,
       radius: radius ?? this.radius,
       imageAsset: imageAsset ?? this.imageAsset,
@@ -47,16 +57,18 @@ class Campus {
   Map<String, dynamic> toJson() => {
     'location_name': name,
     'location_type': code,
-    'location_streetnum': address.split(' ').first,
-    'location_streetname': address.split(' ').skip(1).join(' '),
-    'zipcode_id': 1,
+    'location_streetnum': streetNum,
+    'location_streetname': streetName,
+    'zipcode_id': zipcodeId,
   };
 
   factory Campus.fromJson(Map<String, dynamic> json) => Campus(
-    id: json['location_id']?.toString() ?? '',
+    id: json['location_id'] ?? 0,
     name: json['location_name'] ?? '',
     code: json['location_type'] ?? 'KAMPUS',
-    address: "${json['location_streetnum'] ?? ''} ${json['location_streetname'] ?? ''}".trim(),
+    streetNum: json['location_streetnum']?.toString() ?? '',
+    streetName: json['location_streetname'] ?? '',
+    zipcodeId: json['zipcode_id'] ?? 1,
     location: const LatLng(-25.8480, 28.2366),
     radius: 110.0,
     imageAsset: null,
