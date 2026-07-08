@@ -9,6 +9,33 @@ import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 
+// Sleutel-helper vir foutkaartjie-beelde in localStorage
+const TICKET_IMAGES_PREFIX = "ticket_images_";
+const NEW_TICKET_IMAGES_KEY = "ticket_images_new";
+
+const readTicketImages = (id) => {
+  try {
+    const raw = localStorage.getItem(id ? `${TICKET_IMAGES_PREFIX}${id}` : NEW_TICKET_IMAGES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (error) {
+    console.error("Fout by laai van beelde uit localStorage:", error);
+    return [];
+  }
+};
+
+const writeTicketImages = (id, images) => {
+  try {
+    const key = id ? `${TICKET_IMAGES_PREFIX}${id}` : NEW_TICKET_IMAGES_KEY;
+    if (!images || images.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(images));
+    }
+  } catch (error) {
+    console.error("Fout by stoor van beelde in localStorage:", error);
+  }
+};
+
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
@@ -30,7 +57,7 @@ function TicketPage() {
   const [buildings, setBuildings] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
-  
+
   // Vorm-data vir foutkaartjie - Gebruik konsekwent location_id
   const [newTicket, setNewTicket] = useState({
     title: "",                    // Hoofsaak/titel
@@ -42,6 +69,7 @@ function TicketPage() {
     building_id: "",
     room_id: "",
     asset_id: "",
+    images: [],                 // Beelde (base64) - word in localStorage gestoor
   });
 
   // Haal foutkaartjies wanneer blad laai
@@ -144,6 +172,41 @@ function TicketPage() {
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
+      images: readTicketImages(ticket.fault_id),
+    }));
+  };
+
+  // Hanteer byvoeging van nuwe beelde - lees as base64 en stoor in state
+  const handleImageUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setNewTicket((prev) => ({
+          ...prev,
+          images: [
+            ...prev.images,
+            { id: `${Date.now()}_${Math.random().toString(36).slice(2)}`, name: file.name, dataUrl: reader.result },
+          ],
+        }));
+      };
+      reader.onerror = () => {
+        console.error("Fout by laai van beeld:", file.name);
+        alert(`Kon nie beeld "${file.name}" laai nie.`);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Maak die input skoon sodat dieselfde lêer weer gekies kan word indien nodig
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = (imageId) => {
+    setNewTicket((prev) => ({
+      ...prev,
+      images: prev.images.filter((image) => image.id !== imageId),
     }));
   };
 
@@ -170,9 +233,14 @@ function TicketPage() {
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
+        writeTicketImages(editingId, newTicket.images);
         alert("Foutkaartjie suksesvol opgedateer!");
       } else {
-        await apiClient.tickets.create(payload);
+        const response = await apiClient.tickets.create(payload);
+        const createdId = response?.data?.fault_id;
+        // Skuif die beelde van die tydelike "nuwe" sleutel na die regte kaartjie-ID
+        writeTicketImages(createdId, newTicket.images);
+        writeTicketImages(null, []);
         alert("Foutkaartjie suksesvol geskep!");
       }
       handleCloseModal();
@@ -199,13 +267,13 @@ function TicketPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", images: [] });
   };
 
   const handleNewTicket = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", images: readTicketImages(null) });
     setShowModal(true);
   };
 
@@ -215,6 +283,7 @@ function TicketPage() {
     }
     try {
       await apiClient.tickets.delete(ticketId);
+      writeTicketImages(ticketId, []);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
@@ -516,6 +585,73 @@ function TicketPage() {
                 </select>
               </div>
             </div>
+
+            <div className="input-row">
+              <div className="input-group" style={{ flex: 1 }}>
+                <label>Beelde</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleImageUpload}
+                />
+                {newTicket.images.length > 0 && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                      marginTop: "0.5rem",
+                    }}
+                  >
+                    {newTicket.images.map((image) => (
+                      <div
+                        key={image.id}
+                        style={{
+                          position: "relative",
+                          width: "90px",
+                          height: "90px",
+                          border: "1px solid #ccc",
+                          borderRadius: "4px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <img
+                          src={image.dataUrl}
+                          alt={image.name}
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(image.id)}
+                          title="Verwyder beeld"
+                          style={{
+                            position: "absolute",
+                            top: "2px",
+                            right: "2px",
+                            background: "rgba(0,0,0,0.6)",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "50%",
+                            width: "20px",
+                            height: "20px",
+                            lineHeight: "20px",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <small style={{ color: "#888" }}>
+                  Beelde word tydelik in jou blaaier (localStorage) gestoor.
+                </small>
+              </div>
+            </div>
+
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
