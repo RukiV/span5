@@ -9,33 +9,6 @@ import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 
-// Sleutel-helper vir foutkaartjie-beelde in localStorage
-const TICKET_IMAGES_PREFIX = "ticket_images_";
-const NEW_TICKET_IMAGES_KEY = "ticket_images_new";
-
-const readTicketImages = (id) => {
-  try {
-    const raw = localStorage.getItem(id ? `${TICKET_IMAGES_PREFIX}${id}` : NEW_TICKET_IMAGES_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (error) {
-    console.error("Fout by laai van beelde uit localStorage:", error);
-    return [];
-  }
-};
-
-const writeTicketImages = (id, images) => {
-  try {
-    const key = id ? `${TICKET_IMAGES_PREFIX}${id}` : NEW_TICKET_IMAGES_KEY;
-    if (!images || images.length === 0) {
-      localStorage.removeItem(key);
-    } else {
-      localStorage.setItem(key, JSON.stringify(images));
-    }
-  } catch (error) {
-    console.error("Fout by stoor van beelde in localStorage:", error);
-  }
-};
-
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
   const { isAdmin } = useCurrentUser();
@@ -57,19 +30,23 @@ function TicketPage() {
   const [buildings, setBuildings] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
-
-  // Vorm-data vir foutkaartjie - Gebruik konsekwent location_id
+  const [selectedImageFiles, setSelectedImageFiles] = useState([]);
+  const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  
+  // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
     title: "",                    // Hoofsaak/titel
     description: "",            // Volledige beskrywing
     category: "",               // Fout-tipe
     status: "Oop",              // Fout-status
     priority: "Medium",         // Prioriteit
-    location_id: "",
+    site_id: "",
     building_id: "",
     room_id: "",
     asset_id: "",
-    images: [],                 // Beelde (base64) - word in localStorage gestoor
+    image_id: "",
+    image_id_2: "",
+    image_id_3: "",
   });
 
   // Haal foutkaartjies wanneer blad laai
@@ -137,8 +114,8 @@ function TicketPage() {
     const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
 
     let detectedRoomId = ticket.room_id || "";
-    let detectedBuildingId = ticket.building_id || "";
-    let detectedSiteId = ticket.location_id || "";
+    let detectedBuildingId = "";
+    let detectedSiteId = "";
 
     if (!detectedRoomId && ticket.asset_id) {
       const associatedAsset = assets.find((asset) => Number(asset.asset_id) === Number(ticket.asset_id));
@@ -147,17 +124,15 @@ function TicketPage() {
       }
     }
 
-    if (detectedRoomId && !detectedBuildingId) {
+    if (detectedRoomId) {
       const associatedRoom = rooms.find((room) => Number(room.room_id) === Number(detectedRoomId));
       if (associatedRoom) {
         detectedBuildingId = associatedRoom.building_id;
-      }
-    }
 
-    if (detectedBuildingId && !detectedSiteId) {
-      const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
-      if (associatedBuilding) {
-        detectedSiteId = associatedBuilding.location_id;
+        const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
+        if (associatedBuilding) {
+          detectedSiteId = associatedBuilding.location_id;
+        }
       }
     }
 
@@ -168,47 +143,33 @@ function TicketPage() {
       category: ticket.fault_type || "",
       status: ticket.fault_status || "Oop",
       priority: ticket.fault_priority || "Medium",
-      location_id: detectedSiteId ? String(detectedSiteId) : "",
+      site_id: detectedSiteId ? String(detectedSiteId) : "",
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
-      images: readTicketImages(ticket.fault_id),
+      image_id: ticket.image_id ? String(ticket.image_id) : "",
+      image_id_2: ticket.image_id_2 ? String(ticket.image_id_2) : "",
+      image_id_3: ticket.image_id_3 ? String(ticket.image_id_3) : "",
     }));
   };
 
-  // Hanteer byvoeging van nuwe beelde - lees as base64 en stoor in state
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setNewTicket((prev) => ({
-          ...prev,
-          images: [
-            ...prev.images,
-            { id: `${Date.now()}_${Math.random().toString(36).slice(2)}`, name: file.name, dataUrl: reader.result },
-          ],
-        }));
-      };
-      reader.onerror = () => {
-        console.error("Fout by laai van beeld:", file.name);
-        alert(`Kon nie beeld "${file.name}" laai nie.`);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Maak die input skoon sodat dieselfde lêer weer gekies kan word indien nodig
-    e.target.value = "";
+  const getTicketImageUrl = (imageId) => {
+    if (!imageId) return null;
+    return apiClient.image?.getFileUrl ? apiClient.image.getFileUrl(imageId) : null;
   };
 
-  const handleRemoveImage = (imageId) => {
-    setNewTicket((prev) => ({
-      ...prev,
-      images: prev.images.filter((image) => image.id !== imageId),
-    }));
+  const handleImageFilesChange = (event) => {
+    const files = Array.from(event.target.files || []).slice(0, 3);
+    setSelectedImageFiles(files);
+    const previewUrls = files.map((file) => URL.createObjectURL(file));
+    setSelectedImagePreviewUrls(previewUrls);
   };
+
+  useEffect(() => {
+    return () => {
+      selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [selectedImagePreviewUrls]);
 
   // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
@@ -227,20 +188,40 @@ function TicketPage() {
         fault_priority: newTicket.priority,
         room_id: newTicket.room_id ? Number(newTicket.room_id) : null,
         asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,
-        building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
-        location_id: newTicket.location_id ? Number(newTicket.location_id) : null,
       };
+
+      if (newTicket.image_id) {
+        payload.image_id = Number(newTicket.image_id);
+      }
+      if (newTicket.image_id_2) {
+        payload.image_id_2 = Number(newTicket.image_id_2);
+      }
+      if (newTicket.image_id_3) {
+        payload.image_id_3 = Number(newTicket.image_id_3);
+      }
+
+      if (selectedImageFiles.length > 0) {
+        const uploadedIds = [];
+        for (const file of selectedImageFiles.slice(0, 3)) {
+          const imageFormData = new FormData();
+          imageFormData.append('file', file);
+          const imageResponse = await apiClient.image.upload(imageFormData);
+          if (imageResponse?.data?.image_id) {
+            uploadedIds.push(imageResponse.data.image_id);
+          }
+        }
+        if (uploadedIds.length > 0) {
+          payload.image_id = uploadedIds[0] || payload.image_id;
+          payload.image_id_2 = uploadedIds[1] || payload.image_id_2;
+          payload.image_id_3 = uploadedIds[2] || payload.image_id_3;
+        }
+      }
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
-        writeTicketImages(editingId, newTicket.images);
         alert("Foutkaartjie suksesvol opgedateer!");
       } else {
-        const response = await apiClient.tickets.create(payload);
-        const createdId = response?.data?.fault_id;
-        // Skuif die beelde van die tydelike "nuwe" sleutel na die regte kaartjie-ID
-        writeTicketImages(createdId, newTicket.images);
-        writeTicketImages(null, []);
+        await apiClient.tickets.create(payload);
         alert("Foutkaartjie suksesvol geskep!");
       }
       handleCloseModal();
@@ -267,13 +248,17 @@ function TicketPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", images: [] });
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", site_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
   };
 
   const handleNewTicket = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", images: readTicketImages(null) });
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", site_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
     setShowModal(true);
   };
 
@@ -283,7 +268,6 @@ function TicketPage() {
     }
     try {
       await apiClient.tickets.delete(ticketId);
-      writeTicketImages(ticketId, []);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
@@ -320,10 +304,6 @@ function TicketPage() {
       const values = {
         id: ticket.fault_id,
         title: extractTitle(description),
-        asset_id: ticket.asset_id,
-        room_id: ticket.room_id,
-        building_id: ticket.building_id,
-        location_id: ticket.location_id,
         category: ticket.fault_type,
         priority: translatePriority(ticket.fault_priority),
         status: translateStatus(ticket.fault_status),
@@ -353,6 +333,7 @@ function TicketPage() {
     }
   };
 
+  // GENEREER DIE OPSIES EN VERGELYK NOU SUIWER AS STRINGE OM PARSING ERRORS TE VERMY
   useEffect(() => {
     if (showModal && isEditing && editingId && tickets.length > 0) {
       const currentTicket = tickets.find((ticket) => Number(ticket.fault_id) === Number(editingId));
@@ -362,14 +343,13 @@ function TicketPage() {
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
-  // Reggemaakte opsies kartering (Mapping) deur slegs location_id te gebruik
   const terrainOptions = (terrains || []).map((terrain) => ({
     value: String(terrain.location_id),
     label: terrain.location_name || terrain.location_desc || `Terrein ${terrain.location_id}`,
   }));
 
   const buildingOptions = (buildings || [])
-    .filter((building) => !newTicket.location_id || String(building.location_id) === String(newTicket.location_id))
+    .filter((building) => !newTicket.site_id || String(building.location_id) === String(newTicket.site_id))
     .map((building) => ({
       value: String(building.building_id),
       label: building.building_name || `Gebou ${building.building_id}`,
@@ -412,10 +392,6 @@ function TicketPage() {
                 <option value="all">Alle kolomme</option>
                 <option value="id">ID</option>
                 <option value="title">Titel</option>
-                <option value="asset_id">Bate ID</option>
-                <option value="room_id">Lokaal ID</option>
-                <option value="building_id">Gebou ID</option>
-                <option value="location_id">Terrein ID</option>
                 <option value="category">Kategorie</option>
                 <option value="priority">Prioriteit</option>
                 <option value="status">Status</option>
@@ -439,12 +415,8 @@ function TicketPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>Kaartjie ID</th>
+                <th>ID Kaartjie</th>
                 <th>Titel</th>
-                <th>Bate ID</th>
-                <th>Lokaal ID</th>
-                <th>Gebou ID</th>
-                <th>Terrein ID</th>
                 <th>Kategorie</th>
                 <th>Prioriteit</th>
                 <th>Status</th>
@@ -456,10 +428,6 @@ function TicketPage() {
                 <tr key={ticket.fault_id}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
-                  <td>{ticket.asset_id}</td>
-                  <td>{ticket.room_id}</td>
-                  <td>{ticket.building_id}</td>
-                  <td>{ticket.location_id}</td>
                   <td>{translateCategory(ticket.fault_type)}</td>
                   <td>{translatePriority(ticket.fault_priority)}</td>
                   <td>
@@ -496,7 +464,7 @@ function TicketPage() {
                   <option value="">Kies kategorie</option>
                   <option value="Instandhouding">Onderhoud</option>
                   <option value="Herstelwerk">Herstel</option>
-                  <option value="Opgradering">Opgradeer</option>
+                  <option value="Opgradering">Upgrade</option>
                 </select>
               </div>
             </div>
@@ -520,8 +488,8 @@ function TicketPage() {
                   placeholder="Kies terrein..."
                   isSearchable
                   options={terrainOptions}
-                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.location_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, location_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
+                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.site_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, site_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
                 />
               </div>
               <div className="input-group">
@@ -529,9 +497,9 @@ function TicketPage() {
                 <Select
                   className="basic-single"
                   classNamePrefix="select"
-                  placeholder={!newTicket.location_id ? "Kies eers terrein" : "Kies gebou..."}
+                  placeholder={!newTicket.site_id ? "Kies eers terrein" : "Kies gebou..."}
                   isSearchable
-                  isDisabled={!newTicket.location_id}
+                  isDisabled={!newTicket.site_id}
                   options={buildingOptions}
                   value={buildingOptions.find((option) => String(option.value) === String(newTicket.building_id)) || null}
                   onChange={(selected) => setNewTicket({ ...newTicket, building_id: selected ? String(selected.value) : "", room_id: "", asset_id: "" })}
@@ -570,6 +538,29 @@ function TicketPage() {
 
             <div className="input-row">
               <div className="input-group">
+                <label>Beelde (maksimum 3)</label>
+                <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                {selectedImagePreviewUrls.length > 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {selectedImagePreviewUrls.map((url, index) => (
+                      <img key={index} src={url} alt={`Voorbeeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
+                    ))}
+                  </div>
+                )}
+                {selectedImagePreviewUrls.length === 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {[newTicket.image_id, newTicket.image_id_2, newTicket.image_id_3].filter(Boolean).map((id, index) => (
+                      <div key={index} style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.9rem' }}>Huidige beeld {index + 1}</p>
+                        <img src={getTicketImageUrl(id)} alt={`Huidige beeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="input-row">
+              <div className="input-group">
                 <label>Beskrywing</label>
                 <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} />
               </div>
@@ -585,73 +576,6 @@ function TicketPage() {
                 </select>
               </div>
             </div>
-
-            <div className="input-row">
-              <div className="input-group" style={{ flex: 1 }}>
-                <label>Beelde</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageUpload}
-                />
-                {newTicket.images.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: "0.5rem",
-                      marginTop: "0.5rem",
-                    }}
-                  >
-                    {newTicket.images.map((image) => (
-                      <div
-                        key={image.id}
-                        style={{
-                          position: "relative",
-                          width: "90px",
-                          height: "90px",
-                          border: "1px solid #ccc",
-                          borderRadius: "4px",
-                          overflow: "hidden",
-                        }}
-                      >
-                        <img
-                          src={image.dataUrl}
-                          alt={image.name}
-                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(image.id)}
-                          title="Verwyder beeld"
-                          style={{
-                            position: "absolute",
-                            top: "2px",
-                            right: "2px",
-                            background: "rgba(0,0,0,0.6)",
-                            color: "#fff",
-                            border: "none",
-                            borderRadius: "50%",
-                            width: "20px",
-                            height: "20px",
-                            lineHeight: "20px",
-                            cursor: "pointer",
-                            padding: 0,
-                          }}
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <small style={{ color: "#888" }}>
-                  Beelde word tydelik in jou blaaier (localStorage) gestoor.
-                </small>
-              </div>
-            </div>
-
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
