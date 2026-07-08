@@ -68,8 +68,8 @@ function WorkOrderPage() {
     // Asset en Lokasie
     asset_id: "",                   // Bate-ID
     room_id: "",                    // Kamer/Lokasie
-    site_id: "",
     building_id: "",
+    location_id: "",
     fault_id: "",
     
     // Werk-inligting
@@ -213,16 +213,6 @@ function WorkOrderPage() {
     }
 
     return "";
-  };
-
-  const normalizeJobStatus = (status) => {
-    const value = String(status || "").trim().toLowerCase();
-    if (["open", "oop", "opened"].includes(value)) return "open";
-    if (["wait", "wag", "pending", "hangende"].includes(value)) return "wag";
-    if (["completed", "voltooid", "done", "voltooi"].includes(value)) return "voltooid";
-    if (["in_progress", "besig", "inprogress"].includes(value)) return "besig";
-    if (["cancelled", "geannuleerd", "cancel", "canceled"].includes(value)) return "geannuleerd";
-    return value || "open";
   };
 
   const formatDateTimeForPayload = (value) => {
@@ -389,7 +379,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: description,
       job_type: order.job_type || "",
-      job_status: normalizeJobStatus(order.job_status),
+      job_status: order.job_status,
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
       job_scheduled_datetime: formatDateTimeForInput(order.job_scheduled_datetime || order.job_createddatetime),
@@ -399,6 +389,8 @@ function WorkOrderPage() {
       contact_phone: order.contact_phone || "",
       asset_id: order.asset_id || "",
       room_id: order.room_id || "",
+      building_id: order.building_id || "",
+      location_id: order.location_id || "",
       nature: order.nature || "",
       brief_description: briefDesc,
       job_notes: details,
@@ -497,12 +489,14 @@ function WorkOrderPage() {
       const payload = {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
         job_type: formData.job_type || null,
-        job_status: normalizeJobStatus(formData.job_status),
+        job_status: formData.job_status,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_schedule_type: formData.job_schedule_type || "enkel",
         asset_id: null,
         room_id: null,
+        building_id: null,
+        location_id: null,
         fault_id: null,
         job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
       };
@@ -672,6 +666,8 @@ function WorkOrderPage() {
       contact_phone: "",
       asset_id: "",
       room_id: "",
+      building_id: "",
+      location_id: "",
       nature: "",
       brief_description: "",
       job_notes: "",
@@ -699,6 +695,8 @@ function WorkOrderPage() {
       contact_phone: "",
       asset_id: "",
       room_id: "",
+      building_id: "",
+      location_id: "",
       nature: "",
       brief_description: "",
       job_notes: "",
@@ -736,6 +734,9 @@ function WorkOrderPage() {
         id: String(order.jobcard_id),
         job_type: order.job_type,
         asset_id: String(order.asset_id || ""),
+        room_id: String(order.room_id || ""),
+        building_id: String(order.building_id || ""),
+        location_id: String(order.location_id || ""),
         scheduled: order.job_scheduled_datetime,
         status: order.job_status,
       };
@@ -756,22 +757,13 @@ function WorkOrderPage() {
     });
 
   const translateStatus = (status) => {
-    const translations = {
-      OPEN: "Oop",
-      WAIT: "Hangende",
-      COMPLETED: "Voltooi",
-      open: "Oop",
-      wag: "Hangende",
-      besig: "Besig",
-      voltooid: "Voltooi",
-    };
-    return translations[status] || status || "-";
+    return status || "-";
   };
 
   const getStatusClass = (status) => {
-    if (status === "COMPLETED" || status === "voltooid") return "status-completed";
-    if (status === "OPEN" || status === "open") return "status-open";
-    if (status === "WAIT" || status === "wag") return "status-wait";
+    if (status === "Voltooid") return "status-completed";
+    if (status === "Oop") return "status-open";
+    if (status === "Wag") return "status-wait";
     return "status-default";
   };
 
@@ -817,11 +809,11 @@ function WorkOrderPage() {
   }));
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
 
   return (
-    <div style={{ display: "flex" }}>
+    <div className="page-layout" style={{ display: "flex" }}>
       <Sidebar currentPath="/work-orders" isAdmin={isAdmin} onLogout={logout} />
 
       <div className="main">
@@ -849,6 +841,9 @@ function WorkOrderPage() {
                 <option value="description">Beskrywing</option>
                 <option value="job_type">Werksoort</option>
                 <option value="asset_id">Bate ID</option>
+                <option value="room_id">Lokaal ID</option>
+                <option value="building_id">Gebou ID</option>
+                <option value="location_id">Terrein ID</option>
                 <option value="scheduled">Datum</option>
                 <option value="status">Status</option>
               </select>
@@ -891,6 +886,9 @@ function WorkOrderPage() {
                 <th>Beskrywing</th>
                 <th>Werksoort</th>
                 <th>Bate ID</th>
+                <th>Lokaal ID</th>
+                <th>Gebou ID</th>
+                <th>Terrein ID</th>
                 <th>Datum</th>
                 <th>Status</th>
                 <th>Aksies</th>
@@ -908,6 +906,9 @@ function WorkOrderPage() {
                     <td className="description-cell">{order.job_desc || "-"}</td>
                     <td>{order.job_type || "-"}</td>
                     <td>{order.asset_id || "-"}</td>
+                    <td>{order.room_id || "-"}</td>
+                    <td>{order.building_id || "-"}</td>
+                    <td>{order.location_id || "-"}</td>
                     <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
                     <td>
                       <span className={`status-badge ${getStatusClass(order.job_status)}`}>
@@ -956,7 +957,7 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
-                <span className="close" onClick={handleCloseModal}>&times;</span>
+                <span className="close no-print" onClick={handleCloseModal}>&times;</span>
             </div>
 
             {/* Vorm */}
@@ -997,9 +998,12 @@ function WorkOrderPage() {
                       value={formData.job_status}
                       onChange={(e) => setFormData({...formData, job_status: e.target.value})}
                     >
-                      <option value="open">Oop</option>
-                      <option value="wag">Hangende</option>
-                      <option value="voltooid">Voltooi</option>
+                      <option value="">Kies...</option>
+                      <option value="Wag">Wag</option>
+                      <option value="Oop">Oop</option>
+                      <option value="Besig">Besig</option>
+                      <option value="Voltooid">Voltooid</option>
+                      <option value="Gekanselleer">Gekanselleer</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Werksoort</span> 
@@ -1030,10 +1034,10 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies Terrein..."
                       isClearable
-                      value={formData.site_id ? { value: formData.site_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.site_id))?.location_name || formData.site_id } : null}
+                      value={formData.location_id ? { value: formData.location_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.location_id))?.location_name || formData.location_id } : null}
                       onChange={(selectedOption) => setFormData({
                         ...formData,
-                        site_id: selectedOption ? selectedOption.value : "",
+                        location_id: selectedOption ? selectedOption.value : "",
                         building_id: "",
                         room_id: "",
                         asset_id: ""
@@ -1053,7 +1057,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies Gebou..."
                       isClearable
-                      isDisabled={!formData.site_id}
+                      isDisabled={!formData.location_id}
                       value={formData.building_id ? { value: formData.building_id, label: buildings?.find((building) => Number(building.building_id) === Number(formData.building_id))?.building_name || formData.building_id } : null}
                       onChange={(selectedOption) => setFormData({
                         ...formData,
@@ -1061,7 +1065,7 @@ function WorkOrderPage() {
                         room_id: "",
                         asset_id: ""
                       })}
-                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.site_id)).map((building) => ({
+                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.location_id)).map((building) => ({
                         value: building.building_id,
                         label: `${building.building_id} - ${building.building_name || "Gebou"}`
                       }))}
@@ -1119,12 +1123,38 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Soek/Kies Foutkaartjie..."
                       isClearable
-                      value={formData.fault_id ? { value: formData.fault_id, label: tickets?.find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || formData.fault_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        fault_id: selectedOption ? selectedOption.value : ""
-                      })}
-                      options={(tickets || []).map((ticket) => ({
+                      value={formData.fault_id ? { value: formData.fault_id, label: `${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_id} - ${tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_title || tickets?.find(ticket => Number(ticket.fault_id) === Number(formData.fault_id))?.fault_desc || "Foutkaartjie"}` } : null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) {
+                          setFormData({
+                            ...formData,
+                            fault_id: "",
+                            brief_description: "",
+                            location_id: "",
+                            building_id: "",
+                            room_id: "",
+                            asset_id: ""
+                          });
+                          return;
+                        }
+                        const ticket=(tickets||[]).find(t=>Number(t.fault_id)===Number(selectedOption.value));
+                        setFormData({
+                          ...formData,
+                          fault_id: ticket?.fault_id || "",
+                          brief_description: ticket?.fault_desc || "",
+                          location_id: ticket?.location_id || "",
+                          building_id: ticket?.building_id || "",
+                          room_id: ticket?.room_id || "",
+                          asset_id: ticket?.asset_id || ""
+                        });
+                      }}
+                      options={(tickets || []).filter(ticket=>{
+                        if(formData.location_id && Number(ticket.location_id)!==Number(formData.location_id)) return false;
+                        if(formData.building_id && Number(ticket.building_id)!==Number(formData.building_id)) return false;
+                        if(formData.room_id && Number(ticket.room_id)!==Number(formData.room_id)) return false;
+                        if(formData.asset_id && Number(ticket.asset_id)!==Number(formData.asset_id)) return false;
+                        return true;
+                      }).map((ticket) => ({
                         value: ticket.fault_id,
                         label: `${ticket.fault_id} - ${ticket.fault_desc || ticket.fault_title || "Foutkaartjie"}`
                       }))}
@@ -1154,7 +1184,7 @@ function WorkOrderPage() {
                       <option>Laag</option>
                       <option>Normal</option>
                       <option>Hoog</option>
-                      <option>Spoedeisend</option>
+                      <option>Dringend</option>
                     </select>
                   </div>
                 </div>
