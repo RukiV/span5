@@ -204,6 +204,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     String tempLocation = _currentAsset.location;
     String tempStatus = _currentAsset.status;
     bool tempIsOutdoor = _currentAsset.isOutdoor;
+    String? tempSelectedCampus = CampusService.getCampusNameByRoomId(_currentAsset.location);
+    String? tempSelectedBuilding = CampusService.getBuildingNameByRoomId(_currentAsset.location);
 
     showDialog(
       context: context,
@@ -234,22 +236,77 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
-                      final allRooms = campuses
-                          .expand((c) => c.buildings)
-                          .expand((b) => b.rooms ?? [])
-                          .toList();
-                      return SearchableDropdown<String>(
-                        label: "Lokaal",
-                        hint: "Kies Lokaal",
-                        value: allRooms.any((r) => r.id.toString() == tempLocation) 
-                            ? tempLocation
-                            : null,
-                        items: allRooms.map((r) => SearchableDropdownItem(value: r.id.toString(), label: r.name)).toList(),
-                        onChanged: (v) {
-                          if (v != null) {
-                            setDialogState(() => tempLocation = v);
-                          }
-                        },
+                      return Column(
+                        children: [
+                          SearchableDropdown<String>(
+                            label: "Kampus",
+                            hint: "Kies kampus",
+                            value: tempSelectedCampus,
+                            items: campuses
+                                .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) {
+                                setDialogState(() {
+                                  tempSelectedCampus = v;
+                                  tempSelectedBuilding = null;
+                                  tempLocation = "1";
+                                });
+                              }
+                            },
+                          ),
+                          if (tempSelectedCampus != null) const SizedBox(height: 16),
+                          if (tempSelectedCampus != null)
+                            SearchableDropdown<String>(
+                              label: "Gebou",
+                              hint: "Kies gebou",
+                              value: tempSelectedBuilding,
+                              items: () {
+                                try {
+                                  return campuses
+                                      .firstWhere((c) => c.name == tempSelectedCampus)
+                                      .buildings
+                                      .map((b) => SearchableDropdownItem(value: b.name, label: b.name))
+                                      .toList();
+                                } catch (_) {
+                                  return <SearchableDropdownItem<String>>[];
+                                }
+                              }(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() {
+                                    tempSelectedBuilding = v;
+                                    tempLocation = "1";
+                                  });
+                                }
+                              },
+                            ),
+                          if (tempSelectedBuilding != null) const SizedBox(height: 16),
+                          if (tempSelectedBuilding != null)
+                            SearchableDropdown<String>(
+                              label: "Lokaal",
+                              hint: "Kies lokaal",
+                              value: tempLocation,
+                              items: () {
+                                try {
+                                  return campuses
+                                      .firstWhere((c) => c.name == tempSelectedCampus)
+                                      .buildings
+                                      .firstWhere((b) => b.name == tempSelectedBuilding)
+                                      .rooms
+                                      ?.map((r) => SearchableDropdownItem(value: r.id.toString(), label: r.name))
+                                      .toList() ?? [];
+                                } catch (_) {
+                                  return <SearchableDropdownItem<String>>[];
+                                }
+                              }(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() => tempLocation = v);
+                                }
+                              },
+                            ),
+                        ],
                       );
                     },
                   ),

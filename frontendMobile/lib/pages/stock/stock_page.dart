@@ -126,8 +126,12 @@ class _StockPageState extends State<StockPage> {
     String tempBrand = stock.brand;
     String tempType = stock.type;
     int tempAmount = stock.amount;
+    int tempMin = stock.minimum;
+    int tempBoxTotal = stock.boxTotal;
     String? tempDescription = stock.description;
     int? tempRoomId = stock.roomId;
+    String? tempSelectedCampus = stock.roomId != null ? CampusService.getCampusNameByRoomId(stock.roomId.toString()) : null;
+    String? tempSelectedBuilding = stock.roomId != null ? CampusService.getBuildingNameByRoomId(stock.roomId.toString()) : null;
 
     showDialog(
       context: context,
@@ -162,29 +166,82 @@ class _StockPageState extends State<StockPage> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildPopupField("Minimum Voorraad", tempMin.toString(), (v) => tempMin = int.tryParse(v) ?? tempMin)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildPopupField("Boks Totaal", tempBoxTotal.toString(), (v) => tempBoxTotal = int.tryParse(v) ?? tempBoxTotal)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
                   ValueListenableBuilder<List<Campus>>(
                     valueListenable: CampusService.campusesNotifier,
                     builder: (context, campuses, _) {
-                      final allRooms = campuses
-                          .expand((c) => c.buildings)
-                          .expand((b) => b.rooms ?? [])
-                          .map((r) => SearchableDropdownItem(value: '${r.id}:${r.name}', label: r.name))
-                          .toList();
-                      
-                      final currentValue = allRooms.any((r) => r.value.startsWith("$tempRoomId:")) 
-                          ? allRooms.firstWhere((r) => r.value.startsWith("$tempRoomId:")).value
-                          : null;
-
-                      return SearchableDropdown<String>(
-                        label: "Lokaal",
-                        hint: "Kies Lokaal",
-                        value: currentValue,
-                        items: allRooms,
-                        onChanged: (v) {
-                          if (v != null) {
-                            setDialogState(() => tempRoomId = int.tryParse(v.split(":").first));
-                          }
-                        },
+                      return Column(
+                        children: [
+                          SearchableDropdown<String>(
+                            label: "Kampus",
+                            hint: "Kies kampus",
+                            value: tempSelectedCampus,
+                            items: campuses
+                                .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) {
+                                setDialogState(() {
+                                  tempSelectedCampus = v;
+                                  tempSelectedBuilding = null;
+                                  tempRoomId = null;
+                                });
+                              }
+                            },
+                          ),
+                          if (tempSelectedCampus != null) const SizedBox(height: 16),
+                          if (tempSelectedCampus != null)
+                            SearchableDropdown<String>(
+                              label: "Gebou",
+                              hint: "Kies gebou",
+                              value: tempSelectedBuilding,
+                              items: campuses
+                                  .firstWhere((c) => c.name == tempSelectedCampus)
+                                  .buildings
+                                  .map((b) => SearchableDropdownItem(value: b.name, label: b.name))
+                                  .toList(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() {
+                                    tempSelectedBuilding = v;
+                                    tempRoomId = null;
+                                  });
+                                }
+                              },
+                            ),
+                          if (tempSelectedBuilding != null) const SizedBox(height: 16),
+                          if (tempSelectedBuilding != null)
+                            SearchableDropdown<String>(
+                              label: "Lokaal",
+                              hint: "Kies lokaal",
+                              value: tempRoomId?.toString(),
+                              items: () {
+                                try {
+                                  return campuses
+                                      .firstWhere((c) => c.name == tempSelectedCampus)
+                                      .buildings
+                                      .firstWhere((b) => b.name == tempSelectedBuilding)
+                                      .rooms
+                                      ?.map((r) => SearchableDropdownItem(value: r.id.toString(), label: r.name))
+                                      .toList() ?? [];
+                                } catch (_) {
+                                  return <SearchableDropdownItem<String>>[];
+                                }
+                              }(),
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() => tempRoomId = int.tryParse(v));
+                                }
+                              },
+                            ),
+                        ],
                       );
                     },
                   ),
@@ -217,6 +274,8 @@ class _StockPageState extends State<StockPage> {
                                 brand: tempBrand,
                                 type: tempType,
                                 amount: tempAmount,
+                                minimum: tempMin,
+                                boxTotal: tempBoxTotal,
                                 description: tempDescription,
                                 roomId: tempRoomId,
                               );
