@@ -213,19 +213,22 @@ class _NewReportPageState extends State<NewReportPage> {
                   const SizedBox(height: 20),
 
                   _buildCustomTextField(
-                    label: "Beskrywing van Probleem *",
+                    label: "Opskrif",
                     hint: "Onderwerp (bv. Gebreekte Kraan)",
                     controller: titleController,
-                    validator: (v) => v == null || v.isEmpty ? "Titel word vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
                   _buildCustomTextField(
-                    label: "",
+                    label: "Beskrywing van Probleem *",
                     hint: "Beskryf die probleem in detail...",
                     controller: descController,
                     maxLines: 3,
-                    validator: (v) => v == null || v.trim().length <= 3 ? "Beskrywing moet minstens 4 karakters wees" : null,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return "Beskrywing word vereis";
+                      if (v.length > 100) return "Beskrywing mag nie meer as 100 karakters wees nie";
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 12),
 
@@ -373,7 +376,21 @@ class _NewReportPageState extends State<NewReportPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () {
+                final code = serialController.text.trim();
+                if (code.isNotEmpty) {
+                  _autoFillFromCode(code);
+                }
+              },
+              child: Container(
+                height: 48, width: 48,
+                decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.search, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 6),
             InkWell(
               onTap: () async {
                 final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
