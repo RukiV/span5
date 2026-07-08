@@ -42,6 +42,7 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
         InkWell(
           onTap: () => _showSearchDialog(context),
           child: FormField<T>(
+            key: widget.value != null ? ValueKey('${widget.label}_${widget.value}') : null,
             validator: widget.validator,
             initialValue: widget.value,
             builder: (state) {
@@ -51,7 +52,7 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: state.hasError ? const Color(0xFFFFEBEE) : Colors.white,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: state.hasError ? Colors.red : Colors.grey[300]!),
                     ),

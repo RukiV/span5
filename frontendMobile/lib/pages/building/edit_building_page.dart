@@ -15,8 +15,6 @@ class EditBuildingPage extends StatefulWidget {
 class _EditBuildingPageState extends State<EditBuildingPage> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
-  late TextEditingController _streetNumController;
-  late TextEditingController _streetNameController;
   late String _type;
   bool _isSaving = false;
 
@@ -32,16 +30,12 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.building.name);
-    _streetNumController = TextEditingController(text: widget.building.streetNum);
-    _streetNameController = TextEditingController(text: widget.building.streetName);
     _type = widget.building.type;
   }
 
   @override
   void dispose() {
     _nameController.dispose();
-    _streetNumController.dispose();
-    _streetNameController.dispose();
     super.dispose();
   }
 
@@ -74,8 +68,6 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
     final updated = widget.building.copyWith(
       name: _nameController.text,
       type: _type,
-      streetNum: _streetNumController.text,
-      streetName: _streetNameController.text,
     );
 
     final success = await CampusService.updateBuilding(updated);
@@ -141,22 +133,6 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
                       label: t['label']!,
                     )).toList(),
                     onChanged: (v) => setState(() => _type = v!),
-                  ),
-                  const SizedBox(height: 20),
-
-                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNumController,
-                    decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-
-                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _streetNameController,
-                    decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 32),
 
