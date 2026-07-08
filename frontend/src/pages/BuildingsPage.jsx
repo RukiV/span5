@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import Select from "react-select";
 import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -27,8 +28,6 @@ function BuildingsPage() {
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
     building_type: "other",
-    building_streetnum: "",
-    building_streetname: "",
     location_id: "",
   });
 
@@ -111,8 +110,6 @@ function BuildingsPage() {
     const buildingData = {
       building_name: newBuilding.building_name,
       building_type: newBuilding.building_type,
-      building_streetnum: newBuilding.building_streetnum,
-      building_streetname: newBuilding.building_streetname,
       location_id: Number(newBuilding.location_id),
     };
 
@@ -149,8 +146,6 @@ function BuildingsPage() {
     setNewBuilding({
       building_name: item.building_name || "",
       building_type: item.building_type || "other",
-      building_streetnum: item.building_streetnum || "",
-      building_streetname: item.building_streetname || "",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -160,13 +155,13 @@ function BuildingsPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", building_streetnum: "", building_streetname: "", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "other", building_streetnum: "", building_streetname: "", location_id: "" });
+    setNewBuilding({ building_name: "", building_type: "other", location_id: "" });
     setShowModal(true);
   };
 
@@ -183,8 +178,6 @@ function BuildingsPage() {
         id: building.building_id,
         name: building.building_name,
         type: translateBuildingType(building.building_type),
-        streetnum: building.building_streetnum,
-        streetname: building.building_streetname,
         terrain: getTerrainName(building.location_id),
       };
       if (filterColumn === 'all') {
@@ -199,6 +192,32 @@ function BuildingsPage() {
       if (sortBy === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * direction;
       return 0;
     });
+
+  // Opsies vir dropdowns
+  const filterColumnOptions = [
+    { value: "all", label: "Alle kolomme" },
+    { value: "name", label: "Naam" },
+    { value: "type", label: "Tipe" },
+    { value: "terrain", label: "Terrein" }
+  ];
+
+  const sortByOptions = [
+    { value: "default", label: "Standaard" },
+    { value: "name", label: "Naam" }
+  ];
+
+  const buildingTypeOptions = [
+    { value: "admin", label: "Admin" },
+    { value: "onderwys", label: "Onderwys" },
+    { value: "laboratory", label: "Laboratorium" },
+    { value: "warehouse", label: "Pakhuis" },
+    { value: "other", label: "Ander" }
+  ];
+
+  const terrainOptions = terrains.map((t) => ({
+    value: String(t.location_id),
+    label: t.location_name
+  }));
 
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
@@ -226,22 +245,26 @@ function BuildingsPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="type">Tipe</option>
-                <option value="streetnum">Straatnommer</option>
-                <option value="streetname">Straatnaam</option>
-                <option value="terrain">Terrein</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={filterColumnOptions.find(o => o.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
+                options={filterColumnOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+              />
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-              </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={sortByOptions.find(o => o.value === sortBy)}
+                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
+                options={sortByOptions}
+                isSearchable={false}
+                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+              />
               <div style={{ display: 'flex', gap: '0.25rem' }}>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
@@ -253,11 +276,8 @@ function BuildingsPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Gebou</th>
                 <th>Naam</th>
                 <th>Tipe</th>
-                <th>Straatnommer</th>
-                <th>Straatnaam</th>
                 <th>Terrein</th>
                 <th>Aksies</th>
               </tr>
@@ -265,11 +285,8 @@ function BuildingsPage() {
             <tbody>
               {filteredBuildings.map((building) => (
                 <tr key={building.building_id}>
-                  <td>{building.building_id}</td>
                   <td>{building.building_name}</td>
                   <td>{translateBuildingType(building.building_type)}</td>
-                  <td>{building.building_streetnum || '-'}</td>
-                  <td>{building.building_streetname || '-'}</td>
                   <td>{getTerrainName(building.location_id)}</td>
                   <td>
                     <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
@@ -301,48 +318,28 @@ function BuildingsPage() {
               </div>
               <div className="input-group">
                 <label>Tipe</label>
-                <select
-                  value={newBuilding.building_type}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_type: e.target.value })}
-                >
-                  <option value="admin">Admin</option>
-                  <option value="onderwys">Onderwys</option>
-                  <option value="laboratory">Laboratorium</option>
-                  <option value="warehouse">Pakhuis</option>
-                  <option value="other">Ander</option>
-                </select>
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Straatnommer</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_streetnum}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_streetnum: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Straatnaam</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_streetname}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_streetname: e.target.value })}
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
+                  options={buildingTypeOptions}
+                  isSearchable={false}
                 />
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
                 <label>Terrein</label>
-                <select
-                  value={newBuilding.location_id}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, location_id: e.target.value })}
-                >
-                  <option value="">Kies 'n terrein</option>
-                  {terrains.map((terrain) => (
-                    <option key={terrain.location_id} value={terrain.location_id}>{terrain.location_name}</option>
-                  ))}
-                </select>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies 'n terrein..."
+                  isSearchable={true}
+                  options={terrainOptions}
+                  value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
+                />
               </div>
             </div>
             <div className="modal-footer">
@@ -366,7 +363,9 @@ function BuildingsPage() {
                   <thead>
                     <tr>
                       <th>Naam</th>
+                      <th>Kode</th>
                       <th>Tipe</th>
+                      <th>Status</th>
                       <th>Kapasiteit</th>
                     </tr>
                   </thead>
@@ -374,7 +373,9 @@ function BuildingsPage() {
                     {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
                       <tr key={room.room_id}>
                         <td>{room.room_name}</td>
+                        <td>{room.room_code}</td>
                         <td>{translateRoomType(room.room_type || 'other')}</td>
+                        <td>{room.room_status}</td>
                         <td>{room.room_capacity ?? '-'}</td>
                       </tr>
                     ))}

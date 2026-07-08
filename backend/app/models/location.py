@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
-from .enums import BuildingType, RoomType
+from .enums import BuildingType, RoomType, RoomStatus
 from .validators import sanitize_text, validate_positive_int
 
 class ZipcodeBase(SQLModel):
@@ -121,6 +121,7 @@ class RoomBase(SQLModel):
     room_code: str = Field(default=None, max_length=20)
     room_capacity: Optional[int] = None
     room_type: RoomType = Field(default=RoomType.OTHER)
+    room_status: RoomStatus = Field(default=RoomStatus.OPERATIONAL)
 
     @field_validator('room_name', mode='before')
     @classmethod
@@ -156,4 +157,5 @@ class RoomUpdate(SQLModel):
     room_code: Optional[str] = None
     room_capacity: Optional[int] = None
     room_type: Optional[RoomType] = None
+    room_status: Optional[RoomStatus] = None
     building_id: Optional[int] = None
