@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select from "react-select"; // Bygevoeg vir React-Select dropdowns
 import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI } from "../services/api";
@@ -17,6 +17,7 @@ function WorkOrderPage() {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const { instance } = useMsal();
+  const location = useLocation();
   
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
@@ -85,6 +86,70 @@ function WorkOrderPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const applyTicketSelectionToForm = (ticket) => {
+    if (!ticket) return;
+
+    const description = ticket.fault_description || "";
+    const colonIndex = description.indexOf(":");
+    const briefDesc = colonIndex > 0 ? description.substring(0, colonIndex).trim() : description;
+    const details = colonIndex > 0 ? description.substring(colonIndex + 1).trim() : "";
+
+    let detectedRoomId = ticket.room_id || "";
+    let detectedBuildingId = ticket.building_id || "";
+    let detectedSiteId = ticket.location_id || "";
+
+    if (!detectedRoomId && ticket.asset_id) {
+      const associatedAsset = assets.find((asset) => Number(asset.asset_id) === Number(ticket.asset_id));
+      if (associatedAsset) {
+        detectedRoomId = associatedAsset.room_id;
+      }
+    }
+
+    if (detectedRoomId && !detectedBuildingId) {
+      const associatedRoom = rooms.find((room) => Number(room.room_id) === Number(detectedRoomId));
+      if (associatedRoom) {
+        detectedBuildingId = associatedRoom.building_id;
+      }
+    }
+
+    if (detectedBuildingId && !detectedSiteId) {
+      const associatedBuilding = buildings.find((building) => Number(building.building_id) === Number(detectedBuildingId));
+      if (associatedBuilding) {
+        detectedSiteId = associatedBuilding.location_id;
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      job_desc: description,
+      job_type: normalizeWorkTypeValue(ticket.fault_type) || "",
+      job_priority: normalizePriorityValue(ticket.fault_priority) || "Normal",
+      job_status: "Oop",
+      brief_description: briefDesc,
+      job_notes: details,
+      nature: ticket.fault_type || "",
+      asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
+      room_id: detectedRoomId ? String(detectedRoomId) : "",
+      building_id: detectedBuildingId ? String(detectedBuildingId) : "",
+      location_id: detectedSiteId ? String(detectedSiteId) : "",
+      fault_id: ticket.fault_id ? String(ticket.fault_id) : "",
+    }));
+
+    setConnectionType("fault");
+    setConnectionTargetId(String(ticket.fault_id || ""));
+
+    if (detectedRoomId) {
+      const matchingRoom = rooms.find((room) => String(room.room_id) === String(detectedRoomId));
+      if (matchingRoom) {
+        setSelectedTerrein(matchingRoom.terrein ? { value: matchingRoom.terrein, label: matchingRoom.terrein } : null);
+        setSelectedGebou(matchingRoom.gebou ? { value: matchingRoom.gebou, label: matchingRoom.gebou } : null);
+      }
+    } else {
+      setSelectedTerrein(null);
+      setSelectedGebou(null);
+    }
+  };
+
   // Haal almal data wanneer blad laai
   useEffect(() => {
     const requestedJobcardId = searchParams.get('jobcard_id');
@@ -103,6 +168,15 @@ function WorkOrderPage() {
     fetchTickets();
     fetchContractors();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.ticket) {
+      setShowModal(true);
+      setIsEditing(false);
+      setEditingId(null);
+      applyTicketSelectionToForm(location.state.ticket);
+    }
+  }, [location.state?.ticket, assets, rooms, buildings, terrains]);
 
   const fetchTerrains = async () => {
     try {
