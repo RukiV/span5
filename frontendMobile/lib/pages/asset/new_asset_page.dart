@@ -22,7 +22,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
   String name = "";
   String serialCode = "";
   String brand = "";
-  String assetCode = "";
   bool isFixed = false;
   String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
   final List<String> categories = ["Meubels", "IT Voorraad", "Elektronika", "Kombuis", "Ander"];
@@ -162,15 +161,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     onChanged: (v) => brand = v,
                   ),
                   const SizedBox(height: 20),
-
-                  if (UserSession.hasAdminPrivileges)
-                    _buildCustomTextField(
-                      label: "Bate Kode",
-                      hint: "Laat leeg vir outomaties",
-                      onChanged: (v) => assetCode = v,
-                    ),
-                  if (UserSession.hasAdminPrivileges)
-                    const SizedBox(height: 20),
 
                   const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   Checkbox(
