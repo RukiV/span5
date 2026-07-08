@@ -493,21 +493,13 @@ function WorkOrderPage() {
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_schedule_type: formData.job_schedule_type || "enkel",
-        asset_id: null,
-        room_id: null,
-        building_id: null,
-        location_id: null,
-        fault_id: null,
+        asset_id: formData.asset_id ? Number(formData.asset_id) : null,
+        room_id: formData.room_id ? Number(formData.room_id) : null,
+        building_id: formData.building_id ? Number(formData.building_id) : null,
+        location_id: formData.location_id ? Number(formData.location_id) : null,
+        fault_id: formData.fault_id ? Number(formData.fault_id) : null,
         job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
       };
-
-      if (connectionType === "asset" && connectionTargetId) {
-        payload.asset_id = Number(connectionTargetId);
-      } else if (connectionType === "room" && connectionTargetId) {
-        payload.room_id = Number(connectionTargetId);
-      } else if (connectionType === "fault" && connectionTargetId) {
-        payload.fault_id = Number(connectionTargetId);
-      }
 
       const savedWorkOrderResponse = isEditing
         ? await workOrdersAPI.update(editingId, payload)
@@ -845,6 +837,7 @@ function WorkOrderPage() {
                 <option value="room_id">Lokaal ID</option>
                 <option value="building_id">Gebou ID</option>
                 <option value="location_id">Terrein ID</option>
+                <option value="fault_id">Terrein ID</option>
                 <option value="scheduled">Datum</option>
                 <option value="status">Status</option>
               </select>
@@ -890,6 +883,7 @@ function WorkOrderPage() {
                 <th>Lokaal ID</th>
                 <th>Gebou ID</th>
                 <th>Terrein ID</th>
+                <th>Fault ID</th>
                 <th>Datum</th>
                 <th>Status</th>
                 <th>Aksies</th>
@@ -910,6 +904,7 @@ function WorkOrderPage() {
                     <td>{order.room_id || "-"}</td>
                     <td>{order.building_id || "-"}</td>
                     <td>{order.location_id || "-"}</td>
+                    <td>{order.fault_id || "-"}</td>
                     <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
                     <td>
                       <span className={`status-badge ${getStatusClass(order.job_status)}`}>
@@ -1000,10 +995,10 @@ function WorkOrderPage() {
                       onChange={(e) => setFormData({...formData, job_type: e.target.value})}
                     >
                       <option value="">Kies...</option>
-                      <option value="maintenance">Onderhoud</option>
-                      <option value="repair">Herstel</option>
-                      <option value="inspection">Inspeksie</option>
-                      <option value="installation">Installasie</option>
+                      <option value="Onderhoud">Onderhoud</option>
+                      <option value="Herstel">Herstel</option>
+                      <option value="Inspeksie">Inspeksie</option>
+                      <option value="Installasie">Installasie</option>
                     </select>
                   </div>
                   <div className="mri-fld"><span>Status</span> 
