@@ -611,7 +611,7 @@ def seed_data():
             session=session,
             name="Handdroër",
             brand="Dyson",
-            serial="AK-MT000014",
+            serial="AK MT000014",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
@@ -623,7 +623,7 @@ def seed_data():
             session,
             name="Handdroër",
             brand="Dyson",
-            serial="AK-MT000015",
+            serial="AK MT000015",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room2.room_id,
@@ -634,7 +634,7 @@ def seed_data():
             session,
             name="Projektor 4k",
             brand="Epson",
-            serial="AK-MT000001",
+            serial="AK MT000001",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room3.room_id,
@@ -645,7 +645,7 @@ def seed_data():
             session,
             name="Projektor 4k",
             brand="Epson",
-            serial="AK-MT000002",
+            serial="AK MT000002",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -656,7 +656,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Dauphin",
-            serial="AK-MT000005",
+            serial="AK MT000005",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -667,7 +667,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT000006",
+            serial="AK MT000006",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -678,7 +678,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT003767",
+            serial="AK MT003767",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -689,7 +689,7 @@ def seed_data():
             session,
             name="Tafel",
             brand="Barker Street",
-            serial="AK-MT003701",
+            serial="AK MT003701",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -700,7 +700,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT000012",
+            serial="AK MT000012",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -731,8 +731,8 @@ def seed_data():
             room_id=room1.room_id,
         )
 
-        projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
-        stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000005")).first()
+        projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
+        stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
         _get_or_create_job(
             session,
@@ -800,8 +800,8 @@ def seed_data():
             )
         
         # Create update audit logs for some assets (room changes)
-        # Projector 1 (AK-MT000001): moved twice
-        projector1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
+        # Projector 1 (AK MT000001): moved twice
+        projector1 = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         if projector1:
             # First update: moved from room3 to room4
             _create_asset_audit_log(
@@ -824,8 +824,8 @@ def seed_data():
                 timestamp=datetime(2025, 5, 20, 14, 15, 0),
             )
         
-        # Chair (AK-MT000006): moved once
-        chair1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000006")).first()
+        # Chair (AK MT000006): moved once
+        chair1 = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000006")).first()
         if chair1:
             _create_asset_audit_log(
                 session,
@@ -837,8 +837,8 @@ def seed_data():
                 timestamp=datetime(2025, 3, 10, 9, 0, 0),
             )
         
-        # Table (AK-MT000011): moved twice
-        table = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000011")).first()
+        # Table (AK MT000011): moved twice
+        table = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000011")).first()
         if table:
             # First update: moved from room5 to room2
             _create_asset_audit_log(

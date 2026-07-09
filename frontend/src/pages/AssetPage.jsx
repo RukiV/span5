@@ -33,7 +33,7 @@ function AssetPage() {
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_brand: "",
-    asset_serial: "AK-", 
+    asset_serial: "", 
     asset_isoutdoor: false,
     asset_status: "Aktief", // Verander vanaf "active" na backend-verwagte waarde
     assettype_id: 1, 
@@ -120,12 +120,7 @@ function AssetPage() {
   };
 
   const handleSerialChange = (e) => {
-    const value = e.target.value;
-    if (!value.startsWith("AK-")) {
-      setNewAsset({ ...newAsset, asset_serial: "AK-" });
-    } else {
-      setNewAsset({ ...newAsset, asset_serial: value });
-    }
+    setNewAsset({ ...newAsset, asset_serial: e.target.value });
   };
 
   const handleSaveAsset = async () => {
@@ -139,9 +134,9 @@ function AssetPage() {
       
       const cleanedSerial = newAsset.asset_serial.trim();
 
-      const serialRegex = /^AK-[A-Za-z]{2}\d{6}$/;
+      const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
-        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK-XX000000 wees (bv. AK-MT123456).");
+        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).");
         return;
       }
 
@@ -224,7 +219,7 @@ function AssetPage() {
     setNewAsset({
       asset_name: item.asset_name || "",
       asset_brand: item.asset_brand || "",
-      asset_serial: item.asset_serial || "AK-",
+      asset_serial: item.asset_serial || "",
       asset_isoutdoor: item.asset_isoutdoor || false,
       asset_status: item.asset_status || "Aktief", // Verander na "Aktief" as terugval
       assettype_id: item.assettype_id || 1,
@@ -239,13 +234,13 @@ function AssetPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK-", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
   };
 
   const handleNewAsset = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK-", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
     setShowModal(true);
   };
 
@@ -500,7 +495,7 @@ function AssetPage() {
                   type="text"
                   value={newAsset.asset_serial}
                   onChange={handleSerialChange}
-                  placeholder="bv. AK-MT000001"
+                  placeholder="bv. AK MT000001"
                 />
               </div>
             </div>
