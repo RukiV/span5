@@ -1,41 +1,129 @@
-import 'package:dio/dio.dart';
+import  'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../models/user_session.dart';
+import 'navigation.dart';
 
+/// ApiClient: Centralized network engine for the Akademia Facility Management System.
+/// 
+/// This class implements a Singleton pattern to provide a single point of access 
+/// to the Dio client, ensuring consistent configuration, interceptors, and security.
 class ApiClient {
-  static final Dio _dio = _initDio();
+  static final ApiClient _instance = ApiClient._internal();
+  late final Dio _dio;
+  final _storage = const FlutterSecureStorage();
 
-  static Dio _initDio() {
-    // VIR WERKLIKE FOON: Vervang met jou laptop se IP (bv. '192.168.1.100')
-    // Jy kan dit kry deur 'ipconfig' in cmd te hardloop op Windows.
-    const String laptopIp = '10.32.6.229'; // Jou laptop se IP-adres vanaf die foto
+  factory ApiClient() => _instance;
 
-    final dio = Dio(
+  ApiClient._internal() {
+    //emulator
+    final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.43.25:8000/api/v1');
+    //physical
+    //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
+    
+    _dio = Dio(
       BaseOptions(
-        baseUrl: 'http://$laptopIp:8000/api/v1',
+        baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'X-Client-Type': 'mobile',
         },
       ),
     );
 
-    dio.interceptors.add(InterceptorsWrapper(
-      onError: (DioException e, handler) {
-        if (e.type == DioExceptionType.connectionError) {
-          debugPrint("Fout: Kon nie aan $laptopIp verbind nie. Maak seker die backend hardloop en jou foon is op dieselfde WiFi.");
-        }
-        return handler.next(e);
-      },
-    ));
-
-    return dio;
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final token = await _storage.read(key: 'auth_token');
+          if (token != null) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          return handler.next(options);
+        },
+        onError: (DioException e, handler) async {
+          debugPrint("❌ API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
+          
+          if (e.response?.statusCode == 401) {
+            // Token might be expired. Try to refresh.
+            final refreshed = await _refreshSession();
+            if (refreshed) {
+              // Retry the original request with the new token
+              try {
+                final response = await _retry(e.requestOptions);
+                return handler.resolve(response);
+              } catch (retryError) {
+                return handler.next(retryError is DioException ? retryError : e);
+              }
+            } else {
+              // Refresh failed or no token, logout and redirect to login
+              await clearToken();
+              UserSession.clear();
+              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+            }
+          }
+          return handler.next(e);
+        },
+      ),
+    );
   }
 
-  static Dio get dio => _dio;
+  /// Attempts to refresh the session using the /refresh endpoint.
+  Future<bool> _refreshSession() async {
+    try {
+      final token = await _storage.read(key: 'auth_token');
+      if (token == null) return false;
 
-  static void setBaseUrl(String url) {
-    _dio.options.baseUrl = url;
+      // We use a fresh Dio instance to avoid interceptor loops if refresh itself returns 401
+      final refreshDio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+      final response = await refreshDio.post(
+        '/auth/refresh',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
+      if (response.statusCode == 200) {
+        final newToken = response.data['session_token'];
+        await saveToken(newToken);
+        return true;
+      }
+    } catch (e) {
+      debugPrint("❌ Session refresh failed: $e");
+    }
+    return false;
+  }
+
+  /// Retries a request with the latest authorization token.
+  Future<Response> _retry(RequestOptions requestOptions) async {
+    final token = await _storage.read(key: 'auth_token');
+    final options = Options(
+      method: requestOptions.method,
+      headers: {
+        ...requestOptions.headers,
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+
+    return _dio.request(
+      requestOptions.path,
+      data: requestOptions.data,
+      queryParameters: requestOptions.queryParameters,
+      options: options,
+    );
+  }
+
+  /// Returns the configured Dio instance.
+  Dio get client => _dio;
+
+  /// Stores the authentication token securely.
+  Future<void> saveToken(String token) async {
+    await _storage.write(key: 'auth_token', value: token);
+  }
+
+  /// Removes the authentication token from secure storage.
+  Future<void> clearToken() async {
+    await _storage.delete(key: 'auth_token');
   }
 }

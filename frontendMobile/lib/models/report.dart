@@ -1,8 +1,8 @@
-import 'user_session.dart';
 
 class Report {
   final String id;
   final String assetId;
+  final String? assetSerialCode;
   final String location; // Word gemap na room_id op backend
   final String title;
   final String description;
@@ -11,13 +11,15 @@ class Report {
   final String phase; // Word gemap na fault_status op backend
   final String user;
   final DateTime timestamp;
-  final String? adminNotes;
-  final String? imageUrl;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
+  final int? imageId;
+  final int? locationId; // Kampus (location_id op backend)
+  final int? buildingId; // Gebou (building_id op backend)
 
   Report({
     required this.id,
     required this.assetId,
+    this.assetSerialCode,
     required this.location,
     required this.title,
     required this.description,
@@ -26,64 +28,158 @@ class Report {
     required this.phase,
     required this.user,
     required this.timestamp,
-    this.adminNotes,
-    this.imageUrl,
     this.gpsCoords,
+    this.imageId,
+    this.locationId,
+    this.buildingId,
   });
 
   // Map vanaf Flutter model na Backend (Faultcard)
   Map<String, dynamic> toJson() {
-    // Map prioriteit (Backend verwag: low, medium, high)
-    String backendPriority = "medium";
-    if (priority == "Laag") backendPriority = "low";
-    if (priority == "Hoog") backendPriority = "high";
-
-    // Map status (Backend verwag: wag, open, bevestig, besig, opgelos, verwerp)
-    String backendStatus = "wag";
-    if (phase == "Besig") backendStatus = "besig";
-    if (phase == "Voltooi") backendStatus = "opgelos";
-    if (phase == "Geweier") backendStatus = "verwerp";
-
-    // Map tipe (Backend verwag: maintenance, repair, upgrade)
-    String? backendType;
-    if (category == "Instandhouding") backendType = "maintenance";
-    if (category == "Herstel") backendType = "repair";
-    if (category == "Opgradering") backendType = "upgrade";
-
     return {
       'fault_description': '$title: $description',
-      'fault_type': backendType,
-      'fault_priority': backendPriority,
-      'fault_status': backendStatus,
+      'fault_type': _backendFaultType(category),
+      'fault_priority': _backendPriority(priority),
+      'fault_status': _backendFaultStatus(phase),
       'fault_reportdatetime': timestamp.toIso8601String(),
-      // Backend verwag IDs as integers
-      'asset_id': int.tryParse(assetId),
-      'user_id': UserSession.userId,
+      'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
       'room_id': int.tryParse(location),
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
+      'location_id': locationId,
+      'building_id': buildingId,
+      if (imageId != null) 'image_id': imageId,
     };
+  }
+
+  static String? _backendFaultType(String cat) {
+    switch (cat.toLowerCase()) {
+      case 'instandhouding':
+      case 'maintenance':
+        return 'Instandhouding';
+      case 'herstel':
+      case 'herstelwerk':
+      case 'repair':
+        return 'Herstelwerk';
+      case 'opgradering':
+      case 'upgrade':
+        return 'Opgradering';
+      default:
+        return null;
+    }
+  }
+
+  static String _backendPriority(String prio) {
+    switch (prio.toLowerCase()) {
+      case 'laag':
+      case 'low':
+        return 'Laag';
+      case 'medium':
+        return 'Medium';
+      case 'hoog':
+      case 'high':
+        return 'Hoog';
+      default:
+        return 'Medium';
+    }
+  }
+
+  static String _backendFaultStatus(String ph) {
+    switch (ph.toLowerCase()) {
+      case 'ontvang':
+      case 'wag':
+      case 'wait':
+        return 'Wag';
+      case 'oop':
+      case 'open':
+        return 'Oop';
+      case 'bevestig':
+      case 'confirmed':
+      case 'confrimed':
+        return 'Bevestig';
+      case 'besig':
+      case 'in_progress':
+      case 'in progress':
+        return 'Besig';
+      case 'voltooi':
+      case 'opgelos':
+      case 'resolved':
+        return 'Opgelos';
+      case 'geweier':
+      case 'verwerp':
+      case 'closed':
+      case 'gesluit':
+        return 'Gesluit';
+      default:
+        return 'Wag';
+    }
+  }
+
+  static String _frontendFaultStatus(String s) {
+    switch (s) {
+      case 'WAIT':
+      case 'Wag':
+        return 'Ontvang';
+      case 'OPEN':
+      case 'Oop':
+        return 'Ontvang';
+      case 'CONFRIMED':
+      case 'Bevestig':
+        return 'Ontvang';
+      case 'IN_PROGRESS':
+      case 'Besig':
+        return 'Besig';
+      case 'RESOLVED':
+      case 'Opgelos':
+        return 'Voltooi';
+      case 'CLOSED':
+      case 'Gesluit':
+        return 'Geweier';
+      default:
+        return 'Ontvang';
+    }
+  }
+
+  static String _frontendPriority(String p) {
+    switch (p) {
+      case 'LOW':
+      case 'Laag':
+        return 'Laag';
+      case 'MEDIUM':
+      case 'Medium':
+        return 'Medium';
+      case 'HIGH':
+      case 'Hoog':
+        return 'Hoog';
+      default:
+        return 'Medium';
+    }
+  }
+
+  static String _frontendFaultType(String? t) {
+    switch (t) {
+      case 'MAINTENANCE':
+      case 'Instandhouding':
+        return 'Instandhouding';
+      case 'REPAIR':
+      case 'Herstelwerk':
+        return 'Herstel';
+      case 'UPGRADE':
+      case 'Opgradering':
+        return 'Opgradering';
+      default:
+        return 'Algemeen';
+    }
   }
 
   factory Report.fromJson(Map<String, dynamic> json) {
     // Map backend status terug na frontend fase
-    String frontendPhase = "Ontvang";
-    String bs = json['fault_status'] ?? "wag";
-    if (bs == "besig") frontendPhase = "Besig";
-    if (bs == "opgelos") frontendPhase = "Voltooi";
-    if (bs == "verwerp") frontendPhase = "Geweier";
+    String frontendPhase = _frontendFaultStatus(json['fault_status'] ?? "Wag");
 
     // Map backend prioriteit
-    String frontendPriority = "Medium";
-    String bp = json['fault_priority'] ?? "medium";
-    if (bp == "low") frontendPriority = "Laag";
-    if (bp == "high") frontendPriority = "Hoog";
+    String frontendPriority = _frontendPriority(json['fault_priority'] ?? "Medium");
 
     // Map backend tipe terug na frontend kategorie
-    String frontendCategory = "Algemeen";
-    String? bt = json['fault_type'];
-    if (bt == "maintenance") frontendCategory = "Instandhouding";
-    if (bt == "repair") frontendCategory = "Herstel";
-    if (bt == "upgrade") frontendCategory = "Opgradering";
+    String frontendCategory = _frontendFaultType(json['fault_type']);
 
     // Beskrywing split (backend stoor as "Title: Description")
     String fullDesc = json['fault_description'] ?? "";
@@ -108,15 +204,17 @@ class Report {
       timestamp: json['fault_reportdatetime'] != null 
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
-      adminNotes: json['admin_notes'],
-      imageUrl: json['image_url'],
       gpsCoords: json['mappoint_id']?.toString(),
+      imageId: json['image_id'],
+      locationId: json['location_id'],
+      buildingId: json['building_id'],
     );
   }
 
   Report copyWith({
     String? id,
     String? assetId,
+    String? assetSerialCode,
     String? location,
     String? title,
     String? description,
@@ -125,13 +223,15 @@ class Report {
     String? phase,
     String? user,
     DateTime? timestamp,
-    String? adminNotes,
-    String? imageUrl,
     String? gpsCoords,
+    int? imageId,
+    int? locationId,
+    int? buildingId,
   }) {
     return Report(
       id: id ?? this.id,
       assetId: assetId ?? this.assetId,
+      assetSerialCode: assetSerialCode ?? this.assetSerialCode,
       location: location ?? this.location,
       title: title ?? this.title,
       description: description ?? this.description,
@@ -140,9 +240,10 @@ class Report {
       phase: phase ?? this.phase,
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
-      adminNotes: adminNotes ?? this.adminNotes,
-      imageUrl: imageUrl ?? this.imageUrl,
       gpsCoords: gpsCoords ?? this.gpsCoords,
+      imageId: imageId ?? this.imageId,
+      locationId: locationId ?? this.locationId,
+      buildingId: buildingId ?? this.buildingId,
     );
   }
 }

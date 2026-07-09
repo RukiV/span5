@@ -1,40 +1,63 @@
 from enum import Enum
 
 class Priority(Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
+    """Enumeration for priority values."""
+    LOW = "Laag"
+    MEDIUM = "Medium"
+    HIGH = "Hoog"
 
 class Type(Enum):
-    MAINTENANCE = "maintenance"
-    REPAIR = "repair"
-    UPGRADE = "upgrade"
+    """Enumeration for type values."""
+    MAINTENANCE = "Instandhouding"
+    REPAIR = "Herstelwerk"
+    UPGRADE = "Opgradering"
 
 class FaultStatus(Enum):
-    WAIT = "wag"
-    OPEN = "open"
-    CONFRIMED = "bevestig"
-    IN_PROGRESS = "besig"
-    RESOLVED = "opgelos"
-    CLOSED = "verwerp"
+    """Enumeration for fault status values."""
+    WAIT = "Wag"
+    OPEN = "Oop"
+    CONFIRMED = "Bevestig"
+    IN_PROGRESS = "Besig"
+    RESOLVED = "Opgelos"
+    CLOSED = "Gesluit"
 
 class JobStatus(Enum):
-    WAIT = "wag"
-    OPEN = "open"
-    IN_PROGRESS = "besig"
-    COMPLETED = "voltooid"
-    CANCELLED = "geannuleerd"
+    """Enumeration for job status values."""
+    WAIT = "Wag"
+    OPEN = "Oop"
+    IN_PROGRESS = "Besig"
+    COMPLETED = "Voltooid"
+    CANCELLED = "Gekanselleer"
 
 class AssetStatus(Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    MAINTENANCE = "maintenance"
-    DECOMMISSIONED = "decommissioned"   
+    """Enumeration for asset status values."""
+    ACTIVE = "Aktief"
+    INACTIVE = "Onaktief"
+    MAINTENANCE = "Instandhouding"
+    DECOMMISSIONED = "Afgedank"
+
+class RoomStatus(Enum):
+    """Enumeration for room statuses."""
+    OPERATIONAL = "Operasioneel"
+    ISSUE_REPORTED = "Fout Aangemeld"
+    MAINTENANCE = "Instandhouding"
+    OUT_OF_SERVICE = "Buite Werking"
+
+class BuildingType(Enum):
+    """Enumeration for building type values."""
+    ADMIN = "Kantoorgebou"
+    EDUCATIONAL = "Onderwys"
+    LABORATORY = "Laboratorium"
+    WAREHOUSE = "warehouse"
+    KAFERERIA = "Kafeteria"
+    OTHER = "Ander"
 
 class RoomType(Enum):
+    """Enumeration for room type values."""
     OFFICE = "Kantoor"
-    CONFERENCE = "conference"
-    LABORATORY = "laboratory"
-    WAREHOUSE = "warehouse"
-    CLASSROOM = "classroom"
-    OTHER = "other"
+    CONFERENCE = "Konferensiekamer"
+    LABORATORY = "Laboratorium"
+    WAREHOUSE = "Pakhuis"
+    CLASSROOM = "Klaskamer"
+    BATHROOM = "Badkamer"
+    OTHER = "Ander"

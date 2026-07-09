@@ -21,6 +21,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/facility_db
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-your_client_id_here}
     depends_on:
       postgres:
         condition: service_healthy
@@ -29,11 +30,23 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:80"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     environment:
-      REACT_APP_API_URL: http://localhost:8000
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-your_client_id_here}
+      - REACT_APP_MICROSOFT_TENANT_ID=common
+      - REACT_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+    stdin_open: true
+    tty: true
     depends_on:
       - backend
 
