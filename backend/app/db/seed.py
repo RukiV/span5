@@ -22,7 +22,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_email: str, user_password: str, role_id: int) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -47,8 +47,8 @@ def _get_or_create_test_user(session: Session, user_email: str, user_password: s
 
     # Skep nuwe toetsgebruiker met gegewe parameters
     user = User(
-        user_name="Test",
-        user_surname="User",
+        user_name=user_name,
+        user_surname=user_surname,
         user_email=user_email,
         user_password=user_password,
         user_number="0000000000",
@@ -392,6 +392,8 @@ def seed_data():
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
         _get_or_create_test_user(
             session,
+            user_name="test",
+            user_surname="user",
             user_email="test@example.com",
             user_password="password123",
             role_id=user_role.role_id,  # role_id = 1 (geweier)
@@ -400,6 +402,8 @@ def seed_data():
         # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
+            user_name="fk",
+            user_surname="user",
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
@@ -408,8 +412,39 @@ def seed_data():
         # Administrateur - KAN aanmeld EN vol toegang
         _get_or_create_test_user(
             session,
+            user_name="admin",
+            user_surname="user",
             user_email="admin@example.com",
             user_password="admin123",
+            role_id=admin_role.role_id,  # role_id = 3 (toelaat)
+        )
+
+        _get_or_create_test_user(
+            session,
+            user_name="Piet",
+            user_surname="Botha",
+            user_email="piet@gmail.com",
+            user_password="piet123",
+            role_id=user_role.role_id,  # role_id = 1 (geweier)
+        )
+
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        _get_or_create_test_user(
+            session,
+            user_name="Jaco",
+            user_surname="Venster",
+            user_email="jaco@gmail.com",
+            user_password="jaco123",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
+        # Administrateur - KAN aanmeld EN vol toegang
+        _get_or_create_test_user(
+            session,
+            user_name="Kobus",
+            user_surname="Dewald",
+            user_email="kobus@gmail.com",
+            user_password="kobus123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
         )
 
@@ -420,10 +455,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+suburb="Clubview",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         loc2 = _get_or_create_location(
@@ -432,10 +467,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+suburb="Die Hoewes",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         loc3 = _get_or_create_location(
@@ -444,10 +479,10 @@ def seed_data():
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+suburb="Esterville",
+            city="Paarl",
+            province="Wes Kaap",
+            country="Suid Afrika",
         )
 
         loc4 = _get_or_create_location(
@@ -456,10 +491,10 @@ def seed_data():
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-            suburb="Sentraal",
-            city="Tegnopolis",
-            province="Provinsie",
-            country="Land",
+suburb="Villieria",
+            city="Pretoria",
+            province="Gauteng",
+            country="Suid Afrika",
         )
 
         bld1 = _get_or_create_building(
@@ -582,7 +617,7 @@ def seed_data():
             session=session,
             name="Handdroër",
             brand="Dyson",
-            serial="AK-MT000014",
+            serial="AK MT000014",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
@@ -595,7 +630,7 @@ def seed_data():
             session,
             name="Handdroër",
             brand="Dyson",
-            serial="AK-MT000015",
+            serial="AK MT000015",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room2.room_id,
@@ -607,7 +642,7 @@ def seed_data():
             session,
             name="Projektor 4k",
             brand="Epson",
-            serial="AK-MT000001",
+            serial="AK MT000001",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room3.room_id,
@@ -619,7 +654,7 @@ def seed_data():
             session,
             name="Projektor 4k",
             brand="Epson",
-            serial="AK-MT000002",
+            serial="AK MT000002",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -631,7 +666,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Dauphin",
-            serial="AK-MT000005",
+            serial="AK MT000005",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -643,7 +678,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT000006",
+            serial="AK MT000006",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
@@ -655,7 +690,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT003767",
+            serial="AK MT003767",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -667,7 +702,7 @@ def seed_data():
             session,
             name="Tafel",
             brand="Barker Street",
-            serial="AK-MT003701",
+            serial="AK MT003701",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -679,7 +714,7 @@ def seed_data():
             session,
             name="Stoel",
             brand="Cecil Nurse",
-            serial="AK-MT000012",
+            serial="AK MT000012",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
@@ -711,8 +746,8 @@ def seed_data():
             room_id=room1.room_id,
         )
 
-        projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
-        stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000005")).first()
+        projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
+        stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
         _get_or_create_job(
             session,
@@ -731,7 +766,7 @@ def seed_data():
             session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
-            job_type="maintenance",
+job_type="Onderhoud",
             created_dt=now - timedelta(days=5),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
@@ -743,7 +778,7 @@ def seed_data():
             session,
             desc="Vervang stoel.",
             status=JobStatus.IN_PROGRESS,
-            job_type="inspection",
+            job_type="Inspeksie",
             created_dt=datetime.now(),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
             room_id=room4.room_id,
@@ -813,8 +848,8 @@ def seed_data():
             )
         
         # Create update audit logs for some assets (room changes)
-        # Projector 1 (AK-MT000001): moved twice
-        projector1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000001")).first()
+        # Projector 1 (AK MT000001): moved twice
+        projector1 = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         if projector1:
             # First update: moved from room3 to room4
             _create_asset_audit_log(
@@ -837,8 +872,8 @@ def seed_data():
                 timestamp=datetime(2025, 5, 20, 14, 15, 0),
             )
         
-        # Chair (AK-MT000006): moved once
-        chair1 = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000006")).first()
+        # Chair (AK MT000006): moved once
+        chair1 = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000006")).first()
         if chair1:
             _create_asset_audit_log(
                 session,
@@ -850,8 +885,8 @@ def seed_data():
                 timestamp=datetime(2025, 3, 10, 9, 0, 0),
             )
         
-        # Table (AK-MT000011): moved twice
-        table = session.exec(select(Asset).where(Asset.asset_serial == "AK-MT000011")).first()
+        # Table (AK MT000011): moved twice
+        table = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000011")).first()
         if table:
             # First update: moved from room5 to room2
             _create_asset_audit_log(

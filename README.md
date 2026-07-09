@@ -1,97 +1,148 @@
-# Span5
-#Run commands
+# FBS — Fasiliteitsbestuurstelsel
+
+'n Volstapel fasiliteitsbestuurstelsel vir **Akademia**. Die stelsel maak voorsiening vir die bestuur van bates, foute/jobkaarte, voorraad, kontrakteurs, kwotasies, en verslaggewing oor verskeie kampusse. Dit sluit 'n webkoppelvlak (React) vir administrateurs en koördineerders in, asook 'n mobiele toepassing (Flutter) vir veldverslaggewing deur studente en kontrakteurs.
+
+---
+
+## Kenmerke
+
+- **Batebestuur** — Driespoorbates (projekte, stoele, ens.) per vertrek/gebou/kampus met reeksnommers, beelde en geskiedenis
+- **Foutmelding** — Meld en volg foute met prioriteitsvlakke, beelde en GPS-koördinate
+- **Werkkaarte (Job Cards)** — Sleep, skeduleer en bestuur instandhoudingswerk gekoppel aan foute/bates
+- **Voorraadbestuur** — Hanteer verbruiksgoedere en onderdele met minimumvoorraadwaarskuwings
+- **Kontrakteursbestuur** — Kontrakteursdatabasis met kontakbesonderhede en spesialisasies
+- **Kwotasiebestuur** — Versoek en bestuur kwotasies van kontrakteurs
+- **Ligginghiërargie** — Ligging (Kampus) > Gebou > Vertrek
+- **Rolgebaseerde toegang** — Gebruiker (mobiel), FK Koördineerder, Administrateur
+- **Ouditlog** — Alle CRUD-bewerkings word outomaties met voor-en-na-waardes aangeteken
+- **Dashboard en ontleding** — Grafieke (Chart.js), aktiwiteitsvoer, statusopsommings
+- **Microsoft 365-inteegrasie** — Microsoft-rekening (MST) aanmelding en kalenderintegrasie
+- **Mobiele toepassing** — Flutter-app met GPS, kamera, QR/strepieskode skandering, biometrie
+
+---
+
+## Tegnologieë
+
+| Laag | Tegnologie |
+|---|---|
+| **Backend** | Python 3.12, FastAPI, SQLModel, SQLAlchemy, Pydantic v2, PostgreSQL 15, Uvicorn |
+| **Frontend Web** | React 18, React Router v6, Axios, Chart.js, MSAL (Azure AD), Nginx |
+| **Mobiel** | Flutter 3.1+ / Dart 3.1+, Dio, flutter_map, Google Maps, mobiele scanner |
+| **Infrastruktuur** | Docker Compose, GitLab |
+
+---
+
+## Vereistes
+
+- [Docker](https://docs.docker.com/get-docker/) en [Docker Compose](https://docs.docker.com/compose/install/) **(aanbeveel)**
+- OF:
+  - Python 3.12 en `pip`
+  - Node.js 18 en `npm`
+  - Flutter 3.1+ / Dart 3.1+ (vir mobiele toepassing)
+- PostgreSQL 15 (via Docker of plaaslik)
+- Microsoft Azure AD-rekening vir MST-aanmelding (opsioneel)
+
+---
+
+## Opstelling
+
+1. **Kopieer die omgewingslêers:**
+   ```bash
+   cp .env.example .env
+   cp backend/.env.example backend/.env
+   cp frontend/.env.example frontend/.env
+   ```
+
+2. **Konfigureer Microsoft Azure AD** (sien volledige gids in [MICROSOFT_LOGIN_SETUP.md](./MICROSOFT_LOGIN_SETUP.md)) vir MST-aanmelding.
+3. **Vul jou `.env`-lêers** in met die korrekte waardes (Azure-databasis, geheime-sleutels, ens.).
+
+---
+
+## Hardloop die stelsel
+
+### Met Docker (aanbeveel)
+```bash
+# Bou en begin alle dienste
+docker compose up --build
+
+# Of in die agtergrond:
 docker compose up -d
+```
 
-python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000 
+### Handmatig (ontwikkeling)
 
+**Backend:**
+```bash
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Frontend Web:**
+```bash
+cd frontend
+npm install
 npm start
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.akademia.ac.za/rkw/nswiw370/2026/span5.git
-git branch -M main
-git push -uf origin main
 ```
 
-## Integrate with your tools
+**Mobiele App:**
+```bash
+cd frontendMobile
+flutter pub get
+flutter run
+```
 
-- [ ] [Set up project integrations](https://gitlab.akademia.ac.za/rkw/nswiw370/2026/span5/-/settings/integrations)
+---
 
-## Collaborate with your team
+## Toegang
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+| Dien | URL |
+|---|---|
+| **Frontend Web** | http://localhost:3000 |
+| **API (Swagger UI)** | http://localhost:8000/docs |
+| **API (ReDoc)** | http://localhost:8000/redoc |
 
-## Test and Deploy
+### Toetsgeloofsbriewe
 
-Use the built-in continuous integration in GitLab.
+| Gebruikersnaam / E-pos | Wagwoord | Rol |
+|---|---|---|
+| `admin` / `admin@example.com` | `admin123` | Administrateur (volle toegang) |
+| `fk` / `fk@example.com` | `fk123` | FK Koördineerder (beperkte toegang) |
+| `test` / `test@example.com` | `password123` | Gebruiker (Web-aanmelding geweier, mobiel slegs) |
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+---
 
-***
+## Projekstruktuur
 
-# Editing this README
+```
+span5/
+├── backend/              # Python FastAPI-bediener
+│   ├── app/
+│   │   ├── api/         # REST-eindpunte
+│   │   ├── auth/        # Verifikasie en sessies
+│   │   ├── db/          # Databasisskema en saadlading
+│   │   ├── models/      # SQLModel-modelle
+│   │   └── services/    # Besigheidslogika
+│   └── requirements.txt  # Python-afhanklikhede
+├── frontend/             # React-webtoepassing
+│   ├── src/
+│   │   ├── components/  # Herbruikbare komponente
+│   │   ├── pages/       # Blaaie
+│   │   ├── services/    # API-kliënt en MST-konfigurasie
+│   │   └── styles/      # CSS-lêers
+│   └── package.json
+├── frontendMobile/       # Flutter-mobiele toepassing
+│   ├── lib/
+│   │   ├── core/        # App-kern (kleure, API-kliënt, navigasie)
+│   │   ├── models/      # Datamodelle
+│   │   ├── pages/       # Blaaie
+│   │   ├── services/    # Besigheidsdienste
+│   │   └── widgets/     # Hergebruikbare stel-komponente
+│   └── pubspec.yaml
+├── docker-compose.yml  # Docker-or-komposisie
+└── MICROSOFT_LOGIN_SETUP.md
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+---
 
-## Suggestions for a good README
+## Lêer
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Hierdie projek is ontwikkel as deel van die NWIW370-module by Akademia.
