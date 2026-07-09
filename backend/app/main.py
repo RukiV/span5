@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from .api.api import api_router
 from .db.database import createDBandTables
@@ -10,6 +12,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# --- MOBILE ASSET HOSTING ---
+# This section ensures that images uploaded from the mobile app are stored
+# locally on the server and served via a public URL.
+#
+# How it works:
+# 1. We define an 'uploads' directory.
+# 2. We 'mount' it so that http://server-ip:8000/uploads/file.jpg becomes accessible.
+#
+# FUTURE IMPROVEMENT: In production, consider moving this to a dedicated
+# storage provider like AWS S3 or Azure Blob Storage.
+UPLOAD_DIR = "uploads"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# ----------------------------
+
 @app.on_event("startup")
 def onStartup():
     createDBandTables()
@@ -17,12 +36,16 @@ def onStartup():
     seed_data()
 #ports
 
-origins = [ 
-    "http://localhost:3000", 
-    "http://frontend:3000"
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://frontend:3000",
 ]
 
-# CORS middleware
+# =============================================================================
+# DEBUG: Maak CORS oop vir alle bronne sodat die fisiese selfoon nie deur
+# die blaaier se sekuriteitsreëls geblokkeer word tydens toetsing op WiFi nie.
+# =============================================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -30,6 +53,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# =============================================================================
 
 app.include_router(api_router, prefix="/api/v1")
 

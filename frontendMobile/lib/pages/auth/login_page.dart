@@ -3,10 +3,16 @@ import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../main.dart';
+import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
+import '../../core/navigation.dart';
 import '../../models/user_session.dart';
+import '../../core/api_client.dart';
+import '../../core/auth_config.dart';
 
+/// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
+/// Dit ondersteun e-pos/wagwoord-aanmelding, Microsoft Outlook SSO,
+/// en Biometriese verifikasie (vingerafdruk/gesig).
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -16,53 +22,59 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final LocalAuthentication auth = LocalAuthentication();
+  
   bool _isLoading = false;
   bool _canCheckBiometrics = false;
+  bool _obscurePassword = true; // Beheer die sigbaarheid van die wagwoord
   late AadOAuth oauth;
-  
+
   final TextEditingController _userControl = TextEditingController();
   final TextEditingController _passControl = TextEditingController();
 
-  final Config config = Config(
-    tenant: "49c8f005-73ef-462e-99e7-7be3a22980eb",
-    clientId: "ee909cd4-2fae-4cd2-8d7e-da7e8508d772",
-    scope: "openid profile offline_access User.Read",
-    redirectUri: "msauth://com.example.untitled/xc13Rb9XZfaL0EqEJWzx78ijaeM=",
+  // Ons skuif die Config na 'n getter om seker te maak dit lees die vars waardes
+  Config get _oauthConfig => Config(
+    tenant: AuthConfig.tenantId,
+    clientId: AuthConfig.clientId,
+    scope: AuthConfig.scopes.join(' '),
+    redirectUri: AuthConfig.redirectUri,
     navigatorKey: navigatorKey,
   );
 
   @override
   void initState() {
     super.initState();
-    oauth = AadOAuth(config);
+    oauth = AadOAuth(_oauthConfig);
     _initAuth();
   }
 
+  /// Inisieer biometriese vermoëns en kyk of die gebruiker dit voorheen geaktiveer het.
   Future<void> _initAuth() async {
     try {
-      // Kyk of die toestel biometrie ondersteun
       bool canCheck = await auth.canCheckBiometrics;
       bool isSupported = await auth.isDeviceSupported();
       setState(() => _canCheckBiometrics = canCheck || isSupported);
-      
+
       if (_canCheckBiometrics) {
         final prefs = await SharedPreferences.getInstance();
         bool useBio = prefs.getBool('use_biometrics') ?? false;
-        
+
         if (useBio) {
-          // Wag vir die UI om te stabiliseer voor die prompt verskyn
+          // As biometrie geaktiveer is, probeer outomaties stawing na die eerste frame.
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _authenticateWithBiometrics();
           });
         }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("Biometriese inisialisasie fout: $e");
+    }
   }
 
+  /// Hanteer die werklike biometriese skandering.
   Future<void> _authenticateWithBiometrics() async {
     try {
       bool authenticated = await auth.authenticate(
-        localizedReason: 'Gebruik biometrie om vinnig aan te meld by Akademia',
+        localizedReason: 'Gebruik biometrie om vinnig aan te meld',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: true,
@@ -71,96 +83,172 @@ class _LoginPageState extends State<LoginPage> {
       if (authenticated && mounted) {
         _navigateToHome(isBioAuth: true);
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint("Biometriese stawing fout: $e");
+    }
   }
 
+  /// Die hoof-navigasie en stawing logika vir e-pos/wagwoord.
   Future<void> _navigateToHome({bool isBioAuth = false}) async {
     setState(() => _isLoading = true);
-    
-    // Check vir spesifieke credentials
+
     if (!isBioAuth) {
-      String user = _userControl.text.toLowerCase();
-      String pass = _passControl.text;
+      String email = _userControl.text.trim();
+      String password = _passControl.text;
 
-      if (pass == "1234") {
-        if (user == "admin") {
-          UserSession.role = UserRole.admin;
-          UserSession.userName = "Admin Gebruiker";
-          UserSession.userId = 1;
-        } else if (user == "bestuurder") {
-          UserSession.role = UserRole.manager;
-          UserSession.userName = "Kampus Bestuurder";
-          UserSession.userCampus = "Hoofkampus (Centurion)";
-          UserSession.userId = 2;
-        } else if (user == "kontrakteur") {
-          UserSession.role = UserRole.contractor;
-          UserSession.userName = "Piet Pompies (Loodgieter)";
-          UserSession.userId = 3;
-        } else {
-          UserSession.role = UserRole.student;
-          UserSession.userName = user.isEmpty ? "Student Demo" : user;
-          UserSession.userId = 99;
+      if (email.isEmpty || password.isEmpty) {
+        _showError("Vul asseblief alle velde in.");
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      try {
+        final response = await ApiClient().client.post(
+          '/auth/login',
+          data: {
+            'user_email': email,
+            'user_password': password,
+          },
+        );
+
+        if (response.statusCode == 200) {
+          final token = response.data['access_token'];
+          
+          // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
+          await ApiClient().saveToken(token);
+
+          await _fetchProfileAndNavigate();
+          return;
         }
-      } else {
-        // Indien wagwoord verkeerd is (vir demo doeleindes aanvaar ons alles anders as student)
-        UserSession.role = UserRole.student;
-        UserSession.userName = "Gaste Gebruiker";
+      } on DioException catch (e) {
+        String msg = "Aanmelding het misluk.";
+        
+        debugPrint("❌ Login error: status=${e.response?.statusCode} body=${e.response?.data}");
+        
+        // Verbeterde foutbestuur vir netwerk en spesifieke statuskodes.
+        if (e.type == DioExceptionType.connectionError) {
+          msg = "Kon nie die bediener bereik nie. Kontroleer jou internetverbinding of IP-adres.";
+        } else if (e.response?.statusCode == 401) {
+          final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+          msg = detail ?? "Ongeldige e-pos of wagwoord.";
+          debugPrint("   Login 401 detail: $detail");
+        } else if (e.response?.statusCode == 403) {
+          // Hanteer die platform-hekwagter boodskap vanaf die backend.
+          msg = e.response?.data['detail'] ?? "Jy het nie toegang tot hierdie stelsel nie.";
+        }
+        
+        _showError(msg);
+        setState(() => _isLoading = false);
+        return;
+      } catch (e) {
+        _showError("Onverwagse fout: $e");
+        setState(() => _isLoading = false);
+        return;
       }
-    }
-
-    // Simuleer login vertraging
-    await Future.delayed(const Duration(milliseconds: 800));
-    
-    if (!mounted) return;
-
-    // As dit nie admin/manager is nie, en biometrie is nog nie gestel nie, vra die gebruiker
-    if (!UserSession.hasAdminPrivileges && !isBioAuth) {
-      final prefs = await SharedPreferences.getInstance();
-      if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
-        bool? wantBio = await _showBiometricPrompt();
-        await prefs.setBool('use_biometrics', wantBio ?? false);
-      }
-    }
-
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      // Vir biometriese aanmelding word die token reeds deur die interseptor in ApiClient hanteer.
+      await _fetchProfileAndNavigate();
     }
   }
 
+  /// Laai die gebruiker se profiel en stel die UserSession sentraal op.
+  Future<void> _fetchProfileAndNavigate() async {
+    try {
+      final response = await ApiClient().client.get('/auth/me');
+      if (response.statusCode == 200) {
+        
+        // SENTRALE LOGIKA: Gebruik die UserSession klas om die data te inisieer.
+        // Dit hanteer ook die roldoewysing (Admin/Manager/Student).
+        UserSession.initialize(response.data);
+
+        if (!mounted) return;
+
+        // Kyk of ons biometrie moet voorstel vir toekomstige gebruik.
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
+          bool? wantBio = await _showBiometricPrompt();
+          await prefs.setBool('use_biometrics', wantBio ?? false);
+        }
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      }
+    } on DioException catch (e) {
+      debugPrint("Profiel laai fout: ${e.message}");
+      _showError("Kon nie profiel laai nie. Teken asseblief weer in.");
+      setState(() => _isLoading = false);
+    } catch (e) {
+      _showError("Fout met die verwerking van profiel-data.");
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message), 
+        backgroundColor: AppColors.errorRed,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// Dialoog om biometrie te aktiveer na die eerste suksesvolle login.
   Future<bool?> _showBiometricPrompt() {
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("Vinnige Intrekening", style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text("Vinnige Intrekening", 
+          style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
         content: const Text("Wil jy volgende keer biometrie (vingerafdruk of gesig) gebruik om vinniger in te teken?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("NEE DANKIE", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text("JA, AKTIVEER")),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false), 
+            child: const Text("NEE DANKIE", style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text("JA, AKTIVEER")
+          ),
         ],
       ),
     );
   }
 
+  /// Hanteer Microsoft Outlook SSO aanmelding.
   Future<void> _outlookLogin() async {
     setState(() => _isLoading = true);
     try {
       await oauth.login();
       String? accessToken = await oauth.getAccessToken();
       if (accessToken != null && mounted) {
-        UserSession.role = UserRole.student; // Outlook users is gewoonlik nie admin nie
-        _navigateToHome();
+        final response = await ApiClient().client.post(
+          '/auth/microsoft',
+          data: {'microsoft_token': accessToken},
+        );
+
+        if (response.statusCode == 200) {
+          final token = response.data['access_token'];
+          // Stoor Microsoft sessie token ook veilig.
+          await ApiClient().saveToken(token);
+          await _fetchProfileAndNavigate();
+        }
       } else {
         setState(() => _isLoading = false);
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Outlook Fout: $e")));
+      _showError("Outlook SSO Fout: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Vertoon laai-skerm indien besig.
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.navy,
@@ -170,9 +258,11 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const CircularProgressIndicator(color: AppColors.gold),
               const SizedBox(height: 25),
-              const Text("Besig om aan te meld...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+              const Text("Besig om aan te meld...", 
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
               const SizedBox(height: 8),
-              Text("Een oomblik asseblief", style: TextStyle(color: Colors.white.withValues(alpha: 150/255), fontSize: 12)),
+              Text("Een oomblik asseblief", 
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
             ],
           ),
         ),
@@ -187,58 +277,76 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.all(25.0),
             child: Column(
               children: [
+                // Hoof aanmeldingshouer
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 40),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(15),
-                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 76/255), blurRadius: 15, offset: const Offset(0, 5))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3), 
+                        blurRadius: 15, 
+                        offset: const Offset(0, 5)
+                      )
+                    ],
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text("Teken In", style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.navy)),
+                      const Text("Teken In", 
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.navy)),
                       const SizedBox(height: 35),
-                      _buildInputLabel("Gebruikersnaam"),
+
+                      _buildInputLabel("E-pos Adres"),
                       TextField(
                         controller: _userControl,
-                        decoration: InputDecoration(
-                          hintText: "admin of student_nr",
-                          fillColor: AppColors.inputFill,
-                          filled: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                        ),
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: _inputDecoration("e-pos adres"),
                       ),
                       const SizedBox(height: 20),
+
                       _buildInputLabel("Wagwoord"),
                       TextField(
                         controller: _passControl,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: "admin: 1234",
-                          fillColor: AppColors.inputFill,
-                          filled: true,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                        obscureText: _obscurePassword,
+                        decoration: _inputDecoration("wagwoord").copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                              color: Colors.grey,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 25),
+
+                      // Aanmeld-knoppie
                       SizedBox(
                         width: double.infinity,
                         height: 50,
-                        child: ElevatedButton(onPressed: () => _navigateToHome(), child: const Text("LOGIN", style: TextStyle(fontSize: 16, letterSpacing: 1.2))),
+                        child: ElevatedButton(
+                          onPressed: () => _navigateToHome(),
+                          child: const Text("Teken In", style: TextStyle(fontSize: 16, letterSpacing: 1.2)),
+                        ),
                       ),
+                      
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Row(
                           children: [
                             Expanded(child: Divider()),
-                            Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text("of", style: TextStyle(color: Colors.grey))),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 10), 
+                              child: Text("of", style: TextStyle(color: Colors.grey))
+                            ),
                             Expanded(child: Divider()),
                           ],
                         ),
                       ),
+                      
+                      // Microsoft SSO Alternatief
                       OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 50),
@@ -266,6 +374,29 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// Styl vir die inset-velde.
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.black26),
+      fillColor: AppColors.inputFill,
+      filled: true,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.black12),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.black12),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Colors.black38),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+    );
+  }
+
   Widget _buildInputLabel(String label) {
     return Align(
       alignment: Alignment.centerLeft,
@@ -276,6 +407,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// Visuele voorstelling van die Microsoft logo.
   Widget _microsoftIcon() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -286,5 +418,6 @@ class _LoginPageState extends State<LoginPage> {
       ],
     );
   }
+
   Widget _colorBox(Color c) => Container(width: 7, height: 7, color: c);
 }

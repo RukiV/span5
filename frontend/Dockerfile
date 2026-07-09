@@ -8,6 +8,8 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm install
+RUN npm install @azure/msal-browser @azure/msal-react
+RUN npm install react-select
 
 # Copy source code
 COPY . .

@@ -1,12 +1,21 @@
 /* Login Page Styles */
-body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; }
 
-.content {
+.login-page {
+  position: fixed;
+  inset: 0;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 100vh;
-  background-color: #f8fafc;
+  justify-content: center;
+}
+
+.login-form {
+  max-width: 400px;
+  margin: 0 auto;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .login-card {
@@ -14,7 +23,7 @@ body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
   padding: 35px;
   border-radius: 10px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-  border-top: 5px solid #935e28;
+  border-top: 5px solid var(--bruin);
   width: 100%;
   max-width: 380px;
 }
@@ -26,28 +35,9 @@ body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
   letter-spacing: 1px;
 }
 
-.input-group {
-  margin-bottom: 15px;
-  position: relative;
-}
 
-.input-group label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-  color: #0e1e3b;
-  font-size: 14px;
-}
 
-.input-group input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 5px;
-  font-size: 15px;
-}
-
-.forgot-password {
+.forgot-password-link {
   display: block;
   text-align: right;
   font-size: 12px;
@@ -56,14 +46,14 @@ body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
   margin-top: 5px;
 }
 
-.forgot-password:hover {
+.forgot-password-link:hover {
   text-decoration: underline;
 }
 
 .btn-login {
   width: 100%;
   padding: 12px;
-  background-color: #935e28;
+  background-color: var(--blou);
   color: white;
   border: none;
   border-radius: 5px;
@@ -74,7 +64,7 @@ body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
 }
 
 .btn-login:hover {
-  background-color: #0e1e3b;
+  background-color: var(--bruin);
 }
 
 .divider {
@@ -92,5 +82,28 @@ body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
   border-bottom: 1px solid #e2e8f0;
 }
 
-.divider:not(:empty)::before { margin-right: .5em; }
-.divider:not(:empty)::after { margin-left: .5em; }
+.btn-microsoft {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--blou);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 12px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-microsoft:hover {
+  background-color: var(--bruin);
+}
+
+.btn-microsoft svg {
+  width: 20px;
+  height: 20px;
+}
