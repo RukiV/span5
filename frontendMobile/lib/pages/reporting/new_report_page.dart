@@ -16,13 +16,12 @@ import '../../services/asset_service.dart';
 class NewReportPage extends StatefulWidget {
   const NewReportPage({super.key});
 
-  static DateTime? lastSubmissionTime;
-
   @override
   State<NewReportPage> createState() => _NewReportPageState();
 }
 
 class _NewReportPageState extends State<NewReportPage> {
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController serialController = TextEditingController();
   final TextEditingController titleController = TextEditingController();
   final TextEditingController descController = TextEditingController();
@@ -30,17 +29,18 @@ class _NewReportPageState extends State<NewReportPage> {
   String? selectedCampus;
   String? selectedBuilding;
   String? selectedLocation;
-  String selectedCategory = "Instandhouding";
+  String selectedCategory = "";
   String selectedPriority = "Medium";
-  String selectedStatus = "Ontvang";
   File? _photoFile;
-  bool showValidationErrors = false;
-
+  bool _isAutoFilling = false;
   @override
   void initState() {
     super.initState();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
+    }
+    if (UserSession.hasAdminPrivileges) {
+      selectedCategory = "Instandhouding";
     }
   }
 
@@ -50,6 +50,45 @@ class _NewReportPageState extends State<NewReportPage> {
     titleController.dispose();
     descController.dispose();
     super.dispose();
+  }
+
+  Future<void> _autoFillFromCode(String serialCode) async {
+    setState(() => _isAutoFilling = true);
+    final asset = await AssetService.getAssetBySerialCode(serialCode);
+    if (!mounted) return;
+    if (asset == null) {
+      setState(() => _isAutoFilling = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Geen bate gevind met hierdie kode nie"), backgroundColor: AppColors.warningOrange),
+      );
+      return;
+    }
+
+    final campusName = CampusService.getCampusNameByRoomId(asset.location);
+    final buildingName = CampusService.getBuildingNameByRoomId(asset.location);
+    final roomName = CampusService.getRoomName(asset.location);
+
+    String? formattedRoom;
+    if (asset.location.isNotEmpty) {
+      formattedRoom = "${asset.location}:$roomName";
+    }
+
+    setState(() {
+      selectedCampus = campusName;
+      selectedBuilding = buildingName;
+      selectedLocation = formattedRoom;
+      selectedCategory = _mapAssetCategory(asset.category);
+      _isAutoFilling = false;
+    });
+  }
+
+  String _mapAssetCategory(String assetCategory) {
+    switch (assetCategory) {
+      case "Meubels": return "Instandhouding";
+      case "IT Toerusting": return "Herstelwerk";
+      case "Sekuriteit": return "Instandhouding";
+      default: return "Ander";
+    }
   }
 
   List<String> get filteredBuildings {
@@ -68,264 +107,317 @@ class _NewReportPageState extends State<NewReportPage> {
     return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
   }
 
-  bool get _canSubmit {
-    bool hasLocation = selectedLocation != null;
-    bool hasDescription = titleController.text.trim().isNotEmpty && descController.text.trim().length > 3;
-    return hasLocation && hasDescription;
-  }
-
   @override
   Widget build(BuildContext context) {
-    const double sectionGap = 20.0;
-
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text("Nuwe Foutkaartjie"),
+        title: const Text("Nuwe Foutkaartjie", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 25),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildLabel("Bate Kode (Opsioneel)"),
-                      const SizedBox(height: 6),
-                      _buildAssetInput(),
-                      const SizedBox(height: sectionGap),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            margin: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildAssetInput(),
+                  const SizedBox(height: 20),
 
-                      if (UserSession.hasAdminPrivileges)
-                        Row(
-                          children: [
-                            Expanded(child: _buildSimpleDropdown("Kategorie", selectedCategory, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v))),
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildSimpleDropdown("Prioriteit", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
-                          ],
-                        )
-                      else
-                        _buildSimpleDropdown("Kategorie", selectedCategory, ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"], (v) => setState(() => selectedCategory = v)),
-
-                      const SizedBox(height: sectionGap),
-
-                      ValueListenableBuilder<List<Campus>>(
-                        valueListenable: CampusService.campusesNotifier,
-                        builder: (context, campuses, _) {
-                          return Row(
-                            children: [
-                              Expanded(
-                                child: SearchableDropdown<String>(
-                                  label: "Kampus *",
-                                  hint: "Kies Kampus",
-                                  value: selectedCampus,
-                                  items: campuses
-                                      .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                                      .toList(),
-                                  onChanged: (v) => setState(() {
-                                    selectedCampus = v;
-                                    selectedBuilding = null;
-                                    selectedLocation = null;
-                                  }),
-                                  validator: (v) => v == null ? "Kampus word vereis" : null,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: SearchableDropdown<String>(
-                                  label: "Gebou *",
-                                  hint: selectedCampus == null ? "Kies eers kampus" : "Kies Gebou",
-                                  value: selectedBuilding,
-                                  items: filteredBuildings
-                                      .map((b) => SearchableDropdownItem(value: b, label: b))
-                                      .toList(),
-                                  onChanged: (v) => setState(() {
-                                    selectedBuilding = v;
-                                    selectedLocation = null;
-                                  }),
-                                  validator: (v) => v == null ? "Gebou word vereis" : null,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-
-                      const SizedBox(height: sectionGap),
-
-                      if (UserSession.hasAdminPrivileges)
-                        Row(
-                          children: [
-                            Expanded(child: _buildRoomDropdown()),
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildSimpleDropdown("Status", selectedStatus, ["Ontvang", "Besig", "Voltooi", "Geweier"], (v) => setState(() => selectedStatus = v))),
-                          ],
-                        )
-                      else
-                        _buildRoomDropdown(),
-
-                      const SizedBox(height: sectionGap),
-
-                      _buildLabel("Beskrywing van Probleem *"),
-                      const SizedBox(height: 6),
-                      _buildEmailStyleDescription(),
-
-                      const Spacer(),
-                      const SizedBox(height: 30),
-
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            if (!UserSession.hasAdminPrivileges && NewReportPage.lastSubmissionTime != null) {
-                              final difference = DateTime.now().difference(NewReportPage.lastSubmissionTime!);
-                              if (difference.inMinutes < 10) {
-                                final minutesLeft = 10 - difference.inMinutes;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Wag asseblief nog $minutesLeft minute."), backgroundColor: AppColors.warningOrange),
-                                );
-                                return;
-                              }
-                            }
-
-                            if (!_canSubmit) {
-                              setState(() => showValidationErrors = true);
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Vul asseblief alle verpligte velde in."), backgroundColor: AppColors.errorRed),
-                                );
-                              }
-                              return;
-                            }
-
-                            int? imageId;
-                            if (_photoFile != null) {
-                              imageId = await ImageService.uploadImage(_photoFile!);
-                            }
-
-                            int? finalAssetIdInt;
-                            if (serialController.text.isNotEmpty) {
-                              final asset = await AssetService.getAssetBySerialCode(serialController.text);
-                              if (asset != null) {
-                                finalAssetIdInt = int.tryParse(asset.id);
-                              }
-                            }
-
-                            final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
-
-                            String roomId = "1";
-                            if (selectedLocation != null && selectedLocation!.contains(":")) {
-                              roomId = selectedLocation!.split(":").first;
-                            }
-
-                            final newReport = Report(
-                              id: "0",
-                              assetId: finalAssetId,
-                              location: roomId,
-                              title: titleController.text.trim(),
-                              description: descController.text.trim(),
-                              category: selectedCategory,
-                              priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
-                              phase: UserSession.hasAdminPrivileges ? selectedStatus : "Ontvang",
-                              user: UserSession.userId.toString(),
-                              timestamp: DateTime.now(),
-                              imageId: imageId,
-                            );
-
-                            try {
-                              final success = await ReportService.addReport(newReport);
-                              if (!mounted) return;
-                              if (success) {
-                                NewReportPage.lastSubmissionTime = DateTime.now();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
-                                  );
-                                  Navigator.pop(context);
-                                }
-                              } else {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
-                                  );
-                                }
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
-                                  );
-                                }
-                              }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _canSubmit ? AppColors.gold : Colors.grey[400],
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  if (UserSession.hasAdminPrivileges)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SearchableDropdown<String>(
+                            label: "Kategorie *",
+                            hint: "Kies Kategorie",
+                            value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                            items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                                .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                            onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                            validator: (v) => v == null ? "Kategorie word vereis" : null,
                           ),
-                          child: const Text("STOOR FOUTKAARTJIE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
-                      ),
-                      if (showValidationErrors && !_canSubmit)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 10),
-                          child: Center(
-                            child: Text(
-                              "Voltooi asseblief alle verpligte velde (*)",
-                              style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildSimpleDropdown("Prioriteit *", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
+                      ],
+                    )
+                  else
+                    SearchableDropdown<String>(
+                      label: "Kategorie *",
+                      hint: "Kies Kategorie",
+                      value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                      items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                          .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                      onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                      validator: (v) => v == null ? "Kategorie word vereis" : null,
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  ValueListenableBuilder<List<Campus>>(
+                    valueListenable: CampusService.campusesNotifier,
+                    builder: (context, campuses, _) {
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: SearchableDropdown<String>(
+                              label: "Kampus *",
+                              hint: "Kies Kampus",
+                              value: selectedCampus,
+                              items: campuses
+                                  .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
+                                  .toList(),
+                              onChanged: (v) => setState(() {
+                                selectedCampus = v;
+                                selectedBuilding = null;
+                                selectedLocation = null;
+                              }),
+                              validator: (v) => v == null ? "Kampus word vereis" : null,
                             ),
                           ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SearchableDropdown<String>(
+                              label: "Gebou *",
+                              hint: selectedCampus == null ? "Kies eers kampus" : "Kies Gebou",
+                              value: selectedBuilding,
+                              items: filteredBuildings
+                                  .map((b) => SearchableDropdownItem(value: b, label: b))
+                                  .toList(),
+                              onChanged: (v) => setState(() {
+                                selectedBuilding = v;
+                                selectedLocation = null;
+                              }),
+                              validator: (v) => v == null ? "Gebou word vereis" : null,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  _buildRoomDropdown(),
+
+                  const SizedBox(height: 20),
+
+                  _buildCustomTextField(
+                    label: "Opskrif",
+                    hint: "Onderwerp (bv. Gebreekte Kraan)",
+                    controller: titleController,
+                  ),
+                  const SizedBox(height: 20),
+
+                  _buildCustomTextField(
+                    label: "Beskrywing van Probleem *",
+                    hint: "Beskryf die probleem in detail...",
+                    controller: descController,
+                    maxLines: 3,
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return "Beskrywing word vereis";
+                      if (v.length > 100) return "Beskrywing mag nie meer as 100 karakters wees nie";
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildPhotoSection(),
+
+                  const SizedBox(height: 32),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: () async {
+                          if (!_formKey.currentState!.validate()) {
+                            return;
+                          }
+
+                          int? imageId;
+                          if (_photoFile != null) {
+                            imageId = await ImageService.uploadImage(_photoFile!);
+                          }
+
+                          int? finalAssetIdInt;
+                          String? finalAssetSerialCode;
+                          if (serialController.text.isNotEmpty) {
+                            final asset = await AssetService.getAssetBySerialCode(serialController.text);
+                            if (asset != null) {
+                              finalAssetIdInt = int.tryParse(asset.id);
+                              finalAssetSerialCode = asset.serialCode;
+                            }
+                          }
+
+                          final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
+
+                          String roomId = "1";
+                          if (selectedLocation != null && selectedLocation!.contains(":")) {
+                            roomId = selectedLocation!.split(":").first;
+                          }
+
+                          int? resolvedLocationId;
+                          int? resolvedBuildingId;
+                          if (selectedCampus != null) {
+                            final campus = CampusService.getCampusByName(selectedCampus!);
+                            if (campus != null) {
+                              resolvedLocationId = campus.id;
+                              if (selectedBuilding != null) {
+                                final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+                                resolvedBuildingId = building?.id;
+                              }
+                            }
+                          }
+
+                          final newReport = Report(
+                            id: "0",
+                            assetId: finalAssetId,
+                            assetSerialCode: finalAssetSerialCode,
+                            location: roomId,
+                            title: titleController.text.trim(),
+                            description: descController.text.trim(),
+                            category: selectedCategory,
+                            priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
+                            phase: "Ontvang",
+                            user: UserSession.userId.toString(),
+                            timestamp: DateTime.now(),
+                            imageId: imageId,
+                            locationId: resolvedLocationId,
+                            buildingId: resolvedBuildingId,
+                          );
+
+                          try {
+                            final success = await ReportService.addReport(newReport);
+                            if (!mounted) return;
+                            if (success) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
+                                );
+                                Navigator.pop(context);
+                              }
+                            } else {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
+                                );
+                              }
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+                                );
+                              }
+                            }
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF8B5E34),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
+                        child: const Text("Stoor"),
+                      ),
                     ],
                   ),
-                ),
+                ],
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildAssetInput() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEFBEA),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey[400]!),
-            ),
-            child: TextField(
-              controller: serialController,
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                hintText: "Tik Serial Kode of Skandeer...",
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        const Text("Bate Kode (Opsioneel)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: serialController,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: "Tik Serial Kode of Skandeer...",
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  suffixIcon: _isAutoFilling
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        )
+                      : null,
+                ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        InkWell(
-          onTap: () async {
-            final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
-            if (scannedCode != null) {
-              setState(() => serialController.text = scannedCode);
-            }
-          },
-          child: Container(
-            height: 48, width: 48,
-            decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(8)),
-            child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-          ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () {
+                final code = serialController.text.trim();
+                if (code.isNotEmpty) {
+                  _autoFillFromCode(code);
+                }
+              },
+              child: Container(
+                height: 48, width: 48,
+                decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.search, color: Colors.white),
+              ),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () async {
+                final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
+                if (scannedCode != null) {
+                  setState(() => serialController.text = scannedCode);
+                  _autoFillFromCode(scannedCode);
+                }
+              },
+              child: Container(
+                height: 48, width: 48,
+                decoration: BoxDecoration(color: const Color(0xFF8B5E34), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -349,21 +441,21 @@ class _NewReportPageState extends State<NewReportPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
         const SizedBox(height: 6),
         Container(
           height: 48,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFFEFBEA),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[400]!),
+            border: Border.all(color: Colors.grey[300]!),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
               isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down, color: AppColors.gold),
+              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5E34)),
               style: const TextStyle(fontSize: 14, color: Colors.black87),
               items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
               onChanged: (v) { if (v != null) onChanged(v); },
@@ -374,80 +466,79 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  Widget _buildEmailStyleDescription() {
-    bool hasTitleError = showValidationErrors && titleController.text.isEmpty;
-    bool hasDescError = showValidationErrors && descController.text.trim().length <= 3;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEFBEA),
-        borderRadius: BorderRadius.circular(8),
-        border: (hasTitleError || hasDescError)
-            ? Border.all(color: Colors.red, width: 1.5)
-            : Border.all(color: Colors.grey[400]!),
-      ),
-      child: Column(
-        children: [
-          TextField(
-            controller: titleController,
-            onChanged: (_) => setState(() {}),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
-            decoration: const InputDecoration(
-              hintText: "Onderwerp (bv. Gebreekte Kraan)",
-              hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.fromLTRB(12, 12, 12, 6),
+  Widget _buildCustomTextField({
+    required String label,
+    required String hint,
+    required TextEditingController controller,
+    String? Function(String?)? validator,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (label.isNotEmpty)
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+        if (label.isNotEmpty) const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          validator: validator,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
           ),
-          const Divider(height: 1, color: Colors.black12, indent: 12, endIndent: 12),
-          TextField(
-            controller: descController,
-            onChanged: (_) => setState(() {}),
-            maxLines: 3,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: Colors.black),
-            decoration: const InputDecoration(
-              hintText: "Beskryf die probleem in detail...",
-              hintStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: Colors.grey),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.fromLTRB(12, 8, 12, 12),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 10, 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                InkWell(
-                  onTap: () async {
-                    final photo = await CameraService.takePhoto();
-                    if (photo != null) {
-                      setState(() => _photoFile = photo);
-                    }
-                  },
-                  child: Container(
-                    height: 40, width: 40,
-                    decoration: BoxDecoration(
-                      color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
-                    ),
-                    child: _photoFile != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(5),
-                            child: Image.file(_photoFile!, fit: BoxFit.cover),
-                          )
-                        : const Icon(Icons.camera_alt, color: Colors.grey, size: 20),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14));
+  Widget _buildPhotoSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Foto", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: () async {
+            final photo = await CameraService.takePhoto();
+            if (photo != null) {
+              setState(() => _photoFile = photo);
+            }
+          },
+          child: Container(
+            height: 80, width: 80,
+            decoration: BoxDecoration(
+              color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
+            ),
+            child: _photoFile != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.file(_photoFile!, fit: BoxFit.cover),
+                  )
+                : const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+          ),
+        ),
+        if (_photoFile != null) ...[
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: () => setState(() => _photoFile = null),
+            child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed, fontSize: 12)),
+          ),
+        ],
+      ],
+    );
   }
 }
