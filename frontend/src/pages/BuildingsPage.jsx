@@ -27,7 +27,7 @@ function BuildingsPage() {
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
-    building_type: "other",
+    building_type: "Ander",
     location_id: "",
   });
 
@@ -236,6 +236,24 @@ function BuildingsPage() {
         </div>
 
         <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Geboue</h4>
+              <p className="analytics-value">{buildings.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Lokale</h4>
+              <p className="analytics-value">{rooms.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Tipes</h4>
+              <p className="analytics-value">{new Set(buildings.map(b => b.building_type).filter(Boolean)).size}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Terreine</h4>
+              <p className="analytics-value">{new Set(buildings.map(b => b.location_id).filter(Boolean)).size}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

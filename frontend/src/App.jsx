@@ -10,7 +10,7 @@ import StockPage from './pages/StockPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
 import UsersPage from './pages/UsersPage';
-import AnalysisPage from './pages/AnalysisPage';
+import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
 import RoomsPage from './pages/RoomsPage';
 import TerrainsPage from './pages/TerrainsPage';
@@ -93,7 +93,7 @@ function App() {
         <Route path="/work-orders" element={<ProtectedRoute><WorkOrderPage /></ProtectedRoute>} />
         <Route path="/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-        <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+        <Route path="/predictions" element={<ProtectedRoute><PredictionsPage /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
         <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
         <Route path="/terrains" element={<ProtectedRoute><TerrainsPage /></ProtectedRoute>} />

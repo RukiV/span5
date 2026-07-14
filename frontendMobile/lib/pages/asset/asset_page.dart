@@ -5,6 +5,7 @@ import '../../services/asset_service.dart';
 import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
+import 'manage_asset_types_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 
@@ -106,6 +107,28 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
           ),
+          if (UserSession.hasAdminPrivileges) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageAssetTypesPage())),
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 30/255),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.settings, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
+                    Text("Bate Tipes", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -156,7 +179,8 @@ class _AssetsPageState extends State<AssetsPage> {
 
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
-        return Column(
+return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
@@ -170,30 +194,32 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final asset = filtered[index];
-                  return InkWell(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                          Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              child: ListView(
+                children: [
+                  ...filtered.map((asset) => _buildAssetRow(asset)),
+                  const Divider(height: 1),
+                ],
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildAssetRow(Asset asset) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        child: Row(
+          children: [
+            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
+          ],
+        ),
+      ),
     );
   }
 
