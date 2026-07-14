@@ -223,7 +223,7 @@ class _EditReportPageState extends State<EditReportPage> {
             ),
     );
   }
-
+//checkmark for room asset scanning and barcode scanning
   Widget _buildRoomDropdown() {
     return SearchableDropdown<String>(
       label: "Lokaal",
