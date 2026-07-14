@@ -1,3 +1,5 @@
+import '../services/asset_type_service.dart';
+
 // Asset: Represents a piece of equipment or furniture tracked by the system.
 class Asset {
   final String id;
@@ -84,13 +86,13 @@ class Asset {
   factory Asset.fromJson(Map<String, dynamic> json) {
     final typeId = json['assettype_id'] as int? ?? 1;
     return Asset(
-      campus: 'Loading...', 
+      campus: 'Loading...',
       id: json['asset_id']?.toString() ?? '',
       serialCode: json['asset_serial'] ?? '',
       name: json['asset_name'] ?? 'Unknown Asset',
       brand: json['asset_brand'] ?? '',
       assetTypeId: typeId,
-      category: _getCategoryName(typeId),
+      category: AssetTypeService.getTypeName(typeId),
       location: json['room_id']?.toString() ?? '1',
       status: _frontendAssetStatus(json['asset_status'] ?? 'active'),
       isOutdoor: json['asset_isoutdoor'] == true || json['asset_isoutdoor'] == 1,
@@ -114,21 +116,5 @@ class Asset {
       default:
         return s.toLowerCase();
     }
-  }
-
-  static String _getCategoryName(int id) {
-    switch (id) {
-      case 1: return "Meubels";
-      case 2: return "IT Toerusting";
-      case 3: return "Sekuriteit";
-      default: return "Algemeen";
-    }
-  }
-
-  static int getCategoryId(String name) {
-    if (name.contains("Meubel")) return 1;
-    if (name.contains("IT") || name.contains("Elektron")) return 2;
-    if (name.contains("Sekuriteit")) return 3;
-    return 1;
   }
 }

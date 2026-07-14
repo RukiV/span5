@@ -34,7 +34,7 @@ function Sidebar({ currentPath, isAdmin, onLogout }) {
         <li><Link to="/work-orders" style={isActive('/work-orders')}>Werksopdragte</Link></li>
         <li><Link to="/contractors" style={isActive('/contractors')}>Kontrakteurs</Link></li>
         <li><Link to="/calendar" style={isActive('/calendar')}>Kalender</Link></li>
-        <li><Link to="/analysis" style={isActive('/analysis')}>Analise</Link></li>
+        <li><Link to="/predictions" style={isActive('/predictions')}>Voorspellings</Link></li>
         <li><Link to="/reports" style={isActive('/reports')}>Verslae</Link></li>
         {isAdmin && <li><Link to="/users" style={isActive('/users')}>Gebruikers</Link></li>}
       </ul>

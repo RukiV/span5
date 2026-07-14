@@ -301,6 +301,24 @@ function RoomsPage() {
         </div>
 
         <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Lokale</h4>
+              <p className="analytics-value">{rooms.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Operasioneel</h4>
+              <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Fout Aangemeld</h4>
+              <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Instandhouding</h4>
+              <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

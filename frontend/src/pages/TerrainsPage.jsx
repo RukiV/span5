@@ -195,6 +195,24 @@ function TerrainsPage() {
         </div>
 
         <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Terreine</h4>
+              <p className="analytics-value">{terrains.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Geboue</h4>
+              <p className="analytics-value">{buildings.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Tipes</h4>
+              <p className="analytics-value">{new Set(terrains.map(t => t.location_type).filter(Boolean)).size}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Geboue per Terrein</h4>
+              <p className="analytics-value">{terrains.length > 0 ? (buildings.length / terrains.length).toFixed(1) : '-'}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
