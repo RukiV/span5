@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { assetsAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI } from "../services/api";
+import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -14,6 +14,7 @@ function AssetPage() {
   const logout = useLogout();
   const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
+  const [assettypes, setAssettypes] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]); 
@@ -30,19 +31,31 @@ function AssetPage() {
   const [jobs, setJobs] = useState([]);
   const [assetHistory, setAssetHistory] = useState([]);
 
+  const [showTypeModal, setShowTypeModal] = useState(false);
+  const [isEditingType, setIsEditingType] = useState(false);
+  const [editingTypeId, setEditingTypeId] = useState(null);
+  const [newType, setNewType] = useState({
+    assettype_name: "",
+    assettype_avg_lifespan: "",
+    assettype_min_lifespan: "",
+    assettype_max_lifespan: "",
+    assettype_service_interval: "",
+    assettype_replacement_threshold: "",
+  });
+
   const [newAsset, setNewAsset] = useState({
     asset_name: "",
     asset_brand: "",
-    asset_serial: "AK-", 
+    asset_serial: "AK ", 
     asset_isoutdoor: false,
-    asset_status: "Aktief", // Verander vanaf "active" na backend-verwagte waarde
-    assettype_id: 1, 
+    asset_status: "Aktief",
+    assettype_id: null,
     room_id: "",
   });
 
   useEffect(() => {
     const loadInitialData = async () => {
-      await Promise.all([fetchAssets(), fetchRooms(), fetchBuildings(), fetchTerrains(), fetchJobs()]);
+      await Promise.all([fetchAssets(), fetchAssettypes(), fetchRooms(), fetchBuildings(), fetchTerrains(), fetchJobs()]);
     };
     loadInitialData();
   }, []);
@@ -68,6 +81,15 @@ function AssetPage() {
       console.error("Error fetching assets:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAssettypes = async () => {
+    try {
+      const response = await assettypesAPI.getAll();
+      setAssettypes(response.data || []);
+    } catch (error) {
+      console.error("Error fetching asset types:", error);
     }
   };
 
@@ -121,8 +143,8 @@ function AssetPage() {
 
   const handleSerialChange = (e) => {
     const value = e.target.value;
-    if (!value.startsWith("AK-")) {
-      setNewAsset({ ...newAsset, asset_serial: "AK-" });
+    if (!value.startsWith("AK ")) {
+      setNewAsset({ ...newAsset, asset_serial: "AK " });
     } else {
       setNewAsset({ ...newAsset, asset_serial: value });
     }
@@ -139,9 +161,9 @@ function AssetPage() {
       
       const cleanedSerial = newAsset.asset_serial.trim();
 
-      const serialRegex = /^AK-[A-Za-z]{2}\d{6}$/;
+      const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
-        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK-XX000000 wees (bv. AK-MT123456).");
+        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).");
         return;
       }
 
@@ -163,18 +185,20 @@ function AssetPage() {
         return;
       }
 
+      if (!newAsset.assettype_id) {
+        alert("Kies asseblief 'n bate tipe.");
+        return;
+      }
+
       assetData = {
         asset_name: newAsset.asset_name,
         asset_brand: newAsset.asset_brand,
         asset_serial: cleanedSerial,
         asset_status: newAsset.asset_status,
         asset_isoutdoor: newAsset.asset_isoutdoor,
-        assettype_id: 1,
+        assettype_id: Number(newAsset.assettype_id),
         room_id: Number(newAsset.room_id),
       };
-
-      console.log("--- POGING OM BATE TE STOOR ---");
-      console.log("Payload wat na API gestuur word:", assetData);
 
       if (isEditing) {
         await assetsAPI.update(editingId, assetData);
@@ -185,19 +209,13 @@ function AssetPage() {
       handleCloseModal();
       fetchAssets();
     } catch (error) {
-      console.error("!!! BATE STOOR HET GEFAAL !!!");
-      console.error("Besonderhede van die Axios/Netwerk fout:", error);
-      
+      console.error("!!! BATE STOOR HET GEFAAL !!!", error);
       if (error.response) {
         console.error(`Status Kode: ${error.response.status}`);
-        console.error("Data teruggestuur deur Backend (Valideringsfout):", error.response.data);
-        console.log("Die data wat jy probeer stuur het was:", assetData);
+        console.error("Data:", error.response.data);
       } else if (error.request) {
-        console.error("Geen antwoord van die bediener ontvang nie. Is die API aan?", error.request);
-      } else {
-        console.error("Fout met die opstel van die versoek:", error.message);
+        console.error("Geen antwoord van die bediener nie.");
       }
-
       alert("Fout tydens besparing. Maak jou F12 Browser Console oop vir volledige besonderhede.");
     }
   };
@@ -224,10 +242,10 @@ function AssetPage() {
     setNewAsset({
       asset_name: item.asset_name || "",
       asset_brand: item.asset_brand || "",
-      asset_serial: item.asset_serial || "AK-",
+      asset_serial: item.asset_serial || "AK ",
       asset_isoutdoor: item.asset_isoutdoor || false,
-      asset_status: item.asset_status || "Aktief", // Verander na "Aktief" as terugval
-      assettype_id: item.assettype_id || 1,
+      asset_status: item.asset_status || "Aktief",
+      assettype_id: item.assettype_id || null,
       room_id: item.room_id ? Number(item.room_id) : "",
       location_id: building ? building.location_id : "",
       building_id: room ? room.building_id : ""
@@ -239,13 +257,13 @@ function AssetPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK-", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "" });
   };
 
   const handleNewAsset = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK-", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: 1, room_id: "" });
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "" });
     setShowModal(true);
   };
 
@@ -265,6 +283,12 @@ function AssetPage() {
     return room ? room.room_name : `Room ${item.room_id}`;
   };
 
+  const getAssettypeName = (item) => {
+    if (!item.assettype_id) return "-";
+    const at = assettypes.find((t) => t.assettype_id === item.assettype_id);
+    return at ? at.assettype_name : `Tipe ${item.assettype_id}`;
+  };
+
   const handleViewHistory = (asset) => {
     setSelectedAsset(asset);
     fetchAssetHistory(asset.asset_id);
@@ -274,6 +298,81 @@ function AssetPage() {
   const handleOpenJobcard = (jobcardId) => {
     setShowHistoryModal(false);
     navigate(`/work-orders?search=${jobcardId}`);
+  };
+
+  // ---- Asset Type CRUD ----
+
+  const handleOpenTypeModal = (typeItem) => {
+    if (typeItem) {
+      setIsEditingType(true);
+      setEditingTypeId(typeItem.assettype_id);
+      setNewType({
+        assettype_name: typeItem.assettype_name || "",
+        assettype_avg_lifespan: typeItem.assettype_avg_lifespan != null ? String(typeItem.assettype_avg_lifespan) : "",
+        assettype_min_lifespan: typeItem.assettype_min_lifespan != null ? String(typeItem.assettype_min_lifespan) : "",
+        assettype_max_lifespan: typeItem.assettype_max_lifespan != null ? String(typeItem.assettype_max_lifespan) : "",
+        assettype_service_interval: typeItem.assettype_service_interval != null ? String(typeItem.assettype_service_interval) : "",
+        assettype_replacement_threshold: typeItem.assettype_replacement_threshold != null ? String(typeItem.assettype_replacement_threshold) : "",
+      });
+    } else {
+      setIsEditingType(false);
+      setEditingTypeId(null);
+      setNewType({
+        assettype_name: "",
+        assettype_avg_lifespan: "",
+        assettype_min_lifespan: "",
+        assettype_max_lifespan: "",
+        assettype_service_interval: "",
+        assettype_replacement_threshold: "",
+      });
+    }
+    setShowTypeModal(true);
+  };
+
+  const handleCloseTypeModal = () => {
+    setShowTypeModal(false);
+    setIsEditingType(false);
+    setEditingTypeId(null);
+  };
+
+  const handleSaveType = async () => {
+    if (!newType.assettype_name.trim()) {
+      alert("Voer asseblief 'n tipe naam in.");
+      return;
+    }
+    const payload = {
+      assettype_name: newType.assettype_name.trim(),
+      assettype_avg_lifespan: newType.assettype_avg_lifespan ? Number(newType.assettype_avg_lifespan) : null,
+      assettype_min_lifespan: newType.assettype_min_lifespan ? Number(newType.assettype_min_lifespan) : null,
+      assettype_max_lifespan: newType.assettype_max_lifespan ? Number(newType.assettype_max_lifespan) : null,
+      assettype_service_interval: newType.assettype_service_interval ? Number(newType.assettype_service_interval) : null,
+      assettype_replacement_threshold: newType.assettype_replacement_threshold ? Number(newType.assettype_replacement_threshold) : null,
+    };
+    try {
+      if (isEditingType) {
+        await assettypesAPI.update(editingTypeId, payload);
+      } else {
+        await assettypesAPI.create(payload);
+      }
+      handleCloseTypeModal();
+      fetchAssettypes();
+    } catch (error) {
+      console.error("Error saving asset type:", error);
+      alert("Fout tydens stoor van bate tipe.");
+    }
+  };
+
+  const handleDeleteType = async (id) => {
+    if (!window.confirm("Is jy seker jy wil hierdie bate tipe verwyder?")) {
+      return;
+    }
+    try {
+      await assettypesAPI.delete(id);
+      fetchAssettypes();
+    } catch (error) {
+      console.error("Error deleting asset type:", error);
+      alert("Fout tydens verwydering van bate tipe.");
+    }
   };
   
   const filteredItems = [...assets]
@@ -337,6 +436,11 @@ function AssetPage() {
       label: r.room_name
     }));
 
+  const assettypeOptions = assettypes.map(at => ({
+    value: String(at.assettype_id),
+    label: at.assettype_name
+  }));
+
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
     { value: "asset_name", label: "Naam" },
@@ -353,7 +457,6 @@ function AssetPage() {
     { value: "status", label: "Status" }
   ];
 
-  // Waardes hier verander om presies te pas by die backend DB-verwagtinge
   const statusOptions = [
     { value: "Aktief", label: "Aktief" },
     { value: "Instandhouding", label: "Onderhoud" },
@@ -393,6 +496,24 @@ function AssetPage() {
         </div>
 
         <div className="content">
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Bates</h4>
+              <p className="analytics-value">{assets.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Aktief</h4>
+              <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Instandhouding</h4>
+              <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Buitelug</h4>
+              <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
+            </div>
+          </div>
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
@@ -427,6 +548,7 @@ function AssetPage() {
                 <button type="button" className="btn-add" onClick={() => setSortDirection("asc")} style={{ minWidth: "40px", background: sortDirection === "asc" ? "#935e28" : undefined }} title="Stygend">▲</button>
                 <button type="button" className="btn-add" onClick={() => setSortDirection("desc")} style={{ minWidth: "40px", background: sortDirection === "desc" ? "#935e28" : undefined }} title="Dalend">▼</button>
               </div>
+              <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
               <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
             </div>
           </div>
@@ -437,6 +559,7 @@ function AssetPage() {
                 <th>Naam</th>
                 <th>Merk</th>
                 <th>Serienommer</th>
+                <th>Tipe</th>
                 <th>Buite</th>
                 <th>Lokaal</th>
                 <th>Status</th>
@@ -449,6 +572,7 @@ function AssetPage() {
                   <td>{item.asset_name}</td>
                   <td>{item.asset_brand}</td>
                   <td>{item.asset_serial}</td>
+                  <td>{getAssettypeName(item)}</td>
                   <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>
                   <td>{getRoomName(item)}</td>
                   <td>
@@ -470,6 +594,7 @@ function AssetPage() {
         </div>
       </div>
 
+      {/* Asset Create/Edit Modal */}
       {showModal && (
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
@@ -500,7 +625,7 @@ function AssetPage() {
                   type="text"
                   value={newAsset.asset_serial}
                   onChange={handleSerialChange}
-                  placeholder="bv. AK-MT000001"
+                  placeholder="bv. AK MT000001"
                 />
               </div>
             </div>
@@ -515,10 +640,23 @@ function AssetPage() {
                   Buite
                 </label>
               </div>
+              <div className="input-group">
+                <label>Bate Tipe *</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies 'n tipe..."
+                  isSearchable={true}
+                  options={assettypeOptions}
+                  value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
+                  onChange={(selected) => {
+                    setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
+                  }}
+                />
+              </div>
             </div>
 
             <div className="input-row">
-              {/* Terrein Dropdown */}
               <div className="input-group">
                 <label>Terrein</label>
                 <Select
@@ -539,7 +677,6 @@ function AssetPage() {
                 />
               </div>
 
-              {/* Gebou Dropdown */}
               <div className="input-group">
                 <label>Gebou</label>
                 <Select
@@ -562,7 +699,6 @@ function AssetPage() {
             </div>
 
             <div className="input-row">
-              {/* Lokaal Dropdown */}
               <div className="input-group" style={{ width: "50%" }}>
                 <label>Lokaal *</label>
                 <Select
@@ -604,6 +740,7 @@ function AssetPage() {
         </div>
       )}
 
+      {/* History Modal */}
       {showHistoryModal && selectedAsset && (
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">
@@ -655,6 +792,117 @@ function AssetPage() {
               ) : (
                 <p>Geen geskiedenis beskikbaar vir hierdie bate.</p>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Asset Type Management Modal */}
+      {showTypeModal && (
+        <div className="modal" style={{ display: "flex" }}>
+          <div className="modal-content" style={{ maxWidth: "700px" }}>
+            <div className="modal-header">
+              <h3>{isEditingType ? "Wysig Bate Tipe" : "Nuwe Bate Tipe"}</h3>
+              <span className="close" onClick={handleCloseTypeModal}>&times;</span>
+            </div>
+            <div className="modal-body">
+              {/* Type form */}
+              <div className="input-row">
+                <div className="input-group" style={{ width: "100%" }}>
+                  <label>Naam *</label>
+                  <input
+                    type="text"
+                    value={newType.assettype_name}
+                    onChange={(e) => setNewType({ ...newType, assettype_name: e.target.value })}
+                    placeholder="bv. Algemene Toerusting"
+                  />
+                </div>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Gem. Lewensduur (maande)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newType.assettype_avg_lifespan}
+                    onChange={(e) => setNewType({ ...newType, assettype_avg_lifespan: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Min Lewensduur (maande)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newType.assettype_min_lifespan}
+                    onChange={(e) => setNewType({ ...newType, assettype_min_lifespan: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Maks Lewensduur (maande)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newType.assettype_max_lifespan}
+                    onChange={(e) => setNewType({ ...newType, assettype_max_lifespan: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Diensinterval (maande)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newType.assettype_service_interval}
+                    onChange={(e) => setNewType({ ...newType, assettype_service_interval: e.target.value })}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Vervangingsdrempel (foute)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newType.assettype_replacement_threshold}
+                    onChange={(e) => setNewType({ ...newType, assettype_replacement_threshold: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Existing types table */}
+              <h4 style={{ marginTop: "20px", marginBottom: "8px", color: "#6b3f1d" }}>Bestaande Bate Tipes</h4>
+              <div style={{ maxHeight: "250px", overflowY: "auto" }}>
+                <table className="standard-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Naam</th>
+                      <th>Gem. Lewensduur</th>
+                      <th>Diensinterval</th>
+                      <th>Drempel</th>
+                      <th>Aksies</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assettypes.map((at) => (
+                      <tr key={at.assettype_id}>
+                        <td>{at.assettype_id}</td>
+                        <td>{at.assettype_name}</td>
+                        <td>{at.assettype_avg_lifespan != null ? `${at.assettype_avg_lifespan}m` : '-'}</td>
+                        <td>{at.assettype_service_interval != null ? `${at.assettype_service_interval}m` : '-'}</td>
+                        <td>{at.assettype_replacement_threshold != null ? at.assettype_replacement_threshold : '-'}</td>
+                        <td>
+                          <button className="btn-edit" onClick={() => handleOpenTypeModal(at)}>Wysig</button>
+                          <button className="btn-delete" onClick={() => handleDeleteType(at.assettype_id)}>Verwyder</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={handleCloseTypeModal}>Kanselleer</button>
+              <button className="btn-add" onClick={handleSaveType}>{isEditingType ? "Opdateer" : "Stoor"}</button>
             </div>
           </div>
         </div>

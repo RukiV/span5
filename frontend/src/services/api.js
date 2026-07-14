@@ -63,6 +63,15 @@ apiClient.interceptors.response.use(
   }
 );
 
+// ===== BATE TIPES-API =====
+export const assettypesAPI = {
+  getAll: () => apiClient.get('/assettypes'),
+  getById: (id) => apiClient.get(`/assettypes/${id}`),
+  create: (data) => apiClient.post('/assettypes', data),
+  update: (id, data) => apiClient.patch(`/assettypes/${id}`, data),
+  delete: (id) => apiClient.delete(`/assettypes/${id}`),
+};
+
 // ===== BATES-API =====
 export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
@@ -189,6 +198,12 @@ export const quotesAPI = {
   delete: (id) => apiClient.delete(`/quotes/${id}`),
 };
 
+// ===== VOORSPELLINGS-API =====
+export const predictionsAPI = {
+  getAll: () => apiClient.get('/predictions'),
+  getByAsset: (id) => apiClient.get(`/predictions/${id}`),
+};
+
 export const auditsAPI = {
   getAllUnsorted: () => apiClient.get('/audit'),
   getAll: () => apiClient.get('/audit'),
@@ -229,6 +244,7 @@ export const imageAPI = {
 
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
+apiClient.assettypes = assettypesAPI;
 apiClient.stock = stockAPI;
 apiClient.rooms = roomsAPI;
 apiClient.buildings = buildingsAPI;
@@ -239,6 +255,7 @@ apiClient.auth = authAPI;
 apiClient.users = usersAPI;
 apiClient.contractors = contractorsAPI;
 apiClient.quotes = quotesAPI;
+apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
 
 // Voer apiClient uit vir gebruik in komponente
