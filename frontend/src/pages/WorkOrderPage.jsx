@@ -55,7 +55,7 @@ function WorkOrderPage() {
     // Hoofinligting
     job_desc: "",                   // Hoofbeskrywing
     job_type: "",                   // Werksoort (maintenance, repair, inspection, installation, emergency)
-    job_status: "open",             // Status (open, wag, voltooid)
+    job_status: "Oop",              // Status (Oop, Wag, Voltooid)
     job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
@@ -758,7 +758,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "OPEN",
+      job_status: "Oop",
       job_priority: "Normal",
       job_createddatetime: "",
       job_scheduled_datetime: "",
@@ -788,7 +788,7 @@ function WorkOrderPage() {
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "OPEN",
+      job_status: "Oop",
       job_priority: "Normal",
       job_createddatetime: new Date().toISOString().split('T')[0],
       job_scheduled_datetime: new Date().toISOString().slice(0, 16),
@@ -1102,7 +1102,16 @@ function WorkOrderPage() {
                   <div className="mri-fld"><span>Status</span> 
                     <select 
                       value={formData.job_status}
-                      onChange={(e) => setFormData({...formData, job_status: e.target.value})}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          job_status: newStatus,
+                          completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
+                            ? new Date().toISOString().split('T')[0]
+                            : prev.completed_date,
+                        }));
+                      }}
                     >
                       <option value="">Kies...</option>
                       <option value="Wag">Wag</option>
