@@ -242,6 +242,15 @@ export const imageAPI = {
   delete: (id) => apiClient.delete(`/image/${id}`),
 };
 
+// ===== KALENDER EVENTS-API =====
+export const calendarEventsAPI = {
+  getRange: (start, end) => apiClient.get('/calendar/events', { params: { start, end } }),
+  getById: (id) => apiClient.get(`/calendar/events/${id}`),
+  create: (data) => apiClient.post('/calendar/events', data),
+  update: (id, data) => apiClient.patch(`/calendar/events/${id}`, data),
+  delete: (id) => apiClient.delete(`/calendar/events/${id}`),
+};
+
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
 apiClient.assettypes = assettypesAPI;
@@ -257,6 +266,7 @@ apiClient.contractors = contractorsAPI;
 apiClient.quotes = quotesAPI;
 apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
+apiClient.calendarEvents = calendarEventsAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };
