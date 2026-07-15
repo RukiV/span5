@@ -80,12 +80,6 @@ class Jobcard(JobcardBase, Base, table=True):
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
-            
-    # Universal Foreign Key linking to the separate image module
-    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
-    
-    # Unidirectional relationship 
-    image: Optional[ImageAsset] = Relationship()
 
 
 class JobcardCreate(JobcardBase):
@@ -95,7 +89,6 @@ class JobcardCreate(JobcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
-    image_id: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):
@@ -110,9 +103,6 @@ class JobcardRead(JobcardBase):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None
-    
-    image: Optional[ImageAssetRead] = None
 
 
 class JobcardUpdate(SQLModel):
@@ -136,4 +126,3 @@ class JobcardUpdate(SQLModel):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None

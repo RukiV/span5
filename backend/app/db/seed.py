@@ -12,7 +12,7 @@ from ..models.role import Role
 from ..models.user import User
 from ..models.audit import Auditlog
 
-from ..models.image import ImageAsset, ImageBlob
+from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -136,23 +136,39 @@ def _get_or_create_assettype(session: Session, name: str, avg: int | None = None
     session.refresh(assettype)
     return assettype
 
-# 2. ADDED HELPER: New method to query or persist unique image records into your standalone cache table
-def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes) -> ImageAsset:
-    """Finds an existing image by name, or saves a new one with its isolated data blob."""
+def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes, parent_id: int, parent_type: str, display_order: int) -> ImageAsset:
+    """Finds an existing image by name, or saves a new one with its isolated data blob and a parent link."""
     image = session.exec(select(ImageAsset).where(ImageAsset.filename == filename)).first()
-    if image:
-        return image
+    if image is None:
+        blob_data = ImageBlob(file_bytes=raw_data)
+        image = ImageAsset(
+            filename=filename,
+            mime_type=mime_type,
+            size_bytes=len(raw_data),
+            file_blob=blob_data,
+        )
+        session.add(image)
+        session.commit()
+        session.refresh(image)
 
-    blob_data = ImageBlob(file_bytes=raw_data)
-    image = ImageAsset(
-        filename=filename,
-        mime_type=mime_type,
-        size_bytes=len(raw_data),
-        file_blob=blob_data
-    )
-    session.add(image)
-    session.commit()
-    session.refresh(image)
+    existing_link = session.exec(
+        select(ImageAssetLink).where(
+            ImageAssetLink.image_id == image.image_id,
+            ImageAssetLink.parent_id == parent_id,
+            ImageAssetLink.parent_type == parent_type,
+        )
+    ).first()
+
+    if existing_link is None:
+        link = ImageAssetLink(
+            image_id=image.image_id,
+            parent_id=parent_id,
+            parent_type=parent_type,
+            display_order=display_order,
+        )
+        session.add(link)
+        session.commit()
+
     return image
 
 
@@ -455,7 +471,7 @@ def seed_data():
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-suburb="Clubview",
+            suburb="Clubview",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
@@ -467,7 +483,7 @@ suburb="Clubview",
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-suburb="Die Hoewes",
+            suburb="Die Hoewes",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
@@ -479,7 +495,7 @@ suburb="Die Hoewes",
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-suburb="Esterville",
+            suburb="Esterville",
             city="Paarl",
             province="Wes Kaap",
             country="Suid Afrika",
@@ -491,7 +507,7 @@ suburb="Esterville",
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-suburb="Villieria",
+            suburb="Villieria",
             city="Pretoria",
             province="Gauteng",
             country="Suid Afrika",
@@ -609,7 +625,10 @@ suburb="Villieria",
             session=session,
             filename="hq_projector_ceiling_mount.png",
             mime_type="image/png",
-            raw_data=mock_bytes
+            raw_data=mock_bytes,
+            parent_id=1,
+            parent_type="asset",
+            display_order=1,
         )
 
         # 3. Pass the valid image_id to your asset creator
@@ -623,7 +642,6 @@ suburb="Villieria",
             room_id=room1.room_id,
             assettype_id=type_elek.assettype_id,
             created_dt=now - timedelta(days=540),
-            image_id=img1.image_id,
         )
 
         _get_or_create_asset(
