@@ -15,6 +15,7 @@ class UserBase(SQLModel):
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
+    location_id: Optional[int] = None
 
     @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
     @classmethod
@@ -25,11 +26,13 @@ class User(UserBase, Base, table=True):
     """Model for user data."""
     user_id: Optional[int] = Field(default=None, primary_key=True)
     role_id: int = Field(foreign_key="role.role_id")
+    location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
 
 
 class UserCreate(UserBase):
     """Input model for creating user records."""
     role_id: int
+    location_id: Optional[int] = None
 
 
 class UserRead(UserBase):
@@ -43,6 +46,7 @@ class UserRead(UserBase):
     user_lastlogouttime: Optional[datetime] = None
     user_status: str
     role_id: int
+    location_id: Optional[int] = None
 
 
 class UserUpdate(SQLModel):
@@ -56,3 +60,4 @@ class UserUpdate(SQLModel):
     user_lastlogouttime: Optional[datetime] = None
     user_status: Optional[str] = None
     role_id: Optional[int] = None
+    location_id: Optional[int] = None

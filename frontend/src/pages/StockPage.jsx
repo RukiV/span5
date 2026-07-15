@@ -10,7 +10,7 @@ import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 
 function StockPage() {
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -21,6 +21,10 @@ function StockPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const [drillLevel, setDrillLevel] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -43,6 +47,15 @@ function StockPage() {
     };
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+      setDrillLevel(1);
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchStock = async () => {
     try {
@@ -201,8 +214,34 @@ function StockPage() {
       label: r.room_name
     }));
 
+  const getStockLocationId = (item) => {
+    if (!item.room_id) return null;
+    const room = rooms.find((r) => r.room_id === item.room_id);
+    if (!room) return null;
+    const building = buildings.find((b) => b.building_id === room.building_id);
+    return building ? building.location_id : null;
+  };
+
+  const getStockBuildingId = (item) => {
+    if (!item.room_id) return null;
+    const room = rooms.find((r) => r.room_id === item.room_id);
+    return room ? room.building_id : null;
+  };
+
   const filteredStock = [...stock]
     .filter((item) => {
+      if (terrainFilter) {
+        const itemLocationId = getStockLocationId(item);
+        if (String(itemLocationId) !== terrainFilter) return false;
+      }
+      if (buildingFilter) {
+        const itemBuildingId = getStockBuildingId(item);
+        if (String(itemBuildingId) !== buildingFilter) return false;
+      }
+      if (roomFilter) {
+        if (String(item.room_id) !== roomFilter) return false;
+      }
+
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -232,6 +271,33 @@ function StockPage() {
       return 0;
     });
 
+  const drillOptions = React.useMemo(() => {
+    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
+    if (drillLevel === 1 && terrainFilter) return [
+      { value: '__back', label: '\u2190 Terrein keuse' },
+      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
+    ];
+    if (drillLevel === 2 && buildingFilter) return [
+      { value: '__back', label: '\u2190 Gebou keuse' },
+      ...rooms.filter(r => Number(r.building_id) === Number(buildingFilter)).map(r => ({ value: `rm:${r.room_id}`, label: r.room_name }))
+    ];
+    return [];
+  }, [drillLevel, terrainFilter, buildingFilter, terrains, buildings, rooms]);
+
+  const handleDrillChange = (selected) => {
+    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(0); return; }
+    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
+    const [type, id] = selected.value.split(':');
+    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(1); }
+    else if (type === 'bld') { setBuildingFilter(id); setRoomFilter(''); setDrillLevel(2); }
+    else if (type === 'rm') { setRoomFilter(id); }
+  };
+
+  const currentDrillValue = drillLevel === 0 ? null
+    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
+    : drillLevel === 2 && buildingFilter ? drillOptions.find(o => o.value === `bld:${buildingFilter}`) || null
+    : null;
+
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -250,19 +316,19 @@ function StockPage() {
           <div className="analytics-grid">
             <div className="analytics-card">
               <h4>Totale Voorraad</h4>
-              <p className="analytics-value">{stock.length}</p>
+              <p className="analytics-value">{filteredStock.length}</p>
             </div>
             <div className="analytics-card">
               <h4>Minimum Voorraad</h4>
-              <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
+              <p className="analytics-value warning">{filteredStock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
             </div>
             <div className="analytics-card">
               <h4>Uit Voorraad</h4>
-              <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
+              <p className="analytics-value danger">{filteredStock.filter(s => Number(s.stock_amount) === 0).length}</p>
             </div>
             <div className="analytics-card">
               <h4>Tipes</h4>
-              <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
+              <p className="analytics-value">{new Set(filteredStock.map(s => s.stock_type).filter(Boolean)).size}</p>
             </div>
           </div>
           <div className="controls">
@@ -287,6 +353,17 @@ function StockPage() {
                 <option value="room">Lokaal</option>
                 <option value="description">Beskrywing</option>
               </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : drillLevel === 1 ? "Kies 'n gebou..." : "Kies 'n lokaal..."}
+                isSearchable={true}
+                isClearable={true}
+                options={drillOptions}
+                value={currentDrillValue}
+                onChange={handleDrillChange}
+                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
+              />
             </div>
             <div className="controls-right">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>

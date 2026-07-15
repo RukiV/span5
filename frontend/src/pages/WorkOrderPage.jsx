@@ -14,7 +14,7 @@ import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
   // Haal admin-status vir beheer-opsies
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const { instance } = useMsal();
   const location = useLocation();
@@ -31,6 +31,10 @@ function WorkOrderPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
   const [sortDirection, setSortDirection] = useState("asc");
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const [drillLevel, setDrillLevel] = useState(0);
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -199,6 +203,15 @@ function WorkOrderPage() {
       applyTicketSelectionToForm(location.state.ticket);
     }
   }, [location.state?.ticket, assets, rooms, buildings, terrains]);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+      setDrillLevel(1);
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchTerrains = async () => {
     try {
@@ -873,6 +886,10 @@ function WorkOrderPage() {
   // Filter en sorteer werksopdragte vir tabel
   const filteredWorkOrders = [...workOrders]
     .filter((order) => {
+      if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
+      if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
+      if (roomFilter && String(order.room_id) !== roomFilter) return false;
+
       const query = searchTerm.trim().toLowerCase();
       const description = order.job_desc || "";
       if (!query) return true;
@@ -955,6 +972,33 @@ function WorkOrderPage() {
     label: `${t.fault_id} - ${t.fault_desc || t.fault_title || 'Foutkaartjie'}`
   }));
 
+  const drillOptions = React.useMemo(() => {
+    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
+    if (drillLevel === 1 && terrainFilter) return [
+      { value: '__back', label: '\u2190 Terrein keuse' },
+      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
+    ];
+    if (drillLevel === 2 && buildingFilter) return [
+      { value: '__back', label: '\u2190 Gebou keuse' },
+      ...rooms.filter(r => Number(r.building_id) === Number(buildingFilter)).map(r => ({ value: `rm:${r.room_id}`, label: r.room_name }))
+    ];
+    return [];
+  }, [drillLevel, terrainFilter, buildingFilter, terrains, buildings, rooms]);
+
+  const handleDrillChange = (selected) => {
+    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(0); return; }
+    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
+    const [type, id] = selected.value.split(':');
+    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(1); }
+    else if (type === 'bld') { setBuildingFilter(id); setRoomFilter(''); setDrillLevel(2); }
+    else if (type === 'rm') { setRoomFilter(id); }
+  };
+
+  const currentDrillValue = drillLevel === 0 ? null
+    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
+    : drillLevel === 2 && buildingFilter ? drillOptions.find(o => o.value === `bld:${buildingFilter}`) || null
+    : null;
+
   if (loading) {
     return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -982,7 +1026,7 @@ function WorkOrderPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ minWidth: '100px' }}>
                 <option value="all">Alle kolomme</option>
                 <option value="id">ID</option>
                 <option value="description">Beskrywing</option>
@@ -991,10 +1035,21 @@ function WorkOrderPage() {
                 <option value="room_id">Lokaal ID</option>
                 <option value="building_id">Gebou ID</option>
                 <option value="location_id">Terrein ID</option>
-                <option value="fault_id">Terrein ID</option>
+                <option value="fault_id">Fout ID</option>
                 <option value="scheduled">Datum</option>
                 <option value="status">Status</option>
               </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : drillLevel === 1 ? "Kies 'n gebou..." : "Kies 'n lokaal..."}
+                isSearchable={true}
+                isClearable={true}
+                options={drillOptions}
+                value={currentDrillValue}
+                onChange={handleDrillChange}
+                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
+              />
             </div>
 
             <div className="controls-right">
@@ -1023,6 +1078,25 @@ function WorkOrderPage() {
               >
                 + Nuwe Werksopdrag
               </button>
+            </div>
+          </div>
+
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Werksopdragte</h4>
+              <p className="analytics-value">{filteredWorkOrders.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Oop / Besig</h4>
+              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Oop" || w.job_status === "Besig").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Voltooid</h4>
+              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Voltooid").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Dringend</h4>
+              <p className="analytics-value danger">{filteredWorkOrders.filter(w => w.job_priority === "Dringend").length}</p>
             </div>
           </div>
 

@@ -10,7 +10,7 @@ import { useLogout } from "./Page.jsx";
 import UserProfileHeader from '../components/UserProfileHeader';
 
 function RoomsPage() {
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
 
   const [rooms, setRooms] = useState([]);
@@ -22,6 +22,9 @@ function RoomsPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [drillLevel, setDrillLevel] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -45,6 +48,15 @@ function RoomsPage() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+      setDrillLevel(1);
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -207,8 +219,19 @@ function RoomsPage() {
     return building ? building.building_name : "-";
   };
 
+  const getRoomLocationId = (room) => {
+    const building = buildings.find((b) => b.building_id === room.building_id);
+    return building ? building.location_id : null;
+  };
+
   const filteredRooms = [...rooms]
     .filter((room) => {
+      if (terrainFilter) {
+        const roomLocationId = getRoomLocationId(room);
+        if (String(roomLocationId) !== terrainFilter) return false;
+      }
+      if (buildingFilter && String(room.building_id) !== buildingFilter) return false;
+
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -273,6 +296,27 @@ function RoomsPage() {
     label: t.location_name
   }));
 
+  const drillOptions = React.useMemo(() => {
+    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
+    if (drillLevel === 1 && terrainFilter) return [
+      { value: '__back', label: '\u2190 Terrein keuse' },
+      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
+    ];
+    return [];
+  }, [drillLevel, terrainFilter, terrains, buildings]);
+
+  const handleDrillChange = (selected) => {
+    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setDrillLevel(0); return; }
+    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
+    const [type, id] = selected.value.split(':');
+    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setDrillLevel(1); }
+    else if (type === 'bld') { setBuildingFilter(id); }
+  };
+
+  const currentDrillValue = drillLevel === 0 ? null
+    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
+    : null;
+
   const buildingOptions = buildings
     .filter((b) => b.location_id === Number(newRoom.location_id))
     .map((b) => ({
@@ -304,19 +348,19 @@ function RoomsPage() {
           <div className="analytics-grid">
             <div className="analytics-card">
               <h4>Totale Lokale</h4>
-              <p className="analytics-value">{rooms.length}</p>
+              <p className="analytics-value">{filteredRooms.length}</p>
             </div>
             <div className="analytics-card">
               <h4>Operasioneel</h4>
-              <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
+              <p className="analytics-value">{filteredRooms.filter(r => r.room_status === "Operasioneel").length}</p>
             </div>
             <div className="analytics-card">
               <h4>Fout Aangemeld</h4>
-              <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
+              <p className="analytics-value warning">{filteredRooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
             </div>
             <div className="analytics-card">
               <h4>Instandhouding</h4>
-              <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
+              <p className="analytics-value danger">{filteredRooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
             </div>
           </div>
           <div className="controls">
@@ -338,6 +382,17 @@ function RoomsPage() {
                 options={filterColumnOptions}
                 isSearchable={false}
                 styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+              />
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : "Kies 'n gebou..."}
+                isSearchable={true}
+                isClearable={true}
+                options={drillOptions}
+                value={currentDrillValue}
+                onChange={handleDrillChange}
+                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
               />
             </div>
             <div className="controls-right">

@@ -22,7 +22,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int, location_id: Optional[int] = None) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -31,6 +31,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_email: E-posadres vir soeken/skep
         user_password: Wagwoord vir nuwe gebruiker
         role_id: Rol-ID (1=Gebruiker, 2=FK-Koördineerder, 3=Administrateur)
+        location_id: Opsionele Terrein-ID vir FK-koördineerders
         
     Returns:
         Bestaande of nuwe Gebruiker-objek
@@ -38,8 +39,14 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
+        changed = False
         if user.role_id != role_id:
             user.role_id = role_id
+            changed = True
+        if location_id is not None and user.location_id != location_id:
+            user.location_id = location_id
+            changed = True
+        if changed:
             session.add(user)
             session.commit()
             session.refresh(user)
@@ -56,6 +63,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_lastlogouttime=None,
         user_status="active",
         role_id=role_id,  # Toekenning van rol vir toesgang-beheer
+        location_id=location_id,
     )
     session.add(user)
     session.commit()
@@ -388,6 +396,55 @@ def seed_data():
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
 
+        # Skep toetsdata vir lokasies (moet voor gebruikers wees vir FK-toewysing)
+        loc1 = _get_or_create_location(
+            session,
+            name="Leriba-kampus",
+            location_type="Kampus",
+            streetnum="245",
+            streetname="Endstraat",
+            suburb="Clubview",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
+        )
+
+        loc2 = _get_or_create_location(
+            session,
+            name="Gerhardstraat-kampus",
+            location_type="Kampus",
+            streetnum="117",
+            streetname="Gerhardstraat",
+            suburb="Die Hoewes",
+            city="Centurion",
+            province="Gauteng",
+            country="Suid Afrika",
+        )
+
+        loc3 = _get_or_create_location(
+            session,
+            name="Paarl-kampus",
+            location_type="Kampus",
+            streetnum="1",
+            streetname="Bredastraat",
+            suburb="Esterville",
+            city="Paarl",
+            province="Wes Kaap",
+            country="Suid Afrika",
+        )
+
+        loc4 = _get_or_create_location(
+            session,
+            name="Moot-sentrum",
+            location_type="Kantoor",
+            streetnum="1120",
+            streetname="Hertzogstraat",
+            suburb="Villieria",
+            city="Pretoria",
+            province="Gauteng",
+            country="Suid Afrika",
+        )
+
         # Skep toetsgebruikers vir elke rol
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
         _get_or_create_test_user(
@@ -399,7 +456,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # FK-Koördineerder - toegewys aan Leriba-kampus
         _get_or_create_test_user(
             session,
             user_name="fk",
@@ -407,6 +464,7 @@ def seed_data():
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=loc1.location_id,  # Leriba-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -428,7 +486,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # FK-Koördineerder - toegewys aan Gerhardstraat-kampus
         _get_or_create_test_user(
             session,
             user_name="Jaco",
@@ -436,6 +494,7 @@ def seed_data():
             user_email="jaco@gmail.com",
             user_password="jaco123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=loc2.location_id,  # Gerhardstraat-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -446,55 +505,6 @@ def seed_data():
             user_email="kobus@gmail.com",
             user_password="kobus123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
-        )
-
-        # Skep toetsdata vir lokasies, kamers, bates, ens.
-        loc1 = _get_or_create_location(
-            session,
-            name="Leriba-kampus",
-            location_type="Kampus",
-            streetnum="245",
-            streetname="Endstraat",
-suburb="Clubview",
-            city="Centurion",
-            province="Gauteng",
-            country="Suid Afrika",
-        )
-
-        loc2 = _get_or_create_location(
-            session,
-            name="Gerhardstraat-kampus",
-            location_type="Kampus",
-            streetnum="117",
-            streetname="Gerhardstraat",
-suburb="Die Hoewes",
-            city="Centurion",
-            province="Gauteng",
-            country="Suid Afrika",
-        )
-
-        loc3 = _get_or_create_location(
-            session,
-            name="Paarl-kampus",
-            location_type="Kampus",
-            streetnum="1",
-            streetname="Bredastraat",
-suburb="Esterville",
-            city="Paarl",
-            province="Wes Kaap",
-            country="Suid Afrika",
-        )
-
-        loc4 = _get_or_create_location(
-            session,
-            name="Moot-sentrum",
-            location_type="Kantoor",
-            streetnum="1120",
-            streetname="Hertzogstraat",
-suburb="Villieria",
-            city="Pretoria",
-            province="Gauteng",
-            country="Suid Afrika",
         )
 
         bld1 = _get_or_create_building(
