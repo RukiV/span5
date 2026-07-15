@@ -1124,14 +1124,16 @@ function WorkOrderPage() {
                 <>
                 <div className="mri-row flex">
                   <div className="mri-cell w-60 border-r">
-                    <label>Werksopdrag Beskrywing</label>
-                    <input 
-                      type="text" 
-                      className="mri-txt-area-large"
-                      value={formData.brief_description}
-                      onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
-                      placeholder="Kort beskrywing van werk"
-                    />
+                    <div className="mri-fld">
+                      <span>Werksopdrag Beskrywing</span>
+                      <input 
+                        type="text" 
+                        className="mri-txt-area-large"
+                        value={formData.brief_description}
+                        onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
+                        placeholder="Kort beskrywing van werk"
+                      />
+                    </div>
                   </div>
                   <div className="mri-cell w-40">
                     <div className="mri-fld"><span>Status</span> 
@@ -1159,54 +1161,78 @@ function WorkOrderPage() {
                   </div>
                 </div>
 
-                <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Ligging & Koppeling</label>
-
-                {/* Kaskade: isMulti Select vir al 4 vlakke */}
-                <div className="mri-fld-select">
+                {/* Tags bó + enkele Select vir volgende vlak */}
+                {(formData.location_id || formData.building_id || formData.room_id || formData.asset_id) && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px", marginBottom: "8px" }}>
+                    {formData.location_id && (
+                      <span className="cascade-tag">
+                        {terrains?.find((t) => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id}
+                        <button type="button" className="cascade-tag-remove" onClick={() => setFormData((p) => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}))}>×</button>
+                      </span>
+                    )}
+                    {formData.building_id && (
+                      <span className="cascade-tag">
+                        {buildings?.find((b) => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id}
+                        <button type="button" className="cascade-tag-remove" onClick={() => setFormData((p) => ({...p, building_id: "", room_id: "", asset_id: ""}))}>×</button>
+                      </span>
+                    )}
+                    {formData.room_id && (
+                      <span className="cascade-tag">
+                        {rooms?.find((r) => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id}
+                        <button type="button" className="cascade-tag-remove" onClick={() => setFormData((p) => ({...p, room_id: "", asset_id: ""}))}>×</button>
+                      </span>
+                    )}
+                    {formData.asset_id && (
+                      <span className="cascade-tag">
+                        {assets?.find((a) => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id}
+                        <button type="button" className="cascade-tag-remove" onClick={() => setFormData((p) => ({...p, asset_id: ""}))}>×</button>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="mri-fld-select mri-fld">
                   <span className="select-label">Ligging & Koppeling</span>
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
-                    isMulti
-                    closeMenuOnSelect={false}
                     placeholder={
                       ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][
                         [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length
-                      ] || ""
+                      ]
                     }
-                    value={[
-                      formData.location_id && { value: `terrein:${formData.location_id}`, label: terrains?.find((t) => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id },
-                      formData.building_id && { value: `gebou:${formData.building_id}`, label: buildings?.find((b) => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id },
-                      formData.room_id && { value: `lokaal:${formData.room_id}`, label: rooms?.find((r) => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id },
-                      formData.asset_id && { value: `bate:${formData.asset_id}`, label: assets?.find((a) => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id },
-                    ].filter(Boolean)}
+                    isClearable
+                    isDisabled={[formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length >= 4}
+                    closeMenuOnSelect={false}
                     options={(() => {
                       const count = [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length;
                       if (count === 0)
-                        return (terrains || []).map((t) => ({ value: `terrein:${t.location_id}`, label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
+                        return (terrains || []).map((t) => ({ value: t.location_id, label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
                       if (count === 1)
-                        return (buildings || []).filter((b) => Number(b.location_id) === Number(formData.location_id)).map((b) => ({ value: `gebou:${b.building_id}`, label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                        return (buildings || []).filter((b) => Number(b.location_id) === Number(formData.location_id)).map((b) => ({ value: b.building_id, label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
                       if (count === 2)
-                        return (rooms || []).filter((r) => Number(r.building_id) === Number(formData.building_id)).map((r) => ({ value: `lokaal:${r.room_id}`, label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
+                        return (rooms || []).filter((r) => Number(r.building_id) === Number(formData.building_id)).map((r) => ({ value: r.room_id, label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
                       if (count === 3)
-                        return (assets || []).filter((a) => Number(a.room_id) === Number(formData.room_id)).map((a) => ({ value: `bate:${a.asset_id}`, label: `${a.asset_id} - ${a.asset_name}` }));
+                        return (assets || []).filter((a) => Number(a.room_id) === Number(formData.room_id)).map((a) => ({ value: a.asset_id, label: `${a.asset_id} - ${a.asset_name}` }));
                       return [];
                     })()}
-                    onChange={(newVal) => {
-                      const vals = (newVal || []).map((v) => v.value);
-                      setFormData((prev) => ({
-                        ...prev,
-                        location_id: vals.find((v) => v.startsWith("terrein:"))?.replace("terrein:", "") || "",
-                        building_id: vals.find((v) => v.startsWith("gebou:"))?.replace("gebou:", "") || "",
-                        room_id: vals.find((v) => v.startsWith("lokaal:"))?.replace("lokaal:", "") || "",
-                        asset_id: vals.find((v) => v.startsWith("bate:"))?.replace("bate:", "") || "",
-                      }));
+                    value={null}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const count = [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length;
+                      if (count === 0)
+                        setFormData((p) => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
+                      else if (count === 1)
+                        setFormData((p) => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
+                      else if (count === 2)
+                        setFormData((p) => ({...p, room_id: selectedOption.value, asset_id: ""}));
+                      else if (count === 3)
+                        setFormData((p) => ({...p, asset_id: selectedOption.value}));
                     }}
                   />
                 </div>
 
                 {/* 5. Foutkaartjie */}
-                <div className="mri-fld-select" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
+                <div className="mri-fld-select mri-fld" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
                   <span className="select-label">Foutkaartjie Verwysing</span>
                   <Select
                     className="react-select-container"
@@ -1318,52 +1344,63 @@ function WorkOrderPage() {
                 <>
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <label>Verantwoordelik</label>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies gebruiker..."
-                      isClearable
-                      value={formData.assigned_to
-                        ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
-                        : null}
-                      onChange={(selectedOption) => setFormData({ ...formData, assigned_to: selectedOption ? selectedOption.value : null })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
-                    />
+                    <div className="mri-fld">
+                      <span>Verantwoordelik</span>
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder="Kies gebruiker..."
+                        isClearable
+                        value={formData.assigned_to
+                          ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
+                          : null}
+                        onChange={(selectedOption) => setFormData({ ...formData, assigned_to: selectedOption ? selectedOption.value : null })}
+                        options={(users || []).map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
+                      />
+                    </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <label>CC (Kennisgewing)</label>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies gebruikers om CC..."
-                      isMulti
-                      value={(formData.cc_users || []).map((id) => {
-                        const u = users.find((u) => Number(u.user_id) === Number(id));
-                        return u ? { value: u.user_id, label: `${u.user_name} ${u.user_surname} (${u.user_email})` } : null;
-                      }).filter(Boolean)}
-                      onChange={(selectedOptions) => setFormData({
-                        ...formData,
-                        cc_users: (selectedOptions || []).map((opt) => opt.value)
-                      })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
-                    />
+                    <div className="mri-fld">
+                      <span>CC (Kennisgewing)</span>
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder="Kies gebruikers om CC..."
+                        isMulti
+                        value={(formData.cc_users || []).map((id) => {
+                          const u = users.find((u) => Number(u.user_id) === Number(id));
+                          return u ? { value: u.user_id, label: `${u.user_name} ${u.user_surname} (${u.user_email})` } : null;
+                        }).filter(Boolean)}
+                        onChange={(selectedOptions) => setFormData({
+                          ...formData,
+                          cc_users: (selectedOptions || []).map((opt) => opt.value)
+                        })}
+                        options={(users || []).map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
+                    <div className="mri-fld" style={{ position: "relative" }}><span>Geskeduleerde Datum en Tyd</span> 
                       <input 
                         type="datetime-local"
                         value={formData.job_scheduled_datetime}
                         onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
                       />
+                      {formData.job_scheduled_datetime && (
+                        <button
+                          type="button"
+                          className="input-clear-btn"
+                          onClick={() => setFormData({...formData, job_scheduled_datetime: ""})}
+                        >×</button>
+                      )}
                     </div>
                   </div>
                   <div className="mri-cell w-50">
