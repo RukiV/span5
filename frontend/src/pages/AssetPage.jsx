@@ -31,6 +31,10 @@ function AssetPage() {
   const [jobs, setJobs] = useState([]);
   const [assetHistory, setAssetHistory] = useState([]);
 
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const [drillLevel, setDrillLevel] = useState(0);
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [isEditingType, setIsEditingType] = useState(false);
   const [editingTypeId, setEditingTypeId] = useState(null);
@@ -72,6 +76,15 @@ function AssetPage() {
     })();
     return () => { mounted = false; };
   }, []);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+      setDrillLevel(1);
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchAssets = async () => {
     try {
@@ -375,8 +388,34 @@ function AssetPage() {
     }
   };
   
+  const getAssetLocationId = (asset) => {
+    if (!asset.room_id) return null;
+    const room = rooms.find((r) => r.room_id === asset.room_id);
+    if (!room) return null;
+    const building = buildings.find((b) => b.building_id === room.building_id);
+    return building ? building.location_id : null;
+  };
+
+  const getAssetBuildingId = (asset) => {
+    if (!asset.room_id) return null;
+    const room = rooms.find((r) => r.room_id === asset.room_id);
+    return room ? room.building_id : null;
+  };
+
   const filteredItems = [...assets]
     .filter((asset) => {
+      if (terrainFilter) {
+        const assetLocationId = getAssetLocationId(asset);
+        if (String(assetLocationId) !== terrainFilter) return false;
+      }
+      if (buildingFilter) {
+        const assetBuildingId = getAssetBuildingId(asset);
+        if (String(assetBuildingId) !== buildingFilter) return false;
+      }
+      if (roomFilter) {
+        if (String(asset.room_id) !== roomFilter) return false;
+      }
+
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
 
@@ -464,6 +503,33 @@ function AssetPage() {
     { value: "Onaktief", label: "Onaktief" }
   ];
 
+  const drillOptions = React.useMemo(() => {
+    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
+    if (drillLevel === 1 && terrainFilter) return [
+      { value: '__back', label: '\u2190 Terrein keuse' },
+      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
+    ];
+    if (drillLevel === 2 && buildingFilter) return [
+      { value: '__back', label: '\u2190 Gebou keuse' },
+      ...rooms.filter(r => Number(r.building_id) === Number(buildingFilter)).map(r => ({ value: `rm:${r.room_id}`, label: r.room_name }))
+    ];
+    return [];
+  }, [drillLevel, terrainFilter, buildingFilter, terrains, buildings, rooms]);
+
+  const handleDrillChange = (selected) => {
+    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(0); return; }
+    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
+    const [type, id] = selected.value.split(':');
+    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(1); }
+    else if (type === 'bld') { setBuildingFilter(id); setRoomFilter(''); setDrillLevel(2); }
+    else if (type === 'rm') { setRoomFilter(id); }
+  };
+
+  const currentDrillValue = drillLevel === 0 ? null
+    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
+    : drillLevel === 2 && buildingFilter ? drillOptions.find(o => o.value === `bld:${buildingFilter}`) || null
+    : null;
+
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -499,19 +565,19 @@ function AssetPage() {
           <div className="analytics-grid">
             <div className="analytics-card">
               <h4>Totale Bates</h4>
-              <p className="analytics-value">{assets.length}</p>
+              <p className="analytics-value">{filteredItems.length}</p>
             </div>
             <div className="analytics-card">
               <h4>Aktief</h4>
-              <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
+              <p className="analytics-value">{filteredItems.filter(a => a.asset_status === "Aktief").length}</p>
             </div>
             <div className="analytics-card">
               <h4>Instandhouding</h4>
-              <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
+              <p className="analytics-value warning">{filteredItems.filter(a => a.asset_status === "Instandhouding").length}</p>
             </div>
             <div className="analytics-card">
               <h4>Buitelug</h4>
-              <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
+              <p className="analytics-value">{filteredItems.filter(a => a.asset_isoutdoor).length}</p>
             </div>
           </div>
           <div className="controls">
@@ -532,6 +598,17 @@ function AssetPage() {
                 options={filterColumnOptions}
                 isSearchable={false}
                 styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+              />
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : drillLevel === 1 ? "Kies 'n gebou..." : "Kies 'n lokaal..."}
+                isSearchable={true}
+                isClearable={true}
+                options={drillOptions}
+                value={currentDrillValue}
+                onChange={handleDrillChange}
+                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
               />
             </div>
             <div className="controls-right">

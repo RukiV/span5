@@ -11,7 +11,7 @@ import UserProfileHeader from '../components/UserProfileHeader';
 
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const navigate = useNavigate();
   
@@ -22,6 +22,10 @@ function TicketPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const [drillLevel, setDrillLevel] = useState(0);
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -54,6 +58,15 @@ function TicketPage() {
   useEffect(() => {
     Promise.all([fetchTickets(), fetchTerrains(), fetchBuildings(), fetchRooms(), fetchAssets()]);
   }, []);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+      setDrillLevel(1);
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   // Haal alle foutkaartjies van backend
   const fetchTickets = async () => {
@@ -307,6 +320,10 @@ function TicketPage() {
 
   const filteredTickets = [...tickets]
     .filter((ticket) => {
+      if (terrainFilter && String(ticket.location_id) !== terrainFilter) return false;
+      if (buildingFilter && String(ticket.building_id) !== buildingFilter) return false;
+      if (roomFilter && String(ticket.room_id) !== roomFilter) return false;
+
       const query = searchTerm.trim().toLowerCase();
       const description = ticket.fault_description || "";
       if (!query) return true;
@@ -375,6 +392,33 @@ function TicketPage() {
       label: room.room_name || room.room_number || room.room_desc || `Lokaal ${room.room_id}`,
     }));
 
+  const drillOptions = React.useMemo(() => {
+    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
+    if (drillLevel === 1 && terrainFilter) return [
+      { value: '__back', label: '\u2190 Terrein keuse' },
+      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
+    ];
+    if (drillLevel === 2 && buildingFilter) return [
+      { value: '__back', label: '\u2190 Gebou keuse' },
+      ...rooms.filter(r => Number(r.building_id) === Number(buildingFilter)).map(r => ({ value: `rm:${r.room_id}`, label: r.room_name }))
+    ];
+    return [];
+  }, [drillLevel, terrainFilter, buildingFilter, terrains, buildings, rooms]);
+
+  const handleDrillChange = (selected) => {
+    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(0); return; }
+    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
+    const [type, id] = selected.value.split(':');
+    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(1); }
+    else if (type === 'bld') { setBuildingFilter(id); setRoomFilter(''); setDrillLevel(2); }
+    else if (type === 'rm') { setRoomFilter(id); }
+  };
+
+  const currentDrillValue = drillLevel === 0 ? null
+    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
+    : drillLevel === 2 && buildingFilter ? drillOptions.find(o => o.value === `bld:${buildingFilter}`) || null
+    : null;
+
   const assetOptions = (assets || [])
     .filter((asset) => !newTicket.room_id || String(asset.room_id) === String(newTicket.room_id))
     .map((asset) => ({
@@ -412,6 +456,17 @@ function TicketPage() {
                 <option value="priority">Prioriteit</option>
                 <option value="status">Status</option>
               </select>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : drillLevel === 1 ? "Kies 'n gebou..." : "Kies 'n lokaal..."}
+                isSearchable={true}
+                isClearable={true}
+                options={drillOptions}
+                value={currentDrillValue}
+                onChange={handleDrillChange}
+                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
+              />
             </div>
             <div className="controls-right">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -425,6 +480,25 @@ function TicketPage() {
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }}>▼</button>
               </div>
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
+            </div>
+          </div>
+
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Kaartjies</h4>
+              <p className="analytics-value">{filteredTickets.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Oop</h4>
+              <p className="analytics-value">{filteredTickets.filter(t => t.fault_status === "Oop").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Besig</h4>
+              <p className="analytics-value warning">{filteredTickets.filter(t => t.fault_status === "Besig").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Hoë Prioriteit</h4>
+              <p className="analytics-value danger">{filteredTickets.filter(t => t.fault_priority === "Hoog").length}</p>
             </div>
           </div>
 

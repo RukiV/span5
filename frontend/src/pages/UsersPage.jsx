@@ -20,13 +20,15 @@ function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [terrains, setTerrains] = useState([]);
   const [formUser, setFormUser] = useState({
     user_name: '',
     user_surname: '',
     user_email: '',
     user_password: '',
     user_status: 'active',
-    role_id: 1
+    role_id: 1,
+    location_id: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -70,8 +72,18 @@ function UsersPage() {
   useEffect(() => {
     if (isAuthorized) {
       fetchUsers();
+      fetchTerrains();
     }
   }, [isAuthorized]);
+
+  const fetchTerrains = async () => {
+    try {
+      const response = await apiClient.location.getAll();
+      setTerrains(response.data || []);
+    } catch (error) {
+      console.error('Error fetching terrains:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -105,6 +117,13 @@ function UsersPage() {
 
       let dataToSend = { ...formUser };
 
+      // Stuur null vir leë terrein (back-end verwag Optional[int])
+      if (!dataToSend.location_id) {
+        delete dataToSend.location_id;
+      } else {
+        dataToSend.location_id = Number(dataToSend.location_id);
+      }
+
       // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
         delete dataToSend.user_password;
@@ -129,7 +148,8 @@ function UsersPage() {
           user_email: '',
           user_password: '',
           user_status: 'active',
-          role_id: 1
+          role_id: 1,
+          location_id: ''
         });
         setSuccess('');
         fetchUsers();
@@ -149,7 +169,8 @@ function UsersPage() {
       user_email: user.user_email,
       user_password: '', // Laat leeg sodat bestaande wagwoord nie oorskryf word
       user_status: user.user_status,
-      role_id: user.role_id
+      role_id: user.role_id,
+      location_id: user.location_id ? String(user.location_id) : ''
     });
     setShowModal(true);
   };
@@ -177,7 +198,8 @@ function UsersPage() {
       user_email: '',
       user_password: '',
       user_status: 'active',
-      role_id: 1
+      role_id: 1,
+      location_id: ''
     });
   };
 
@@ -377,6 +399,18 @@ function UsersPage() {
               >
                 {roles.map(role => (
                   <option key={role.id} value={role.id}>{role.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Terrein (slegs vir Fasiliteit Koördineerders)</label>
+              <select
+                value={formUser.location_id}
+                onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value })}
+              >
+                <option value="">Geen terrein</option>
+                {terrains.map(t => (
+                  <option key={t.location_id} value={String(t.location_id)}>{t.location_name}</option>
                 ))}
               </select>
             </div>
