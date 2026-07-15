@@ -6,7 +6,9 @@ from datetime import datetime
 from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
 from ....models.job import Jobcard, JobcardRead, JobcardCreate, JobcardUpdate
+from ....models.user import User
 from ....services.job_service import job_service
+from ....services.email_service import send_jobcard_assigned
 
 router = APIRouter()
 
@@ -36,15 +38,18 @@ def readJob(jobID: int, session: Session = Depends(getSession)):
 
 @router.post("", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
 def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
-    #Create new job
-    return job_service.create(session, jobIn, user_id=user_id)
+    job = job_service.create(session, jobIn, user_id=user_id)
+    _send_jobcard_assigned_email(session, job)
+    return job
 
 @router.patch("/{jobID}", response_model=JobcardRead)
 def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSession), user_id: int | None = Depends(get_current_user_id)):
-    #Update existing job
     job = job_service.update(session, jobID, jobIn, user_id=user_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    if jobIn.assigned_to is not None:
+        _send_jobcard_assigned_email(session, job)
     
     return job
 
@@ -55,3 +60,25 @@ def removeJob(jobID: int, session: Session =Depends(getSession), user_id: int | 
         raise HTTPException(status_code=404, detail="Job not found")
     
     return None
+
+
+def _send_jobcard_assigned_email(session: Session, job: Jobcard) -> None:
+    if not job.assigned_to:
+        return
+    assigned_user = session.get(User, job.assigned_to)
+    if not assigned_user or not assigned_user.user_email:
+        return
+    cc_list = []
+    if job.cc_users:
+        cc_ids = [int(x.strip()) for x in job.cc_users.split(",") if x.strip().isdigit()]
+        for uid in cc_ids:
+            u = session.get(User, uid)
+            if u and u.user_email:
+                cc_list.append(u.user_email)
+    scheduled_str = job.job_scheduled_datetime.strftime("%Y-%m-%d %H:%M") if job.job_scheduled_datetime else "Nie geskeduleer"
+    send_jobcard_assigned(
+        to_email=assigned_user.user_email,
+        job_desc=job.job_desc,
+        scheduled_str=scheduled_str,
+        cc_emails=cc_list or None,
+    )

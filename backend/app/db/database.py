@@ -33,6 +33,10 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS job_schedule_type VARCHAR(20)"))
             if "job_finisheddatetime" not in columns:
                 connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS job_finisheddatetime TIMESTAMP"))
+            if "assigned_to" not in columns:
+                connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES \"user\"(user_id)"))
+            if "cc_users" not in columns:
+                connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS cc_users TEXT"))
 
         if "quote" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("quote")}

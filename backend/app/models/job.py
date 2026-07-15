@@ -48,6 +48,8 @@ class JobcardBase(SQLModel):
     job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
+    assigned_to: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    cc_users: Optional[str] = None
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
@@ -124,6 +126,8 @@ class JobcardUpdate(SQLModel):
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
     user_id: Optional[int] = None
+    assigned_to: Optional[int] = None
+    cc_users: Optional[str] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
