@@ -12,5 +12,6 @@ from .job import *
 from .contractor import *
 from .quote import *
 from .report import *
+from .calendar_event import *
 from .validators import *  # optional export
 

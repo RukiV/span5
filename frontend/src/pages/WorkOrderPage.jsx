@@ -2,7 +2,7 @@
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select from "react-select"; // Bygevoeg vir React-Select dropdowns
-import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
@@ -37,6 +37,7 @@ function WorkOrderPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [pendingJobcardId, setPendingJobcardId] = useState(null);
+  const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
   const [contractors, setContractors] = useState([]);
@@ -45,6 +46,22 @@ function WorkOrderPage() {
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
+
+  // Collapsible seksie state — almal begin collapsed (true)
+  const [collapsedSections, setCollapsedSections] = useState({
+    besonderhede: true,
+    ligging: true,
+    werknotas: true,
+    skedulering: true,
+    toewysing: true,
+    kategorisering: true,
+    kontrakteurWerknotas: true,
+    kwotasies: true,
+  });
+
+  const toggleSection = (section) => {
+    setCollapsedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
 
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
   const [selectedTerrein, setSelectedTerrein] = useState(null);
@@ -82,6 +99,10 @@ function WorkOrderPage() {
     authorized_by: "",              // Goedgekeur deur
     completed_date: "",             // Voltooide datum
     cost_recovery_notes: "",        // Kostetoerekening-aantekeninge
+
+    // Toewysing
+    assigned_to: null,              // Verantwoordelike gebruiker (user_id)
+    cc_users: [],                   // CC gebruikers (array van user_id's)
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -167,6 +188,7 @@ function WorkOrderPage() {
     fetchTerrains();
     fetchTickets();
     fetchContractors();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -223,6 +245,15 @@ function WorkOrderPage() {
       setTickets(response.data || []);
     } catch (error) {
       console.error("Fout by haal foutkaartjies:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await usersAPI.getAll();
+      setUsers(response.data || []);
+    } catch (error) {
+      console.error("Fout by haal gebruikers:", error);
     }
   };
 
@@ -505,6 +536,10 @@ function WorkOrderPage() {
       authorized_by: order.authorized_by || "",
       completed_date: formatDateForInput(order.job_finisheddatetime),
       cost_recovery_notes: order.cost_recovery_notes || "",
+      assigned_to: order.assigned_to ? Number(order.assigned_to) : null,
+      cc_users: order.cc_users
+        ? String(order.cc_users).split(",").map((id) => Number(id.trim())).filter((id) => !isNaN(id))
+        : [],
     });
 
     // Stel koppelings-tipe vas
@@ -609,6 +644,10 @@ function WorkOrderPage() {
         location_id: formData.location_id ? Number(formData.location_id) : null,
         fault_id: formData.fault_id ? Number(formData.fault_id) : null,
         job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
+        assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
+        cc_users: formData.cc_users && formData.cc_users.length > 0
+          ? formData.cc_users.join(",")
+          : null,
       };
 
       const savedWorkOrderResponse = isEditing
@@ -777,6 +816,8 @@ function WorkOrderPage() {
       authorized_by: "",
       completed_date: "",
       cost_recovery_notes: "",
+      assigned_to: null,
+      cc_users: [],
     });
   };
 
@@ -807,6 +848,8 @@ function WorkOrderPage() {
       authorized_by: "",
       completed_date: "",
       cost_recovery_notes: "",
+      assigned_to: null,
+      cc_users: [],
     });
     setConnectionType("");
     setConnectionTargetId("");
@@ -1069,248 +1112,290 @@ function WorkOrderPage() {
 
             {/* Vorm */}
             <form className="mri-border-box" onSubmit={(e) => e.preventDefault()}>
-              {/* Rij 1: Besonderhede */}
-              <div className="mri-row flex">
-                <div className="mri-cell w-60 border-r">
-                  <label>Werksopdrag Beskrywing</label>
-                  <input 
-                    type="text" 
-                    className="mri-txt-area-large"
-                    value={formData.brief_description}
-                    onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
-                    placeholder="Kort beskrywing van werk"
+              {/* Besonderhede */}
+              <div style={{ marginBottom: "12px" }}>
+                <label
+                  style={{ fontWeight: "700", marginBottom: "12px", display: "block", cursor: "pointer" }}
+                  onClick={() => toggleSection("besonderhede")}
+                >
+                  {collapsedSections.besonderhede ? "▶" : "▼"} Besonderhede
+                </label>
+                {!collapsedSections.besonderhede && (
+                <>
+                <div className="mri-row flex">
+                  <div className="mri-cell w-60 border-r">
+                    <label>Werksopdrag Beskrywing</label>
+                    <input 
+                      type="text" 
+                      className="mri-txt-area-large"
+                      value={formData.brief_description}
+                      onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
+                      placeholder="Kort beskrywing van werk"
+                    />
+                  </div>
+                  <div className="mri-cell w-40">
+                    <div className="mri-fld"><span>Status</span> 
+                      <select 
+                        value={formData.job_status}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          setFormData(prev => ({
+                            ...prev,
+                            job_status: newStatus,
+                            completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
+                              ? new Date().toISOString().split('T')[0]
+                              : prev.completed_date,
+                          }));
+                        }}
+                      >
+                        <option value="">Kies...</option>
+                        <option value="Wag">Wag</option>
+                        <option value="Oop">Oop</option>
+                        <option value="Besig">Besig</option>
+                        <option value="Voltooid">Voltooid</option>
+                        <option value="Gekanselleer">Gekanselleer</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Ligging & Koppeling</label>
+
+                {/* Kaskade: isMulti Select vir al 4 vlakke */}
+                <div className="mri-fld-select">
+                  <span className="select-label">Ligging & Koppeling</span>
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    isMulti
+                    closeMenuOnSelect={false}
+                    placeholder={
+                      ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][
+                        [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length
+                      ] || ""
+                    }
+                    value={[
+                      formData.location_id && { value: `terrein:${formData.location_id}`, label: terrains?.find((t) => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id },
+                      formData.building_id && { value: `gebou:${formData.building_id}`, label: buildings?.find((b) => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id },
+                      formData.room_id && { value: `lokaal:${formData.room_id}`, label: rooms?.find((r) => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id },
+                      formData.asset_id && { value: `bate:${formData.asset_id}`, label: assets?.find((a) => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id },
+                    ].filter(Boolean)}
+                    options={(() => {
+                      const count = [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length;
+                      if (count === 0)
+                        return (terrains || []).map((t) => ({ value: `terrein:${t.location_id}`, label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
+                      if (count === 1)
+                        return (buildings || []).filter((b) => Number(b.location_id) === Number(formData.location_id)).map((b) => ({ value: `gebou:${b.building_id}`, label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                      if (count === 2)
+                        return (rooms || []).filter((r) => Number(r.building_id) === Number(formData.building_id)).map((r) => ({ value: `lokaal:${r.room_id}`, label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
+                      if (count === 3)
+                        return (assets || []).filter((a) => Number(a.room_id) === Number(formData.room_id)).map((a) => ({ value: `bate:${a.asset_id}`, label: `${a.asset_id} - ${a.asset_name}` }));
+                      return [];
+                    })()}
+                    onChange={(newVal) => {
+                      const vals = (newVal || []).map((v) => v.value);
+                      setFormData((prev) => ({
+                        ...prev,
+                        location_id: vals.find((v) => v.startsWith("terrein:"))?.replace("terrein:", "") || "",
+                        building_id: vals.find((v) => v.startsWith("gebou:"))?.replace("gebou:", "") || "",
+                        room_id: vals.find((v) => v.startsWith("lokaal:"))?.replace("lokaal:", "") || "",
+                        asset_id: vals.find((v) => v.startsWith("bate:"))?.replace("bate:", "") || "",
+                      }));
+                    }}
                   />
                 </div>
-                <div className="mri-cell w-40">
-                  <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
-                    <input 
-                      type="datetime-local"
-                      onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
-                    />
-                  </div>
-                  <div className="mri-fld"><span>Herhaling</span> 
-                    <select 
-                      value={formData.job_schedule_type}
-                      onChange={(e) => setFormData({...formData, job_schedule_type: e.target.value})}
-                    >
-                      <option value="enkel">Enkel</option>
-                      <option value="weekliks">Weekliks</option>
-                      <option value="maandeliks">Maandeliks</option>
-                      <option value="jaarliks">Jaarliks</option>
-                    </select>
-                  </div>
-                  <div className="mri-fld"><span>Status</span> 
-                    <select 
-                      value={formData.job_status}
-                      onChange={(e) => {
-                        const newStatus = e.target.value;
-                        setFormData(prev => ({
-                          ...prev,
-                          job_status: newStatus,
-                          completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
-                            ? new Date().toISOString().split('T')[0]
-                            : prev.completed_date,
-                        }));
-                      }}
-                    >
-                      <option value="">Kies...</option>
-                      <option value="Wag">Wag</option>
-                      <option value="Oop">Oop</option>
-                      <option value="Besig">Besig</option>
-                      <option value="Voltooid">Voltooid</option>
-                      <option value="Gekanselleer">Gekanselleer</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-{/* Bate en Aard Seksie met React-Select Dropdowns */}
-              <div className="mri-row flex">
-                <div className="mri-cell w-50 border-r">
-                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Ligging & Koppeling</label>
-                  
-                  {/* 1. Terrein Dropdown */}
-                  <div className="mri-fld-select">
-                    <span className="select-label">Terrein</span>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies Terrein..."
-                      isClearable
-                      value={formData.location_id ? { value: formData.location_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.location_id))?.location_name || formData.location_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        location_id: selectedOption ? selectedOption.value : "",
-                        building_id: "",
-                        room_id: "",
-                        asset_id: ""
-                      })}
-                      options={(terrains || []).map((terrain) => ({
-                        value: terrain.location_id,
-                        label: `${terrain.location_id} - ${terrain.location_name || terrain.location_desc || "Terrein"}`
-                      }))}
-                    />
-                  </div>
 
-                  {/* 2. Gebou Dropdown */}
-                  <div className="mri-fld-select">
-                    <span className="select-label">Gebou</span>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies Gebou..."
-                      isClearable
-                      isDisabled={!formData.location_id}
-                      value={formData.building_id ? { value: formData.building_id, label: buildings?.find((building) => Number(building.building_id) === Number(formData.building_id))?.building_name || formData.building_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        building_id: selectedOption ? selectedOption.value : "",
-                        room_id: "",
-                        asset_id: ""
-                      })}
-                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.location_id)).map((building) => ({
-                        value: building.building_id,
-                        label: `${building.building_id} - ${building.building_name || "Gebou"}`
-                      }))}
-                    />
-                  </div>
-
-                  {/* 3. Lokaal Dropdown */}
-                  <div className="mri-fld-select">
-                    <span className="select-label">Lokaal (Kamer)</span>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies Lokaal..."
-                      isClearable
-                      isDisabled={!formData.building_id}
-                      value={formData.room_id ? { value: formData.room_id, label: rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_name || rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_number || formData.room_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        room_id: selectedOption ? selectedOption.value : "",
-                        asset_id: ""
-                      })}
-                      options={(rooms || []).filter((room) => Number(room.building_id) === Number(formData.building_id)).map((room) => ({
-                        value: room.room_id,
-                        label: `${room.room_id} - ${room.room_name || room.room_number || "Lokaal"}`
-                      }))}
-                    />
-                  </div>
-
-                  {/* 4. Bate Dropdown */}
-                  <div className="mri-fld-select">
-                    <span className="select-label">Gekoppelde Bate</span>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Kies Bate..."
-                      isClearable
-                      isDisabled={!formData.room_id}
-                      value={formData.asset_id ? { value: formData.asset_id, label: assets?.find((asset) => Number(asset.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id } : null}
-                      onChange={(selectedOption) => setFormData({
-                        ...formData,
-                        asset_id: selectedOption ? selectedOption.value : ""
-                      })}
-                      options={(assets || []).filter((asset) => Number(asset.room_id) === Number(formData.room_id)).map((asset) => ({
-                        value: asset.asset_id,
-                        label: `${asset.asset_id} - ${asset.asset_name}`
-                      }))}
-                    />
-                  </div>
-
-                  {/* 5. Foutkaartjie Dropdown */}
-                  <div className="mri-fld-select" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
-                    <span className="select-label">Foutkaartjie Verwysing</span>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder="Soek/Kies Foutkaartjie..."
-                      isClearable
-                      value={formData.fault_id ? { value: formData.fault_id, label: getTicketOptionLabel((tickets || []).find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))) } : null}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) {
-                          setFormData({
-                            ...formData,
-                            fault_id: "",
-                            job_type: "",
-                            job_priority: "Normal",
-                            brief_description: "",
-                            location_id: "",
-                            building_id: "",
-                            room_id: "",
-                            asset_id: ""
-                          });
-                          return;
-                        }
-                        const ticket=(tickets||[]).find(t=>Number(t.fault_id)===Number(selectedOption.value));
+                {/* 5. Foutkaartjie */}
+                <div className="mri-fld-select" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
+                  <span className="select-label">Foutkaartjie Verwysing</span>
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder="Soek/Kies Foutkaartjie..."
+                    isClearable
+                    value={formData.fault_id ? { value: formData.fault_id, label: getTicketOptionLabel((tickets || []).find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))) } : null}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) {
                         setFormData({
                           ...formData,
-                          fault_id: ticket?.fault_id || "",
-                          job_type: normalizeWorkTypeValue(ticket?.fault_type) || "",
-                          job_priority: normalizePriorityValue(ticket?.fault_priority) || "Normal",
-                          brief_description: getTicketDisplayTitle(ticket),
-                          location_id: ticket?.location_id || "",
-                          building_id: ticket?.building_id || "",
-                          room_id: ticket?.room_id || "",
-                          asset_id: ticket?.asset_id || ""
+                          fault_id: "",
+                          job_type: "",
+                          job_priority: "Normal",
+                          brief_description: "",
+                          location_id: "",
+                          building_id: "",
+                          room_id: "",
+                          asset_id: ""
                         });
-                      }}
-                      options={(tickets || []).filter(ticket=>{
-                        if(formData.location_id && Number(ticket.location_id)!==Number(formData.location_id)) return false;
-                        if(formData.building_id && Number(ticket.building_id)!==Number(formData.building_id)) return false;
-                        if(formData.room_id && Number(ticket.room_id)!==Number(formData.room_id)) return false;
-                        if(formData.asset_id && Number(ticket.asset_id)!==Number(formData.asset_id)) return false;
-                        return true;
-                      }).map((ticket) => ({
-                        value: ticket.fault_id,
-                        label: getTicketOptionLabel(ticket)
+                        return;
+                      }
+                      const ticket=(tickets||[]).find(t=>Number(t.fault_id)===Number(selectedOption.value));
+                      setFormData({
+                        ...formData,
+                        fault_id: ticket?.fault_id || "",
+                        job_type: normalizeWorkTypeValue(ticket?.fault_type) || "",
+                        job_priority: normalizePriorityValue(ticket?.fault_priority) || "Normal",
+                        brief_description: getTicketDisplayTitle(ticket),
+                        location_id: ticket?.location_id || "",
+                        building_id: ticket?.building_id || "",
+                        room_id: ticket?.room_id || "",
+                        asset_id: ticket?.asset_id || ""
+                      });
+                    }}
+                    options={(tickets || []).filter(ticket=>{
+                      if(formData.location_id && Number(ticket.location_id)!==Number(formData.location_id)) return false;
+                      if(formData.building_id && Number(ticket.building_id)!==Number(formData.building_id)) return false;
+                      if(formData.room_id && Number(ticket.room_id)!==Number(formData.room_id)) return false;
+                      if(formData.asset_id && Number(ticket.asset_id)!==Number(formData.asset_id)) return false;
+                      return true;
+                    }).map((ticket) => ({
+                      value: ticket.fault_id,
+                      label: getTicketOptionLabel(ticket)
+                    }))}
+                  />
+                </div>
+                </>
+                )}
+              </div>
+              {/* Kategorisering */}
+              <div style={{ marginBottom: "12px" }}>
+                <label
+                  style={{ fontWeight: "700", marginBottom: "12px", display: "block", cursor: "pointer" }}
+                  onClick={() => toggleSection("kategorisering")}
+                >
+                  {collapsedSections.kategorisering ? "▶" : "▼"} Kategorisering
+                </label>
+                {!collapsedSections.kategorisering && (
+                <div className="mri-row flex">
+                  <div className="mri-cell w-50">
+                    <div className="mri-fld"><span>Aard</span> 
+                      <select
+                        value={formData.nature}
+                        onChange={(e) => setFormData({...formData, nature: e.target.value})}
+                      >
+                        <option value="">Kies...</option>
+                        <option value="Elektries">Elektries</option>
+                        <option value="Meganies">Meganies</option>
+                        <option value="Siviel">Siviel</option>
+                        <option value="Buite">Buite</option>
+                        <option value="Algemeen">Algemeen</option>
+                      </select>
+                    </div>
+                    <div className="mri-fld"><span>Werksoort</span> 
+                      <select 
+                        value={formData.job_type}
+                        onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                      >
+                        <option value="">Kies...</option>
+                        <option value="Onderhoud">Onderhoud</option>
+                        <option value="Herstel">Herstel</option>
+                        <option value="Inspeksie">Inspeksie</option>
+                        <option value="Installasie">Installasie</option>
+                      </select>
+                    </div>
+                    <div className="mri-fld"><span>Prioriteit</span> 
+                      <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
+                        <option>Laag</option>
+                        <option>Normal</option>
+                        <option>Hoog</option>
+                        <option>Dringend</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                )}
+              </div>
+
+              {/* Skedulering & Toewysing */}
+              <div style={{ marginBottom: "12px" }}>
+                <label
+                  style={{ fontWeight: "700", marginBottom: "12px", display: "block", cursor: "pointer" }}
+                  onClick={() => toggleSection("skedulering")}
+                >
+                  {collapsedSections.skedulering ? "▶" : "▼"} Skedulering & Toewysing
+                </label>
+                {!collapsedSections.skedulering && (
+                <>
+                <div className="mri-row flex">
+                  <div className="mri-cell w-50 border-r">
+                    <label>Verantwoordelik</label>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies gebruiker..."
+                      isClearable
+                      value={formData.assigned_to
+                        ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
+                        : null}
+                      onChange={(selectedOption) => setFormData({ ...formData, assigned_to: selectedOption ? selectedOption.value : null })}
+                      options={(users || []).map((u) => ({
+                        value: u.user_id,
+                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                      }))}
+                    />
+                  </div>
+                  <div className="mri-cell w-50">
+                    <label>CC (Kennisgewing)</label>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies gebruikers om CC..."
+                      isMulti
+                      value={(formData.cc_users || []).map((id) => {
+                        const u = users.find((u) => Number(u.user_id) === Number(id));
+                        return u ? { value: u.user_id, label: `${u.user_name} ${u.user_surname} (${u.user_email})` } : null;
+                      }).filter(Boolean)}
+                      onChange={(selectedOptions) => setFormData({
+                        ...formData,
+                        cc_users: (selectedOptions || []).map((opt) => opt.value)
+                      })}
+                      options={(users || []).map((u) => ({
+                        value: u.user_id,
+                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
                       }))}
                     />
                   </div>
                 </div>
-
-                {/* Regterkant: Aard en Prioriteit (Bly gewone HTML HTML-selects vir nou, of jy kan hulle ook vervang) */}
-                <div className="mri-cell w-50">
-                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Kategorisering</label>
-                  <div className="mri-fld"><span>Aard</span> 
-                    <select
-                      value={formData.nature}
-                      onChange={(e) => setFormData({...formData, nature: e.target.value})}
-                    >
-                      <option value="">Kies...</option>
-                      <option value="Elektries">Elektries</option>
-                      <option value="Meganies">Meganies</option>
-                      <option value="Siviel">Siviel</option>
-                      <option value="Buite">Buite</option>
-                      <option value="Algemeen">Algemeen</option>
-                    </select>
+                <div className="mri-row flex">
+                  <div className="mri-cell w-50 border-r">
+                    <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
+                      <input 
+                        type="datetime-local"
+                        value={formData.job_scheduled_datetime}
+                        onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
+                      />
+                    </div>
                   </div>
-                  <div className="mri-fld"><span>Werksoort</span> 
-                    <select 
-                      value={formData.job_type}
-                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
-                    >
-                      <option value="">Kies...</option>
-                      <option value="Onderhoud">Onderhoud</option>
-                      <option value="Herstel">Herstel</option>
-                      <option value="Inspeksie">Inspeksie</option>
-                      <option value="Installasie">Installasie</option>
-                    </select>
-                  </div>
-                  <div className="mri-fld"><span>Prioriteit</span> 
-                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
-                      <option>Laag</option>
-                      <option>Normal</option>
-                      <option>Hoog</option>
-                      <option>Dringend</option>
-                    </select>
+                  <div className="mri-cell w-50">
+                    <div className="mri-fld"><span>Herhaling</span> 
+                      <select 
+                        value={formData.job_schedule_type}
+                        onChange={(e) => setFormData({...formData, job_schedule_type: e.target.value})}
+                      >
+                        <option value="enkel">Enkel</option>
+                        <option value="weekliks">Weekliks</option>
+                        <option value="maandeliks">Maandeliks</option>
+                        <option value="jaarliks">Jaarliks</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
+                </>
+                )}
               </div>
+            </form>
 
-              {/* Werk-Notas */}
+            {/* KONTRAKTEUR WERKNOTAS */}
+            <div className="mri-border-box">
+              <label
+                style={{ fontWeight: "700", marginBottom: "12px", display: "block", cursor: "pointer" }}
+                onClick={() => toggleSection("kontrakteurWerknotas")}
+              >
+                {collapsedSections.kontrakteurWerknotas ? "▶" : "▼"} Kontrakteur Werknotas
+              </label>
+              {!collapsedSections.kontrakteurWerknotas && (
               <div className="mri-row bg-light-grey">
                 <div className="mri-cell w-100">
-                  <label>Werknotas</label>
                   <textarea 
                     className="mri-txt-area-large"
                     value={formData.job_notes}
@@ -1319,31 +1404,19 @@ function WorkOrderPage() {
                   />
                 </div>
               </div>
-
-              {/* Voltooiing */}
-              <div className="mri-row flex last-row">
-                <div className="mri-cell w-50 border-r">
-                  <label>Voltooiing</label>
-                  <div className="mri-fld"><span>Goedgekeur deur</span> <input type="text" value={formData.authorized_by} onChange={(e) => setFormData({...formData, authorized_by: e.target.value})} /></div>
-                  <div className="mri-fld"><span>Voltooide Datum</span> <input type="date" value={formData.completed_date} onChange={(e) => setFormData({...formData, completed_date: e.target.value})} /></div>
-                </div>
-                <div className="mri-cell w-50">
-                  <label>Koste-Nota</label>
-                  <textarea 
-                    className="mri-txt-area-small"
-                    value={formData.cost_recovery_notes}
-                    onChange={(e) => setFormData({...formData, cost_recovery_notes: e.target.value})}
-                    placeholder="Koste-toerekening notas..."
-                  />
-                </div>
-              </div>
-            </form>
+              )}
+            </div>
 
             {/* QUOTES SEKSIE */}
             <div className="mri-border-box">
-              <h3>Kwotasies</h3>
-              
-              {/* Voeg Nuwe Kwotasie By */}
+              <label
+                style={{ fontWeight: "700", marginBottom: "12px", display: "block", cursor: "pointer" }}
+                onClick={() => toggleSection("kwotasies")}
+              >
+                {collapsedSections.kwotasies ? "▶" : "▼"} Kwotasies
+              </label>
+              {!collapsedSections.kwotasies && (
+              <>
               <div className="quote-form">
                 <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
                 <div className="mri-row">
@@ -1469,6 +1542,8 @@ function WorkOrderPage() {
                 <div className="quote-empty">
                   Geen kwotasies bygevoeg nie
                 </div>
+              )}
+              </>
               )}
             </div>
 
