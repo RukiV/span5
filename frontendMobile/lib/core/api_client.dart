@@ -17,10 +17,13 @@ class ApiClient {
   factory ApiClient() => _instance;
 
   ApiClient._internal() {
-    //emulator
-    final baseUrl = dotenv.get('API_URL', fallback: 'http://10.12.0.30:8000/api/v1');
-    //physical
-    //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
+    final baseUrl = dotenv.maybeGet('API_URL');
+    if (baseUrl == null || baseUrl.isEmpty) {
+      throw StateError(
+        'API_URL environment variable is not set. '
+        'Configure it in your .env file or pass it via --dart-define.',
+      );
+    }
     
     _dio = Dio(
       BaseOptions(
