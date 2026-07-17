@@ -18,6 +18,7 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/contractor_service.dart';
 import '../../services/quote_service.dart';
+import '../../services/jobcard_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -42,6 +43,7 @@ class _HomePageState extends State<HomePage> {
         CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
+        JobcardService.fetchJobs(),
         ContractorService.fetchContractors(),
         QuoteService.fetchQuotes(),
       ]);
