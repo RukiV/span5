@@ -50,6 +50,8 @@ function WorkOrderPage() {
 
   const [activeTab, setActiveTab] = useState("besonderhede");
   const [cascadeToast, setCascadeToast] = useState(null);
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
   const liggingRef = useRef(null);
 
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
@@ -61,8 +63,8 @@ function WorkOrderPage() {
     // Hoofinligting
     job_desc: "",                   // Hoofbeskrywing
     job_type: "",                   // Werksoort (maintenance, repair, inspection, installation, emergency)
-    job_status: "Oop",              // Status (Oop, Wag, Voltooid)
-    job_priority: "Normal",         // Prioriteit
+    job_status: "",                  // Status (Oop, Wag, Voltooid)
+    job_priority: "",                // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
     job_schedule_type: "enkel",     // Herhalingstipe
@@ -613,10 +615,21 @@ function WorkOrderPage() {
   // Hanteer besparing van werksopdrag
   const handleSaveWorkOrder = async () => {
     try {
-      if (!formData.job_desc && !formData.brief_description) {
-        alert("Voer asseblief 'n beskrywing in.");
+      const errors = {};
+      if (!formData.job_status) errors.job_status = true;
+      if (!formData.job_priority) errors.job_priority = true;
+      if (!formData.nature) errors.nature = true;
+      if (!formData.job_type) errors.job_type = true;
+      if (!formData.brief_description?.trim()) errors.brief_description = true;
+      if (!formData.location_id) errors.location_id = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
+      setInvalidFields({});
 
       const payload = {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
@@ -783,11 +796,12 @@ function WorkOrderPage() {
     setConnectionTargetId("");
     setSelectedTerrein(null);
     setSelectedGebou(null);
+    setInvalidFields({});
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "Oop",
-      job_priority: "Normal",
+      job_status: "",
+      job_priority: "",
       job_createddatetime: "",
       job_scheduled_datetime: "",
       job_schedule_type: "enkel",
@@ -815,11 +829,12 @@ function WorkOrderPage() {
     setEditingId(null);
     setSelectedTerrein(null);
     setSelectedGebou(null);
+    setInvalidFields({});
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "Oop",
-      job_priority: "Normal",
+      job_status: "",
+      job_priority: "",
       job_createddatetime: new Date().toISOString().split('T')[0],
       job_scheduled_datetime: new Date().toISOString().slice(0, 16),
       job_schedule_type: "enkel",
@@ -1135,8 +1150,10 @@ function WorkOrderPage() {
                 {/* Rye 1-2: Status + Prioriteit / Aard + Werksoort */}
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <div className="mri-fld"><span>Status</span>
+                    <div className="mri-fld"><span>Status *</span>
                       <select
+                        ref={el => fieldRefs.current.job_status = el}
+                        className={invalidFields.job_status ? "field-invalid" : ""}
                         value={formData.job_status}
                         onChange={(e) => {
                           const newStatus = e.target.value;
@@ -1147,6 +1164,7 @@ function WorkOrderPage() {
                               ? new Date().toISOString().split('T')[0]
                               : prev.completed_date,
                           }));
+                          setInvalidFields(p => { const n = {...p}; delete n.job_status; return n; });
                         }}
                       >
                         <option value="">Kies...</option>
@@ -1159,8 +1177,16 @@ function WorkOrderPage() {
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Prioriteit</span>
-                      <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
+                    <div className="mri-fld"><span>Prioriteit *</span>
+                      <select
+                        ref={el => fieldRefs.current.job_priority = el}
+                        className={invalidFields.job_priority ? "field-invalid" : ""}
+                        value={formData.job_priority}
+                        onChange={(e) => {
+                          setFormData({...formData, job_priority: e.target.value});
+                          setInvalidFields(p => { const n = {...p}; delete n.job_priority; return n; });
+                        }}
+                        >
                         <option value="">Kies...</option>
                         <option value="Laag">Laag</option>
                         <option value="Normal">Normal</option>
@@ -1172,10 +1198,15 @@ function WorkOrderPage() {
                 </div>
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <div className="mri-fld"><span>Aard</span>
+                    <div className="mri-fld"><span>Aard *</span>
                       <select
+                        ref={el => fieldRefs.current.nature = el}
+                        className={invalidFields.nature ? "field-invalid" : ""}
                         value={formData.nature}
-                        onChange={(e) => setFormData({...formData, nature: e.target.value})}
+                        onChange={(e) => {
+                          setFormData({...formData, nature: e.target.value});
+                          setInvalidFields(p => { const n = {...p}; delete n.nature; return n; });
+                        }}
                       >
                         <option value="">Kies...</option>
                         <option value="Elektries">Elektries</option>
@@ -1187,10 +1218,15 @@ function WorkOrderPage() {
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Werksoort</span>
+                    <div className="mri-fld"><span>Werksoort *</span>
                       <select
+                        ref={el => fieldRefs.current.job_type = el}
+                        className={invalidFields.job_type ? "field-invalid" : ""}
                         value={formData.job_type}
-                        onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                        onChange={(e) => {
+                          setFormData({...formData, job_type: e.target.value});
+                          setInvalidFields(p => { const n = {...p}; delete n.job_type; return n; });
+                        }}
                       >
                         <option value="">Kies...</option>
                         <option value="Onderhoud">Onderhoud</option>
@@ -1204,12 +1240,16 @@ function WorkOrderPage() {
 
                 {/* Auto-groeiende beskrywing */}
                 <div className="mri-fld" style={{ marginBottom: "24px" }}>
-                  <span>Werksopdrag Beskrywing</span>
+                  <span>Werksopdrag Beskrywing *</span>
                   <textarea
-                    className="mri-txt-area-large"
+                    ref={el => fieldRefs.current.brief_description = el}
+                    className={`mri-txt-area-large${invalidFields.brief_description ? " field-invalid" : ""}`}
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
                     value={formData.brief_description}
-                    onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
+                    onChange={(e) => {
+                      setFormData({...formData, brief_description: e.target.value});
+                      setInvalidFields(p => { const n = {...p}; delete n.brief_description; return n; });
+                    }}
                     onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px"; }}
                     placeholder="Kort beskrywing van werk"
                   />
@@ -1268,7 +1308,7 @@ function WorkOrderPage() {
                     </components.Control>
                   );
                   return (
-                <div className="mri-row flex">
+                <div className={`mri-row flex${invalidFields.location_id ? " field-invalid" : ""}`}>
                   <div ref={liggingRef} className="mri-cell w-50 border-r" style={{ position: "relative" }}>
                     <div className="mri-fld-select mri-fld">
                       <span className="select-label">Ligging & Koppeling</span>

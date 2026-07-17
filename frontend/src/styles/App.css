@@ -381,3 +381,20 @@
     grid-template-columns: 1fr;
   }
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.field-invalid {
+  border: 2px solid #dc3545 !important;
+  animation: shake 0.4s ease;
+}
+
+.field-invalid .css-1s2u09g-control,
+.field-invalid .css-13cymwt-control {
+  border-color: #dc3545 !important;
+  animation: shake 0.4s ease;
+}
