@@ -14,6 +14,7 @@ class UserSession {
 
   /// Helper-metode om rou data vanaf die API te verwerk.
   /// Dit sentraliseer die logika vir roldoewysing.
+  /// Gooi 'n [StateError] as die API payload 'n geldige role_id ontbreeks.
   static void initialize(Map<String, dynamic> data) {
     userId = data['user_id'] ?? 0;
     userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
@@ -22,7 +23,14 @@ class UserSession {
 
     // Roldoewysing gebaseer op ID vanaf die backend.
     // 3 = Admin, 2 = Manager (FK), 1 = Student, 4 = Contractor.
-    final int roleId = data['role_id'] ?? 1;
+    final dynamic rawRoleId = data['role_id'];
+    if (rawRoleId == null) {
+      throw StateError(
+        'Server response is missing role_id. '
+        'Authentication may be invalid. Please re-login.',
+      );
+    }
+    final int roleId = rawRoleId as int;
     switch (roleId) {
       case 3:
         role = UserRole.admin;
@@ -33,8 +41,14 @@ class UserSession {
       case 4:
         role = UserRole.contractor;
         break;
-      default:
+      case 1:
         role = UserRole.student;
+        break;
+      default:
+        throw StateError(
+          'Unknown role_id "$roleId" received from server. '
+          'Please contact your administrator.',
+        );
     }
   }
 
