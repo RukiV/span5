@@ -248,6 +248,7 @@ def _get_or_create_job(
     location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
+    contractor_id: Optional[int] = None,
 ) -> Jobcard:
     job = session.exec(
         select(Jobcard)
@@ -268,6 +269,7 @@ def _get_or_create_job(
         location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
+        contractor_id=contractor_id,
     )
     session.add(job)
     session.commit()
@@ -352,6 +354,19 @@ def _get_or_create_fk_role(session: Session) -> Role:
     return role
 
 
+def _get_or_create_contractor_role(session: Session) -> Role:
+    """Skep Kontrakteur-rol (role_id=4). Kan aanmeld op mobiele app."""
+    role = session.exec(select(Role).where(Role.role_name == "Kontrakteur")).first()
+    if role:
+        return role
+
+    role = Role(role_name="Kontrakteur")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
     """Helper function to create audit logs for assets."""
     full_record = asset.model_dump(mode="json")
@@ -387,6 +402,7 @@ def seed_data():
         user_role = _get_or_create_default_role(session)           # ID 1
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
+        contractor_role = _get_or_create_contractor_role(session) # ID 4
 
         # Skep toetsgebruikers vir elke rol
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
@@ -446,6 +462,25 @@ def seed_data():
             user_email="kobus@gmail.com",
             user_password="kobus123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
+        )
+
+        # Kontrakteur - KAN aanmeld op mobiele app, slegs toegang tot toegewysde werksopdragte
+        _get_or_create_test_user(
+            session,
+            user_name="Jan",
+            user_surname="Botha",
+            user_email="jan.botha@workfix.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
+        )
+
+        _get_or_create_test_user(
+            session,
+            user_name="Lindiwe",
+            user_surname="Mokoena",
+            user_email="lindiwe.mokoena@plumbright.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
         )
 
         # Skep toetsdata vir lokasies, kamers, bates, ens.
@@ -749,6 +784,12 @@ suburb="Villieria",
         projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
+        # Haal kontrakteur-gebruikers op om werksopdragte aan hulle toe te ken
+        jan_user = session.exec(select(User).where(User.user_email == "jan.botha@workfix.co.za")).first()
+        lindiwe_user = session.exec(select(User).where(User.user_email == "lindiwe.mokoena@plumbright.co.za")).first()
+        jan_contractor_id = jan_user.user_id if jan_user else None
+        lindiwe_contractor_id = lindiwe_user.user_id if lindiwe_user else None
+
         _get_or_create_job(
             session,
             desc="Projektor lens skoonmaak en kalibrasie.",
@@ -760,18 +801,20 @@ suburb="Villieria",
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
             session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
-job_type="Onderhoud",
+            job_type="Onderhoud",
             created_dt=now - timedelta(days=5),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
@@ -784,6 +827,7 @@ job_type="Onderhoud",
             room_id=room4.room_id,
             building_id=bld3.building_id,
             location_id=loc1.location_id,
+            contractor_id=lindiwe_contractor_id,
         )
 
         _get_or_create_fault(
