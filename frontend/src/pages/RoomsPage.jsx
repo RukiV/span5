@@ -10,7 +10,7 @@ import "../styles/Rooms.css";
 import { useLogout } from "./Page.jsx";
 import UserProfileHeader from '../components/UserProfileHeader';
 
-function RoomsPage() {
+function RoomsPage({ embedded = false }) {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
 
@@ -281,6 +281,308 @@ function RoomsPage() {
     );
   }
 
+  const pageContent = (
+    <>
+      <div className="analytics-grid">
+        <div className="analytics-card">
+          <h4>Totale Lokale</h4>
+          <p className="analytics-value">{rooms.length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Operasioneel</h4>
+          <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Fout Aangemeld</h4>
+          <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Instandhouding</h4>
+          <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
+        </div>
+      </div>
+      <div className="controls">
+        <div className="controls-left">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <input
+              type="text"
+              className="search-box"
+              placeholder="Soek lokale..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select
+            className="basic-single"
+            classNamePrefix="select"
+            value={filterColumnOptions.find(o => o.value === filterColumn)}
+            onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
+            options={filterColumnOptions}
+            isSearchable={false}
+            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+          />
+        </div>
+        <div className="controls-right">
+          <Select
+            className="basic-single"
+            classNamePrefix="select"
+            value={sortByOptions.find(o => o.value === sortBy)}
+            onChange={(selected) => setSortBy(selected ? selected.value : "default")}
+            options={sortByOptions}
+            isSearchable={false}
+            styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+          />
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+          </div>
+          <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
+        </div>
+      </div>
+
+      <table className="standard-table">
+        <thead>
+          <tr>
+            <th>Naam</th>
+            <th>Kode</th>
+            <th>Tipe</th>
+            <th>Status</th>
+            <th>Gebou</th>
+            <th>Kapasiteit</th>
+            <th>Aksies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredRooms.map((room) => (
+            <tr key={room.room_id}>
+              <td>{room.room_name}</td>
+              <td>{room.room_code ?? '-'}</td>
+              <td>{translateRoomType(room.room_type || 'Ander')}</td>
+              <td>{translateRoomStatus(room.room_status || 'Operasioneel')}</td>
+              <td>{getBuildingName(room.building_id)}</td>
+              <td>{room.room_capacity ?? '-'}</td>
+              <td>
+                <button className="btn-view" onClick={() => handleViewAssets(room)}>
+                  Besigtig Bates
+                </button>
+                <button className="btn-edit" onClick={() => handleEditRoom(room)}>
+                  Wysig
+                </button>
+                <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>
+                  Verwyder
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {pageContent}
+
+        {showModal && (
+          <div className="modal" style={{ display: 'flex' }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>{isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+                <span className="close" onClick={handleCloseModal}>&times;</span>
+              </div>
+
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam *</label>
+                  <input
+                    ref={el => fieldRefs.current.room_name = el}
+                    type="text"
+                    value={newRoom.room_name}
+                    className={invalidFields.room_name ? "field-invalid" : ""}
+                    onChange={(e) => {
+                      setNewRoom({ ...newRoom, room_name: e.target.value });
+                      if (invalidFields.room_name) setInvalidFields(prev => { const n = {...prev}; delete n.room_name; return n; });
+                    }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Lokaal Kode *</label>
+                  <input
+                    ref={el => fieldRefs.current.room_code = el}
+                    type="text"
+                    placeholder="Bv. L10"
+                    value={newRoom.room_code}
+                    className={invalidFields.room_code ? "field-invalid" : ""}
+                    onChange={(e) => {
+                      setNewRoom({ ...newRoom, room_code: e.target.value });
+                      if (invalidFields.room_code) setInvalidFields(prev => { const n = {...prev}; delete n.room_code; return n; });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Kapasiteit *</label>
+                  <input
+                    ref={el => fieldRefs.current.room_capacity = el}
+                    type="number"
+                    value={newRoom.room_capacity}
+                    className={invalidFields.room_capacity ? "field-invalid" : ""}
+                    onChange={(e) => {
+                      setNewRoom({ ...newRoom, room_capacity: e.target.value });
+                      if (invalidFields.room_capacity) setInvalidFields(prev => { const n = {...prev}; delete n.room_capacity; return n; });
+                    }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Tipe</label>
+                  <Select
+                    className="basic-single"
+                    classNamePrefix="select"
+                    value={roomTypeOptions.find(o => o.value === newRoom.room_type)}
+                    onChange={(selected) => setNewRoom({ ...newRoom, room_type: selected ? selected.value : "" })}
+                    options={roomTypeOptions}
+                    isSearchable={false}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Status</label>
+                  <Select
+                    className="basic-single"
+                    classNamePrefix="select"
+                    value={roomStatusOptions.find(option => option.value === newRoom.room_status)}
+                    onChange={(selectedOption) => setNewRoom({ ...newRoom, room_status: selectedOption ? selectedOption.value : "Operasioneel" })}
+                    options={roomStatusOptions}
+                    isSearchable={false}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+                  <label>Ligging *</label>
+                  {(() => {
+                    const cascadeCount = [newRoom.location_id, newRoom.building_id].filter(Boolean).length;
+                    const clearFromLevel = (levelIndex) => {
+                      if (levelIndex <= 0) setNewRoom(p => ({...p, location_id: "", building_id: ""}));
+                      else if (levelIndex === 1) setNewRoom(p => ({...p, building_id: ""}));
+                    };
+                    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                    if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
+                    if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
+                    const renderBreadcrumb = () => (
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                        {breadcrumbData.map((item, i) => {
+                          const isLast = i === breadcrumbData.length - 1;
+                          const showArrow = isLast ? cascadeCount < 2 : true;
+                          return (
+                            <React.Fragment key={i}>
+                              <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                              {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    );
+                    const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+                    const CascadeControl = ({ children, ...props }) => (
+                      <components.Control {...props}>
+                        {children}
+                        {cascadeCount > 0 && (
+                          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                            <IoReturnUpBack size={24} />
+                          </span>
+                        )}
+                      </components.Control>
+                    );
+                    return (
+                      <>
+                        {renderBreadcrumb()}
+                        <Select
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
+                          isClearable
+                          isDisabled={cascadeCount >= 2}
+                          closeMenuOnSelect={false}
+                          components={{ Control: CascadeControl }}
+                          options={(() => {
+                            if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                            if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newRoom.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                            return [];
+                          })()}
+                          value={null}
+                          onChange={(selectedOption) => {
+                            if (!selectedOption) return;
+                            const labels = ["Terrein","Gebou"];
+                            if (cascadeCount === 0) setNewRoom(p => ({...p, location_id: selectedOption.value, building_id: ""}));
+                            else if (cascadeCount === 1) setNewRoom(p => ({...p, building_id: selectedOption.value}));
+                            if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                            setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
+                            setTimeout(() => setCascadeToast(null), 2000);
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
+                  {cascadeToast && (
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
+                      {cascadeToast}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+                <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAssetsModal && selectedRoom && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>Bates in {getBuildingName(selectedRoom.building_id)} - {selectedRoom.room_name}</h3>
+                <span className="close" onClick={() => setShowAssetsModal(false)}>&times;</span>
+              </div>
+              <div className="modal-body">
+                {getAssetsForRoom(selectedRoom.room_id).length > 0 ? (
+                  <table className="assets-table">
+                    <thead>
+                      <tr>
+                        <th>Naam</th>
+                        <th>Serienommer</th>
+                        <th>Buite</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getAssetsForRoom(selectedRoom.room_id).map((asset) => (
+                        <tr key={asset.asset_id}>
+                          <td>{asset.asset_name}</td>
+                          <td>{asset.asset_serial}</td>
+                          <td>{asset.asset_isoutdoor ? "Ja" : "Nee"}</td>
+                          <td>{asset.asset_status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p>Geen bates in hierdie lokaal.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div style={{ display: 'flex' }}>
       <Sidebar currentPath="/rooms" isAdmin={isAdmin} onLogout={logout} />
@@ -292,99 +594,7 @@ function RoomsPage() {
         </div>
 
         <div className="content">
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Lokale</h4>
-              <p className="analytics-value">{rooms.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Operasioneel</h4>
-              <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Fout Aangemeld</h4>
-              <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Instandhouding</h4>
-              <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
-            </div>
-          </div>
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <input
-                  type="text"
-                  className="search-box"
-                  placeholder="Soek lokale..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={filterColumnOptions.find(o => o.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-                options={filterColumnOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
-              />
-            </div>
-            <div className="controls-right">
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={sortByOptions.find(o => o.value === sortBy)}
-                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
-                options={sortByOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
-              />
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-              <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
-            </div>
-          </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>Naam</th>
-                <th>Kode</th>
-                <th>Tipe</th>
-                <th>Status</th>
-                <th>Gebou</th>
-                <th>Kapasiteit</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRooms.map((room) => (
-                <tr key={room.room_id}>
-                  <td>{room.room_name}</td>
-                  <td>{room.room_code ?? '-'}</td>
-                  <td>{translateRoomType(room.room_type || 'Ander')}</td>
-                  <td>{translateRoomStatus(room.room_status || 'Operasioneel')}</td>
-                  <td>{getBuildingName(room.building_id)}</td>
-                  <td>{room.room_capacity ?? '-'}</td>
-                  <td>
-                    <button className="btn-view" onClick={() => handleViewAssets(room)}>
-                      Besigtig Bates
-                    </button>
-                    <button className="btn-edit" onClick={() => handleEditRoom(room)}>
-                      Wysig
-                    </button>
-                    <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>
-                      Verwyder
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {pageContent}
         </div>
       </div>
 
@@ -483,20 +693,20 @@ function RoomsPage() {
                         const showArrow = isLast ? cascadeCount < 2 : true;
                         return (
                           <React.Fragment key={i}>
-                            <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                            <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                             {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                           </React.Fragment>
                         );
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
                       {cascadeCount > 0 && (
-                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                          <IoReturnUpBack size={18} />
+                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>

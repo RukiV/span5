@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Sequence
 from sqlmodel import Session, select
 
@@ -55,13 +55,15 @@ class CalendarService(BaseService[CalendarEvent, CalendarEventCreate, CalendarEv
             result.append(d)
 
         for job in job_events:
+            start_dt = job.job_scheduled_datetime
+            end_dt = job.job_scheduled_end_datetime or (start_dt + timedelta(hours=1) if start_dt else None)
             result.append({
                 "source": "jobcard",
                 "source_id": job.jobcard_id,
                 "title": job.job_desc,
                 "description": None,
-                "start_datetime": job.job_scheduled_datetime.isoformat() if job.job_scheduled_datetime else None,
-                "end_datetime": None,
+                "start_datetime": start_dt.isoformat() if start_dt else None,
+                "end_datetime": end_dt.isoformat() if end_dt else None,
                 "all_day": False,
                 "location": None,
                 "color": "#935E28",
@@ -73,6 +75,8 @@ class CalendarService(BaseService[CalendarEvent, CalendarEventCreate, CalendarEv
                 "user_id": job.user_id,
                 "assigned_to": job.assigned_to,
                 "cc_users": job.cc_users,
+                "job_priority": job.job_priority,
+                "nature": job.nature,
                 "created_at": job.job_createddatetime.isoformat() if job.job_createddatetime else None,
                 "updated_at": None,
             })

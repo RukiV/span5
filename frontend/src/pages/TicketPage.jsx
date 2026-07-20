@@ -516,9 +516,10 @@ function TicketPage() {
                           <React.Fragment key={i}>
                             <button
                               type="button"
+                              className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
                               style={{
-                                background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0",
+                                border: "none", cursor: "pointer", margin: "0",
                                 color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
                                 lineHeight: "1", display: "inline-flex", alignItems: "center",
                               }}
@@ -529,7 +530,11 @@ function TicketPage() {
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = {
+                    background: "#935e28", border: "none", borderRadius: "4px",
+                    color: "#fff", cursor: "pointer", display: "flex",
+                    alignItems: "center", padding: "4px 8px", margin: "2px",
+                  };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
@@ -537,10 +542,10 @@ function TicketPage() {
                         <span
                           className="cascade-back-indicator"
                           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Vorige vlak"
+                          title="Terug na vorige vlak"
                           style={backBtnStyle}
                         >
-                          <IoReturnUpBack size={18} />
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>

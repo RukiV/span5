@@ -483,6 +483,25 @@ def seed_data():
             role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
         )
 
+        # Ekstra FK-gebruikers
+        _get_or_create_test_user(
+            session,
+            user_name="Elektra",
+            user_surname="King",
+            user_email="elektra@gmail.com",
+            user_password="123",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
+        _get_or_create_test_user(
+            session,
+            user_name="Guillaume",
+            user_surname="Kruger",
+            user_email="guillaumekruger214@gmail.com",
+            user_password="123",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
         # Skep toetsdata vir lokasies, kamers, bates, ens.
         loc1 = _get_or_create_location(
             session,
