@@ -11,8 +11,11 @@ from ..models.contractor import Contractor
 from ..models.role import Role
 from ..models.user import User
 from ..models.audit import Auditlog
+from ..models.quote import Quote
+from decimal import Decimal
 
 from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
+from ..auth.passwords import hash_password
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -50,7 +53,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_name=user_name,
         user_surname=user_surname,
         user_email=user_email,
-        user_password=user_password,
+        user_password=hash_password(user_password),
         user_number="0000000000",
         user_lastlogintime=None,
         user_lastlogouttime=None,
@@ -61,6 +64,42 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     session.commit()
     session.refresh(user)
     return user
+
+
+def _get_or_create_test_quote(session: Session) -> Quote:
+    """Ensure a test Quote exists with id=1 for document uploads during development."""
+    # Try to find quote with id 1
+    quote = session.exec(select(Quote).where(Quote.quote_id == 1)).first()
+    if quote:
+        return quote
+
+    # Create a placeholder quote with explicit ID=1 if possible
+    quote = Quote(
+        quote_id=1,
+        quote_price=Decimal("100.00"),
+        quote_desc="Seed: placeholder quote for testing",
+        quote_date=datetime.utcnow().date(),
+        quote_status="draft",
+    )
+    session.add(quote)
+    try:
+        session.commit()
+        session.refresh(quote)
+    except Exception:
+        session.rollback()
+        # Fallback: try creating without explicit id
+        quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
+        if not quote:
+            quote = Quote(
+                quote_price=Decimal("100.00"),
+                quote_desc="Seed: placeholder quote for testing",
+                quote_date=datetime.utcnow().date(),
+                quote_status="draft",
+            )
+            session.add(quote)
+            session.commit()
+            session.refresh(quote)
+    return quote
 
 def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
@@ -430,6 +469,10 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
+        # Ensure a test quote exists so uploads to /quotes/1/documents succeed in development
+        test_quote = _get_or_create_test_quote(session)
+        print("Seed ensured test quote_id:", getattr(test_quote, 'quote_id', None))
+
         # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
@@ -659,7 +702,10 @@ suburb="Villieria",
             session=session,
             filename="hq_projector_ceiling_mount.png",
             mime_type="image/png",
-            raw_data=mock_bytes
+            raw_data=mock_bytes,
+            parent_id=1,
+            parent_type="asset",
+            display_order=1,
         )
 
         # 3. Pass the valid image_id to your asset creator
@@ -673,7 +719,6 @@ suburb="Villieria",
             room_id=room1.room_id,
             assettype_id=type_elek.assettype_id,
             created_dt=now - timedelta(days=540),
-            image_id=img1.image_id,
         )
 
         _get_or_create_asset(

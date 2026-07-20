@@ -51,6 +51,13 @@ def createDBandTables():
             if "contractor_businessName" not in columns:
                 connection.execute(text("ALTER TABLE contractor ADD COLUMN IF NOT EXISTS contractor_businessName VARCHAR(100)"))
 
+        if "quote_document" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("quote_document")}
+            if "mime_type" not in columns:
+                connection.execute(text("ALTER TABLE quote_document ADD COLUMN IF NOT EXISTS mime_type VARCHAR(100)"))
+            if "size_bytes" not in columns:
+                connection.execute(text("ALTER TABLE quote_document ADD COLUMN IF NOT EXISTS size_bytes INTEGER"))
+
         if "faultcard" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("faultcard")}
             if "image_id_2" not in columns:

@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI } from "../services/api";
+import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -30,6 +30,12 @@ function AssetPage() {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [assetHistory, setAssetHistory] = useState([]);
+  const [assetImages, setAssetImages] = useState([]);
+  const [selectedImageFiles, setSelectedImageFiles] = useState([]);
+  const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [activeImageViewer, setActiveImageViewer] = useState(null);
+  const MAX_ASSET_IMAGES = 1;
 
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [isEditingType, setIsEditingType] = useState(false);
@@ -51,6 +57,8 @@ function AssetPage() {
     asset_status: "Aktief",
     assettype_id: null,
     room_id: "",
+    location_id: "",
+    building_id: "",
   });
 
   useEffect(() => {
@@ -141,6 +149,70 @@ function AssetPage() {
     }
   };
 
+  const fetchAssetImages = async (assetId) => {
+    if (!assetId) {
+      setAssetImages([]);
+      return;
+    }
+
+    try {
+      const response = await apiClient.image.getByParent("asset", assetId);
+      setAssetImages(response.data || []);
+    } catch (error) {
+      console.error("Fout by laai van bate-beelde:", error);
+      setAssetImages([]);
+    }
+  };
+
+  const getAssetImageUrl = (imageId) => {
+    if (!imageId) return null;
+    return apiClient.image?.getFileUrl ? apiClient.image.getFileUrl(imageId) : null;
+  };
+
+  const handleImageFilesChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    const remainingSlots = Math.max(0, MAX_ASSET_IMAGES - (selectedImageFiles.length + assetImages.length));
+    const incomingFiles = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      alert(`Jy kan maksimaal ${MAX_ASSET_IMAGES} beeld per bate oplaai.`);
+    }
+
+    if (incomingFiles.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrls = incomingFiles.map((file) => URL.createObjectURL(file));
+    setSelectedImageFiles((prev) => [...prev, ...incomingFiles]);
+    setSelectedImagePreviewUrls((prev) => [...prev, ...previewUrls]);
+    event.target.value = "";
+  };
+
+  const handleRemoveSelectedPreview = (index) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
+      return;
+    }
+
+    setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setSelectedImagePreviewUrls((prev) => {
+      const urlToRevoke = prev[index];
+      if (urlToRevoke) {
+        URL.revokeObjectURL(urlToRevoke);
+      }
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const handleDeleteExistingImage = (imageId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
+      return;
+    }
+
+    setAssetImages((prev) => prev.filter((image) => image.image_id !== imageId));
+    setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
+  };
+
   const handleSerialChange = (e) => {
     const value = e.target.value;
     if (!value.startsWith("AK ")) {
@@ -152,6 +224,7 @@ function AssetPage() {
 
   const handleSaveAsset = async () => {
     let assetData = {};
+    let savedAssetId = isEditing ? editingId : null;
     
     try {
       if (!newAsset.asset_name.trim()) {
@@ -202,12 +275,33 @@ function AssetPage() {
 
       if (isEditing) {
         await assetsAPI.update(editingId, assetData);
+        savedAssetId = editingId;
       } else {
-        await assetsAPI.create(assetData);
+        const response = await assetsAPI.create(assetData);
+        savedAssetId = response?.data?.asset_id ?? response?.data?.id ?? null;
+      }
+
+      if (!savedAssetId) {
+        throw new Error("Kon nie die bate-ID na stoor terugkry nie.");
+      }
+
+      if (isEditing) {
+        for (const imageId of imagesToDelete) {
+          await apiClient.image.delete(imageId);
+        }
+      }
+
+      if (selectedImageFiles.length > 0) {
+        for (const file of selectedImageFiles.slice(0, MAX_ASSET_IMAGES)) {
+          const formData = new FormData();
+          formData.append("file", file);
+          await apiClient.image.uploadForParent(savedAssetId, "asset", formData);
+        }
       }
 
       handleCloseModal();
       fetchAssets();
+      fetchAssetImages(savedAssetId);
     } catch (error) {
       console.error("!!! BATE STOOR HET GEFAAL !!!", error);
       if (error.response) {
@@ -239,6 +333,10 @@ function AssetPage() {
     
     setIsEditing(true);
     setEditingId(item.asset_id);
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
     setNewAsset({
       asset_name: item.asset_name || "",
       asset_brand: item.asset_brand || "",
@@ -250,6 +348,7 @@ function AssetPage() {
       location_id: building ? building.location_id : "",
       building_id: room ? room.building_id : ""
     });
+    fetchAssetImages(item.asset_id);
     setShowModal(true);
   };
 
@@ -257,13 +356,23 @@ function AssetPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "" });
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setAssetImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "", location_id: "", building_id: "" });
   };
 
   const handleNewAsset = () => {
     setIsEditing(false);
     setEditingId(null);
-    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "" });
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setAssetImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewAsset({ asset_name: "", asset_brand: "", asset_serial: "AK ", asset_isoutdoor: false, asset_status: "Aktief", assettype_id: null, room_id: "", location_id: "", building_id: "" });
     setShowModal(true);
   };
 
@@ -732,10 +841,49 @@ function AssetPage() {
                 />
               </div>
             </div>
+
+            <div className="input-row">
+              <div className="input-group" style={{ width: "100%" }}>
+                <label>Beelde</label>
+                <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                <div className="image-preview-grid">
+                  {assetImages.map((image) => (
+                    <div key={image.image_id} className="record-image-card">
+                      <img
+                        src={getAssetImageUrl(image.image_id)}
+                        alt={image.filename || "Batebeeld"}
+                        className="record-image-thumb"
+                        onClick={() => setActiveImageViewer(getAssetImageUrl(image.image_id))}
+                      />
+                      <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)}>
+                        Verwyder
+                      </button>
+                    </div>
+                  ))}
+                  {selectedImagePreviewUrls.map((url, index) => (
+                    <div key={`${url}-${index}`} className="record-image-card">
+                      <img src={url} alt={`Voorgestelde beeld ${index + 1}`} className="record-image-thumb" onClick={() => setActiveImageViewer(url)} />
+                      <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)}>
+                        Verwyder
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="modal-footer">
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeImageViewer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
+          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+            <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
+            <img src={activeImageViewer} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} onClick={(event) => event.stopPropagation()} />
           </div>
         </div>
       )}

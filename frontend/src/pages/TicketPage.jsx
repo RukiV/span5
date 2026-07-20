@@ -522,8 +522,8 @@ function TicketPage() {
       </div>
 
       {activeImageViewer && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', width: 'min(90vw, 900px)', maxHeight: '90vh', padding: '1rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
             <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
             <img src={activeImageViewer.src} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} />
             <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
@@ -646,7 +646,7 @@ function TicketPage() {
                     <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Nuwe seleksies</p>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {selectedImagePreviewUrls.map((url, index) => (
-                        <div key={`${url}-${index}`} style={{ textAlign: 'center' }}>
+                        <div key={`${url}-${index}`} className="record-image-card" style={{ textAlign: 'center' }}>
                           <img
                             src={url}
                             alt={`Voorbeeld ${index + 1}`}
@@ -668,7 +668,7 @@ function TicketPage() {
                     <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Bestaande beelde</p>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                       {ticketImages.map((image, index) => (
-                        <div key={image.image_id ?? index} style={{ textAlign: 'center' }}>
+                        <div key={image.image_id ?? index} className="record-image-card" style={{ textAlign: 'center' }}>
                           <img
                             src={getTicketImageUrl(image.image_id)}
                             alt={`Huidige beeld ${index + 1}`}
