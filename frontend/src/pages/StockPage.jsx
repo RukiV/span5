@@ -10,7 +10,7 @@ import { useLogout } from "./Page.jsx";
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
 
-function StockPage() {
+function StockPage({ embedded = false }) {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const [stock, setStock] = useState([]);
@@ -221,6 +221,282 @@ function StockPage() {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
 
+  const pageContent = (
+    <>
+      <div className="analytics-grid">
+        <div className="analytics-card">
+          <h4>Totale Voorraad</h4>
+          <p className="analytics-value">{stock.length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Minimum Voorraad</h4>
+          <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Uit Voorraad</h4>
+          <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Tipes</h4>
+          <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
+        </div>
+      </div>
+      <div className="controls">
+        <div className="controls-left">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <input
+              type="text"
+              placeholder="Soek voorraad..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+            <option value="all">Alle kolomme</option>
+            <option value="id">ID</option>
+            <option value="name">Naam</option>
+            <option value="brand">Merk</option>
+            <option value="type">Tipe</option>
+            <option value="amount">Hoeveelheid</option>
+            <option value="minimum">Minimum</option>
+            <option value="boxTotal">Boks Totaal</option>
+            <option value="room">Lokaal</option>
+            <option value="description">Beskrywing</option>
+          </select>
+        </div>
+        <div className="controls-right">
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="default">Standaard</option>
+            <option value="id">ID</option>
+            <option value="name">Naam</option>
+            <option value="amount">Hoeveelheid</option>
+            <option value="minimum">Minimum</option>
+            <option value="boxTotal">Boks Totaal</option>
+          </select>
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+          </div>
+          <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+        </div>
+      </div>
+
+      <table className="standard-table">
+        <thead>
+          <tr>
+            <th>ID Voorraad</th>
+            <th>Naam</th>
+            <th>Merk</th>
+            <th>Tipe</th>
+            <th>Hoeveelheid</th>
+            <th>Minimum</th>
+            <th>Boks Totaal</th>
+            <th>Lokaal</th>
+            <th>Beskrywing</th>
+            <th>Aksies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredStock.map((item) => (
+            <tr key={item.stock_id}>
+              <td>{item.stock_id}</td>
+              <td>{item.stock_name}</td>
+              <td>{item.stock_brand}</td>
+              <td>{item.stock_type}</td>
+              <td>{item.stock_amount}</td>
+              <td>{item.stock_minimum}</td>
+              <td>{item.stock_boxTotal}</td>
+              <td>{getRoomName(item)}</td>
+              <td>{item.stock_desc || '-'}</td>
+              <td>
+                <button className="btn-edit" onClick={() => handleEditStock(item)}>Wysig</button>
+                <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {pageContent}
+
+        {showModal && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>{isEditing ? "Wysig" : "Nuwe"} Voorraad {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+                <span className="close" onClick={handleCloseModal}>&times;</span>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam *</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_name}
+                    ref={el => fieldRefs.current.stock_name = el}
+                    className={invalidFields.stock_name ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_name: e.target.value }); if (invalidFields.stock_name) setInvalidFields(prev => { const n = {...prev}; delete n.stock_name; return n; }); }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Merk *</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_brand}
+                    ref={el => fieldRefs.current.stock_brand = el}
+                    className={invalidFields.stock_brand ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
+                  />
+                </div>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Tipe *</label>
+                  <input
+                    type="text"
+                    value={newStock.stock_type}
+                    ref={el => fieldRefs.current.stock_type = el}
+                    className={invalidFields.stock_type ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Hoeveelheid</label>
+                  <input
+                    type="number"
+                    value={newStock.stock_amount}
+                    onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Minimum voorraad *</label>
+                  <input
+                    type="number"
+                    value={newStock.stock_minimum}
+                    ref={el => fieldRefs.current.stock_minimum = el}
+                    className={invalidFields.stock_minimum ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_minimum: e.target.value }); if (invalidFields.stock_minimum) setInvalidFields(prev => { const n = {...prev}; delete n.stock_minimum; return n; }); }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Boks Totaal *</label>
+                  <input
+                    type="number"
+                    value={newStock.stock_boxTotal}
+                    ref={el => fieldRefs.current.stock_boxTotal = el}
+                    className={invalidFields.stock_boxTotal ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_boxTotal: e.target.value }); if (invalidFields.stock_boxTotal) setInvalidFields(prev => { const n = {...prev}; delete n.stock_boxTotal; return n; }); }}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+                  <label>Ligging *</label>
+                  {(() => {
+                    const cascadeCount = [newStock.location_id, newStock.building_id, newStock.room_id].filter(Boolean).length;
+                    const clearFromLevel = (levelIndex) => {
+                      if (levelIndex <= 0) setNewStock(p => ({...p, location_id: "", building_id: "", room_id: ""}));
+                      else if (levelIndex === 1) setNewStock(p => ({...p, building_id: "", room_id: ""}));
+                      else if (levelIndex === 2) setNewStock(p => ({...p, room_id: ""}));
+                    };
+                    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                    if (newStock.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id });
+                    if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
+                    if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
+                    const renderBreadcrumb = () => (
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                        {breadcrumbData.map((item, i) => {
+                          const isLast = i === breadcrumbData.length - 1;
+                          const showArrow = isLast ? cascadeCount < 3 : true;
+                          return (
+                            <React.Fragment key={i}>
+                              <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                              {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    );
+                    const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+                    const CascadeControl = ({ children, ...props }) => (
+                      <components.Control {...props}>
+                        {children}
+                        {cascadeCount > 0 && (
+                          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                            <IoReturnUpBack size={24} />
+                          </span>
+                        )}
+                      </components.Control>
+                    );
+                    return (
+                      <>
+                        {renderBreadcrumb()}
+                        <Select
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                          isClearable
+                          isDisabled={cascadeCount >= 3}
+                          closeMenuOnSelect={false}
+                          components={{ Control: CascadeControl }}
+                          options={(() => {
+                            if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                            if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newStock.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                            if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newStock.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                            return [];
+                          })()}
+                          value={null}
+                          onChange={(selectedOption) => {
+                            if (!selectedOption) return;
+                            if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                            const labels = ["Terrein","Gebou","Lokaal"];
+                            if (cascadeCount === 0) setNewStock(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
+                            else if (cascadeCount === 1) setNewStock(p => ({...p, building_id: selectedOption.value, room_id: ""}));
+                            else if (cascadeCount === 2) setNewStock(p => ({...p, room_id: selectedOption.value}));
+                            setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
+                            setTimeout(() => setCascadeToast(null), 2000);
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
+                  {cascadeToast && (
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
+                      {cascadeToast}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Beskrywing *</label>
+                  <textarea
+                    value={newStock.stock_desc}
+                    ref={el => fieldRefs.current.stock_desc = el}
+                    className={invalidFields.stock_desc ? "field-invalid" : ""}
+                    onChange={(e) => { setNewStock({ ...newStock, stock_desc: e.target.value }); if (invalidFields.stock_desc) setInvalidFields(prev => { const n = {...prev}; delete n.stock_desc; return n; }); }}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+                <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div style={{ display: "flex" }}>
       <Sidebar currentPath="/stock" isAdmin={isAdmin} onLogout={logout} />
@@ -231,100 +507,8 @@ function StockPage() {
           <UserProfileHeader />
         </div>
 
-          <div className="content">
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Voorraad</h4>
-              <p className="analytics-value">{stock.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Minimum Voorraad</h4>
-              <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Uit Voorraad</h4>
-              <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Tipes</h4>
-              <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
-            </div>
-          </div>
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <input
-                  type="text"
-                  placeholder="Soek voorraad..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="brand">Merk</option>
-                <option value="type">Tipe</option>
-                <option value="amount">Hoeveelheid</option>
-                <option value="minimum">Minimum</option>
-                <option value="boxTotal">Boks Totaal</option>
-                <option value="room">Lokaal</option>
-                <option value="description">Beskrywing</option>
-              </select>
-            </div>
-            <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="amount">Hoeveelheid</option>
-                <option value="minimum">Minimum</option>
-                <option value="boxTotal">Boks Totaal</option>
-              </select>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-              <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
-            </div>
-          </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>ID Voorraad</th>
-                <th>Naam</th>
-                <th>Merk</th>
-                <th>Tipe</th>
-                <th>Hoeveelheid</th>
-                <th>Minimum</th>
-                <th>Boks Totaal</th>
-                <th>Lokaal</th>
-                <th>Beskrywing</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredStock.map((item) => (
-                <tr key={item.stock_id}>
-                  <td>{item.stock_id}</td>
-                  <td>{item.stock_name}</td>
-                  <td>{item.stock_brand}</td>
-                  <td>{item.stock_type}</td>
-                  <td>{item.stock_amount}</td>
-                  <td>{item.stock_minimum}</td>
-                  <td>{item.stock_boxTotal}</td>
-                  <td>{getRoomName(item)}</td>
-                  <td>{item.stock_desc || '-'}</td>
-                  <td>
-                    <button className="btn-edit" onClick={() => handleEditStock(item)}>Wysig</button>
-                    <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="content">
+          {pageContent}
         </div>
       </div>
 
@@ -421,20 +605,20 @@ function StockPage() {
                         const showArrow = isLast ? cascadeCount < 3 : true;
                         return (
                           <React.Fragment key={i}>
-                            <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                            <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                             {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                           </React.Fragment>
                         );
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
                       {cascadeCount > 0 && (
-                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                          <IoReturnUpBack size={18} />
+                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>

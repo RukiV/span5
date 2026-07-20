@@ -17,6 +17,7 @@ import TerrainsPage from './pages/TerrainsPage';
 import BuildingsPage from './pages/BuildingsPage';
 import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
+import FacilitiesPage from './pages/FacilitiesPage';
 
 /* =========================================================
    1. DIE BESKERMDE ROETE-MEGANISME
@@ -87,18 +88,20 @@ function App() {
 
         {/* Beskermde roetes (Toegedraai in <ProtectedRoute>) */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/assets" element={<ProtectedRoute><AssetPage /></ProtectedRoute>} />
-        <Route path="/stock" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
+        <Route path="/facilities/*" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
         <Route path="/fault-tickets" element={<ProtectedRoute><TicketPage /></ProtectedRoute>} />
         <Route path="/work-orders" element={<ProtectedRoute><WorkOrderPage /></ProtectedRoute>} />
         <Route path="/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
         <Route path="/predictions" element={<ProtectedRoute><PredictionsPage /></ProtectedRoute>} />
         <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-        <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
-        <Route path="/terrains" element={<ProtectedRoute><TerrainsPage /></ProtectedRoute>} />
-        <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+
+        <Route path="/assets" element={<Navigate to="/facilities/assets" replace />} />
+        <Route path="/stock" element={<Navigate to="/facilities/stock" replace />} />
+        <Route path="/rooms" element={<Navigate to="/facilities/rooms" replace />} />
+        <Route path="/buildings" element={<Navigate to="/facilities/buildings" replace />} />
+        <Route path="/terrains" element={<Navigate to="/facilities/terrains" replace />} />
         
         {/* As die gebruiker op "/" land, stuur hulle outomaties na die dashboard via ProtectedRoute */}
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

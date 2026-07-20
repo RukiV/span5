@@ -45,9 +45,14 @@ class JobcardBase(SQLModel):
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
     job_scheduled_datetime: Optional[datetime] = None
+    job_scheduled_end_datetime: Optional[datetime] = None
     job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
+    job_priority: Optional[str] = Field(default="Normal", max_length=20)
+    nature: Optional[str] = Field(default=None, max_length=100)
+    assigned_to: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    cc_users: Optional[str] = Field(default=None)
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
@@ -121,8 +126,11 @@ class JobcardUpdate(SQLModel):
     job_desc: Optional[str] = None
     job_status: Optional[JobStatus] = None
     job_type: Optional[str] = None
+    job_priority: Optional[str] = None
+    nature: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
     job_scheduled_datetime: Optional[datetime] = None
+    job_scheduled_end_datetime: Optional[datetime] = None
     job_schedule_type: Optional[str] = None
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
@@ -133,6 +141,8 @@ class JobcardUpdate(SQLModel):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
+    assigned_to: Optional[int] = None
+    cc_users: Optional[str] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None

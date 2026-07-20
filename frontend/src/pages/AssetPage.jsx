@@ -10,7 +10,7 @@ import "./Page.jsx";
 import { useLogout } from "./Page.jsx";
 import Sidebar from '../components/Sidebar';
 
-function AssetPage() {
+function AssetPage({ embedded = false }) {
   const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const navigate = useNavigate();
@@ -449,6 +449,453 @@ function AssetPage() {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
 
+  const pageContent = (
+    <>
+      <div className="analytics-grid">
+        <div className="analytics-card">
+          <h4>Totale Bates</h4>
+          <p className="analytics-value">{assets.length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Aktief</h4>
+          <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Instandhouding</h4>
+          <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
+        </div>
+        <div className="analytics-card">
+          <h4>Buitelug</h4>
+          <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
+        </div>
+      </div>
+      <div className="controls">
+        <div className="controls-left">
+          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <input
+              type="text"
+              placeholder="Soek bates..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select
+            className="basic-single"
+            classNamePrefix="select"
+            value={filterColumnOptions.find(option => option.value === filterColumn)}
+            onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
+            options={filterColumnOptions}
+            isSearchable={false}
+            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+          />
+        </div>
+        <div className="controls-right">
+          <Select
+            className="basic-single"
+            classNamePrefix="select"
+            value={sortByOptions.find(option => option.value === sortBy)}
+            onChange={(selectedOption) => setSortBy(selectedOption.value)}
+            options={sortByOptions}
+            isSearchable={false}
+            styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+          />
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            <button type="button" className="btn-add" onClick={() => setSortDirection("asc")} style={{ minWidth: "40px", background: sortDirection === "asc" ? "#935e28" : undefined }} title="Stygend">▲</button>
+            <button type="button" className="btn-add" onClick={() => setSortDirection("desc")} style={{ minWidth: "40px", background: sortDirection === "desc" ? "#935e28" : undefined }} title="Dalend">▼</button>
+          </div>
+          <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
+          <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
+        </div>
+      </div>
+
+      <table className="standard-table">
+        <thead>
+          <tr>
+            <th>Naam</th>
+            <th>Merk</th>
+            <th>Serienommer</th>
+            <th>Tipe</th>
+            <th>Buite</th>
+            <th>Lokaal</th>
+            <th>Status</th>
+            <th>Aksies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredItems.map((item) => (
+            <tr key={item.asset_id}>
+              <td>{item.asset_name}</td>
+              <td>{item.asset_brand}</td>
+              <td>{item.asset_serial}</td>
+              <td>{getAssettypeName(item)}</td>
+              <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>
+              <td>{getRoomName(item)}</td>
+              <td>
+                <span className={`status ${getStatusClass(item.asset_status)}`}>
+                  {getStatusLabel(item.asset_status)}
+                </span>
+              </td>
+              <td>
+                <button className="btn-view" onClick={() => handleViewHistory(item)}>
+                  Besigtig Geskiedenis
+                </button>
+                <button className="btn-edit" onClick={() => handleEditAsset(item)}>Wysig</button>
+                <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {pageContent}
+
+        {/* Asset Create/Edit Modal */}
+        {showModal && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+                <span className="close" onClick={handleCloseModal}>&times;</span>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Naam *</label>
+                  <input
+                    ref={el => fieldRefs.current.asset_name = el}
+                    type="text"
+                    className={invalidFields.asset_name ? "field-invalid" : ""}
+                    value={newAsset.asset_name}
+                    onChange={(e) => {
+                      setNewAsset({ ...newAsset, asset_name: e.target.value });
+                      if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
+                    }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Brand *</label>
+                  <input
+                    ref={el => fieldRefs.current.asset_brand = el}
+                    type="text"
+                    className={invalidFields.asset_brand ? "field-invalid" : ""}
+                    value={newAsset.asset_brand}
+                    onChange={(e) => {
+                      setNewAsset({ ...newAsset, asset_brand: e.target.value });
+                      if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
+                    }}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Serienommer *</label>
+                  <input
+                    type="text"
+                    value={newAsset.asset_serial}
+                    onChange={handleSerialChange}
+                    placeholder="bv. AK MT000001"
+                  />
+                </div>
+              </div>
+              <div className="input-row">
+                <div className="input-group">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={newAsset.asset_isoutdoor}
+                      onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
+                    />
+                    Buite
+                  </label>
+                </div>
+                <div className={invalidFields.assettype_id ? "input-group field-invalid" : "input-group"}>
+                  <label>Bate Tipe *</label>
+                  <Select
+                    className="basic-single"
+                    classNamePrefix="select"
+                    placeholder="Kies 'n tipe..."
+                    isSearchable={true}
+                    options={assettypeOptions}
+                    value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
+                    onChange={(selected) => {
+                      setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
+                      if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+                  <label>Ligging *</label>
+                  {(() => {
+                    const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
+                    const clearFromLevel = (levelIndex) => {
+                      if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
+                      else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
+                      else if (levelIndex === 2) setNewAsset(p => ({...p, room_id: ""}));
+                    };
+                    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                    if (newAsset.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id });
+                    if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
+                    if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
+                    const renderBreadcrumb = () => (
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                        {breadcrumbData.map((item, i) => {
+                          const isLast = i === breadcrumbData.length - 1;
+                          const showArrow = isLast ? cascadeCount < 3 : true;
+                          return (
+                            <React.Fragment key={i}>
+                              <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                              {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    );
+                    const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+                    const CascadeControl = ({ children, ...props }) => (
+                      <components.Control {...props}>
+                        {children}
+                        {cascadeCount > 0 && (
+                          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                            <IoReturnUpBack size={24} />
+                          </span>
+                        )}
+                      </components.Control>
+                    );
+                    return (
+                      <>
+                        {renderBreadcrumb()}
+                        <Select
+                          className="react-select-container"
+                          classNamePrefix="react-select"
+                          placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                          isClearable
+                          isDisabled={cascadeCount >= 3}
+                          closeMenuOnSelect={false}
+                          components={{ Control: CascadeControl }}
+                          options={(() => {
+                            if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                            if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newAsset.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                            if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newAsset.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                            return [];
+                          })()}
+                          value={null}
+                          onChange={(selectedOption) => {
+                            if (!selectedOption) return;
+                            const labels = ["Terrein","Gebou","Lokaal"];
+                            if (cascadeCount === 0) setNewAsset(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
+                            else if (cascadeCount === 1) setNewAsset(p => ({...p, building_id: selectedOption.value, room_id: ""}));
+                            else if (cascadeCount === 2) setNewAsset(p => ({...p, room_id: selectedOption.value}));
+                            if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                            setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
+                            setTimeout(() => setCascadeToast(null), 2000);
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
+                  {cascadeToast && (
+                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
+                      {cascadeToast}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="input-row">
+                <div className="input-group">
+                  <label>Status</label>
+                  <Select
+                    className="basic-single"
+                    classNamePrefix="select"
+                    value={statusOptions.find(option => option.value === newAsset.asset_status)}
+                    onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
+                    options={statusOptions}
+                    isSearchable={false}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+                <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History Modal */}
+        {showHistoryModal && selectedAsset && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>Geskiedenis van {(selectedAsset.asset_serial)} - {selectedAsset.asset_name}</h3>
+                <span className="close" onClick={() => setShowHistoryModal(false)}>&times;</span>
+              </div>
+              <div className="modal-body">
+                {assetHistory && assetHistory.length > 0 ? (
+                  <table className="assets-table">
+                    <tbody>
+                      {assetHistory.map((event) => {
+                        const eventDate = new Date(event.event_datetime).toLocaleDateString('af-ZA');
+                        const eventTime = new Date(event.event_datetime).toLocaleTimeString('af-ZA', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                        const eventText = event.event_description
+                          ? `${event.event_title} — ${event.event_description}`
+                          : event.event_title;
+
+                        return (
+                          <React.Fragment key={`${event.source}-${event.event_id || event.event_datetime}`}>
+                            <tr>
+                              <td colSpan="3" className="history-date-row">
+                                {eventDate}
+                              </td>
+                              <td>{eventTime}</td>
+                              <td>{eventText}</td>
+                              <td>
+                                {event.source === 'job' && event.event_id ? (
+                                  <button
+                                    type="button"
+                                    className="btn-view"
+                                    onClick={() => handleOpenJobcard(event.event_id)}
+                                  >
+                                    Bekyk
+                                  </button>
+                                ) : (
+                                  <span></span>
+                                )}
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p>Geen geskiedenis beskikbaar vir hierdie bate.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Asset Type Management Modal */}
+        {showTypeModal && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content" style={{ maxWidth: "700px" }}>
+              <div className="modal-header">
+                <h3>{isEditingType ? "Wysig Bate Tipe" : "Nuwe Bate Tipe"}</h3>
+                <span className="close" onClick={handleCloseTypeModal}>&times;</span>
+              </div>
+              <div className="modal-body">
+                <div className="input-row">
+                  <div className="input-group" style={{ width: "100%" }}>
+                    <label>Naam *</label>
+                    <input
+                      type="text"
+                      value={newType.assettype_name}
+                      onChange={(e) => setNewType({ ...newType, assettype_name: e.target.value })}
+                      placeholder="bv. Algemene Toerusting"
+                    />
+                  </div>
+                </div>
+                <div className="input-row">
+                  <div className="input-group">
+                    <label>Gem. Lewensduur (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_avg_lifespan}
+                      onChange={(e) => setNewType({ ...newType, assettype_avg_lifespan: e.target.value })}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Min Lewensduur (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_min_lifespan}
+                      onChange={(e) => setNewType({ ...newType, assettype_min_lifespan: e.target.value })}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Maks Lewensduur (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_max_lifespan}
+                      onChange={(e) => setNewType({ ...newType, assettype_max_lifespan: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="input-row">
+                  <div className="input-group">
+                    <label>Diensinterval (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_service_interval}
+                      onChange={(e) => setNewType({ ...newType, assettype_service_interval: e.target.value })}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Vervangingsdrempel (foute)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_replacement_threshold}
+                      onChange={(e) => setNewType({ ...newType, assettype_replacement_threshold: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ marginTop: "20px", marginBottom: "8px", color: "#6b3f1d" }}>Bestaande Bate Tipes</h4>
+                <div style={{ maxHeight: "250px", overflowY: "auto" }}>
+                  <table className="standard-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Naam</th>
+                        <th>Gem. Lewensduur</th>
+                        <th>Diensinterval</th>
+                        <th>Drempel</th>
+                        <th>Aksies</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assettypes.map((at) => (
+                        <tr key={at.assettype_id}>
+                          <td>{at.assettype_id}</td>
+                          <td>{at.assettype_name}</td>
+                          <td>{at.assettype_avg_lifespan != null ? `${at.assettype_avg_lifespan}m` : '-'}</td>
+                          <td>{at.assettype_service_interval != null ? `${at.assettype_service_interval}m` : '-'}</td>
+                          <td>{at.assettype_replacement_threshold != null ? at.assettype_replacement_threshold : '-'}</td>
+                          <td>
+                            <button className="btn-edit" onClick={() => handleOpenTypeModal(at)}>Wysig</button>
+                            <button className="btn-delete" onClick={() => handleDeleteType(at.assettype_id)}>Verwyder</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={handleCloseTypeModal}>Kanselleer</button>
+                <button className="btn-add" onClick={handleSaveType}>{isEditingType ? "Opdateer" : "Stoor"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <div>
       <Sidebar currentPath="/assets" isAdmin={isAdmin} onLogout={logout} />
@@ -477,101 +924,7 @@ function AssetPage() {
         </div>
 
         <div className="content">
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Bates</h4>
-              <p className="analytics-value">{assets.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Aktief</h4>
-              <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Instandhouding</h4>
-              <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Buitelug</h4>
-              <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
-            </div>
-          </div>
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <input
-                  type="text"
-                  placeholder="Soek bates..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select 
-                className="basic-single"
-                classNamePrefix="select"
-                value={filterColumnOptions.find(option => option.value === filterColumn)}
-                onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
-                options={filterColumnOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
-              />
-            </div>
-            <div className="controls-right">
-              <Select 
-                className="basic-single"
-                classNamePrefix="select"
-                value={sortByOptions.find(option => option.value === sortBy)}
-                onChange={(selectedOption) => setSortBy(selectedOption.value)}
-                options={sortByOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
-              />
-              <div style={{ display: "flex", gap: "0.25rem" }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection("asc")} style={{ minWidth: "40px", background: sortDirection === "asc" ? "#935e28" : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection("desc")} style={{ minWidth: "40px", background: sortDirection === "desc" ? "#935e28" : undefined }} title="Dalend">▼</button>
-              </div>
-              <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
-              <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
-            </div>
-          </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>Naam</th>
-                <th>Merk</th>
-                <th>Serienommer</th>
-                <th>Tipe</th>
-                <th>Buite</th>
-                <th>Lokaal</th>
-                <th>Status</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map((item) => (
-                <tr key={item.asset_id}>
-                  <td>{item.asset_name}</td>
-                  <td>{item.asset_brand}</td>
-                  <td>{item.asset_serial}</td>
-                  <td>{getAssettypeName(item)}</td>
-                  <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>
-                  <td>{getRoomName(item)}</td>
-                  <td>
-                    <span className={`status ${getStatusClass(item.asset_status)}`}>
-                      {getStatusLabel(item.asset_status)}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-view" onClick={() => handleViewHistory(item)}>
-                      Besigtig Geskiedenis
-                    </button>
-                    <button className="btn-edit" onClick={() => handleEditAsset(item)}>Wysig</button>
-                    <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {pageContent}
         </div>
       </div>
 
@@ -669,20 +1022,20 @@ function AssetPage() {
                         const showArrow = isLast ? cascadeCount < 3 : true;
                         return (
                           <React.Fragment key={i}>
-                            <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                            <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                             {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                           </React.Fragment>
                         );
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
                       {cascadeCount > 0 && (
-                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                          <IoReturnUpBack size={18} />
+                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>

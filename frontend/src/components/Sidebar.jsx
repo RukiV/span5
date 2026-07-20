@@ -4,30 +4,23 @@ import { Link } from 'react-router-dom';
 function Sidebar({ currentPath, isAdmin, onLogout }) {
   const isActive = (path) => currentPath === path ? { background: '#935e28' } : undefined;
 
-  const isInGroup = (paths) => paths.includes(currentPath) ? { background: '#935e28' } : undefined;
+  const isInGroup = (paths) => (paths.includes(currentPath) || paths.some(p => currentPath.startsWith(p + '/'))) ? { background: '#935e28' } : undefined;
 
   return (
     <div className="sidebar">
       <h2>FBS</h2>
       <ul>
         <li><Link to="/dashboard" style={isActive('/dashboard')}>Paneelbord</Link></li>
-        <li className="dropdown" style={isInGroup(['/assets', '/stock'])}>
+        <li className="dropdown" style={isInGroup(['/facilities'])}>
           <div className="dropdown-trigger">
-            <span>Bates & Voorraad</span>
+            <span>Fasiliteite</span>
           </div>
           <div className="dropdown-content2">
-            <li><Link to="/assets" style={isActive('/assets')}>Bates</Link></li>
-            <li><Link to="/stock" style={isActive('/stock')}>Voorraad</Link></li>
-          </div>
-        </li>
-        <li className="dropdown" style={isInGroup(['/rooms', '/buildings', '/terrains'])}>
-          <div className="dropdown-trigger">
-            <span>Lokale, Geboue & Terreine</span>
-          </div>
-          <div className="dropdown-content">
-            <li><Link to="/rooms" style={isActive('/rooms')}>Lokale</Link></li>
-            <li><Link to="/buildings" style={isActive('/buildings')}>Geboue</Link></li>
-            <li><Link to="/terrains" style={isActive('/terrains')}>Terreine</Link></li>
+            <li><Link to="/facilities/assets" style={isActive('/facilities/assets')}>Bates</Link></li>
+            <li><Link to="/facilities/stock" style={isActive('/facilities/stock')}>Voorraad</Link></li>
+            <li><Link to="/facilities/rooms" style={isActive('/facilities/rooms')}>Lokale</Link></li>
+            <li><Link to="/facilities/buildings" style={isActive('/facilities/buildings')}>Geboue</Link></li>
+            <li><Link to="/facilities/terrains" style={isActive('/facilities/terrains')}>Terreine</Link></li>
           </div>
         </li>
         <li><Link to="/fault-tickets" style={isActive('/fault-tickets')}>Foutkaartjies</Link></li>
