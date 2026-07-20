@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
 import Sidebar from '../components/Sidebar';
@@ -27,9 +27,11 @@ function BuildingsPage() {
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
-    building_type: "Ander",
+    building_type: "",
     location_id: "",
   });
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
   const translateBuildingType = (type) => {
     const translations = {
@@ -98,15 +100,17 @@ function BuildingsPage() {
   };
 
   const handleSaveBuilding = async () => {
-    if (!newBuilding.building_name?.trim()) {
-      alert("Voer asseblief 'n gebounaam in");
+    const errors = {};
+    if (!newBuilding.building_name?.trim()) errors.building_name = true;
+    if (!newBuilding.location_id) errors.location_id = true;
+    if (Object.keys(errors).length > 0) {
+      setInvalidFields(errors);
+      const firstKey = Object.keys(errors)[0];
+      fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      fieldRefs.current[firstKey]?.focus();
       return;
     }
-
-    if (!newBuilding.location_id) {
-      alert("Voer asseblief 'n terrein in");
-      return;
-    }
+    setInvalidFields({});
 
     const buildingData = {
       building_name: newBuilding.building_name,
@@ -146,7 +150,7 @@ function BuildingsPage() {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_type: item.building_type || "Ander",
+      building_type: item.building_type || "",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -329,11 +333,16 @@ function BuildingsPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Naam</label>
+                <label>Naam *</label>
                 <input
                   type="text"
+                  ref={el => fieldRefs.current.building_name = el}
+                  className={invalidFields.building_name ? "field-invalid" : ""}
                   value={newBuilding.building_name}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_name: e.target.value })}
+                  onChange={(e) => {
+                    setNewBuilding({ ...newBuilding, building_name: e.target.value });
+                    if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
@@ -342,15 +351,15 @@ function BuildingsPage() {
                   className="basic-single"
                   classNamePrefix="select"
                   value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
                   options={buildingTypeOptions}
                   isSearchable={false}
                 />
               </div>
             </div>
             <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
+              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"}>
+                <label>Terrein *</label>
                 <Select
                   className="basic-single"
                   classNamePrefix="select"
@@ -358,7 +367,10 @@ function BuildingsPage() {
                   isSearchable={true}
                   options={terrainOptions}
                   value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
+                  onChange={(selected) => {
+                    setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" });
+                    if (invalidFields.location_id) setInvalidFields(prev => { const n = { ...prev }; delete n.location_id; return n; });
+                  }}
                 />
               </div>
             </div>

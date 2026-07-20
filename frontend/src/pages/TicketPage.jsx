@@ -1,6 +1,7 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select from "react-select";
+import Select, { components } from "react-select";
+import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
@@ -33,6 +34,9 @@ function TicketPage() {
   const [assets, setAssets] = useState([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState([]);
   const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  const [cascadeToast, setCascadeToast] = useState(null);
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
   
   // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
@@ -178,10 +182,19 @@ function TicketPage() {
   // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
     try {
-      if (!newTicket.title && !newTicket.description) {
-        alert("Voer asseblief 'n titel of beskrywing vir die foutkaartjie in.");
+      const errors = {};
+      if (!newTicket.title?.trim()) errors.title = true;
+      if (!newTicket.category) errors.category = true;
+      if (!newTicket.location_id) errors.location_id = true;
+      if (!newTicket.description?.trim()) errors.description = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
+      setInvalidFields({});
 
       const payload = {
         fault_description: newTicket.title
@@ -356,32 +369,6 @@ function TicketPage() {
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
-  const terrainOptions = (terrains || []).map((terrain) => ({
-    value: String(terrain.location_id),
-    label: terrain.location_name || terrain.location_desc || `Terrein ${terrain.location_id}`,
-  }));
-
-  const buildingOptions = (buildings || [])
-    .filter((building) => !newTicket.location_id || String(building.location_id) === String(newTicket.location_id))
-    .map((building) => ({
-      value: String(building.building_id),
-      label: building.building_name || `Gebou ${building.building_id}`,
-    }));
-
-  const roomOptions = (rooms || [])
-    .filter((room) => !newTicket.building_id || String(room.building_id) === String(newTicket.building_id))
-    .map((room) => ({
-      value: String(room.room_id),
-      label: room.room_name || room.room_number || room.room_desc || `Lokaal ${room.room_id}`,
-    }));
-
-  const assetOptions = (assets || [])
-    .filter((asset) => !newTicket.room_id || String(asset.room_id) === String(newTicket.room_id))
-    .map((asset) => ({
-      value: String(asset.asset_id),
-      label: `${asset.asset_id} - ${asset.asset_name || "Bate"}`,
-    }));
-
   return (
     <div style={{ display: "flex" }}>
       <Sidebar currentPath="/fault-tickets" isAdmin={isAdmin} onLogout={logout} />
@@ -480,12 +467,12 @@ function TicketPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Titel</label>
-                <input type="text" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} />
+                <label>Titel *</label>
+                <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} />
               </div>
               <div className="input-group">
-                <label>Kategorie</label>
-                <select value={newTicket.category} onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}>
+                <label>Kategorie *</label>
+                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }}>
                   <option value="">Kies kategorie</option>
                   <option value="Instandhouding">Onderhoud</option>
                   <option value="Herstelwerk">Herstel</option>
@@ -505,59 +492,125 @@ function TicketPage() {
             </div>
             
             <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies terrein..."
-                  isSearchable
-                  options={terrainOptions}
-                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.location_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, location_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Gebou</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.location_id ? "Kies eers terrein" : "Kies gebou..."}
-                  isSearchable
-                  isDisabled={!newTicket.location_id}
-                  options={buildingOptions}
-                  value={buildingOptions.find((option) => String(option.value) === String(newTicket.building_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, building_id: selected ? String(selected.value) : "", room_id: "", asset_id: "" })}
-                />
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className="input-group">
-                <label>Lokaal</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.building_id ? "Kies eers gebou" : "Kies lokaal..."}
-                  isSearchable
-                  isDisabled={!newTicket.building_id}
-                  options={roomOptions}
-                  value={roomOptions.find((option) => String(option.value) === String(newTicket.room_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, room_id: selected ? String(selected.value) : "", asset_id: "" })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Bate</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.room_id ? "Kies eers lokaal" : "Kies bate..."}
-                  isSearchable
-                  isDisabled={!newTicket.room_id}
-                  options={assetOptions}
-                  value={assetOptions.find((option) => String(option.value) === String(newTicket.asset_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, asset_id: selected ? String(selected.value) : "" })}
-                />
+              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+                <label>Ligging *</label>
+                {(() => {
+                  const cascadeCount = [newTicket.location_id, newTicket.building_id, newTicket.room_id, newTicket.asset_id].filter(Boolean).length;
+                  const clearFromLevel = (levelIndex) => {
+                    if (levelIndex <= 0) setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
+                    else if (levelIndex === 1) setNewTicket(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
+                    else if (levelIndex === 2) setNewTicket(p => ({...p, room_id: "", asset_id: ""}));
+                    else if (levelIndex === 3) setNewTicket(p => ({...p, asset_id: ""}));
+                  };
+                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                  if (newTicket.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id });
+                  if (newTicket.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id });
+                  if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
+                  if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
+                  const renderBreadcrumb = () => (
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                      {breadcrumbData.map((item, i) => {
+                        const isLast = i === breadcrumbData.length - 1;
+                        const showArrow = isLast ? cascadeCount < 4 : true;
+                        return (
+                          <React.Fragment key={i}>
+                            <button
+                              type="button"
+                              onClick={() => clearFromLevel(item.level + 1)}
+                              style={{
+                                background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0",
+                                color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
+                                lineHeight: "1", display: "inline-flex", alignItems: "center",
+                              }}
+                            >{item.name}</button>
+                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  );
+                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const CascadeControl = ({ children, ...props }) => (
+                    <components.Control {...props}>
+                      {children}
+                      {cascadeCount > 0 && (
+                        <span
+                          className="cascade-back-indicator"
+                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
+                          title="Vorige vlak"
+                          style={backBtnStyle}
+                        >
+                          <IoReturnUpBack size={18} />
+                        </span>
+                      )}
+                    </components.Control>
+                  );
+                  return (
+                    <>
+                      {renderBreadcrumb()}
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder={
+                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                        }
+                        isClearable
+                        isDisabled={cascadeCount >= 4}
+                        closeMenuOnSelect={false}
+                        components={{ Control: CascadeControl }}
+                        options={(() => {
+                          if (cascadeCount === 0)
+                            return (terrains || []).map((t) => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
+                          if (cascadeCount === 1)
+                            return (buildings || []).filter((b) => String(b.location_id) === String(newTicket.location_id)).map((b) => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                          if (cascadeCount === 2)
+                            return (rooms || []).filter((r) => String(r.building_id) === String(newTicket.building_id)).map((r) => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
+                          if (cascadeCount === 3)
+                            return (assets || []).filter((a) => String(a.room_id) === String(newTicket.room_id)).map((a) => ({ value: String(a.asset_id), label: `${a.asset_id} - ${a.asset_name}` }));
+                          return [];
+                        })()}
+                        value={null}
+                        onChange={(selectedOption) => {
+                          if (!selectedOption) return;
+                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
+                          if (cascadeCount === 0)
+                            setNewTicket(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
+                          else if (cascadeCount === 1)
+                            setNewTicket(p => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
+                          else if (cascadeCount === 2)
+                            setNewTicket(p => ({...p, room_id: selectedOption.value, asset_id: ""}));
+                          else if (cascadeCount === 3)
+                            setNewTicket(p => ({...p, asset_id: selectedOption.value}));
+                          setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
+                          const label = labels[cascadeCount] || "";
+                          setCascadeToast(`✓ ${label} suksesvol geselekteer`);
+                          setTimeout(() => setCascadeToast(null), 2000);
+                        }}
+                      />
+                    </>
+                  );
+                })()}
+                {cascadeToast && (
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    background: "#16a34a",
+                    color: "#fff",
+                    padding: "10px 24px",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                    zIndex: 10,
+                    textAlign: "center",
+                    pointerEvents: "none",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {cascadeToast}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -586,8 +639,8 @@ function TicketPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Beskrywing</label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} />
+                <label>Beskrywing *</label>
+                <textarea value={newTicket.description} ref={el => fieldRefs.current.description = el} className={invalidFields.description ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, description: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.description; return next; }); }} />
               </div>
               <div className="input-group">
                 <label>Status</label>
