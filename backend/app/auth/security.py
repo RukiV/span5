@@ -2,9 +2,14 @@
 
 Before this module existed, passwords were stored and compared in plaintext
 (`user.user_password != login_data.user_password`). All password storage now
-goes through a bcrypt-backed passlib ``CryptContext``.
+goes through a passlib ``CryptContext``.
 
-The helpers are deliberately tiny so they can be reused from three places:
+Scheme: **pbkdf2_sha256** — pure-Python, so there is no native bcrypt C
+dependency to build inside containers. (This is the single hashing entry point;
+``auth/passwords.py`` re-exports from here so the two branches' password code
+converged on one implementation.)
+
+The helpers are deliberately tiny so they can be reused from:
 - login verification (``auth/endpoints/auth.py``),
 - user create/update (``services/user_service.py``),
 - the one-time plaintext -> hash migration in ``db/seed.py``.
@@ -16,11 +21,11 @@ re-run on every startup.
 
 from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash for ``password``."""
+    """Return a pbkdf2_sha256 hash for ``password``."""
     return pwd_context.hash(password)
 
 

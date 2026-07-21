@@ -12,7 +12,7 @@ class UserBase(SQLModel):
     user_surname: str = Field(min_length=1, max_length=100)
     user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
     user_number: Optional[str] = Field(default=None, max_length=20)
-    user_password: str
+    # Password is not part of the public base model; it's stored on the DB model only
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
@@ -27,10 +27,12 @@ class User(UserBase, Base, table=True):
     user_id: Optional[int] = Field(default=None, primary_key=True)
     user_uuid: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True, max_length=36)
     role_id: int = Field(foreign_key="role.role_id")
+    user_password: str = Field(max_length=255)
 
 
 class UserCreate(UserBase):
     """Input model for creating user records."""
+    user_password: str
     role_id: int
 
 

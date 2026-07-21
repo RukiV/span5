@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
@@ -15,6 +15,7 @@ function TicketPage() {
   const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const navigate = useNavigate();
+  const MAX_TICKET_IMAGES = 3;
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
@@ -34,6 +35,9 @@ function TicketPage() {
   const [assets, setAssets] = useState([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState([]);
   const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  const [ticketImages, setTicketImages] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [activeImageViewer, setActiveImageViewer] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
@@ -49,9 +53,6 @@ function TicketPage() {
     building_id: "",
     room_id: "",
     asset_id: "",
-    image_id: "",
-    image_id_2: "",
-    image_id_3: "",
   });
 
   // Haal foutkaartjies wanneer blad laai
@@ -110,6 +111,21 @@ function TicketPage() {
     }
   };
 
+  const fetchTicketImages = async (ticketId) => {
+    if (!ticketId) {
+      setTicketImages([]);
+      return;
+    }
+
+    try {
+      const response = await apiClient.image.getByParent("ticket", ticketId);
+      setTicketImages(response.data || []);
+    } catch (error) {
+      console.error("Fout by laai van beeld-metadata:", error);
+      setTicketImages([]);
+    }
+  };
+
   const applyTicketLocationSelection = (ticket) => {
     if (!ticket) return;
 
@@ -155,9 +171,6 @@ function TicketPage() {
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
-      image_id: ticket.image_id ? String(ticket.image_id) : "",
-      image_id_2: ticket.image_id_2 ? String(ticket.image_id_2) : "",
-      image_id_3: ticket.image_id_3 ? String(ticket.image_id_3) : "",
     }));
   };
 
@@ -167,17 +180,54 @@ function TicketPage() {
   };
 
   const handleImageFilesChange = (event) => {
-    const files = Array.from(event.target.files || []).slice(0, 3);
-    setSelectedImageFiles(files);
-    const previewUrls = files.map((file) => URL.createObjectURL(file));
-    setSelectedImagePreviewUrls(previewUrls);
+    const files = Array.from(event.target.files || []);
+    const remainingSlots = Math.max(0, MAX_TICKET_IMAGES - (selectedImageFiles.length + ticketImages.length));
+    const incomingFiles = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      alert(`Jy kan maksimaal ${MAX_TICKET_IMAGES} beelde per foutkaartjie oplaai.`);
+    }
+
+    if (incomingFiles.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrls = incomingFiles.map((file) => URL.createObjectURL(file));
+    setSelectedImageFiles((prev) => [...prev, ...incomingFiles]);
+    setSelectedImagePreviewUrls((prev) => [...prev, ...previewUrls]);
+    event.target.value = "";
+  };
+
+  const handleRemoveSelectedPreview = (index) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
+      return;
+    }
+
+    setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setSelectedImagePreviewUrls((prev) => {
+      const urlToRevoke = prev[index];
+      if (urlToRevoke) {
+        URL.revokeObjectURL(urlToRevoke);
+      }
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const handleDeleteExistingImage = (imageId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
+      return;
+    }
+
+    setTicketImages((prev) => prev.filter((image) => image.image_id !== imageId));
+    setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
   };
 
   useEffect(() => {
     return () => {
       selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [selectedImagePreviewUrls]);
+  }, []);
 
   // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
@@ -204,43 +254,34 @@ function TicketPage() {
         fault_status: newTicket.status,
         fault_priority: newTicket.priority,
         room_id: newTicket.room_id ? Number(newTicket.room_id) : null,
-        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
+        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,
+        building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
         location_id: newTicket.location_id ? Number(newTicket.location_id) : null,
       };
 
-      if (newTicket.image_id) {
-        payload.image_id = Number(newTicket.image_id);
-      }
-      if (newTicket.image_id_2) {
-        payload.image_id_2 = Number(newTicket.image_id_2);
-      }
-      if (newTicket.image_id_3) {
-        payload.image_id_3 = Number(newTicket.image_id_3);
-      }
-
-      if (selectedImageFiles.length > 0) {
-        const uploadedIds = [];
-        for (const file of selectedImageFiles.slice(0, 3)) {
-          const imageFormData = new FormData();
-          imageFormData.append('file', file);
-          const imageResponse = await apiClient.image.upload(imageFormData);
-          if (imageResponse?.data?.image_id) {
-            uploadedIds.push(imageResponse.data.image_id);
-          }
-        }
-        if (uploadedIds.length > 0) {
-          payload.image_id = uploadedIds[0] || payload.image_id;
-          payload.image_id_2 = uploadedIds[1] || payload.image_id_2;
-          payload.image_id_3 = uploadedIds[2] || payload.image_id_3;
-        }
-      }
+      let ticketId = editingId;
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
         alert("Foutkaartjie suksesvol opgedateer!");
       } else {
-        await apiClient.tickets.create(payload);
+        const response = await apiClient.tickets.create(payload);
+        ticketId = response?.data?.fault_id ?? response?.data?.id ?? null;
         alert("Foutkaartjie suksesvol geskep!");
+      }
+
+      if (isEditing) {
+        for (const imageId of imagesToDelete) {
+          await apiClient.image.delete(imageId);
+        }
+      }
+
+      if (ticketId && selectedImageFiles.length > 0) {
+        for (const file of selectedImageFiles.slice(0, MAX_TICKET_IMAGES)) {
+          const imageFormData = new FormData();
+          imageFormData.append('file', file);
+          await apiClient.image.uploadForParent(ticketId, 'ticket', imageFormData);
+        }
       }
       handleCloseModal();
       fetchTickets();
@@ -268,7 +309,10 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
+    setTicketImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
   };
 
   const handleNewTicket = () => {
@@ -276,7 +320,10 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
+    setTicketImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
     setShowModal(true);
   };
 
@@ -366,6 +413,9 @@ function TicketPage() {
       if (currentTicket) {
         applyTicketLocationSelection(currentTicket);
       }
+      fetchTicketImages(editingId);
+    } else if (!showModal) {
+      setTicketImages([]);
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
@@ -432,7 +482,7 @@ function TicketPage() {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id}>
+                <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
                   <td>{ticket.asset_id}</td>
@@ -446,9 +496,8 @@ function TicketPage() {
                       {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
-                  <td>
+                  <td onClick={e => e.stopPropagation()}>
                     <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
                   </td>
                 </tr>
@@ -457,6 +506,28 @@ function TicketPage() {
           </table>
         </div>
       </div>
+
+      {activeImageViewer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+            <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
+            <img src={activeImageViewer.src} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} />
+            <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+              {activeImageViewer.type === 'preview' ? (
+                <button type="button" className="btn-delete" onClick={() => {
+                  handleRemoveSelectedPreview(activeImageViewer.index);
+                  setActiveImageViewer(null);
+                }}>Verwyder</button>
+              ) : (
+                <button type="button" className="btn-delete" onClick={() => {
+                  handleDeleteExistingImage(activeImageViewer.imageId);
+                  setActiveImageViewer(null);
+                }}>Verwyder</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal" style={{ display: "flex" }}>
@@ -516,9 +587,10 @@ function TicketPage() {
                           <React.Fragment key={i}>
                             <button
                               type="button"
+                              className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
                               style={{
-                                background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0",
+                                border: "none", cursor: "pointer", margin: "0",
                                 color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
                                 lineHeight: "1", display: "inline-flex", alignItems: "center",
                               }}
@@ -529,7 +601,11 @@ function TicketPage() {
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = {
+                    background: "#935e28", border: "none", borderRadius: "4px",
+                    color: "#fff", cursor: "pointer", display: "flex",
+                    alignItems: "center", padding: "4px 8px", margin: "2px",
+                  };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
@@ -537,10 +613,10 @@ function TicketPage() {
                         <span
                           className="cascade-back-indicator"
                           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Vorige vlak"
+                          title="Terug na vorige vlak"
                           style={backBtnStyle}
                         >
-                          <IoReturnUpBack size={18} />
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>
@@ -616,23 +692,50 @@ function TicketPage() {
 
             <div className="input-row">
               <div className="input-group">
-                <label>Beelde (maksimum 3)</label>
+                <label>Beelde (Maksimum {MAX_TICKET_IMAGES})</label>
                 <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+
                 {selectedImagePreviewUrls.length > 0 && (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {selectedImagePreviewUrls.map((url, index) => (
-                      <img key={index} src={url} alt={`Voorbeeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
-                    ))}
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Nuwe seleksies</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {selectedImagePreviewUrls.map((url, index) => (
+                        <div key={`${url}-${index}`} className="record-image-card" style={{ textAlign: 'center' }}>
+                          <img
+                            src={url}
+                            alt={`Voorbeeld ${index + 1}`}
+                            className="ticket-image-thumb"
+                            onClick={() => setActiveImageViewer({ type: 'preview', src: url, index })}
+                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          />
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                {selectedImagePreviewUrls.length === 0 && (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {[newTicket.image_id, newTicket.image_id_2, newTicket.image_id_3].filter(Boolean).map((id, index) => (
-                      <div key={index} style={{ textAlign: 'center' }}>
-                        <p style={{ margin: 0, fontSize: '0.9rem' }}>Huidige beeld {index + 1}</p>
-                        <img src={getTicketImageUrl(id)} alt={`Huidige beeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
-                      </div>
-                    ))}
+
+                {ticketImages.length > 0 && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Bestaande beelde</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {ticketImages.map((image, index) => (
+                        <div key={image.image_id ?? index} className="record-image-card" style={{ textAlign: 'center' }}>
+                          <img
+                            src={getTicketImageUrl(image.image_id)}
+                            alt={`Huidige beeld ${index + 1}`}
+                            className="ticket-image-thumb"
+                            onClick={() => setActiveImageViewer({ type: 'existing', src: getTicketImageUrl(image.image_id), imageId: image.image_id, index })}
+                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          />
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
