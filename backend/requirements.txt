@@ -7,3 +7,7 @@ pydantic>=2.0.0
 python-dotenv>=1.0.0
 # Noodsaaklik vir multipart/form-data (lêer-uploads) vanaf die mobiele app.
 python-multipart>=0.0.6
+# Wagwoord-hashing (bcrypt). bcrypt<4.1 om die bekende passlib 1.7.4
+# weergawe-leesfout met bcrypt>=4.1 te vermy.
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1,<4.1
