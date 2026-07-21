@@ -291,13 +291,12 @@ function UsersPage() {
             </thead>
             <tbody>
               {filteredUsers.map(user => (
-                <tr key={user.user_id}>
+                <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
                   <td>{user.user_name}</td>
                   <td>{user.user_email}</td>
                   <td><span className={`badge ${getRoleClass(user.role_id)}`}>{getRoleName(user.role_id)}</span></td>
                   <td className={getStatusClass(user.user_status)}>{user.user_status === 'active' ? 'Aktief' : 'Onaktief'}</td>
-                  <td>
-                    <button className="btn-edit" onClick={() => handleEditUser(user)}>Wysig</button>
+                  <td onClick={e => e.stopPropagation()}>
                     <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
                   </td>
                 </tr>

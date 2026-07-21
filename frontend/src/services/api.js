@@ -251,11 +251,17 @@ export const auditsAPI = {
  * - delete: Verwyder beeld en sy grepe
  */
 export const imageAPI = {
-  upload: (formData) => apiClient.post('/image/', formData, {
+  upload: (formData, params = {}) => apiClient.post('/image/', formData, {
+    params,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  uploadForParent: (parentId, parentType, formData) => apiClient.post('/image/', formData, {
+    params: { parent_id: parentId, parent_type: parentType },
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   getAll: (skip = 0, limit = 100) => apiClient.get('/image/', { params: { skip, limit } }),
   getById: (id) => apiClient.get(`/image/${id}`),
+  getByParent: (parentType, parentId) => apiClient.get(`/image/parent/${parentType}/${parentId}`),
   getFileUrl: (id) => `${apiClient.defaults.baseURL}/image/${id}/file`,
   update: (id, data) => apiClient.patch(`/image/${id}`, data),
   delete: (id) => apiClient.delete(`/image/${id}`),

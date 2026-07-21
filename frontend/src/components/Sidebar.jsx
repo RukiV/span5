@@ -12,13 +12,14 @@ function Sidebar({ currentPath, onLogout }) {
   const can = (right) => (rights || []).includes(right);
 
   const isActive = (path) => currentPath === path ? { background: '#935e28' } : undefined;
-  const isInGroup = (paths) => paths.includes(currentPath) ? { background: '#935e28' } : undefined;
+  const isInGroup = (paths) => (paths.includes(currentPath) || paths.some(p => currentPath.startsWith(p + '/'))) ? { background: '#935e28' } : undefined;
 
   const showAssets = can('assets.manage');
   const showStock = can('stock.manage');
   const showRooms = can('rooms.manage');
   const showBuildings = can('buildings.manage');
   const showTerrains = can('locations.manage');
+  const showFacilities = showAssets || showStock || showRooms || showBuildings || showTerrains;
 
   return (
     <div className="sidebar">
@@ -26,27 +27,17 @@ function Sidebar({ currentPath, onLogout }) {
       <ul>
         <li><Link to="/dashboard" style={isActive('/dashboard')}>Paneelbord</Link></li>
 
-        {(showAssets || showStock) && (
-          <li className="dropdown" style={isInGroup(['/assets', '/stock'])}>
+        {showFacilities && (
+          <li className="dropdown" style={isInGroup(['/facilities'])}>
             <div className="dropdown-trigger">
-              <span>Bates & Voorraad</span>
+              <span>Fasiliteite</span>
             </div>
             <div className="dropdown-content2">
-              {showAssets && <li><Link to="/assets" style={isActive('/assets')}>Bates</Link></li>}
-              {showStock && <li><Link to="/stock" style={isActive('/stock')}>Voorraad</Link></li>}
-            </div>
-          </li>
-        )}
-
-        {(showRooms || showBuildings || showTerrains) && (
-          <li className="dropdown" style={isInGroup(['/rooms', '/buildings', '/terrains'])}>
-            <div className="dropdown-trigger">
-              <span>Lokale, Geboue & Terreine</span>
-            </div>
-            <div className="dropdown-content">
-              {showRooms && <li><Link to="/rooms" style={isActive('/rooms')}>Lokale</Link></li>}
-              {showBuildings && <li><Link to="/buildings" style={isActive('/buildings')}>Geboue</Link></li>}
-              {showTerrains && <li><Link to="/terrains" style={isActive('/terrains')}>Terreine</Link></li>}
+              {showAssets && <li><Link to="/facilities/assets" style={isActive('/facilities/assets')}>Bates</Link></li>}
+              {showStock && <li><Link to="/facilities/stock" style={isActive('/facilities/stock')}>Voorraad</Link></li>}
+              {showRooms && <li><Link to="/facilities/rooms" style={isActive('/facilities/rooms')}>Lokale</Link></li>}
+              {showBuildings && <li><Link to="/facilities/buildings" style={isActive('/facilities/buildings')}>Geboue</Link></li>}
+              {showTerrains && <li><Link to="/facilities/terrains" style={isActive('/facilities/terrains')}>Terreine</Link></li>}
             </div>
           </li>
         )}

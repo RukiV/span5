@@ -6,18 +6,15 @@ import { clearAuthSession, isSessionExpired, markUserActivity } from './authSess
 import { useCurrentUser } from './hooks/useCurrentUser';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import AssetPage from './pages/AssetPage';
-import StockPage from './pages/StockPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
 import UsersPage from './pages/UsersPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
-import RoomsPage from './pages/RoomsPage';
-import TerrainsPage from './pages/TerrainsPage';
-import BuildingsPage from './pages/BuildingsPage';
 import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
+// Bates/Voorraad/Lokale/Geboue/Terreine word nou binne FacilitiesPage gehanteer.
+import FacilitiesPage from './pages/FacilitiesPage';
 
 /* =========================================================
    1. DIE BESKERMDE ROETE-MEGANISME
@@ -122,18 +119,26 @@ function App() {
             spesifieke reg via <RightProtectedRoute>. FK het alles behalwe
             users.manage, so FK sien alles behalwe /users. */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
-        <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
+        {/* Bates/Voorraad/Lokale/Geboue/Terreine is nou een geneste bladsy
+            (FacilitiesPage). Granulêre regte word deur die agterkant
+            (require_right op elke roete) en die regte-gedrewe Sidebar afgedwing,
+            so vereis hierdie roete net 'n geldige web-sessie. Ou skakels herlei. */}
+        <Route path="/facilities/*" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
+        <Route path="/assets" element={<Navigate to="/facilities/assets" replace />} />
+        <Route path="/stock" element={<Navigate to="/facilities/stock" replace />} />
+        <Route path="/rooms" element={<Navigate to="/facilities/rooms" replace />} />
+        <Route path="/buildings" element={<Navigate to="/facilities/buildings" replace />} />
+        <Route path="/terrains" element={<Navigate to="/facilities/terrains" replace />} />
+
+        {/* Losstaande bladsye behou hul granulêre reg-kontrole. */}
         <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
         <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
         <Route path="/contractors" element={<RightProtectedRoute requiredRight="contractors.manage"><ContractorsPage /></RightProtectedRoute>} />
         <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
         <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
         <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
-        <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
-        <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
-        <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
         <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
+
 
         {/* As die gebruiker op "/" land, stuur hulle outomaties na die dashboard via ProtectedRoute */}
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
