@@ -1,5 +1,6 @@
 from typing import Optional, Any
 from datetime import datetime
+from uuid import uuid4
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -25,6 +26,7 @@ class UserBase(SQLModel):
 class User(UserBase, Base, table=True):
     """Model for user data."""
     user_id: Optional[int] = Field(default=None, primary_key=True)
+    user_uuid: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True, max_length=36)
     role_id: int = Field(foreign_key="role.role_id")
     location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
 
@@ -38,6 +40,7 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     """Output model for reading user records."""
     user_id: int
+    user_uuid: str
     user_name: str
     user_surname: str
     user_email: str
