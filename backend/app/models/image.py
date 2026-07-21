@@ -8,7 +8,7 @@ from .base import Base
 
 
 class ImageLimit(IntEnum):
-    ASSET = 1
+    ASSET = 2
     STOCK = 1
     TICKET = 3
     JOB = 3
