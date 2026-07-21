@@ -48,8 +48,6 @@ class JobcardBase(SQLModel):
     job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
-    assigned_to: Optional[int] = Field(default=None, foreign_key="user.user_id")
-    cc_users: Optional[str] = None
 
     @field_validator('job_desc', 'job_type', mode='before')
     @classmethod
@@ -72,6 +70,7 @@ class Jobcard(JobcardBase, Base, table=True):
     """Model for jobcard data."""
     jobcard_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    contractor_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
@@ -90,6 +89,7 @@ class Jobcard(JobcardBase, Base, table=True):
 
 class JobcardCreate(JobcardBase):
     """Input model for creating jobcard records."""
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
@@ -102,6 +102,7 @@ class JobcardRead(JobcardBase):
     """Output model for reading jobcard records."""
     jobcard_id: int
     user_id: Optional[int] = None
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
@@ -126,8 +127,7 @@ class JobcardUpdate(SQLModel):
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
     user_id: Optional[int] = None
-    assigned_to: Optional[int] = None
-    cc_users: Optional[str] = None
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None

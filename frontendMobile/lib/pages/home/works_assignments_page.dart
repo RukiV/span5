@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-
-import '../../services/report_service.dart';
-import '../../models/report.dart';
-import '../reporting/report_detail_page.dart';
+import '../../services/jobcard_service.dart';
+import '../../models/jobcard.dart';
 
 class WorksAssignmentsPage extends StatelessWidget {
   const WorksAssignmentsPage({super.key});
@@ -12,10 +10,10 @@ class WorksAssignmentsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: ValueListenableBuilder<List<Report>>(
-        valueListenable: ReportService.reportsNotifier,
-        builder: (context, reports, child) {
-          if (reports.isEmpty) {
+      body: ValueListenableBuilder<List<Jobcard>>(
+        valueListenable: JobcardService.jobcardsNotifier,
+        builder: (context, jobcards, child) {
+          if (jobcards.isEmpty) {
             return const Center(
               child: Text(
                 "Geen werksopdragte beskikbaar nie.",
@@ -26,9 +24,9 @@ class WorksAssignmentsPage extends StatelessWidget {
 
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
-            itemCount: reports.length,
+            itemCount: jobcards.length,
             itemBuilder: (context, index) {
-              final report = reports[index];
+              final job = jobcards[index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 elevation: 2,
@@ -36,28 +34,22 @@ class WorksAssignmentsPage extends StatelessWidget {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   leading: CircleAvatar(
-                    backgroundColor: _getStatusColor(report.phase).withValues(alpha: 0.2),
-                    child: Icon(Icons.assignment, color: _getStatusColor(report.phase)),
+                    backgroundColor: _getStatusColor(job.status).withValues(alpha: 0.2),
+                    child: Icon(Icons.assignment, color: _getStatusColor(job.status)),
                   ),
                   title: Text(
-                    report.title,
+                    job.description,
                     style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("Lokaal: ${report.location}", style: const TextStyle(fontSize: 12)),
+                      if (job.type != null) Text(job.type!, style: const TextStyle(fontSize: 12)),
                       const SizedBox(height: 4),
-                      _buildStatusBadge(report.phase),
+                      _buildStatusBadge(job.status),
                     ],
                   ),
                   trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => ReportDetailPage(report: report)),
-                    );
-                  },
                 ),
               );
             },
@@ -70,17 +62,14 @@ class WorksAssignmentsPage extends StatelessWidget {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Wag':
-      case 'Ontvang':
         return Colors.orange;
-      case 'Besig':
       case 'Oop':
-      case 'Bevestig':
+        return Colors.blue;
+      case 'Besig':
         return Colors.blue;
       case 'Voltooi':
-      case 'Opgelos':
         return Colors.green;
-      case 'Geweier':
-      case 'Verwerp':
+      case 'Gekanselleer':
         return Colors.red;
       default:
         return Colors.grey;
