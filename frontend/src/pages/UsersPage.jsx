@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
+import RolesRightsManager from '../components/RolesRightsManager';
 
 function UsersPage() {
-  const navigate = useNavigate();
-    const logout = useLogout();
+  const logout = useLogout();
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [showRolesManager, setShowRolesManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
@@ -19,7 +20,6 @@ function UsersPage() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [isAuthorized, setIsAuthorized] = useState(false);
   const [formUser, setFormUser] = useState({
     user_name: '',
     user_surname: '',
@@ -33,47 +33,15 @@ function UsersPage() {
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
 
-  const roles = [
-    { id: 1, name: 'Gebruiker' },
-    { id: 2, name: 'Fasiliteit Koördineerder' },
-    { id: 3, name: 'Administrateur' }
-  ];
-
-  // Kontroleer of huidige gebruiker 'n Administrateur is
-  // Slegs Administrateure (role_id=3) kan die Gebruikersblad sien
+  // Toegang tot hierdie bladsy word deur
+  // <RightProtectedRoute requiredRight="users.manage"> in App.jsx afgedwing (en
+  // die backend gate elke /users-roete met require_right("users.manage")). Hier
+  // haal ons die gebruikers EN die rolle (rolle dryf die rol-keuselys en word
+  // nou dinamies van die backend gehaal i.p.v. hardgekodeer).
   useEffect(() => {
-    const checkAuthorization = async () => {
-      try {
-        // Haal huidige gebruiker se inligting van backend
-        const response = await apiClient.get('/auth/me');
-        
-        // Kontroleer of rol-ID 3 is (Administrateur)
-        if (response.data.role_id === 3) {
-          setIsAuthorized(true);
-        } else {
-          // As nie administrateur nie, magtig-status sal vals wees
-          setIsAuthorized(false);
-          // Navigeer terug na dashboard na 2 sekondes
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('Error checking authorization:', error);
-        // As fout, navigeer na login-blad
-        navigate('/login');
-      }
-    };
-
-    checkAuthorization();
-  }, [navigate]);
-
-  // Haal almal gebruikers van backend wanneer magtiging bevestig is
-  useEffect(() => {
-    if (isAuthorized) {
-      fetchUsers();
-    }
-  }, [isAuthorized]);
+    fetchUsers();
+    fetchRoles();
+  }, []);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -84,6 +52,15 @@ function UsersPage() {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const response = await apiClient.roles.getAll();
+      setRoles(response.data);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
     }
   };
 
@@ -191,11 +168,15 @@ function UsersPage() {
   };
 
   const getRoleName = (roleId) => {
+    const role = roles.find(r => r.role_id === roleId);
+    if (role) return role.role_name;
+    // Terugval vir ingeboude rolle voordat die rol-lys gelaai het
     switch (roleId) {
       case 1: return 'Gebruiker';
       case 2: return 'Fasiliteit Koördineerder';
       case 3: return 'Administrateur';
-      default: return 'Gebruiker';
+      case 4: return 'Kontrakteur';
+      default: return 'Onbekend';
     }
   };
 
@@ -242,19 +223,9 @@ function UsersPage() {
     return <div>Besig om gebruikers te laai...</div>;
   }
 
-  if (!isAuthorized) {
-    return (
-      <div style={{ padding: '20px', color: 'red', fontSize: '16px' }}>
-              <p>Jammer, jy het nie die regte toestemming om die Gebruikers blad te besoek nie.</p>
-              <p>Alleen administrateurs kan hierdie blad sien.</p>
-              <p>Jy word nou teruggeleei na die Paneelbord...</p>
-            </div>
-    );
-  }
-
   return (
     <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users" isAdmin={true} onLogout={logout} />
+      <Sidebar currentPath="/users" onLogout={logout} />
 
       <div className="main">
         <div className="navbar">
@@ -303,6 +274,7 @@ function UsersPage() {
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
               </div>
 
+              <button className="btn-add" onClick={() => setShowRolesManager(true)}>Bestuur Rolle & Regte</button>
               <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
             </div>
           </div>
@@ -410,7 +382,7 @@ function UsersPage() {
                 }}
               >
                 {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
+                  <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
                 ))}
               </select>
             </div>
@@ -435,6 +407,13 @@ function UsersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showRolesManager && (
+        <RolesRightsManager
+          onClose={() => setShowRolesManager(false)}
+          onChanged={fetchRoles}
+        />
       )}
     </div>
   );

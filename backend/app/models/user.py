@@ -46,6 +46,10 @@ class UserRead(UserBase):
     user_lastlogouttime: Optional[datetime] = None
     user_status: str
     role_id: int
+    # Never expose the password (hash) in read responses. Inherited from
+    # UserBase, but excluded from serialization here so /users and /auth/me
+    # cannot leak it.
+    user_password: str = Field(exclude=True)
 
 
 class UserUpdate(SQLModel):
