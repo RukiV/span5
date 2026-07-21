@@ -688,11 +688,8 @@ function TicketPage() {
 
             <div className="input-row">
               <div className="input-group">
-                <label>Beelde (maksimum 3)</label>
+                <label>Beelde (Maksimum {MAX_TICKET_IMAGES})</label>
                 <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem', color: '#666' }}>
-                  Maksimaal {MAX_TICKET_IMAGES} beelde per foutkaartjie.
-                </p>
 
                 {selectedImagePreviewUrls.length > 0 && (
                   <div style={{ marginTop: '0.75rem' }}>
