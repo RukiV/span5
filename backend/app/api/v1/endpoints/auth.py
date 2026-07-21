@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from ....auth.session import SESSION_DURATION_SECONDS, create_session_token, verify_session_token
+from ....auth.passwords import hash_password, verify_password
 from ....db.database import getSession
 from ....models.user import UserRead, User
 from ....services.user_service import user_service
@@ -92,7 +93,7 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
     user = user_service.get_by_email(session, login_data.user_email)
     
     # Verifieer dat gebruiker bestaan en wagwoord korrek is
-    if not user or user.user_password != login_data.user_password:
+    if not user or not verify_password(login_data.user_password, user.user_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
@@ -218,7 +219,7 @@ async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password="microsoft_oauth",                                                            #Default password
+                user_password=hash_password("microsoft_oauth"),                                                            #Default password (hashed)
                 user_status="active",
                 role_id=1  # Standaard rol
             )
