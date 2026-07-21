@@ -285,137 +285,139 @@ function TerrainsPage({ embedded = false }) {
     </>
   );
 
+  const modalContent = (
+    <div className="modal" style={{ display: "flex" }}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <span className="close" onClick={handleCloseModal}>&times;</span>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Naam *</label>
+            <input
+              ref={el => fieldRefs.current.location_name = el}
+              type="text"
+              className={invalidFields.location_name ? "field-invalid" : ""}
+              value={newTerrain.location_name}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_name: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_name; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Tipe *</label>
+            <input
+              ref={el => fieldRefs.current.location_type = el}
+              type="text"
+              className={invalidFields.location_type ? "field-invalid" : ""}
+              value={newTerrain.location_type}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_type: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_type; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Straatnommer *</label>
+            <input
+              ref={el => fieldRefs.current.location_streetnum = el}
+              type="text"
+              className={invalidFields.location_streetnum ? "field-invalid" : ""}
+              value={newTerrain.location_streetnum}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_streetnum: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_streetnum; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Straatnaam *</label>
+            <input
+              ref={el => fieldRefs.current.location_streetname = el}
+              type="text"
+              className={invalidFields.location_streetname ? "field-invalid" : ""}
+              value={newTerrain.location_streetname}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_streetname: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_streetname; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Suburb *</label>
+            <input
+              ref={el => fieldRefs.current.location_suburb = el}
+              type="text"
+              className={invalidFields.location_suburb ? "field-invalid" : ""}
+              value={newTerrain.location_suburb}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_suburb: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_suburb; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Stad *</label>
+            <input
+              ref={el => fieldRefs.current.location_city = el}
+              type="text"
+              className={invalidFields.location_city ? "field-invalid" : ""}
+              value={newTerrain.location_city}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_city: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_city; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Provinsie *</label>
+            <input
+              ref={el => fieldRefs.current.location_province = el}
+              type="text"
+              className={invalidFields.location_province ? "field-invalid" : ""}
+              value={newTerrain.location_province}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_province: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_province; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Land *</label>
+            <input
+              ref={el => fieldRefs.current.location_country = el}
+              type="text"
+              className={invalidFields.location_country ? "field-invalid" : ""}
+              value={newTerrain.location_country}
+              onChange={(e) => {
+                setNewTerrain({ ...newTerrain, location_country: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.location_country; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+          <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (embedded) {
     return (
       <>
         {pageContent}
 
-        {showModal && (
-          <div className="modal" style={{ display: "flex" }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-                <span className="close" onClick={handleCloseModal}>&times;</span>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Naam *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_name = el}
-                    type="text"
-                    className={invalidFields.location_name ? "field-invalid" : ""}
-                    value={newTerrain.location_name}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_name: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_name; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Tipe *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_type = el}
-                    type="text"
-                    className={invalidFields.location_type ? "field-invalid" : ""}
-                    value={newTerrain.location_type}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_type: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_type; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Straatnommer *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_streetnum = el}
-                    type="text"
-                    className={invalidFields.location_streetnum ? "field-invalid" : ""}
-                    value={newTerrain.location_streetnum}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_streetnum: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_streetnum; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Straatnaam *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_streetname = el}
-                    type="text"
-                    className={invalidFields.location_streetname ? "field-invalid" : ""}
-                    value={newTerrain.location_streetname}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_streetname: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_streetname; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Suburb *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_suburb = el}
-                    type="text"
-                    className={invalidFields.location_suburb ? "field-invalid" : ""}
-                    value={newTerrain.location_suburb}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_suburb: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_suburb; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Stad *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_city = el}
-                    type="text"
-                    className={invalidFields.location_city ? "field-invalid" : ""}
-                    value={newTerrain.location_city}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_city: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_city; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Provinsie *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_province = el}
-                    type="text"
-                    className={invalidFields.location_province ? "field-invalid" : ""}
-                    value={newTerrain.location_province}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_province: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_province; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Land *</label>
-                  <input
-                    ref={el => fieldRefs.current.location_country = el}
-                    type="text"
-                    className={invalidFields.location_country ? "field-invalid" : ""}
-                    value={newTerrain.location_country}
-                    onChange={(e) => {
-                      setNewTerrain({ ...newTerrain, location_country: e.target.value });
-                      setInvalidFields(p => { const n = {...p}; delete n.location_country; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-                <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {showModal && modalContent}
 
         {showBuildingsModal && selectedTerrain && (
           <div className="modal" style={{ display: "flex" }}>
@@ -468,132 +470,7 @@ function TerrainsPage({ embedded = false }) {
         </div>
       </div>
 
-      {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-               <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Naam *</label>
-                <input
-                  ref={el => fieldRefs.current.location_name = el}
-                  type="text"
-                  className={invalidFields.location_name ? "field-invalid" : ""}
-                  value={newTerrain.location_name}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_name: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_name; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Tipe *</label>
-                <input
-                  ref={el => fieldRefs.current.location_type = el}
-                  type="text"
-                  className={invalidFields.location_type ? "field-invalid" : ""}
-                  value={newTerrain.location_type}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_type: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_type; return n; });
-                  }}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Straatnommer *</label>
-                <input
-                  ref={el => fieldRefs.current.location_streetnum = el}
-                  type="text"
-                  className={invalidFields.location_streetnum ? "field-invalid" : ""}
-                  value={newTerrain.location_streetnum}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_streetnum: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_streetnum; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Straatnaam *</label>
-                <input
-                  ref={el => fieldRefs.current.location_streetname = el}
-                  type="text"
-                  className={invalidFields.location_streetname ? "field-invalid" : ""}
-                  value={newTerrain.location_streetname}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_streetname: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_streetname; return n; });
-                  }}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Suburb *</label>
-                <input
-                  ref={el => fieldRefs.current.location_suburb = el}
-                  type="text"
-                  className={invalidFields.location_suburb ? "field-invalid" : ""}
-                  value={newTerrain.location_suburb}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_suburb: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_suburb; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Stad *</label>
-                <input
-                  ref={el => fieldRefs.current.location_city = el}
-                  type="text"
-                  className={invalidFields.location_city ? "field-invalid" : ""}
-                  value={newTerrain.location_city}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_city: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_city; return n; });
-                  }}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Provinsie *</label>
-                <input
-                  ref={el => fieldRefs.current.location_province = el}
-                  type="text"
-                  className={invalidFields.location_province ? "field-invalid" : ""}
-                  value={newTerrain.location_province}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_province: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_province; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Land *</label>
-                <input
-                  ref={el => fieldRefs.current.location_country = el}
-                  type="text"
-                  className={invalidFields.location_country ? "field-invalid" : ""}
-                  value={newTerrain.location_country}
-                  onChange={(e) => {
-                    setNewTerrain({ ...newTerrain, location_country: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.location_country; return n; });
-                  }}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showModal && modalContent}
       {showBuildingsModal && selectedTerrain && (
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">

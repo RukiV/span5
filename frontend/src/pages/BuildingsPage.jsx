@@ -314,68 +314,70 @@ function BuildingsPage({ embedded = false }) {
     </>
   );
 
+  const modalContent = (
+    <div className="modal" style={{ display: "flex" }}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <span className="close" onClick={handleCloseModal}>&times;</span>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Naam *</label>
+            <input
+              type="text"
+              ref={el => fieldRefs.current.building_name = el}
+              className={invalidFields.building_name ? "field-invalid" : ""}
+              value={newBuilding.building_name}
+              onChange={(e) => {
+                setNewBuilding({ ...newBuilding, building_name: e.target.value });
+                if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Tipe</label>
+            <Select
+              className="basic-single"
+              classNamePrefix="select"
+              value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
+              onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
+              options={buildingTypeOptions}
+              isSearchable={false}
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"}>
+            <label>Terrein *</label>
+            <Select
+              className="basic-single"
+              classNamePrefix="select"
+              placeholder="Kies 'n terrein..."
+              isSearchable={true}
+              options={terrainOptions}
+              value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
+              onChange={(selected) => {
+                setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" });
+                if (invalidFields.location_id) setInvalidFields(prev => { const n = { ...prev }; delete n.location_id; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+          <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (embedded) {
     return (
       <>
         {pageContent}
 
-        {showModal && (
-          <div className="modal" style={{ display: "flex" }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-                <span className="close" onClick={handleCloseModal}>&times;</span>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Naam *</label>
-                  <input
-                    type="text"
-                    ref={el => fieldRefs.current.building_name = el}
-                    className={invalidFields.building_name ? "field-invalid" : ""}
-                    value={newBuilding.building_name}
-                    onChange={(e) => {
-                      setNewBuilding({ ...newBuilding, building_name: e.target.value });
-                      if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Tipe</label>
-                  <Select
-                    className="basic-single"
-                    classNamePrefix="select"
-                    value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                    onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
-                    options={buildingTypeOptions}
-                    isSearchable={false}
-                  />
-                </div>
-              </div>
-              <div className="input-row">
-                <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"}>
-                  <label>Terrein *</label>
-                  <Select
-                    className="basic-single"
-                    classNamePrefix="select"
-                    placeholder="Kies 'n terrein..."
-                    isSearchable={true}
-                    options={terrainOptions}
-                    value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                    onChange={(selected) => {
-                      setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" });
-                      if (invalidFields.location_id) setInvalidFields(prev => { const n = { ...prev }; delete n.location_id; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-                <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {showModal && modalContent}
 
         {showRoomsModal && selectedBuilding && (
           <div className="modal" style={{ display: "flex" }}>
@@ -434,63 +436,7 @@ function BuildingsPage({ embedded = false }) {
         </div>
       </div>
 
-      {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-               <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Naam *</label>
-                <input
-                  type="text"
-                  ref={el => fieldRefs.current.building_name = el}
-                  className={invalidFields.building_name ? "field-invalid" : ""}
-                  value={newBuilding.building_name}
-                  onChange={(e) => {
-                    setNewBuilding({ ...newBuilding, building_name: e.target.value });
-                    if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Tipe</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
-                  options={buildingTypeOptions}
-                  isSearchable={false}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"}>
-                <label>Terrein *</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies 'n terrein..."
-                  isSearchable={true}
-                  options={terrainOptions}
-                  value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                  onChange={(selected) => {
-                    setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" });
-                    if (invalidFields.location_id) setInvalidFields(prev => { const n = { ...prev }; delete n.location_id; return n; });
-                  }}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {showModal && modalContent}
 
       {showRoomsModal && selectedBuilding && (
         <div className="modal" style={{ display: "flex" }}>
