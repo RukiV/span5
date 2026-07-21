@@ -523,7 +523,7 @@ function AssetPage({ embedded = false }) {
         </thead>
         <tbody>
           {filteredItems.map((item) => (
-            <tr key={item.asset_id}>
+            <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
               <td>{item.asset_name}</td>
               <td>{item.asset_brand}</td>
               <td>{item.asset_serial}</td>
@@ -535,11 +535,10 @@ function AssetPage({ embedded = false }) {
                   {getStatusLabel(item.asset_status)}
                 </span>
               </td>
-              <td>
+              <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewHistory(item)}>
                   Besigtig Geskiedenis
                 </button>
-                <button className="btn-edit" onClick={() => handleEditAsset(item)}>Wysig</button>
                 <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
               </td>
             </tr>

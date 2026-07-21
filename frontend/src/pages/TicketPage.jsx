@@ -432,7 +432,7 @@ function TicketPage() {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id}>
+                <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
                   <td>{ticket.asset_id}</td>
@@ -446,9 +446,8 @@ function TicketPage() {
                       {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
-                  <td>
+                  <td onClick={e => e.stopPropagation()}>
                     <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
                   </td>
                 </tr>

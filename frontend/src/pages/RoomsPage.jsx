@@ -354,19 +354,16 @@ function RoomsPage({ embedded = false }) {
         </thead>
         <tbody>
           {filteredRooms.map((room) => (
-            <tr key={room.room_id}>
+            <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
               <td>{room.room_name}</td>
               <td>{room.room_code ?? '-'}</td>
               <td>{translateRoomType(room.room_type || 'Ander')}</td>
               <td>{translateRoomStatus(room.room_status || 'Operasioneel')}</td>
               <td>{getBuildingName(room.building_id)}</td>
               <td>{room.room_capacity ?? '-'}</td>
-              <td>
+              <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewAssets(room)}>
                   Besigtig Bates
-                </button>
-                <button className="btn-edit" onClick={() => handleEditRoom(room)}>
-                  Wysig
                 </button>
                 <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>
                   Verwyder

@@ -265,7 +265,7 @@ function TerrainsPage({ embedded = false }) {
         </thead>
         <tbody>
           {filteredTerrains.map((terrain) => (
-            <tr key={terrain.location_id}>
+            <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
               <td>{terrain.location_id}</td>
               <td>{terrain.location_name}</td>
               <td>{terrain.location_type}</td>
@@ -274,9 +274,8 @@ function TerrainsPage({ embedded = false }) {
               <td>{terrain.location_suburb || '-'}</td>
               <td>{terrain.location_city || '-'}</td>
               <td>{terrain.location_province || '-'}</td>
-              <td>
+              <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
-                <button className="btn-edit" onClick={() => handleEditTerrain(terrain)}>Wysig</button>
                 <button className="btn-delete" onClick={() => handleDeleteTerrain(terrain.location_id)}>Verwyder</button>
               </td>
             </tr>

@@ -299,13 +299,12 @@ function BuildingsPage({ embedded = false }) {
         </thead>
         <tbody>
           {filteredBuildings.map((building) => (
-            <tr key={building.building_id}>
+            <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
               <td>{building.building_name}</td>
               <td>{translateBuildingType(building.building_type)}</td>
               <td>{getTerrainName(building.location_id)}</td>
-              <td>
+              <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
-                <button className="btn-edit" onClick={() => handleEditBuilding(building)}>Wysig</button>
                 <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
               </td>
             </tr>

@@ -1063,7 +1063,7 @@ function WorkOrderPage() {
                 </tr>
               ) : (
                 filteredWorkOrders.map((order) => (
-                  <tr key={order.jobcard_id}>
+                  <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
                     <td>{order.jobcard_id}</td>
                     <td className="description-cell">{order.job_desc || "-"}</td>
                     <td>{order.job_type || "-"}</td>
@@ -1078,15 +1078,7 @@ function WorkOrderPage() {
                         {translateStatus(order.job_status)}
                       </span>
                     </td>
-                    <td>
-                      <button 
-                        type="button"
-                        className="btn-edit"
-                        onClick={() => handleEditWorkOrder(order)}
-                        title="Bekyk en wysig werksopdrag"
-                      >
-                        Bekyk
-                      </button>
+                    <td onClick={e => e.stopPropagation()}>
                       <button 
                         type="button"
                         className="btn-delete"
