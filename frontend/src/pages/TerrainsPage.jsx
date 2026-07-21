@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI } from "../services/api";
@@ -33,6 +33,8 @@ function TerrainsPage() {
     location_province: "",
     location_country: "",
   });
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
   useEffect(() => {
     fetchTerrains();
@@ -61,14 +63,23 @@ function TerrainsPage() {
 
   const handleSaveTerrain = async () => {
     try {
-      if (!newTerrain.location_name.trim()) {
-        alert("Voer asseblief 'n terreinnaam in");
+      const errors = {};
+      if (!newTerrain.location_name.trim()) errors.location_name = true;
+      if (!newTerrain.location_type.trim()) errors.location_type = true;
+      if (!newTerrain.location_streetnum.trim()) errors.location_streetnum = true;
+      if (!newTerrain.location_streetname.trim()) errors.location_streetname = true;
+      if (!newTerrain.location_suburb.trim()) errors.location_suburb = true;
+      if (!newTerrain.location_city.trim()) errors.location_city = true;
+      if (!newTerrain.location_province.trim()) errors.location_province = true;
+      if (!newTerrain.location_country.trim()) errors.location_country = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
-      if (!newTerrain.location_type.trim()) {
-        alert("Voer asseblief 'n terreintipe in");
-        return;
-      }
+      setInvalidFields({});
 
       const terrainData = {
         location_name: newTerrain.location_name,
@@ -293,73 +304,113 @@ function TerrainsPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Naam</label>
+                <label>Naam *</label>
                 <input
+                  ref={el => fieldRefs.current.location_name = el}
                   type="text"
+                  className={invalidFields.location_name ? "field-invalid" : ""}
                   value={newTerrain.location_name}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_name: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_name: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_name; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
-                <label>Tipe</label>
+                <label>Tipe *</label>
                 <input
+                  ref={el => fieldRefs.current.location_type = el}
                   type="text"
+                  className={invalidFields.location_type ? "field-invalid" : ""}
                   value={newTerrain.location_type}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_type: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_type: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_type; return n; });
+                  }}
                 />
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Straatnommer</label>
+                <label>Straatnommer *</label>
                 <input
+                  ref={el => fieldRefs.current.location_streetnum = el}
                   type="text"
+                  className={invalidFields.location_streetnum ? "field-invalid" : ""}
                   value={newTerrain.location_streetnum}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_streetnum: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_streetnum: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_streetnum; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
-                <label>Straatnaam</label>
+                <label>Straatnaam *</label>
                 <input
+                  ref={el => fieldRefs.current.location_streetname = el}
                   type="text"
+                  className={invalidFields.location_streetname ? "field-invalid" : ""}
                   value={newTerrain.location_streetname}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_streetname: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_streetname: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_streetname; return n; });
+                  }}
                 />
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Suburb</label>
+                <label>Suburb *</label>
                 <input
+                  ref={el => fieldRefs.current.location_suburb = el}
                   type="text"
+                  className={invalidFields.location_suburb ? "field-invalid" : ""}
                   value={newTerrain.location_suburb}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_suburb: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_suburb: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_suburb; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
-                <label>Stad</label>
+                <label>Stad *</label>
                 <input
+                  ref={el => fieldRefs.current.location_city = el}
                   type="text"
+                  className={invalidFields.location_city ? "field-invalid" : ""}
                   value={newTerrain.location_city}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_city: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_city: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_city; return n; });
+                  }}
                 />
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Provinsie</label>
+                <label>Provinsie *</label>
                 <input
+                  ref={el => fieldRefs.current.location_province = el}
                   type="text"
+                  className={invalidFields.location_province ? "field-invalid" : ""}
                   value={newTerrain.location_province}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_province: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_province: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_province; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
-                <label>Land</label>
+                <label>Land *</label>
                 <input
+                  ref={el => fieldRefs.current.location_country = el}
                   type="text"
+                  className={invalidFields.location_country ? "field-invalid" : ""}
                   value={newTerrain.location_country}
-                  onChange={(e) => setNewTerrain({ ...newTerrain, location_country: e.target.value })}
+                  onChange={(e) => {
+                    setNewTerrain({ ...newTerrain, location_country: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.location_country; return n; });
+                  }}
                 />
               </div>
             </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../services/api';
 import '../styles/App.css';
@@ -30,6 +30,8 @@ function UsersPage() {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
   const roles = [
     { id: 1, name: 'Gebruiker' },
@@ -92,16 +94,23 @@ function UsersPage() {
       setSuccess('');
 
       // Valideer dat vereiste velde ingevul is
-      if (!formUser.user_name || !formUser.user_email) {
-        setError('Naam en e-pos is vereist');
+      const errors = {};
+      if (!formUser.user_name?.trim()) errors.user_name = true;
+      if (!formUser.user_surname?.trim()) errors.user_surname = true;
+      if (!formUser.user_email?.trim()) errors.user_email = true;
+      if (!editingUser && !formUser.user_password?.trim()) errors.user_password = true;
+      if (!formUser.role_id) errors.role_id = true;
+      if (!formUser.user_status) errors.user_status = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        setError('');
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
-
-      // Vir nuwe gebruikers, wagwoord is vereist
-      if (!editingUser && !formUser.user_password) {
-        setError('Wagwoord is vereist vir nuwe gebruikers');
-        return;
-      }
+      setInvalidFields({});
+      setError('');
 
       let dataToSend = { ...formUser };
 
@@ -336,44 +345,69 @@ function UsersPage() {
             {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
             {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
             <div className="form-group">
-              <label>Voornaam</label>
+              <label>Voornaam *</label>
               <input
+                ref={el => fieldRefs.current.user_name = el}
                 type="text"
+                className={invalidFields.user_name ? "field-invalid" : ""}
                 value={formUser.user_name}
-                onChange={(e) => setFormUser({ ...formUser, user_name: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_name: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
+                }}
               />
             </div>
             <div className="form-group">
-              <label>Van</label>
+              <label>Van *</label>
               <input
+                ref={el => fieldRefs.current.user_surname = el}
                 type="text"
+                className={invalidFields.user_surname ? "field-invalid" : ""}
                 value={formUser.user_surname}
-                onChange={(e) => setFormUser({ ...formUser, user_surname: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_surname: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
+                }}
               />
             </div>
             <div className="form-group">
-              <label>E-pos</label>
+              <label>E-pos *</label>
               <input
+                ref={el => fieldRefs.current.user_email = el}
                 type="email"
+                className={invalidFields.user_email ? "field-invalid" : ""}
                 value={formUser.user_email}
-                onChange={(e) => setFormUser({ ...formUser, user_email: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_email: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+                }}
               />
             </div>
             {!editingUser && (
               <div className="form-group">
-                <label>Wagwoord</label>
+                <label>Wagwoord *</label>
                 <input
+                  ref={el => fieldRefs.current.user_password = el}
                   type="password"
+                  className={invalidFields.user_password ? "field-invalid" : ""}
                   value={formUser.user_password}
-                  onChange={(e) => setFormUser({ ...formUser, user_password: e.target.value })}
+                  onChange={(e) => {
+                    setFormUser({ ...formUser, user_password: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+                  }}
                 />
               </div>
             )}
             <div className="form-group">
-              <label>Rol</label>
+              <label>Rol *</label>
               <select
+                ref={el => fieldRefs.current.role_id = el}
+                className={invalidFields.role_id ? "field-invalid" : ""}
                 value={formUser.role_id}
-                onChange={(e) => setFormUser({ ...formUser, role_id: parseInt(e.target.value) })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
+                  setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+                }}
               >
                 {roles.map(role => (
                   <option key={role.id} value={role.id}>{role.name}</option>
@@ -381,10 +415,15 @@ function UsersPage() {
               </select>
             </div>
             <div className="form-group">
-              <label>Status</label>
+              <label>Status *</label>
               <select
+                ref={el => fieldRefs.current.user_status = el}
+                className={invalidFields.user_status ? "field-invalid" : ""}
                 value={formUser.user_status}
-                onChange={(e) => setFormUser({ ...formUser, user_status: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_status: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+                }}
               >
                 <option value="active">Aktief</option>
                 <option value="inactive">Onaktief</option>
