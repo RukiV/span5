@@ -657,183 +657,224 @@ function AssetPage({ embedded = false }) {
     </>
   );
 
+  const modalContent = (
+    <div className="modal" style={{ display: "flex" }}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <span className="close" onClick={handleCloseModal}>&times;</span>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Naam *</label>
+            <input
+              ref={el => fieldRefs.current.asset_name = el}
+              type="text"
+              className={invalidFields.asset_name ? "field-invalid" : ""}
+              value={newAsset.asset_name}
+              onChange={(e) => {
+                setNewAsset({ ...newAsset, asset_name: e.target.value });
+                if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Brand *</label>
+            <input
+              ref={el => fieldRefs.current.asset_brand = el}
+              type="text"
+              className={invalidFields.asset_brand ? "field-invalid" : ""}
+              value={newAsset.asset_brand}
+              onChange={(e) => {
+                setNewAsset({ ...newAsset, asset_brand: e.target.value });
+                if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Serienommer *</label>
+            <input
+              type="text"
+              value={newAsset.asset_serial}
+              onChange={handleSerialChange}
+              placeholder="bv. AK MT000001"
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>
+              <input
+                type="checkbox"
+                checked={newAsset.asset_isoutdoor}
+                onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
+              />
+              Buite
+            </label>
+          </div>
+          <div className={invalidFields.assettype_id ? "input-group field-invalid" : "input-group"}>
+            <label>Bate Tipe *</label>
+            <Select
+              className="basic-single"
+              classNamePrefix="select"
+              placeholder="Kies 'n tipe..."
+              isSearchable={true}
+              options={assettypeOptions}
+              value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
+              onChange={(selected) => {
+                setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
+                if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="input-row">
+          <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+            <label>Ligging *</label>
+            {(() => {
+              const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
+              const clearFromLevel = (levelIndex) => {
+                if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
+                else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
+                else if (levelIndex === 2) setNewAsset(p => ({...p, room_id: ""}));
+              };
+              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              if (newAsset.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id });
+              if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
+              if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
+              const renderBreadcrumb = () => (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                  {breadcrumbData.map((item, i) => {
+                    const isLast = i === breadcrumbData.length - 1;
+                    const showArrow = isLast ? cascadeCount < 3 : true;
+                    return (
+                      <React.Fragment key={i}>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              );
+              const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+              const CascadeControl = ({ children, ...props }) => (
+                <components.Control {...props}>
+                  {children}
+                  {cascadeCount > 0 && (
+                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                      <IoReturnUpBack size={24} />
+                    </span>
+                  )}
+                </components.Control>
+              );
+              return (
+                <>
+                  {renderBreadcrumb()}
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 3}
+                    closeMenuOnSelect={false}
+                    components={{ Control: CascadeControl }}
+                    options={(() => {
+                      if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                      if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newAsset.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                      if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newAsset.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                      return [];
+                    })()}
+                    value={null}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const labels = ["Terrein","Gebou","Lokaal"];
+                      if (cascadeCount === 0) setNewAsset(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
+                      else if (cascadeCount === 1) setNewAsset(p => ({...p, building_id: selectedOption.value, room_id: ""}));
+                      else if (cascadeCount === 2) setNewAsset(p => ({...p, room_id: selectedOption.value}));
+                      if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                      setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
+                      setTimeout(() => setCascadeToast(null), 2000);
+                    }}
+                  />
+                </>
+              );
+            })()}
+            {cascadeToast && (
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
+                {cascadeToast}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="input-row">
+          <div className="input-group">
+            <label>Status</label>
+            <Select
+              className="basic-single"
+              classNamePrefix="select"
+              value={statusOptions.find(option => option.value === newAsset.asset_status)}
+              onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
+              options={statusOptions}
+              isSearchable={false}
+            />
+          </div>
+        </div>
+
+        <div className="input-row">
+          <div className="input-group" style={{ width: "100%" }}>
+            <label>Beelde</label>
+            <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+            <div className="image-preview-grid">
+              {assetImages.map((image) => (
+                <div key={image.image_id} className="record-image-card">
+                  <img
+                    src={getAssetImageUrl(image.image_id)}
+                    alt={image.filename || "Batebeeld"}
+                    className="record-image-thumb"
+                    onClick={() => setActiveImageViewer(getAssetImageUrl(image.image_id))}
+                  />
+                  <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)}>
+                    Verwyder
+                  </button>
+                </div>
+              ))}
+              {selectedImagePreviewUrls.map((url, index) => (
+                <div key={`${url}-${index}`} className="record-image-card">
+                  <img src={url} alt={`Voorgestelde beeld ${index + 1}`} className="record-image-thumb" onClick={() => setActiveImageViewer(url)} />
+                  <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)}>
+                    Verwyder
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+          <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const imageViewerContent = activeImageViewer && (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
+      <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+        <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
+        <img src={activeImageViewer} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} onClick={(event) => event.stopPropagation()} />
+      </div>
+    </div>
+  );
+
   if (embedded) {
     return (
       <>
         {pageContent}
 
-        {/* Asset Create/Edit Modal */}
-        {showModal && (
-          <div className="modal" style={{ display: "flex" }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-                <span className="close" onClick={handleCloseModal}>&times;</span>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Naam *</label>
-                  <input
-                    ref={el => fieldRefs.current.asset_name = el}
-                    type="text"
-                    className={invalidFields.asset_name ? "field-invalid" : ""}
-                    value={newAsset.asset_name}
-                    onChange={(e) => {
-                      setNewAsset({ ...newAsset, asset_name: e.target.value });
-                      if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Brand *</label>
-                  <input
-                    ref={el => fieldRefs.current.asset_brand = el}
-                    type="text"
-                    className={invalidFields.asset_brand ? "field-invalid" : ""}
-                    value={newAsset.asset_brand}
-                    onChange={(e) => {
-                      setNewAsset({ ...newAsset, asset_brand: e.target.value });
-                      if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
-                    }}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Serienommer *</label>
-                  <input
-                    type="text"
-                    value={newAsset.asset_serial}
-                    onChange={handleSerialChange}
-                    placeholder="bv. AK MT000001"
-                  />
-                </div>
-              </div>
-              <div className="input-row">
-                <div className="input-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={newAsset.asset_isoutdoor}
-                      onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
-                    />
-                    Buite
-                  </label>
-                </div>
-                <div className={invalidFields.assettype_id ? "input-group field-invalid" : "input-group"}>
-                  <label>Bate Tipe *</label>
-                  <Select
-                    className="basic-single"
-                    classNamePrefix="select"
-                    placeholder="Kies 'n tipe..."
-                    isSearchable={true}
-                    options={assettypeOptions}
-                    value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
-                    onChange={(selected) => {
-                      setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
-                      if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="input-row">
-                <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-                  <label>Ligging *</label>
-                  {(() => {
-                    const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
-                    const clearFromLevel = (levelIndex) => {
-                      if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
-                      else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
-                      else if (levelIndex === 2) setNewAsset(p => ({...p, room_id: ""}));
-                    };
-                    const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                    if (newAsset.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id });
-                    if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
-                    if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
-                    const renderBreadcrumb = () => (
-                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                        {breadcrumbData.map((item, i) => {
-                          const isLast = i === breadcrumbData.length - 1;
-                          const showArrow = isLast ? cascadeCount < 3 : true;
-                          return (
-                            <React.Fragment key={i}>
-                              <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                              {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    );
-                    const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-                    const CascadeControl = ({ children, ...props }) => (
-                      <components.Control {...props}>
-                        {children}
-                        {cascadeCount > 0 && (
-                          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                            <IoReturnUpBack size={24} />
-                          </span>
-                        )}
-                      </components.Control>
-                    );
-                    return (
-                      <>
-                        {renderBreadcrumb()}
-                        <Select
-                          className="react-select-container"
-                          classNamePrefix="react-select"
-                          placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                          isClearable
-                          isDisabled={cascadeCount >= 3}
-                          closeMenuOnSelect={false}
-                          components={{ Control: CascadeControl }}
-                          options={(() => {
-                            if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                            if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newAsset.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                            if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newAsset.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                            return [];
-                          })()}
-                          value={null}
-                          onChange={(selectedOption) => {
-                            if (!selectedOption) return;
-                            const labels = ["Terrein","Gebou","Lokaal"];
-                            if (cascadeCount === 0) setNewAsset(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
-                            else if (cascadeCount === 1) setNewAsset(p => ({...p, building_id: selectedOption.value, room_id: ""}));
-                            else if (cascadeCount === 2) setNewAsset(p => ({...p, room_id: selectedOption.value}));
-                            if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
-                            setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
-                            setTimeout(() => setCascadeToast(null), 2000);
-                          }}
-                        />
-                      </>
-                    );
-                  })()}
-                  {cascadeToast && (
-                    <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
-                      {cascadeToast}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="input-row">
-                <div className="input-group">
-                  <label>Status</label>
-                  <Select
-                    className="basic-single"
-                    classNamePrefix="select"
-                    value={statusOptions.find(option => option.value === newAsset.asset_status)}
-                    onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
-                    options={statusOptions}
-                    isSearchable={false}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-                <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {showModal && modalContent}
+        {imageViewerContent}
 
         {/* History Modal */}
         {showHistoryModal && selectedAsset && (
@@ -1036,217 +1077,8 @@ function AssetPage({ embedded = false }) {
         </div>
       </div>
 
-      {/* Asset Create/Edit Modal */}
-      {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-              <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Naam *</label>
-                <input
-                  ref={el => fieldRefs.current.asset_name = el}
-                  type="text"
-                  className={invalidFields.asset_name ? "field-invalid" : ""}
-                  value={newAsset.asset_name}
-                  onChange={(e) => {
-                    setNewAsset({ ...newAsset, asset_name: e.target.value });
-                    if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Brand *</label>
-                <input
-                  ref={el => fieldRefs.current.asset_brand = el}
-                  type="text"
-                  className={invalidFields.asset_brand ? "field-invalid" : ""}
-                  value={newAsset.asset_brand}
-                  onChange={(e) => {
-                    setNewAsset({ ...newAsset, asset_brand: e.target.value });
-                    if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Serienommer *</label>
-                <input
-                  type="text"
-                  value={newAsset.asset_serial}
-                  onChange={handleSerialChange}
-                  placeholder="bv. AK MT000001"
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={newAsset.asset_isoutdoor}
-                    onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
-                  />
-                  Buite
-                </label>
-              </div>
-              <div className={invalidFields.assettype_id ? "input-group field-invalid" : "input-group"}>
-                <label>Bate Tipe *</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies 'n tipe..."
-                  isSearchable={true}
-                  options={assettypeOptions}
-                  value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
-                  onChange={(selected) => {
-                    setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
-                    if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-                <label>Ligging *</label>
-                {(() => {
-                  const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
-                  const clearFromLevel = (levelIndex) => {
-                    if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
-                    else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
-                    else if (levelIndex === 2) setNewAsset(p => ({...p, room_id: ""}));
-                  };
-                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                  if (newAsset.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id });
-                  if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
-                  if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
-                  const renderBreadcrumb = () => (
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                      {breadcrumbData.map((item, i) => {
-                        const isLast = i === breadcrumbData.length - 1;
-                        const showArrow = isLast ? cascadeCount < 3 : true;
-                        return (
-                          <React.Fragment key={i}>
-                            <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  );
-                  const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-                  const CascadeControl = ({ children, ...props }) => (
-                    <components.Control {...props}>
-                      {children}
-                      {cascadeCount > 0 && (
-                        <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                          <IoReturnUpBack size={24} />
-                        </span>
-                      )}
-                    </components.Control>
-                  );
-                  return (
-                    <>
-                      {renderBreadcrumb()}
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                        isClearable
-                        isDisabled={cascadeCount >= 3}
-                        closeMenuOnSelect={false}
-                        components={{ Control: CascadeControl }}
-                        options={(() => {
-                          if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                          if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newAsset.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                          if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newAsset.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                          return [];
-                        })()}
-                        value={null}
-                        onChange={(selectedOption) => {
-                          if (!selectedOption) return;
-                          const labels = ["Terrein","Gebou","Lokaal"];
-                          if (cascadeCount === 0) setNewAsset(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
-                          else if (cascadeCount === 1) setNewAsset(p => ({...p, building_id: selectedOption.value, room_id: ""}));
-                          else if (cascadeCount === 2) setNewAsset(p => ({...p, room_id: selectedOption.value}));
-                          if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
-                          setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
-                          setTimeout(() => setCascadeToast(null), 2000);
-                        }}
-                      />
-                    </>
-                  );
-                })()}
-                {cascadeToast && (
-                  <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#16a34a", color: "#fff", padding: "10px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "600", boxShadow: "0 4px 14px rgba(0,0,0,0.25)", zIndex: 10, textAlign: "center", pointerEvents: "none", whiteSpace: "nowrap" }}>
-                    {cascadeToast}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className="input-group">
-                <label>Status</label>
-                <Select 
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={statusOptions.find(option => option.value === newAsset.asset_status)}
-                  onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
-                  options={statusOptions}
-                  isSearchable={false}
-                />
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className="input-group" style={{ width: "100%" }}>
-                <label>Beelde</label>
-                <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
-                <div className="image-preview-grid">
-                  {assetImages.map((image) => (
-                    <div key={image.image_id} className="record-image-card">
-                      <img
-                        src={getAssetImageUrl(image.image_id)}
-                        alt={image.filename || "Batebeeld"}
-                        className="record-image-thumb"
-                        onClick={() => setActiveImageViewer(getAssetImageUrl(image.image_id))}
-                      />
-                      <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)}>
-                        Verwyder
-                      </button>
-                    </div>
-                  ))}
-                  {selectedImagePreviewUrls.map((url, index) => (
-                    <div key={`${url}-${index}`} className="record-image-card">
-                      <img src={url} alt={`Voorgestelde beeld ${index + 1}`} className="record-image-thumb" onClick={() => setActiveImageViewer(url)} />
-                      <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)}>
-                        Verwyder
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeImageViewer && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
-          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
-            <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
-            <img src={activeImageViewer} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} onClick={(event) => event.stopPropagation()} />
-          </div>
-        </div>
-      )}
+      {showModal && modalContent}
+      {imageViewerContent}
 
       {/* History Modal */}
       {showHistoryModal && selectedAsset && (
