@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
@@ -303,14 +303,14 @@ function AssetPage() {
       fetchAssets();
       fetchAssetImages(savedAssetId);
     } catch (error) {
-      console.error("!!! BATE STOOR HET GEFAAL !!!", error);
+      console.error("Bate stoor het gefaal", error);
       if (error.response) {
         console.error(`Status Kode: ${error.response.status}`);
         console.error("Data:", error.response.data);
       } else if (error.request) {
         console.error("Geen antwoord van die bediener nie.");
       }
-      alert("Fout tydens besparing. Maak jou F12 Browser Console oop vir volledige besonderhede.");
+      alert("Fout tydens besparing.");
     }
   };
 

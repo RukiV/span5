@@ -57,7 +57,7 @@ class ImageAssetService:
 
         return file_content, content_type or "application/octet-stream"
 
-    async def create(self, file: UploadFile, parent_id: int, parent_type: str, existing_image_id: Optional[int] = None) -> ImageAsset:
+    async def create(self, file: UploadFile | None = None, parent_id: int = 0, parent_type: str = "", existing_image_id: Optional[int] = None, file_content: Optional[bytes] = None) -> ImageAsset:
         clean_type = parent_type.upper()
         if clean_type not in ImageLimit.__members__:
             raise HTTPException(
@@ -70,29 +70,62 @@ class ImageAssetService:
             if not db_asset:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image profile not found")
         else:
-            file_content = await file.read()
+            # Read raw bytes (either passed in or from UploadFile)
+            try:
+                if file_content is None:
+                    if file is None:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No file provided")
+                    file_content = await file.read()
+            except Exception:
+                # ensure upload file is closed if read fails
+                try:
+                    if file and hasattr(file, "file"):
+                        file.file.close()
+                except Exception:
+                    pass
+                raise
+
             compressed_content, compressed_mime_type = self.compress_image_bytes(
                 file_content=file_content,
-                content_type=file.content_type,
-                filename=file.filename,
+                content_type=(file.content_type if file else None),
+                filename=(file.filename if file else None),
             )
+
+            # Validate size AFTER compression
+            MAX_FILE_SIZE = 10 * 1024 * 1024
+            if compressed_content and len(compressed_content) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File size exceeds the maximum allowed limit of 10MB after compression.",
+                )
+
             blob_data = ImageBlob(file_bytes=compressed_content)
             db_asset = ImageAsset(
-                filename=file.filename or "unknown",
-                mime_type=compressed_mime_type or file.content_type or "application/octet-stream",
+                filename=(file.filename if file else "unknown"),
+                mime_type=compressed_mime_type or (file.content_type if file else None) or "application/octet-stream",
                 size_bytes=len(compressed_content),
                 file_blob=blob_data,
             )
+            # Add to session but defer commit until attach/validation complete
             self.session.add(db_asset)
 
-        if db_asset.image_id is None:
-            self.session.flush()
-            self.session.refresh(db_asset)
+        try:
+            if db_asset.image_id is None:
+                self.session.flush()
+                self.session.refresh(db_asset)
 
-        self._attach_to_parent(db_asset.image_id, parent_id, parent_type.lower())
-        self.session.commit()
-        self.session.refresh(db_asset)
-        return db_asset
+            self._attach_to_parent(db_asset.image_id, parent_id, parent_type.lower())
+            self.session.commit()
+            self.session.refresh(db_asset)
+            return db_asset
+        except HTTPException:
+            # re-raise known HTTP exceptions after rollback
+            self.session.rollback()
+            raise
+        except Exception:
+            # Ensure DB session is rolled back on any failure and surface a generic 500
+            self.session.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to save image")
 
     def attach_existing_image(self, image_id: int, parent_id: int, parent_type: str) -> ImageAsset:
         db_asset = self.session.get(ImageAsset, image_id)
