@@ -298,7 +298,7 @@ function StockPage({ embedded = false }) {
         </thead>
         <tbody>
           {filteredStock.map((item) => (
-            <tr key={item.stock_id}>
+            <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
               <td>{item.stock_id}</td>
               <td>{item.stock_name}</td>
               <td>{item.stock_brand}</td>
@@ -308,8 +308,7 @@ function StockPage({ embedded = false }) {
               <td>{item.stock_boxTotal}</td>
               <td>{getRoomName(item)}</td>
               <td>{item.stock_desc || '-'}</td>
-              <td>
-                <button className="btn-edit" onClick={() => handleEditStock(item)}>Wysig</button>
+              <td onClick={e => e.stopPropagation()}>
                 <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
               </td>
             </tr>
