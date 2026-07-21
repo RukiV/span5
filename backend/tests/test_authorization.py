@@ -243,6 +243,23 @@ def test_audit_write_routes_removed(client, headers_for):
 
 
 # --------------------------------------------------------------------------
+# Quote-document routes are gated by quotes.manage (post-merge fix)
+# --------------------------------------------------------------------------
+
+def test_document_routes_require_quotes_manage(client, headers_for):
+    # Anonymous -> 401 everywhere (was fully unauthenticated before the fix).
+    assert client.get(f"{API}/quotes/1/documents").status_code == 401
+    assert client.delete(f"{API}/documents/1").status_code == 401
+    # Student lacks quotes.manage -> 403.
+    s = headers_for("student")
+    assert client.get(f"{API}/quotes/1/documents", headers=s).status_code == 403
+    assert client.delete(f"{API}/documents/1", headers=s).status_code == 403
+    # Admin/FK hold quotes.manage -> past the auth gate (200/404, not 401/403).
+    a = headers_for("admin")
+    assert client.get(f"{API}/quotes/1/documents", headers=a).status_code not in (401, 403)
+
+
+# --------------------------------------------------------------------------
 # Password hashing + migration
 # --------------------------------------------------------------------------
 
