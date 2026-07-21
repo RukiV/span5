@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from ....auth.dependencies import get_current_user_id
 from ....db.database import getSession
@@ -30,16 +31,11 @@ async def upload_image(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported target entity type: '{parent_type}'",
         )
-
-    MAX_FILE_SIZE = 10 * 1024 * 1024
-    if file.size and file.size > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File size exceeds the maximum allowed limit of 10MB.",
-        )
+    # Let the service compress first and then validate size after compression.
+    # This avoids rejecting images that become small after compression.
 
     service = ImageAssetService(session)
-    return await service.create(file, parent_id=parent_id, parent_type=parent_type.lower())
+    return await service.create(file=file, parent_id=parent_id, parent_type=parent_type.lower())
 
 
 @router.post("/{image_id}/attach", response_model=ImageAssetRead)
@@ -61,7 +57,8 @@ async def get_image_file(image_id: int, session=Depends(getSession)):
     if not result:
         raise HTTPException(status_code=404, detail="Image file asset not found")
     raw_bytes, mime_type = result
-    return Response(content=raw_bytes, media_type=mime_type)
+    headers = {"Content-Disposition": f'inline; filename="image_{image_id}"'}
+    return StreamingResponse(iter([raw_bytes]), media_type=mime_type or "application/octet-stream", headers=headers)
 
 
 @router.get("/{image_id}", response_model=ImageAssetRead)
