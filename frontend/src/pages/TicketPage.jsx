@@ -482,7 +482,7 @@ function TicketPage() {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id}>
+                <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
                   <td>{ticket.asset_id}</td>
@@ -496,9 +496,8 @@ function TicketPage() {
                       {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
-                  <td>
+                  <td onClick={e => e.stopPropagation()}>
                     <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
                   </td>
                 </tr>
@@ -588,9 +587,10 @@ function TicketPage() {
                           <React.Fragment key={i}>
                             <button
                               type="button"
+                              className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
                               style={{
-                                background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0",
+                                border: "none", cursor: "pointer", margin: "0",
                                 color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
                                 lineHeight: "1", display: "inline-flex", alignItems: "center",
                               }}
@@ -601,7 +601,11 @@ function TicketPage() {
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = {
+                    background: "#935e28", border: "none", borderRadius: "4px",
+                    color: "#fff", cursor: "pointer", display: "flex",
+                    alignItems: "center", padding: "4px 8px", margin: "2px",
+                  };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
@@ -609,10 +613,10 @@ function TicketPage() {
                         <span
                           className="cascade-back-indicator"
                           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Vorige vlak"
+                          title="Terug na vorige vlak"
                           style={backBtnStyle}
                         >
-                          <IoReturnUpBack size={18} />
+                          <IoReturnUpBack size={24} />
                         </span>
                       )}
                     </components.Control>

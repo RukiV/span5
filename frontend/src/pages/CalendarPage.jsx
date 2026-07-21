@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
-import { authAPI, calendarEventsAPI } from "../services/api";
+import { authAPI, calendarEventsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Calendar.css';
@@ -86,6 +86,8 @@ function CalendarPage() {
       ...current,
       startDate: formatDateInput(baseDate),
       endDate: formatDateInput(baseDate),
+      startTime: '08:00',
+      endTime: '09:00',
     }));
   }, []);
 
@@ -336,6 +338,20 @@ function CalendarPage() {
       } catch (err) {
         console.error('DELETE Error:', err);
         alert('Fout tydens verwydering.');
+      } finally {
+        setDeletingEventId(null);
+      }
+    } else if (source === 'jobcard') {
+      const confirmed = window.confirm('Verwyder slegs die skedulering van hierdie werksopdrag? (Die werksopdrag self bly behoue.)');
+      if (!confirmed) return;
+      try {
+        setDeletingEventId(eventId);
+        await workOrdersAPI.update(eventId, { job_scheduled_datetime: null, job_schedule_type: 'enkel', job_scheduled_end_datetime: null });
+        setEvents((prev) => prev.filter((ev) => !(ev.source === 'jobcard' && ev.source_id === eventId)));
+        alert('Skedulering van werksopdrag verwyder.');
+      } catch (err) {
+        console.error('Verwyder skedulering Error:', err);
+        alert('Fout tydens verwydering van skedulering.');
       } finally {
         setDeletingEventId(null);
       }
