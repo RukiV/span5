@@ -12,7 +12,8 @@ class Report {
   final String user;
   final DateTime timestamp;
   final String? gpsCoords; // Word gemap na mappoint_id op backend
-  final int? imageId;
+  // Fotos leef nou in ImageAssetLink (parent_type 'ticket') aan die backend-kant,
+  // NIE meer as 'n image_id op die Faultcard nie — sien ImageService.
   final int? locationId; // Kampus (location_id op backend)
   final int? buildingId; // Gebou (building_id op backend)
 
@@ -29,7 +30,6 @@ class Report {
     required this.user,
     required this.timestamp,
     this.gpsCoords,
-    this.imageId,
     this.locationId,
     this.buildingId,
   });
@@ -47,7 +47,6 @@ class Report {
       'mappoint_id': int.tryParse(gpsCoords ?? ''),
       'location_id': locationId,
       'building_id': buildingId,
-      if (imageId != null) 'image_id': imageId,
     };
   }
 
@@ -205,7 +204,6 @@ class Report {
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
       gpsCoords: json['mappoint_id']?.toString(),
-      imageId: json['image_id'],
       locationId: json['location_id'],
       buildingId: json['building_id'],
     );
@@ -224,7 +222,6 @@ class Report {
     String? user,
     DateTime? timestamp,
     String? gpsCoords,
-    int? imageId,
     int? locationId,
     int? buildingId,
   }) {
@@ -241,7 +238,6 @@ class Report {
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
       gpsCoords: gpsCoords ?? this.gpsCoords,
-      imageId: imageId ?? this.imageId,
       locationId: locationId ?? this.locationId,
       buildingId: buildingId ?? this.buildingId,
     );
