@@ -123,7 +123,6 @@ export const locationAPI = {
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
-  upload: (formData) => apiClient.post('/image/', formData),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
   create: (data) => {
     // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
