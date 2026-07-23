@@ -8,13 +8,12 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
-import UsersPage from './pages/UsersPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
-import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
 // Bates/Voorraad/Lokale/Geboue/Terreine word nou binne FacilitiesPage gehanteer.
 import FacilitiesPage from './pages/FacilitiesPage';
+import UserManagementPage from './pages/UserManagementPage';
 
 /* =========================================================
    1. DIE BESKERMDE ROETE-MEGANISME
@@ -133,8 +132,8 @@ function App() {
         {/* Losstaande bladsye behou hul granulêre reg-kontrole. */}
         <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
         <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
-        <Route path="/contractors" element={<RightProtectedRoute requiredRight="contractors.manage"><ContractorsPage /></RightProtectedRoute>} />
-        <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
+        <Route path="/users/*" element={<RightProtectedRoute requiredRight="users.manage"><UserManagementPage /></RightProtectedRoute>} />
+        <Route path="/users" element={<Navigate to="/users/users" replace />} />
         <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
         <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
         <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
