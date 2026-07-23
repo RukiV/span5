@@ -5,13 +5,11 @@ import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
-import RolesRightsManager from '../components/RolesRightsManager';
 
-function UsersPage() {
+function UsersPage({ embedded = false }) {
   const logout = useLogout();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [showRolesManager, setShowRolesManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
@@ -219,201 +217,200 @@ function UsersPage() {
     return (status === 'Aktief' || status === 'active') ? 'status-aktief' : 'status-onaktief';
   };
 
-  if (loading) {
-    return <div>Besig om gebruikers te laai...</div>;
+  if (loading) return <div>Besig om gebruikers te laai...</div>;
+
+  const pageContent = (
+    <>
+      <div className="controls">
+        <div className="controls-left">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <input
+              type="text"
+              className="search-box"
+              placeholder="Soek op Naam of E-pos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <select
+            className="filter-select"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          >
+            <option value="almal">Alle Statusse</option>
+            <option value="active">Aktief</option>
+            <option value="inactive">Onaktief</option>
+          </select>
+          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+            <option value="all">Alle kolomme</option>
+            <option value="name">Naam</option>
+            <option value="email">E-pos</option>
+            <option value="role">Rol</option>
+            <option value="status">Status</option>
+          </select>
+        </div>
+        <div className="controls-right">
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="default">Standaard</option>
+            <option value="name">Naam</option>
+            <option value="email">E-pos</option>
+          </select>
+          <div style={{ display: 'flex', gap: '0.25rem' }}>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
+            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
+          </div>
+
+          <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+        </div>
+      </div>
+
+      <table className="standard-table">
+        <thead>
+          <tr>
+            <th>Naam</th>
+            <th>E-pos</th>
+            <th>Rol</th>
+            <th>Status</th>
+            <th>Aksies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredUsers.map(user => (
+            <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
+              <td>{user.user_name}</td>
+              <td>{user.user_email}</td>
+              <td><span className={`badge ${getRoleClass(user.role_id)}`}>{getRoleName(user.role_id)}</span></td>
+              <td className={getStatusClass(user.user_status)}>{user.user_status === 'active' ? 'Aktief' : 'Onaktief'}</td>
+              <td onClick={e => e.stopPropagation()}>
+                <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+
+  const modalContent = showModal && (
+    <div className="modal">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
+          <span className="close" onClick={handleCloseModal}>&times;</span>
+        </div>
+        {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
+        {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
+        <div className="form-group">
+          <label>Voornaam *</label>
+          <input
+            ref={el => fieldRefs.current.user_name = el}
+            type="text"
+            className={invalidFields.user_name ? "field-invalid" : ""}
+            value={formUser.user_name}
+            onChange={(e) => {
+              setFormUser({ ...formUser, user_name: e.target.value });
+              setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
+            }}
+          />
+        </div>
+        <div className="form-group">
+          <label>Van *</label>
+          <input
+            ref={el => fieldRefs.current.user_surname = el}
+            type="text"
+            className={invalidFields.user_surname ? "field-invalid" : ""}
+            value={formUser.user_surname}
+            onChange={(e) => {
+              setFormUser({ ...formUser, user_surname: e.target.value });
+              setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
+            }}
+          />
+        </div>
+        <div className="form-group">
+          <label>E-pos *</label>
+          <input
+            ref={el => fieldRefs.current.user_email = el}
+            type="email"
+            className={invalidFields.user_email ? "field-invalid" : ""}
+            value={formUser.user_email}
+            onChange={(e) => {
+              setFormUser({ ...formUser, user_email: e.target.value });
+              setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+            }}
+          />
+        </div>
+        {!editingUser && (
+          <div className="form-group">
+            <label>Wagwoord *</label>
+            <input
+              ref={el => fieldRefs.current.user_password = el}
+              type="password"
+              className={invalidFields.user_password ? "field-invalid" : ""}
+              value={formUser.user_password}
+              onChange={(e) => {
+                setFormUser({ ...formUser, user_password: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+              }}
+            />
+          </div>
+        )}
+        <div className="form-group">
+          <label>Rol *</label>
+          <select
+            ref={el => fieldRefs.current.role_id = el}
+            className={invalidFields.role_id ? "field-invalid" : ""}
+            value={formUser.role_id}
+            onChange={(e) => {
+              setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
+              setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+            }}
+          >
+            {roles.map(role => (
+              <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Status *</label>
+          <select
+            ref={el => fieldRefs.current.user_status = el}
+            className={invalidFields.user_status ? "field-invalid" : ""}
+            value={formUser.user_status}
+            onChange={(e) => {
+              setFormUser({ ...formUser, user_status: e.target.value });
+              setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+            }}
+          >
+            <option value="active">Aktief</option>
+            <option value="inactive">Onaktief</option>
+          </select>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+          <button className="btn-add" onClick={handleAddUser}>Stoor</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return <>{pageContent}{modalContent}</>;
   }
 
   return (
     <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users" onLogout={logout} />
-
+      <Sidebar currentPath="/users/gebruikers" onLogout={logout} />
       <div className="main">
         <div className="navbar">
           <h3>Gebruikers Bestuur</h3>
           <UserProfileHeader />
         </div>
-
         <div className="content">
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <input
-                  type="text"
-                  className="search-box"
-                  placeholder="Soek op Naam of E-pos..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              <select
-                className="filter-select"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-              >
-                <option value="almal">Alle Statusse</option>
-                <option value="active">Aktief</option>
-                <option value="inactive">Onaktief</option>
-              </select>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="name">Naam</option>
-                <option value="email">E-pos</option>
-                <option value="role">Rol</option>
-                <option value="status">Status</option>
-              </select>
-            </div>
-            <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="name">Naam</option>
-                <option value="email">E-pos</option>
-              </select>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-
-              <button className="btn-add" onClick={() => setShowRolesManager(true)}>Bestuur Rolle & Regte</button>
-              <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
-            </div>
-          </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>Naam</th>
-                <th>E-pos</th>
-                <th>Rol</th>
-                <th>Status</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map(user => (
-                <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
-                  <td>{user.user_name}</td>
-                  <td>{user.user_email}</td>
-                  <td><span className={`badge ${getRoleClass(user.role_id)}`}>{getRoleName(user.role_id)}</span></td>
-                  <td className={getStatusClass(user.user_status)}>{user.user_status === 'active' ? 'Aktief' : 'Onaktief'}</td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {pageContent}
         </div>
       </div>
-
-      {showModal && (
-        <div className="modal">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
-              <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
-            {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
-            <div className="form-group">
-              <label>Voornaam *</label>
-              <input
-                ref={el => fieldRefs.current.user_name = el}
-                type="text"
-                className={invalidFields.user_name ? "field-invalid" : ""}
-                value={formUser.user_name}
-                onChange={(e) => {
-                  setFormUser({ ...formUser, user_name: e.target.value });
-                  setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
-                }}
-              />
-            </div>
-            <div className="form-group">
-              <label>Van *</label>
-              <input
-                ref={el => fieldRefs.current.user_surname = el}
-                type="text"
-                className={invalidFields.user_surname ? "field-invalid" : ""}
-                value={formUser.user_surname}
-                onChange={(e) => {
-                  setFormUser({ ...formUser, user_surname: e.target.value });
-                  setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
-                }}
-              />
-            </div>
-            <div className="form-group">
-              <label>E-pos *</label>
-              <input
-                ref={el => fieldRefs.current.user_email = el}
-                type="email"
-                className={invalidFields.user_email ? "field-invalid" : ""}
-                value={formUser.user_email}
-                onChange={(e) => {
-                  setFormUser({ ...formUser, user_email: e.target.value });
-                  setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
-                }}
-              />
-            </div>
-            {!editingUser && (
-              <div className="form-group">
-                <label>Wagwoord *</label>
-                <input
-                  ref={el => fieldRefs.current.user_password = el}
-                  type="password"
-                  className={invalidFields.user_password ? "field-invalid" : ""}
-                  value={formUser.user_password}
-                  onChange={(e) => {
-                    setFormUser({ ...formUser, user_password: e.target.value });
-                    setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
-                  }}
-                />
-              </div>
-            )}
-            <div className="form-group">
-              <label>Rol *</label>
-              <select
-                ref={el => fieldRefs.current.role_id = el}
-                className={invalidFields.role_id ? "field-invalid" : ""}
-                value={formUser.role_id}
-                onChange={(e) => {
-                  setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
-                  setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
-                }}
-              >
-                {roles.map(role => (
-                  <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Status *</label>
-              <select
-                ref={el => fieldRefs.current.user_status = el}
-                className={invalidFields.user_status ? "field-invalid" : ""}
-                value={formUser.user_status}
-                onChange={(e) => {
-                  setFormUser({ ...formUser, user_status: e.target.value });
-                  setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
-                }}
-              >
-                <option value="active">Aktief</option>
-                <option value="inactive">Onaktief</option>
-              </select>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleAddUser}>Stoor</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showRolesManager && (
-        <RolesRightsManager
-          onClose={() => setShowRolesManager(false)}
-          onChanged={fetchRoles}
-        />
-      )}
+      {modalContent}
     </div>
   );
 }
