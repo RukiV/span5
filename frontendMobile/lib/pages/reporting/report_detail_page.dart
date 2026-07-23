@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/report_service.dart';
+import '../../services/image_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
 import 'dart:typed_data';
@@ -20,11 +21,30 @@ class ReportDetailPage extends StatefulWidget {
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
   late Report _currentReport;
+  List<int> _imageIds = [];
+  bool _imagesLoading = true;
 
   @override
   void initState() {
     super.initState();
     _currentReport = widget.report;
+    _loadImages();
+  }
+
+  // Haal die kaartjie se fotos (ImageAssetLink met parent_type 'ticket').
+  Future<void> _loadImages() async {
+    final faultId = int.tryParse(_currentReport.id);
+    if (faultId == null) {
+      if (mounted) setState(() => _imagesLoading = false);
+      return;
+    }
+    final ids = await ImageService.getImagesForParent('ticket', faultId);
+    if (mounted) {
+      setState(() {
+        _imageIds = ids;
+        _imagesLoading = false;
+      });
+    }
   }
 
   // Herlaai data vanaf die diens om nuutste status te wys
@@ -35,6 +55,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       setState(() {
         _currentReport = updated;
       });
+      _loadImages();
     } catch (e) {
       debugPrint("Kon nie verslag verfris nie: $e");
     }
@@ -88,38 +109,46 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildImageSection() {
-    if (_currentReport.imageId == null) return const SizedBox.shrink();
+    if (_imagesLoading || _imageIds.isEmpty) return const SizedBox.shrink();
 
-    final imageUrl = '${ApiClient().client.options.baseUrl}/image/${_currentReport.imageId}/file';
+    final baseUrl = ApiClient().client.options.baseUrl;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Foto"),
+        _buildSectionHeader("Foto's"),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 250,
-          child: InkWell(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
-                ),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(child: Text("Foto nie beskikbaar")),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _imageIds.map((id) {
+            final imageUrl = '$baseUrl/image/$id/file';
+            return InkWell(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
+                  ),
+                );
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  imageUrl,
+                  height: 120,
+                  width: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 120,
+                    width: 120,
+                    color: Colors.grey[200],
+                    child: const Center(child: Text("Foto nie\nbeskikbaar", textAlign: TextAlign.center)),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         ),
       ],
     );
