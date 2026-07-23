@@ -1,5 +1,6 @@
 from typing import Optional
 import os
+import secrets
 import httpx
 from pydantic import BaseModel
 
@@ -7,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from ....auth.session import SESSION_DURATION_SECONDS, create_session_token, verify_session_token
-from ....auth.passwords import hash_password, verify_password
+from ....auth.security import verify_password, is_hashed, hash_password
+from ....auth.permissions import get_current_user, get_rights_for_role
 from ....db.database import getSession
 from ....models.user import UserRead, User
 from ....services.user_service import user_service
@@ -18,6 +20,14 @@ router = APIRouter()
 # Datamodel vir Microsoft-token-versoek
 class MicrosoftTokenRequest(BaseModel):
     microsoft_token: str
+
+
+# /auth/me response model. Deliberately a separate model (not UserRead, which is
+# reused for /users) so the resolved rights list can ride along without bloating
+# the generic user schema. This rights array is the single source of truth both
+# the web and mobile clients read their menu/route permissions from.
+class CurrentUserRead(UserRead):
+    rights: list[str] = []
 
 
 def _get_bearer_token(request: Request) -> Optional[str]:
@@ -49,29 +59,40 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
 
 def _check_system_access(user: User, request: Request):
     """
-    Kontroleer of gebruiker toegang het tot FBS-stelsel.
-    Slegs role_id >= 2 (FK-koÃ¶rdineerder en Administrator) mag aanmeld.
-    Gewone gebruikers (role_id=1) word geweier met 403-fout.
+    UX gate only — NOT a security boundary.
+
+    Students (role_id=1) and Contractors (role_id=4) may only use the mobile app,
+    so we return a friendly 403 at web login. But this relies on the
+    client-supplied X-Client-Type header, which any HTTP client can spoof, so it
+    must never be treated as what actually stops a Student/Contractor: that job
+    belongs entirely to the rights checks on every endpoint (require_right), which
+    produce 403 on everything except their own fault/job data regardless of the
+    header. This check just gives a nicer message than a scatter of 403s.
     """
     client_type = request.headers.get("X-Client-Type")
 
-    if user.role_id == 1 and client_type != "mobile":
+    if user.role_id in (1, 4) and client_type != "mobile":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir hulp asseblief: admin@akademia.co.za"
+            detail="Studente en kontrakteurs het slegs toegang via die mobiele app. Kontak Administrasie vir hulp asseblief: admin@akademia.co.za"
         )
 
 
-@router.get("/me", response_model=UserRead)
-def current_user(request: Request, session: Session = Depends(getSession)):
-    user = _get_current_user(request, session)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
-    return user
+@router.get("/me", response_model=CurrentUserRead)
+def current_user(user: User = Depends(get_current_user), session: Session = Depends(getSession)):
+    # get_current_user hard-fails with 401 when unauthenticated.
+    rights = sorted(get_rights_for_role(session, user.role_id))
+    return CurrentUserRead(**user.model_dump(), rights=rights)
 
 
 @router.post("/logout")
 def logout():
+    # KNOWN LIMITATION (accepted decision): logout is a client-side no-op. Session
+    # tokens are stateless HMAC tokens with no server-side store, so a token stays
+    # valid until its natural expiry (SESSION_DURATION_SECONDS, default 2h) even
+    # after "logout". The clients discard the token on logout, which is sufficient
+    # for the current threat model. If true server-side invalidation is needed,
+    # add a revoked-token table checked in verify_session_token.
     return {"detail": "Logged out."}
 
 
@@ -91,14 +112,33 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
     """
     # Soek gebruiker op basis van e-pos
     user = user_service.get_by_email(session, login_data.user_email)
-    
-    # Verifieer dat gebruiker bestaan en wagwoord korrek is
-    if not user or not verify_password(login_data.user_password, user.user_password):
+
+    # Verifieer dat gebruiker bestaan en wagwoord korrek is.
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
-    
+
+    if is_hashed(user.user_password):
+        if not verify_password(login_data.user_password, user.user_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+    else:
+        # Legacy plaintext password (not yet migrated): accept once if it matches,
+        # then upgrade it to a hash so it is never stored in plaintext again.
+        if login_data.user_password != user.user_password:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
+        user.user_password = hash_password(login_data.user_password)
+        session.add(user)
+        session.commit()
+
+
     # Kontroleer of gebruiker se rol toelaat toegang tot stelsel
     # Hierdie gee 403-fout vir gewone gebruikers (role_id=1)
     _check_system_access(user, request)
@@ -165,6 +205,9 @@ def refresh_session(request: Request, session: Session = Depends(getSession)):
 
 @router.post("/revoke")
 def revoke_session():
+    # KNOWN LIMITATION (accepted decision): like /logout, this is a no-op. Tokens
+    # are stateless and remain valid until natural expiry. See the note on
+    # /logout for how to add real server-side revocation if required.
     return {"detail": "session revoked"}
 
 
@@ -214,12 +257,15 @@ async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request
             # Gebruiker bestaan reeds - gebruik hulle
             user = existing_user
         else:
-            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek
+            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek.
+            # Hulle meld aan via Microsoft, nooit met 'n plaaslike wagwoord nie —
+            # so ken 'n onraaibare, gehashte lukrake waarde toe (nie 'n bekende
+            # platteks soos "microsoft_oauth" wat enigeen kon gebruik nie).
             user = User(
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password=hash_password("microsoft_oauth"),                                                            #Default password (hashed)
+                user_password=hash_password(secrets.token_urlsafe(32)),
                 user_status="active",
                 role_id=1  # Standaard rol
             )

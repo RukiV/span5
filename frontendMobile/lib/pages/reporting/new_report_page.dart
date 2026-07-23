@@ -31,7 +31,8 @@ class _NewReportPageState extends State<NewReportPage> {
   String? selectedLocation;
   String selectedCategory = "";
   String selectedPriority = "Medium";
-  File? _photoFile;
+  static const int _maxPhotos = 3;
+  final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
   @override
   void initState() {
@@ -255,11 +256,6 @@ class _NewReportPageState extends State<NewReportPage> {
                             return;
                           }
 
-                          int? imageId;
-                          if (_photoFile != null) {
-                            imageId = await ImageService.uploadImage(_photoFile!);
-                          }
-
                           int? finalAssetIdInt;
                           String? finalAssetSerialCode;
                           if (serialController.text.isNotEmpty) {
@@ -302,35 +298,57 @@ class _NewReportPageState extends State<NewReportPage> {
                             phase: "Ontvang",
                             user: UserSession.userId.toString(),
                             timestamp: DateTime.now(),
-                            imageId: imageId,
                             locationId: resolvedLocationId,
                             buildingId: resolvedBuildingId,
                           );
 
                           try {
-                            final success = await ReportService.addReport(newReport);
+                            // 1. Skep die kaartjie eers sodat ons sy id het om
+                            //    fotos aan te koppel (parent_type 'ticket').
+                            final created = await ReportService.addReport(newReport);
                             if (!mounted) return;
-                            if (success) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
-                                );
-                                Navigator.pop(context);
-                              }
-                            } else {
+                            if (created == null) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
                                 );
                               }
+                              return;
                             }
-                          } catch (e) {
-                            if (mounted) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+
+                            // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
+                            final faultId = int.tryParse(created.id);
+                            int failedUploads = 0;
+                            if (faultId != null) {
+                              for (final photo in _photoFiles) {
+                                final imageId = await ImageService.uploadImage(
+                                  photo,
+                                  parentId: faultId,
+                                  parentType: 'ticket',
                                 );
+                                if (imageId == null) failedUploads++;
                               }
+                            }
+
+                            if (!mounted || !context.mounted) return;
+                            if (failedUploads > 0) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
+                                  backgroundColor: AppColors.warningOrange,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
+                              );
+                            }
+                            Navigator.pop(context);
+                          } catch (e) {
+                            if (mounted && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+                              );
                             }
                           }
                         },
@@ -507,37 +525,53 @@ class _NewReportPageState extends State<NewReportPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Foto", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+        const Text("Foto's (maks $_maxPhotos)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
         const SizedBox(height: 6),
-        InkWell(
-          onTap: () async {
-            final photo = await CameraService.takePhoto();
-            if (photo != null) {
-              setState(() => _photoFile = photo);
-            }
-          },
-          child: Container(
-            height: 80, width: 80,
-            decoration: BoxDecoration(
-              color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.grey[100],
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
-            ),
-            child: _photoFile != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(7),
-                    child: Image.file(_photoFile!, fit: BoxFit.cover),
-                  )
-                : const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (int i = 0; i < _photoFiles.length; i++)
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(_photoFiles[i], height: 80, width: 80, fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: InkWell(
+                      onTap: () => setState(() => _photoFiles.removeAt(i)),
+                      child: Container(
+                        decoration: const BoxDecoration(color: AppColors.errorRed, shape: BoxShape.circle),
+                        child: const Icon(Icons.close, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            if (_photoFiles.length < _maxPhotos)
+              InkWell(
+                onTap: () async {
+                  final photo = await CameraService.takePhoto();
+                  if (photo != null) {
+                    setState(() => _photoFiles.add(photo));
+                  }
+                },
+                child: Container(
+                  height: 80,
+                  width: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+                ),
+              ),
+          ],
         ),
-        if (_photoFile != null) ...[
-          const SizedBox(height: 4),
-          TextButton(
-            onPressed: () => setState(() => _photoFile = null),
-            child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed, fontSize: 12)),
-          ),
-        ],
       ],
     );
   }
