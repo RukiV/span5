@@ -8,25 +8,11 @@ from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
 from ..models.contractor import Contractor
-from ..models.role import Role, Rights, RoleRight
+from ..models.role import Role
 from ..models.user import User
 from ..models.audit import Auditlog
-from ..models.quote import Quote
-from decimal import Decimal
 
-from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
-from ..auth.security import hash_password, is_hashed
-
-# Built-in roles & rights catalog live in a lightweight shared module so both the
-# seed and the management endpoints/services use one source of truth.
-from ..auth.rights_catalog import (  # noqa: F401  (re-exported for existing importers)
-    ROLE_STUDENT,
-    ROLE_FK,
-    ROLE_ADMIN,
-    ROLE_CONTRACTOR,
-    RIGHTS_CATALOG,
-    ROLE_RIGHTS,
-)
+from ..models.image import ImageAsset, ImageBlob
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -36,7 +22,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int, location_id: Optional[int] = None) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -45,7 +31,6 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_email: E-posadres vir soeken/skep
         user_password: Wagwoord vir nuwe gebruiker
         role_id: Rol-ID (1=Gebruiker, 2=FK-Koördineerder, 3=Administrateur)
-        location_id: Opsionele Terrein-ID vir FK-koördineerders
         
     Returns:
         Bestaande of nuwe Gebruiker-objek
@@ -53,73 +38,29 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
-        changed = False
         if user.role_id != role_id:
             user.role_id = role_id
-            changed = True
-        if location_id is not None and user.location_id != location_id:
-            user.location_id = location_id
-            changed = True
-        if changed:
             session.add(user)
             session.commit()
             session.refresh(user)
         return user
 
-    # Skep nuwe toetsgebruiker met gegewe parameters.
-    # Wagwoorde word altyd gehash gestoor (nooit platteks nie).
+    # Skep nuwe toetsgebruiker met gegewe parameters
     user = User(
         user_name=user_name,
         user_surname=user_surname,
         user_email=user_email,
-        user_password=hash_password(user_password),
+        user_password=user_password,
         user_number="0000000000",
         user_lastlogintime=None,
         user_lastlogouttime=None,
         user_status="active",
         role_id=role_id,  # Toekenning van rol vir toesgang-beheer
-        location_id=location_id,
     )
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
-
-
-def _get_or_create_test_quote(session: Session) -> Quote:
-    """Ensure a test Quote exists with id=1 for document uploads during development."""
-    # Try to find quote with id 1
-    quote = session.exec(select(Quote).where(Quote.quote_id == 1)).first()
-    if quote:
-        return quote
-
-    # Create a placeholder quote with explicit ID=1 if possible
-    quote = Quote(
-        quote_id=1,
-        quote_price=Decimal("100.00"),
-        quote_desc="Seed: placeholder quote for testing",
-        quote_date=datetime.utcnow().date(),
-        quote_status="draft",
-    )
-    session.add(quote)
-    try:
-        session.commit()
-        session.refresh(quote)
-    except Exception:
-        session.rollback()
-        # Fallback: try creating without explicit id
-        quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
-        if not quote:
-            quote = Quote(
-                quote_price=Decimal("100.00"),
-                quote_desc="Seed: placeholder quote for testing",
-                quote_date=datetime.utcnow().date(),
-                quote_status="draft",
-            )
-            session.add(quote)
-            session.commit()
-            session.refresh(quote)
-    return quote
 
 def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
@@ -177,73 +118,58 @@ def _get_or_create_room(session: Session, name: str, code:str, capacity: int, ro
     return room
 
 
-def _get_or_create_assettype(session: Session, name: str, avg: int | None = None, min_: int | None = None, max_: int | None = None, interval: int | None = None, threshold: int | None = None) -> Assettype:
-    assettype = session.exec(select(Assettype).where(Assettype.assettype_name == name)).first()
+def _get_or_create_assettype(session: Session) -> Assettype:
+    assettype = session.exec(select(Assettype)).first()
     if assettype:
         return assettype
 
     assettype = Assettype(
-        assettype_name=name,
-        assettype_avg_lifespan=avg,
-        assettype_min_lifespan=min_,
-        assettype_max_lifespan=max_,
-        assettype_service_interval=interval,
-        assettype_replacement_threshold=threshold,
+        assettype_name="Algemene Toerusting",
+        assettype_avg_lifespan=5,
+        assettype_min_lifespan=3,
+        assettype_max_lifespan=7,
+        assettype_service_interval=12,
     )
     session.add(assettype)
     session.commit()
     session.refresh(assettype)
     return assettype
 
-def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes, parent_id: int, parent_type: str, display_order: int) -> ImageAsset:
-    """Finds an existing image by name, or saves a new one with its isolated data blob and a parent link."""
+# 2. ADDED HELPER: New method to query or persist unique image records into your standalone cache table
+def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes) -> ImageAsset:
+    """Finds an existing image by name, or saves a new one with its isolated data blob."""
     image = session.exec(select(ImageAsset).where(ImageAsset.filename == filename)).first()
-    if image is None:
-        blob_data = ImageBlob(file_bytes=raw_data)
-        image = ImageAsset(
-            filename=filename,
-            mime_type=mime_type,
-            size_bytes=len(raw_data),
-            file_blob=blob_data,
-        )
-        session.add(image)
-        session.commit()
-        session.refresh(image)
+    if image:
+        return image
 
-    existing_link = session.exec(
-        select(ImageAssetLink).where(
-            ImageAssetLink.image_id == image.image_id,
-            ImageAssetLink.parent_id == parent_id,
-            ImageAssetLink.parent_type == parent_type,
-        )
-    ).first()
-
-    if existing_link is None:
-        link = ImageAssetLink(
-            image_id=image.image_id,
-            parent_id=parent_id,
-            parent_type=parent_type,
-            display_order=display_order,
-        )
-        session.add(link)
-        session.commit()
-
+    blob_data = ImageBlob(file_bytes=raw_data)
+    image = ImageAsset(
+        filename=filename,
+        mime_type=mime_type,
+        size_bytes=len(raw_data),
+        file_blob=blob_data  # Connects structural keys smoothly via the 1:1 relation setup
+    )
+    session.add(image)
+    session.commit()
+    session.refresh(image)
     return image
 
+
+# 3. MODIFIED FUNCTION: Added image_id parameter to the asset creation tracker
 def _get_or_create_asset(
-    session: Session,
-    name: str,
-    brand: str,
-    serial: str,
-    status: AssetStatus,
-    is_outdoor: bool,
-    room_id: int | None,
+    session: Session, 
+    name: str, 
+    brand: str, 
+    serial: str, 
+    status: AssetStatus, 
+    is_outdoor: bool, 
+    room_id: int | None, 
     assettype_id: int,
-    created_dt: datetime | None = None,
-    image_id: Optional[int] = None,
+    image_id: Optional[int] = None  # Added here as a nullable link
 ) -> Asset:
     asset = session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
     if asset:
+        # Update image_id if it was changed or newly passed during seeding loops
         if image_id and asset.image_id != image_id:
             asset.image_id = image_id
             session.add(asset)
@@ -259,8 +185,7 @@ def _get_or_create_asset(
         asset_isoutdoor=is_outdoor,
         room_id=room_id,
         assettype_id=assettype_id,
-        asset_created_datetime=created_dt or datetime.utcnow(),
-        image_id=image_id,
+        image_id=image_id,  # Linked directly to the generic image table
     )
     session.add(asset)
     session.commit()
@@ -315,14 +240,12 @@ def _get_or_create_job(
     status: JobStatus,
     job_type: Optional[str],
     created_dt: Optional[datetime],
-    finished_dt: Optional[datetime] = None,
     asset_id: Optional[int] = None,
     room_id: Optional[int] = None,
     building_id: Optional[int] = None,
     location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
-    contractor_id: Optional[int] = None,
 ) -> Jobcard:
     job = session.exec(
         select(Jobcard)
@@ -336,14 +259,12 @@ def _get_or_create_job(
         job_status=status,
         job_type=job_type,
         job_createddatetime=created_dt,
-        job_finisheddatetime=finished_dt,
         asset_id=asset_id,
         room_id=room_id,
         building_id=building_id,
         location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
-        contractor_id=contractor_id,
     )
     session.add(job)
     session.commit()
@@ -428,19 +349,6 @@ def _get_or_create_fk_role(session: Session) -> Role:
     return role
 
 
-def _get_or_create_contractor_role(session: Session) -> Role:
-    """Skep Kontrakteur-rol (role_id=4). Kan aanmeld op mobiele app."""
-    role = session.exec(select(Role).where(Role.role_name == "Kontrakteur")).first()
-    if role:
-        return role
-
-    role = Role(role_name="Kontrakteur")
-    session.add(role)
-    session.commit()
-    session.refresh(role)
-    return role
-
-
 def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
     """Helper function to create audit logs for assets."""
     full_record = asset.model_dump(mode="json")
@@ -463,71 +371,6 @@ def _create_asset_audit_log(session: Session, asset: Asset, action: str = "creat
     session.commit()
 
 
-def _get_or_create_right(session: Session, right_name: str, description: str) -> Rights:
-    """Idempotent create of a single Rights row."""
-    right = session.exec(select(Rights).where(Rights.right_name == right_name)).first()
-    if right:
-        return right
-
-    right = Rights(right_name=right_name, right_description=description)
-    session.add(right)
-    session.commit()
-    session.refresh(right)
-    return right
-
-
-def _get_or_create_role_right(session: Session, role_id: int, right_id: int) -> RoleRight:
-    """Idempotent create of a single RoleRight association row."""
-    existing = session.exec(
-        select(RoleRight).where(
-            RoleRight.role_id == role_id,
-            RoleRight.right_id == right_id,
-        )
-    ).first()
-    if existing:
-        return existing
-
-    role_right = RoleRight(role_id=role_id, right_id=right_id)
-    session.add(role_right)
-    session.commit()
-    session.refresh(role_right)
-    return role_right
-
-
-def seed_rights(session: Session) -> None:
-    """Seed the Rights catalog and RoleRight assignments (idempotent).
-
-    Both the catalog (RIGHTS_CATALOG) and the assignments (ROLE_RIGHTS) are the
-    single source of truth used by the app and the tests.
-    """
-    name_to_id: dict[str, int] = {}
-    for right_name, description in RIGHTS_CATALOG.items():
-        right = _get_or_create_right(session, right_name, description)
-        name_to_id[right_name] = right.right_id
-
-    for role_id, right_names in ROLE_RIGHTS.items():
-        for right_name in right_names:
-            _get_or_create_role_right(session, role_id, name_to_id[right_name])
-
-
-def _migrate_plaintext_passwords(session: Session) -> None:
-    """One-time, idempotent migration of any legacy plaintext passwords to hashes.
-
-    Detects already-hashed values by their hash prefix (via ``is_hashed``), so it
-    is safe to run on every startup: hashed rows are skipped.
-    """
-    users = session.exec(select(User)).all()
-    migrated = 0
-    for user in users:
-        if not is_hashed(user.user_password):
-            user.user_password = hash_password(user.user_password)
-            session.add(user)
-            migrated += 1
-    if migrated:
-        session.commit()
-        print(f"Migrated {migrated} plaintext password(s) to hashed storage.")
-
-
 def seed_data():
     """
     Seed-funksie - Inisialiseer databasis met toetsdata.
@@ -541,11 +384,6 @@ def seed_data():
         user_role = _get_or_create_default_role(session)           # ID 1
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
-        contractor_role = _get_or_create_contractor_role(session) # ID 4
-
-        # Seed the Rights catalog + RoleRight assignments now that roles exist.
-        # This is the source of truth for authorization (see auth/permissions.py).
-        seed_rights(session)
 
         # Skep toetsgebruikers vir elke rol
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
@@ -558,11 +396,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # Ensure a test quote exists so uploads to /quotes/1/documents succeed in development
-        test_quote = _get_or_create_test_quote(session)
-        print("Seed ensured test quote_id:", getattr(test_quote, 'quote_id', None))
-
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Leriba-kampus
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
             user_name="fk",
@@ -570,7 +404,6 @@ def seed_data():
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
-            location_id=1,  # Leriba-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -592,7 +425,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Gerhardstraat-kampus
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
         _get_or_create_test_user(
             session,
             user_name="Jaco",
@@ -600,7 +433,6 @@ def seed_data():
             user_email="jaco@gmail.com",
             user_password="jaco123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
-            location_id=2,  # Gerhardstraat-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -613,52 +445,15 @@ def seed_data():
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
         )
 
-        # Kontrakteur - KAN aanmeld op mobiele app, slegs toegang tot toegewysde werksopdragte
-        _get_or_create_test_user(
-            session,
-            user_name="Jan",
-            user_surname="Botha",
-            user_email="jan.botha@workfix.co.za",
-            user_password="contractor123",
-            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
-        )
-
-        _get_or_create_test_user(
-            session,
-            user_name="Lindiwe",
-            user_surname="Mokoena",
-            user_email="lindiwe.mokoena@plumbright.co.za",
-            user_password="contractor123",
-            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
-        )
-
-        # Ekstra FK-gebruikers
-        _get_or_create_test_user(
-            session,
-            user_name="Elektra",
-            user_surname="King",
-            user_email="elektra@gmail.com",
-            user_password="123",
-            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
-        )
-
-        _get_or_create_test_user(
-            session,
-            user_name="Guillaume",
-            user_surname="Kruger",
-            user_email="guillaumekruger214@gmail.com",
-            user_password="123",
-            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
-        )
-
         # Skep toetsdata vir lokasies, kamers, bates, ens.
+
         loc1 = _get_or_create_location(
             session,
             name="Leriba-kampus",
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-suburb="Clubview",
+            suburb="Clubview",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
@@ -670,7 +465,7 @@ suburb="Clubview",
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-suburb="Die Hoewes",
+            suburb="Die Hoewes",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
@@ -682,7 +477,7 @@ suburb="Die Hoewes",
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-suburb="Esterville",
+            suburb="Esterville",
             city="Paarl",
             province="Wes Kaap",
             country="Suid Afrika",
@@ -694,7 +489,7 @@ suburb="Esterville",
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-suburb="Villieria",
+            suburb="Villieria",
             city="Pretoria",
             province="Gauteng",
             country="Suid Afrika",
@@ -798,11 +593,7 @@ suburb="Villieria",
             contractor_type="Plumbing",
         )
 
-        type_elek = _get_or_create_assettype(session, "Elektriese Toerusting", avg=60, min_=36, max_=84, interval=6, threshold=3)
-        type_meubels = _get_or_create_assettype(session, "Meubels", avg=120, min_=60, max_=180, interval=24, threshold=2)
-        type_alge = _get_or_create_assettype(session, "Algemene Toerusting", avg=36, min_=12, max_=60, interval=12, threshold=4)
-
-        now = datetime.utcnow()
+        assettype = _get_or_create_assettype(session)
 
         # 1. Define your mock image bytes
         mock_bytes = generate_mock_image_bytes("FF0000")
@@ -812,10 +603,7 @@ suburb="Villieria",
             session=session,
             filename="hq_projector_ceiling_mount.png",
             mime_type="image/png",
-            raw_data=mock_bytes,
-            parent_id=1,
-            parent_type="asset",
-            display_order=1,
+            raw_data=mock_bytes
         )
 
         # 3. Pass the valid image_id to your asset creator
@@ -827,8 +615,8 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
-            assettype_id=type_elek.assettype_id,
-            created_dt=now - timedelta(days=540),
+            assettype_id=assettype.assettype_id,
+            image_id=img1.image_id  # This will now successfully contain a real integer ID (like 1, 2, etc.)
         )
 
         _get_or_create_asset(
@@ -839,8 +627,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room2.room_id,
-            assettype_id=type_elek.assettype_id,
-            created_dt=now - timedelta(days=420),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -851,8 +638,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room3.room_id,
-            assettype_id=type_elek.assettype_id,
-            created_dt=now - timedelta(days=200),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -863,8 +649,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=type_elek.assettype_id,
-            created_dt=now - timedelta(days=90),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -875,8 +660,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=type_meubels.assettype_id,
-            created_dt=now - timedelta(days=60),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -887,8 +671,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=type_meubels.assettype_id,
-            created_dt=now - timedelta(days=120),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -899,8 +682,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=type_meubels.assettype_id,
-            created_dt=now - timedelta(days=365),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -911,8 +693,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=type_meubels.assettype_id,
-            created_dt=now - timedelta(days=150),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_asset(
@@ -923,8 +704,7 @@ suburb="Villieria",
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=type_meubels.assettype_id,
-            created_dt=now - timedelta(days=30),
+            assettype_id=assettype.assettype_id,
         )
 
         _get_or_create_stock(
@@ -954,37 +734,16 @@ suburb="Villieria",
         projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
-        # Haal kontrakteur-gebruikers op om werksopdragte aan hulle toe te ken
-        jan_user = session.exec(select(User).where(User.user_email == "jan.botha@workfix.co.za")).first()
-        lindiwe_user = session.exec(select(User).where(User.user_email == "lindiwe.mokoena@plumbright.co.za")).first()
-        jan_contractor_id = jan_user.user_id if jan_user else None
-        lindiwe_contractor_id = lindiwe_user.user_id if lindiwe_user else None
-
-        _get_or_create_job(
-            session,
-            desc="Projektor lens skoonmaak en kalibrasie.",
-            status=JobStatus.COMPLETED,
-            job_type="maintenance",
-            created_dt=now - timedelta(days=180),
-            finished_dt=now - timedelta(days=178),
-            asset_id=projector_asset.asset_id if projector_asset else None,
-            room_id=room3.room_id,
-            building_id=bld1.building_id,
-            location_id=loc1.location_id,
-            contractor_id=jan_contractor_id,
-        )
-
         _get_or_create_job(
             session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
             job_type="Onderhoud",
-            created_dt=now - timedelta(days=5),
+            created_dt=datetime.now(),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
-            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
@@ -997,7 +756,6 @@ suburb="Villieria",
             room_id=room4.room_id,
             building_id=bld3.building_id,
             location_id=loc1.location_id,
-            contractor_id=lindiwe_contractor_id,
         )
 
         _get_or_create_fault(
@@ -1006,7 +764,7 @@ suburb="Villieria",
             status=FaultStatus.IN_PROGRESS,
             priority=Priority.LOW,
             fault_type=Type.REPAIR,
-            report_dt=now - timedelta(days=10),
+            report_dt=datetime(2025, 7, 6, 13, 0, 0),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
             room_id=room4.room_id,
             building_id=bld3.building_id,
@@ -1018,28 +776,8 @@ suburb="Villieria",
             description="Projektor lens is gekraak",
             status=FaultStatus.WAIT,
             priority=Priority.MEDIUM,
-            fault_type=Type.REPAIR,
-            report_dt=now - timedelta(days=45),
-            asset_id=projector_asset.asset_id if projector_asset else None,
-        )
-
-        _get_or_create_fault(
-            session,
-            description="Projektor oorverhit na lang gebruik",
-            status=FaultStatus.CLOSED,
-            priority=Priority.HIGH,
-            fault_type=Type.REPAIR,
-            report_dt=now - timedelta(days=120),
-            asset_id=projector_asset.asset_id if projector_asset else None,
-        )
-
-        _get_or_create_fault(
-            session,
-            description="Projektor skakel nie aan nie",
-            status=FaultStatus.RESOLVED,
-            priority=Priority.HIGH,
-            fault_type=Type.REPAIR,
-            report_dt=now - timedelta(days=200),
+            fault_type=Type.MAINTENANCE,
+            report_dt=datetime(2025, 3, 11, 9, 30, 11),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
@@ -1122,9 +860,6 @@ suburb="Villieria",
                 new_value={"room_id": room5.room_id},
                 timestamp=datetime(2025, 6, 1, 16, 20, 0),
             )
-
-        # Upgrade any legacy plaintext passwords already in the DB to hashes.
-        _migrate_plaintext_passwords(session)
 
         session.commit()
         print("Database seeded successfully!")

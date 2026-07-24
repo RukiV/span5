@@ -19,10 +19,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
   final _typeController = TextEditingController();
   final _streetNumController = TextEditingController();
   final _streetNameController = TextEditingController();
-  final _suburbController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _provinceController = TextEditingController();
-  final _countryController = TextEditingController();
+  final _zipIdController = TextEditingController(text: "1");
   bool _isLoading = false;
   LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
 
@@ -145,32 +142,12 @@ class _AddCampusPageState extends State<AddCampusPage> {
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Suburb", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Poskode ID", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextFormField(
-                    controller: _suburbController,
+                    controller: _zipIdController,
                     decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text("Stad", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _cityController,
-                    decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text("Provinsie", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _provinceController,
-                    decoration: _inputDecoration(""),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text("Land", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _countryController,
-                    decoration: _inputDecoration(""),
+                    keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 32),
                   Row(
@@ -191,10 +168,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
                               code: _typeController.text,
                               streetNum: _streetNumController.text,
                               streetName: _streetNameController.text,
-                              suburb: _suburbController.text,
-                              city: _cityController.text,
-                              province: _provinceController.text,
-                              country: _countryController.text,
+                              zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
                               location: _selectedLocation,
                             );
                             final success = await CampusService.addCampus(campus);

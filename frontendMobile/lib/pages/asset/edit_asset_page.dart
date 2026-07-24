@@ -2,8 +2,6 @@ import '../../widgets/custom_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
 import '../../services/campus_service.dart';
-import '../../models/asset_type.dart';
-import '../../services/asset_type_service.dart';
 import '../../models/campus.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
@@ -27,9 +25,8 @@ class _EditAssetPageState extends State<EditAssetPage> {
   late String brand;
   late bool isFixed;
   late String location;
+  late String category;
   late String status;
-  late int selectedTypeId;
-  late final _serialController = TextEditingController();
 
   String? selectedCampus;
   String? selectedBuilding;
@@ -38,16 +35,13 @@ class _EditAssetPageState extends State<EditAssetPage> {
   @override
   void initState() {
     super.initState();
-    _serialController.addListener(_enforceSerialPrefix);
-    AssetTypeService.fetchTypes();
     final a = widget.asset;
     name = a.name;
     serialCode = a.serialCode;
-    _serialController.text = serialCode;
     brand = a.brand;
     isFixed = a.isOutdoor;
     location = a.location;
-    selectedTypeId = a.assetTypeId;
+    category = a.category;
     status = a.status;
 
     if (CampusService.campusesNotifier.value.isEmpty) {
@@ -63,25 +57,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
         });
       }
     });
-  }
-
-  void _enforceSerialPrefix() {
-    final text = _serialController.text;
-    if (text.isEmpty) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    } else if (!text.startsWith("AK ")) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    }
-    serialCode = _serialController.text;
-  }
-
-  @override
-  void dispose() {
-    _serialController.removeListener(_enforceSerialPrefix);
-    _serialController.dispose();
-    super.dispose();
   }
 
   List<String> get _availableBuildings {
@@ -107,7 +82,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
     String? Function(String?)? validator,
     bool readOnly = false,
     String? initialValue,
-    TextEditingController? controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,8 +89,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
         const SizedBox(height: 6),
         TextFormField(
-          controller: controller,
-          initialValue: controller != null ? null : initialValue,
+          initialValue: initialValue,
           readOnly: readOnly,
           onChanged: onChanged,
           validator: validator,
@@ -180,18 +153,9 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   _buildCustomTextField(
                     label: "Serienommer",
                     hint: "",
-                    controller: _serialController,
-                    onChanged: (v) {
-                      serialCode = _serialController.text;
-                    },
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return "Vereis";
-                      final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
-                      if (!regex.hasMatch(v)) {
-                        return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
-                      }
-                      return null;
-                    },
+                    initialValue: serialCode,
+                    onChanged: (v) => serialCode = v,
+                    validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
 
@@ -200,24 +164,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
                     hint: "",
                     initialValue: brand,
                     onChanged: (v) => brand = v,
-                  ),
-                  const SizedBox(height: 20),
-
-                  ValueListenableBuilder<List<AssetType>>(
-                    valueListenable: AssetTypeService.typesNotifier,
-                    builder: (context, types, _) {
-                      return CustomDropdown<int>(
-                        label: "Bate Tipe",
-                        hint: "Kies 'n tipe",
-                        value: selectedTypeId,
-                        items: types.map((t) => DropdownMenuItem<int>(
-                          value: t.id,
-                          child: Text(t.name),
-                        )).toList(),
-                        onChanged: (v) => setState(() => selectedTypeId = v ?? selectedTypeId),
-                        validator: (v) => v == null ? "Vereis" : null,
-                      );
-                    },
                   ),
                   const SizedBox(height: 20),
 
@@ -320,13 +266,12 @@ class _EditAssetPageState extends State<EditAssetPage> {
                       ElevatedButton(
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
-                            final typeName = AssetTypeService.getTypeName(selectedTypeId);
                             final updated = widget.asset.copyWith(
                               name: name,
                               serialCode: serialCode,
                               brand: brand,
-                              category: typeName,
-                              assetTypeId: selectedTypeId,
+                              category: category,
+                              assetTypeId: Asset.getCategoryId(category),
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               isOutdoor: isFixed,

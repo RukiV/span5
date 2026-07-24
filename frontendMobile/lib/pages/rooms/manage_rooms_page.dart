@@ -40,18 +40,13 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   }
 
   void _loadInitialCampus() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (UserSession.isManager && UserSession.locationId != null) {
-      _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-    }
-    if (_selectedCampus == null) {
-      if (UserSession.hasAdminPrivileges) {
-        if (campuses.isNotEmpty) {
-          _selectedCampus = campuses.first;
-        }
-      } else {
-        _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
+    // Bestuurder moet nou presies dieselfde begin-ervaring as Admin hê
+    if (UserSession.hasAdminPrivileges) {
+      if (CampusService.campusesNotifier.value.isNotEmpty) {
+        _selectedCampus = CampusService.campusesNotifier.value.first;
       }
+    } else {
+      _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
     }
     setState(() {});
   }
@@ -313,13 +308,8 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (_selectedCampus == null) {
-            if (UserSession.isManager && UserSession.locationId != null) {
-              _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-            }
-            if (_selectedCampus == null && UserSession.hasAdminPrivileges) {
-              _selectedCampus = campuses.first;
-            }
+          if (UserSession.hasAdminPrivileges && _selectedCampus == null) {
+            _selectedCampus = campuses.first;
           }
 
           return Padding(

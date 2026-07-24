@@ -26,23 +26,21 @@ class ReportService {
     }
   }
 
-  // Stuur 'n nuwe verslag na die backend.
-  // Gee die geskepte Report terug (met sy fault_id) sodat die oproeper fotos
-  // daarna aan die nuwe kaartjie kan koppel; null op mislukking.
-  static Future<Report?> addReport(Report report) async {
+  // Stuur 'n nuwe verslag na die backend
+  static Future<bool> addReport(Report report) async {
     try {
       final response = await ApiClient().client.post('/fault', data: report.toJson());
-
+      
       if (response.statusCode == 200 || response.statusCode == 201) {
         final newReport = Report.fromJson(response.data);
         _reports.insert(0, newReport);
         reportsNotifier.value = List.from(_reports);
-        return newReport;
+        return true;
       }
     } catch (e) {
       debugPrint("Fout met byvoeging van verslag: $e");
     }
-    return null;
+    return false;
   }
 
   // Dateer 'n verslag op

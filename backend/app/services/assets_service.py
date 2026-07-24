@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional, Sequence
+from typing import Sequence
 from sqlmodel import Session, select, cast, Integer
-from sqlalchemy import func
+from sqlalchemy import or_, func
 
 from ..models.asset import Asset, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ..models.audit import Auditlog
@@ -12,11 +12,6 @@ from .base_service import BaseService
 class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
     def __init__(self):
         super().__init__(Asset)
-
-    def create(self, session: Session, data: AssetCreate, user_id: Optional[int] = None) -> Asset:
-        if data.asset_created_datetime is None:
-            data.asset_created_datetime = datetime.utcnow()
-        return super().create(session, data, user_id=user_id)
     
     def getBySerial(self, session: Session, serial: str) -> Asset | None:
         return session.exec(select(Asset).where(Asset.asset_serial == serial)).first()

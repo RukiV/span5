@@ -18,7 +18,6 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/contractor_service.dart';
 import '../../services/quote_service.dart';
-import '../../services/jobcard_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -43,7 +42,6 @@ class _HomePageState extends State<HomePage> {
         CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
-        JobcardService.fetchJobs(),
         ContractorService.fetchContractors(),
         QuoteService.fetchQuotes(),
       ]);
@@ -59,95 +57,113 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Bou die sigbare menu deur elke inskrywing te filter op die gebruiker se
-  // regte (UserSession.rights vanaf /auth/me), NIE meer op die rol-enum nie. So
-  // bepaal 'n permissie-verandering aan die agterkant onmiddellik wat sigbaar
-  // is, sonder 'n app-herbou. Die enum bly slegs vir vertoon (bv. roleTitle).
   List<Map<String, dynamic>> _getVisibleMenu() {
-    bool can(String right) => UserSession.can(right);
-
-    final List<Map<String, dynamic>> menu = [];
-
-    // Paneelbord — personeel-oorsig (Admin/FK). Gegrond op 'n bestuursreg wat
-    // hulle deel; studente/kontrakteurs het nie een van hierdie nie.
-    if (can('assets.manage') || can('stock.manage') || can('jobs.manage')) {
-      menu.add({
-        'title': 'Paneelbord',
-        'icon': Icons.dashboard_outlined,
-        'page': DashboardPage(onTabRequested: (index) {
-          final titles = [
-            "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale",
-            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
-          ];
-          if (index >= 0 && index < titles.length) {
-            setState(() => _selectedTitle = titles[index]);
-          }
-        }),
-      });
+    // 1. STUDENTE: Slegs foutkaartjies
+    if (UserSession.isStudent) {
+      return [
+        {
+          'title': 'Foutkaartjies',
+          'icon': Icons.report_gmailerrorred_outlined,
+          'page': const ReportingPage(),
+        }
+      ];
     }
 
-    // Bates & Voorraad
-    final assetsChildren = <Map<String, dynamic>>[];
-    if (can('assets.manage')) {
-      assetsChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
-    }
-    if (can('stock.manage')) {
-      assetsChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
-    }
-    if (assetsChildren.isNotEmpty) {
-      menu.add({
-        'title': 'Bates & Voorraad',
-        'icon': Icons.inventory_2_outlined,
-        'isExpandable': true,
-        'children': assetsChildren,
-      });
-    }
-
-    // Lokale & Terreine
-    final locationChildren = <Map<String, dynamic>>[];
-    if (can('locations.manage')) {
-      locationChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
-    }
-    if (can('buildings.manage')) {
-      locationChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
-    }
-    if (can('rooms.manage')) {
-      locationChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
-    }
-    if (locationChildren.isNotEmpty) {
-      menu.add({
-        'title': 'Lokale & Terreine',
-        'icon': Icons.map_outlined,
-        'isExpandable': true,
-        'children': locationChildren,
-      });
+    // 2. KONTRAKTEURS: Slegs take en kalender
+    if (UserSession.isContractor) {
+      return [
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.engineering_outlined,
+          'page': const JobCardsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
     }
 
-    // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
-    if (can('faults.create_own') || can('faults.view_own') || can('faults.manage_all')) {
-      menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
+    // 3. ADMIN & BESTUURDERS: Volle navigasie
+    if (UserSession.isAdmin || UserSession.isManager) {
+      return [
+        {
+          'title': 'Paneelbord',
+          'icon': Icons.dashboard_outlined,
+          'page': DashboardPage(onTabRequested: (index) {
+            final titles = [
+              "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale", 
+              "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
+            ];
+            if (index >= 0 && index < titles.length) {
+              setState(() => _selectedTitle = titles[index]);
+            }
+          }),
+        },
+        {
+          'title': 'Bates & Voorraad',
+          'icon': Icons.inventory_2_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Bates',
+              'icon': Icons.inventory_2_outlined,
+              'page': const AssetsPage(),
+            },
+            {
+              'title': 'Voorraad',
+              'icon': Icons.construction_outlined,
+              'page': const StockPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Lokale & Terreine',
+          'icon': Icons.map_outlined,
+          'isExpandable': true,
+          'children': [
+            {
+              'title': 'Terreine',
+              'icon': Icons.map_outlined,
+              'page': const CampusManagementPage(),
+            },
+            {
+              'title': 'Geboue',
+              'icon': Icons.business_outlined,
+              'page': const BuildingsListPage(),
+            },
+            {
+              'title': 'Lokale',
+              'icon': Icons.room_outlined,
+              'page': const ManageRoomsPage(),
+            },
+          ],
+        },
+        {
+          'title': 'Foutkaartjies',
+          'icon': Icons.report_gmailerrorred_outlined,
+          'page': const ReportingPage(),
+        },
+        {
+          'title': 'Kontrakteurs',
+          'icon': Icons.engineering_outlined,
+          'page': const ContractorManagementPage(),
+        },
+        {
+          'title': 'Werksopdragte',
+          'icon': Icons.assignment_outlined,
+          'page': const WorksAssignmentsPage(),
+        },
+        {
+          'title': 'Kalender',
+          'icon': Icons.calendar_today_outlined,
+          'page': const CalendarPage(),
+        },
+      ];
     }
 
-    // Kontrakteurs — Admin/FK.
-    if (can('contractors.manage')) {
-      menu.add({'title': 'Kontrakteurs', 'icon': Icons.engineering_outlined, 'page': const ContractorManagementPage()});
-    }
-
-    // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
-    // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
-    // van hierdie regte, so net die toepaslike inskrywing verskyn.
-    if (can('jobs.manage')) {
-      menu.add({'title': 'Werksopdragte', 'icon': Icons.assignment_outlined, 'page': const WorksAssignmentsPage()});
-    } else if (can('jobs.view_own')) {
-      menu.add({'title': 'Werksopdragte', 'icon': Icons.engineering_outlined, 'page': const JobCardsPage()});
-    }
-
-    // Kalender — Admin/FK/Kontrakteur (calendar.view).
-    if (can('calendar.view')) {
-      menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
-    }
-
-    return menu; // Kan leeg wees as geen reg pas nie (gebruiker moet weer aanmeld).
+    return []; // Beveiliging as geen rol pas nie
   }
 
   List<Map<String, dynamic>> _getFlatMenu() {
@@ -168,24 +184,6 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final flatMenu = _getFlatMenu();
-
-    // Verdediging: as die gebruiker geen regte het nie (bv. verouderde sessie),
-    // vertoon 'n boodskap eerder as om op 'n leë lys te crash.
-    if (flatMenu.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(backgroundColor: AppColors.navy, elevation: 0),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              "Geen toegang beskikbaar nie. Teken asseblief weer aan.",
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      );
-    }
-
     final activeItem = flatMenu.firstWhere(
       (item) => item['title'] == _selectedTitle,
       orElse: () => flatMenu.first,

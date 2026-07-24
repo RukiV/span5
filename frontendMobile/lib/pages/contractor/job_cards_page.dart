@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../services/jobcard_service.dart';
-import '../../models/jobcard.dart';
+import '../../services/report_service.dart';
+import '../../models/report.dart';
+import '../reporting/report_detail_page.dart';
 
 class JobCardsPage extends StatefulWidget {
   const JobCardsPage({super.key});
@@ -11,214 +12,160 @@ class JobCardsPage extends StatefulWidget {
 }
 
 class _JobCardsPageState extends State<JobCardsPage> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = "";
-
-  @override
-  void initState() {
-    super.initState();
-    JobcardService.fetchJobs();
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.toLowerCase();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: ValueListenableBuilder<List<Jobcard>>(
-        valueListenable: JobcardService.jobcardsNotifier,
-        builder: (context, jobcards, child) {
-          final activeJobs = jobcards.where((j) =>
-              j.status == "Besig" ||
-              j.status == "Voltooi" ||
-              j.status == "Oop" ||
-              j.status == "Wag").toList();
+      body: ValueListenableBuilder<List<Report>>(
+        valueListenable: ReportService.reportsNotifier,
+        builder: (context, reports, child) {
+          // Vir kontrakteurs wys ons net take wat "Besig" is
+          final jobCards = reports.where((r) => r.phase == "Besig" || r.phase == "Voltooi").toList();
 
-          final filtered = activeJobs.where((j) {
-            if (_searchQuery.isEmpty) return true;
-            return j.description.toLowerCase().contains(_searchQuery) ||
-                j.id.toString().contains(_searchQuery) ||
-                (j.type?.toLowerCase().contains(_searchQuery) ?? false);
-          }).toList();
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildSearchBar(),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () => JobcardService.fetchJobs(),
-                  color: AppColors.gold,
-                  child: filtered.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                            _buildEmptyState(),
-                          ],
-                        )
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "My Werkkaarte",
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navy,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Bestuur jou toegewysde take en herstelwerk.",
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: jobCards.isEmpty
+                      ? _buildEmptyState()
                       : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length,
+                          itemCount: jobCards.length,
                           itemBuilder: (context, index) {
-                            final job = filtered[index];
-                            return _buildJobCard(job);
+                            final report = jobCards[index];
+                            return _buildJobCard(report);
                           },
                         ),
-                ),
-              ),
-            ],
+                )
+              ],
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: "Soek werkkaarte...",
-          hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-          prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-          fillColor: Colors.white.withValues(alpha: 30 / 255),
-          filled: true,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(30),
-            borderSide: BorderSide.none,
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text(
+            "Geen aktiewe werkkaarte nie",
+            style: TextStyle(color: Colors.grey, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () => ReportService.fetchReports(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Herlaai"),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJobCard(Report report) {
+    bool isCompleted = report.phase == "Voltooi";
+    Color priorityColor = report.priority == "Hoog" ? Colors.red : (report.priority == "Medium" ? Colors.orange : Colors.green);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ReportDetailPage(report: report)),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "#${report.id}",
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: priorityColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      report.priority.toUpperCase(),
+                      style: TextStyle(color: priorityColor, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                report.title,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(report.location, style: const TextStyle(color: Colors.grey)),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildStatusChip(report.phase),
+                  if (!isCompleted)
+                    ElevatedButton(
+                      onPressed: () => _markAsCompleted(report),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text("VOLTOOI", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            Text(
-              _searchQuery.isNotEmpty
-                  ? "Geen werkkaarte gevind nie"
-                  : "Geen aktiewe werkkaarte nie",
-              style: const TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => JobcardService.fetchJobs(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.navy,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text("Herlaai"),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildJobCard(Jobcard job) {
-    bool isCompleted = job.status == "Voltooi";
-    Color statusColor = _getStatusColor(job.status);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "#${job.id}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    job.status.toUpperCase(),
-                    style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              job.description,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy),
-            ),
-            if (job.type != null) ...[
-              const SizedBox(height: 4),
-              Text(job.type!, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-            ],
-            if (job.createdDatetime != null) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text("Geskep: ${_formatDate(job.createdDatetime!)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                ],
-              ),
-            ],
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatusChip(job.status),
-                if (!isCompleted)
-                  ElevatedButton(
-                    onPressed: () => _markAsCompleted(job),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text("VOLTOOI", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusChip(String status) {
-    Color color = _getStatusColor(status);
+  Widget _buildStatusChip(String phase) {
+    Color color = phase == "Voltooi" ? Colors.green : Colors.blue;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -231,7 +178,7 @@ class _JobCardsPageState extends State<JobCardsPage> {
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 6),
           Text(
-            status.toUpperCase(),
+            phase.toUpperCase(),
             style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10),
           ),
         ],
@@ -239,36 +186,24 @@ class _JobCardsPageState extends State<JobCardsPage> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Besig':
-        return Colors.blue;
-      case 'Voltooi':
-        return Colors.green;
-      case 'Oop':
-        return Colors.orange;
-      case 'Wag':
-        return Colors.amber;
-      case 'Gekanselleer':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
-  }
-
-  Future<void> _markAsCompleted(Jobcard job) async {
-    final success = await JobcardService.updateJobStatus(job.id, "Voltooi");
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? "Werkkaart suksesvol opgedateer" : "Kon nie status opdateer nie"),
-          backgroundColor: success ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
+  Future<void> _markAsCompleted(Report report) async {
+    // Ons verander die fase na "Voltooi". 
+    // Die Report.toJson() sal dit outomaties map na 'fault_status': 'opgelos' vir die backend.
+    final updatedReport = report.copyWith(phase: "Voltooi");
+    
+    try {
+      await ReportService.updateReport(updatedReport);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Werkkaart suksesvol opgedateer in databasis"), backgroundColor: AppColors.successGreen),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kon nie status opdateer nie. Is die backend aan?"), backgroundColor: AppColors.errorRed),
+        );
+      }
     }
   }
 }
