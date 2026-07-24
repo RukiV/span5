@@ -11,9 +11,14 @@ import WorkOrderPage from './pages/WorkOrderPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
 import ReportsPage from './pages/ReportsPage';
-// Bates/Voorraad/Lokale/Geboue/Terreine word nou binne FacilitiesPage gehanteer.
-import FacilitiesPage from './pages/FacilitiesPage';
-import UserManagementPage from './pages/UserManagementPage';
+import AssetPage from './pages/AssetPage';
+import StockPage from './pages/StockPage';
+import RoomsPage from './pages/RoomsPage';
+import BuildingsPage from './pages/BuildingsPage';
+import TerrainsPage from './pages/TerrainsPage';
+import UsersPage from './pages/UsersPage';
+import RolesPage from './pages/RolesPage';
+import RightsPage from './pages/RightsPage';
 
 /* =========================================================
    1. DIE BESKERMDE ROETE-MEGANISME
@@ -118,22 +123,18 @@ function App() {
             spesifieke reg via <RightProtectedRoute>. FK het alles behalwe
             users.manage, so FK sien alles behalwe /users. */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        {/* Bates/Voorraad/Lokale/Geboue/Terreine is nou een geneste bladsy
-            (FacilitiesPage). Granulêre regte word deur die agterkant
-            (require_right op elke roete) en die regte-gedrewe Sidebar afgedwing,
-            so vereis hierdie roete net 'n geldige web-sessie. Ou skakels herlei. */}
-        <Route path="/facilities/*" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
-        <Route path="/assets" element={<Navigate to="/facilities/assets" replace />} />
-        <Route path="/stock" element={<Navigate to="/facilities/stock" replace />} />
-        <Route path="/rooms" element={<Navigate to="/facilities/rooms" replace />} />
-        <Route path="/buildings" element={<Navigate to="/facilities/buildings" replace />} />
-        <Route path="/terrains" element={<Navigate to="/facilities/terrains" replace />} />
+        <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
+        <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
+        <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
+        <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
+        <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
 
         {/* Losstaande bladsye behou hul granulêre reg-kontrole. */}
         <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
         <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
-        <Route path="/users/*" element={<RightProtectedRoute requiredRight="users.manage"><UserManagementPage /></RightProtectedRoute>} />
-        <Route path="/users" element={<Navigate to="/users/users" replace />} />
+        <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
+        <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
+        <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
         <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
         <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
         <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
