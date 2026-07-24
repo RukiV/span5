@@ -17,3 +17,5 @@ htmlcov/
 **/__pycache__/
 webblad/
 frontendMobile/skills/
+backend/uploads/
+

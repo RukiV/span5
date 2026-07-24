@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { apiClient } from '../services/api';
+import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
@@ -10,6 +10,7 @@ function UsersPage({ embedded = false }) {
   const logout = useLogout();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [terrains, setTerrains] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
@@ -24,7 +25,8 @@ function UsersPage({ embedded = false }) {
     user_email: '',
     user_password: '',
     user_status: 'active',
-    role_id: 1
+    role_id: 1,
+    location_id: ''
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -39,7 +41,17 @@ function UsersPage({ embedded = false }) {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    fetchTerrains();
   }, []);
+
+  const fetchTerrains = async () => {
+    try {
+      const response = await locationAPI.getAll();
+      setTerrains(response.data || []);
+    } catch (error) {
+      console.error('Error fetching terrains:', error);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -133,7 +145,8 @@ function UsersPage({ embedded = false }) {
       user_email: user.user_email,
       user_password: '', // Laat leeg sodat bestaande wagwoord nie oorskryf word
       user_status: user.user_status,
-      role_id: user.role_id
+      role_id: user.role_id,
+      location_id: user.location_id || ''
     });
     setShowModal(true);
   };
@@ -161,7 +174,8 @@ function UsersPage({ embedded = false }) {
       user_email: '',
       user_password: '',
       user_status: 'active',
-      role_id: 1
+      role_id: 1,
+      location_id: ''
     });
   };
 
@@ -368,6 +382,18 @@ function UsersPage({ embedded = false }) {
           >
             {roles.map(role => (
               <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Terrein (slegs vir FK)</label>
+          <select
+            value={formUser.location_id || ''}
+            onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">Geen terrein</option>
+            {terrains.map(t => (
+              <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
             ))}
           </select>
         </div>
