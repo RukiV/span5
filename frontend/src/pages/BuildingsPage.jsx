@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
 import Sidebar from '../components/Sidebar';
@@ -21,8 +21,7 @@ function BuildingsPage() {
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
   const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [drillLevel, setDrillLevel] = useState(0);
+
   const [showModal, setShowModal] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
@@ -30,9 +29,11 @@ function BuildingsPage() {
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
-    building_type: "Ander",
+    building_type: "",
     location_id: "",
   });
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
   const translateBuildingType = (type) => {
     const translations = {
@@ -56,7 +57,6 @@ function BuildingsPage() {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-      setDrillLevel(1);
     } else {
       setTerrainFilter("");
     }
@@ -110,15 +110,17 @@ function BuildingsPage() {
   };
 
   const handleSaveBuilding = async () => {
-    if (!newBuilding.building_name?.trim()) {
-      alert("Voer asseblief 'n gebounaam in");
+    const errors = {};
+    if (!newBuilding.building_name?.trim()) errors.building_name = true;
+    if (!newBuilding.location_id) errors.location_id = true;
+    if (Object.keys(errors).length > 0) {
+      setInvalidFields(errors);
+      const firstKey = Object.keys(errors)[0];
+      fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      fieldRefs.current[firstKey]?.focus();
       return;
     }
-
-    if (!newBuilding.location_id) {
-      alert("Voer asseblief 'n terrein in");
-      return;
-    }
+    setInvalidFields({});
 
     const buildingData = {
       building_name: newBuilding.building_name,
@@ -158,7 +160,7 @@ function BuildingsPage() {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_type: item.building_type || "Ander",
+      building_type: item.building_type || "",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -186,7 +188,6 @@ function BuildingsPage() {
   const filteredBuildings = [...buildings]
     .filter((building) => {
       if (terrainFilter && String(building.location_id) !== terrainFilter) return false;
-      if (buildingFilter && String(building.building_id) !== buildingFilter) return false;
 
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
@@ -236,26 +237,7 @@ function BuildingsPage() {
     label: t.location_name
   }));
 
-  const drillOptions = React.useMemo(() => {
-    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
-    if (drillLevel === 1 && terrainFilter) return [
-      { value: '__back', label: '\u2190 Terrein keuse' },
-      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
-    ];
-    return [];
-  }, [drillLevel, terrainFilter, terrains, buildings]);
 
-  const handleDrillChange = (selected) => {
-    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setDrillLevel(0); return; }
-    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
-    const [type, id] = selected.value.split(':');
-    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setDrillLevel(1); }
-    else if (type === 'bld') { setBuildingFilter(id); }
-  };
-
-  const currentDrillValue = drillLevel === 0 ? null
-    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
-    : null;
 
   if (loading) {
     return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
@@ -278,15 +260,15 @@ function BuildingsPage() {
               <p className="analytics-value">{filteredBuildings.length}</p>
             </div>
             <div className="analytics-card">
-              <h4>Lokale</h4>
-              <p className="analytics-value">{rooms.filter(r => filteredBuildings.some(b => Number(b.building_id) === Number(r.building_id))).length}</p>
+              <h4>Totale Kamers</h4>
+              <p className="analytics-value">{filteredBuildings.reduce((sum, b) => sum + rooms.filter(r => r.building_id === b.building_id).length, 0)}</p>
             </div>
             <div className="analytics-card">
               <h4>Tipes</h4>
               <p className="analytics-value">{new Set(filteredBuildings.map(b => b.building_type).filter(Boolean)).size}</p>
             </div>
             <div className="analytics-card">
-              <h4>Terreine</h4>
+              <h4>Terrei</h4>
               <p className="analytics-value">{new Set(filteredBuildings.map(b => b.location_id).filter(Boolean)).size}</p>
             </div>
           </div>
@@ -310,17 +292,45 @@ function BuildingsPage() {
                 isSearchable={false}
                 styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
               />
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : "Kies 'n gebou..."}
-                isSearchable={true}
-                isClearable={true}
-                options={drillOptions}
-                value={currentDrillValue}
-                onChange={handleDrillChange}
-                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
-              />
+              {(() => {
+                const cascadeCount = [terrainFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                const renderBreadcrumb = () => (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+                    {breadcrumbData.map((item, i) => {
+                      const isLast = i === breadcrumbData.length - 1;
+                      const showArrow = isLast ? cascadeCount < 1 : true;
+                      return (
+                        <React.Fragment key={i}>
+                          <button type="button" onClick={() => setTerrainFilter('')} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                );
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {renderBreadcrumb()}
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Terrein..."
+                      isClearable
+                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                      options={(terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }))}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) { setTerrainFilter(''); return; }
+                        setTerrainFilter(selectedOption.value);
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="controls-right">
               <Select
@@ -376,11 +386,16 @@ function BuildingsPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Naam</label>
+                <label>Naam *</label>
                 <input
                   type="text"
+                  ref={el => fieldRefs.current.building_name = el}
+                  className={invalidFields.building_name ? "field-invalid" : ""}
                   value={newBuilding.building_name}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_name: e.target.value })}
+                  onChange={(e) => {
+                    setNewBuilding({ ...newBuilding, building_name: e.target.value });
+                    if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
+                  }}
                 />
               </div>
               <div className="input-group">
@@ -389,15 +404,15 @@ function BuildingsPage() {
                   className="basic-single"
                   classNamePrefix="select"
                   value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
+                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
                   options={buildingTypeOptions}
                   isSearchable={false}
                 />
               </div>
             </div>
             <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
+              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"}>
+                <label>Terrein *</label>
                 <Select
                   className="basic-single"
                   classNamePrefix="select"
@@ -405,7 +420,10 @@ function BuildingsPage() {
                   isSearchable={true}
                   options={terrainOptions}
                   value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
+                  onChange={(selected) => {
+                    setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" });
+                    if (invalidFields.location_id) setInvalidFields(prev => { const n = { ...prev }; delete n.location_id; return n; });
+                  }}
                 />
               </div>
             </div>

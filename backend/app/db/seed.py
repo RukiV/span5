@@ -11,8 +11,11 @@ from ..models.contractor import Contractor
 from ..models.role import Role
 from ..models.user import User
 from ..models.audit import Auditlog
+from ..models.quote import Quote
+from decimal import Decimal
 
-from ..models.image import ImageAsset, ImageBlob
+from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
+from ..auth.passwords import hash_password
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -57,7 +60,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_name=user_name,
         user_surname=user_surname,
         user_email=user_email,
-        user_password=user_password,
+        user_password=hash_password(user_password),
         user_number="0000000000",
         user_lastlogintime=None,
         user_lastlogouttime=None,
@@ -69,6 +72,42 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     session.commit()
     session.refresh(user)
     return user
+
+
+def _get_or_create_test_quote(session: Session) -> Quote:
+    """Ensure a test Quote exists with id=1 for document uploads during development."""
+    # Try to find quote with id 1
+    quote = session.exec(select(Quote).where(Quote.quote_id == 1)).first()
+    if quote:
+        return quote
+
+    # Create a placeholder quote with explicit ID=1 if possible
+    quote = Quote(
+        quote_id=1,
+        quote_price=Decimal("100.00"),
+        quote_desc="Seed: placeholder quote for testing",
+        quote_date=datetime.utcnow().date(),
+        quote_status="draft",
+    )
+    session.add(quote)
+    try:
+        session.commit()
+        session.refresh(quote)
+    except Exception:
+        session.rollback()
+        # Fallback: try creating without explicit id
+        quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
+        if not quote:
+            quote = Quote(
+                quote_price=Decimal("100.00"),
+                quote_desc="Seed: placeholder quote for testing",
+                quote_date=datetime.utcnow().date(),
+                quote_status="draft",
+            )
+            session.add(quote)
+            session.commit()
+            session.refresh(quote)
+    return quote
 
 def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
@@ -144,25 +183,40 @@ def _get_or_create_assettype(session: Session, name: str, avg: int | None = None
     session.refresh(assettype)
     return assettype
 
-# 2. ADDED HELPER: New method to query or persist unique image records into your standalone cache table
-def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes) -> ImageAsset:
-    """Finds an existing image by name, or saves a new one with its isolated data blob."""
+def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes, parent_id: int, parent_type: str, display_order: int) -> ImageAsset:
+    """Finds an existing image by name, or saves a new one with its isolated data blob and a parent link."""
     image = session.exec(select(ImageAsset).where(ImageAsset.filename == filename)).first()
-    if image:
-        return image
+    if image is None:
+        blob_data = ImageBlob(file_bytes=raw_data)
+        image = ImageAsset(
+            filename=filename,
+            mime_type=mime_type,
+            size_bytes=len(raw_data),
+            file_blob=blob_data,
+        )
+        session.add(image)
+        session.commit()
+        session.refresh(image)
 
-    blob_data = ImageBlob(file_bytes=raw_data)
-    image = ImageAsset(
-        filename=filename,
-        mime_type=mime_type,
-        size_bytes=len(raw_data),
-        file_blob=blob_data
-    )
-    session.add(image)
-    session.commit()
-    session.refresh(image)
+    existing_link = session.exec(
+        select(ImageAssetLink).where(
+            ImageAssetLink.image_id == image.image_id,
+            ImageAssetLink.parent_id == parent_id,
+            ImageAssetLink.parent_type == parent_type,
+        )
+    ).first()
+
+    if existing_link is None:
+        link = ImageAssetLink(
+            image_id=image.image_id,
+            parent_id=parent_id,
+            parent_type=parent_type,
+            display_order=display_order,
+        )
+        session.add(link)
+        session.commit()
+
     return image
-
 
 def _get_or_create_asset(
     session: Session,
@@ -256,6 +310,7 @@ def _get_or_create_job(
     location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
+    contractor_id: Optional[int] = None,
 ) -> Jobcard:
     job = session.exec(
         select(Jobcard)
@@ -276,6 +331,7 @@ def _get_or_create_job(
         location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
+        contractor_id=contractor_id,
     )
     session.add(job)
     session.commit()
@@ -360,6 +416,19 @@ def _get_or_create_fk_role(session: Session) -> Role:
     return role
 
 
+def _get_or_create_contractor_role(session: Session) -> Role:
+    """Skep Kontrakteur-rol (role_id=4). Kan aanmeld op mobiele app."""
+    role = session.exec(select(Role).where(Role.role_name == "Kontrakteur")).first()
+    if role:
+        return role
+
+    role = Role(role_name="Kontrakteur")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
     """Helper function to create audit logs for assets."""
     full_record = asset.model_dump(mode="json")
@@ -395,6 +464,7 @@ def seed_data():
         user_role = _get_or_create_default_role(session)           # ID 1
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
+        contractor_role = _get_or_create_contractor_role(session) # ID 4
 
         # Skep toetsdata vir lokasies (moet voor gebruikers wees vir FK-toewysing)
         loc1 = _get_or_create_location(
@@ -456,6 +526,10 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
+        # Ensure a test quote exists so uploads to /quotes/1/documents succeed in development
+        test_quote = _get_or_create_test_quote(session)
+        print("Seed ensured test quote_id:", getattr(test_quote, 'quote_id', None))
+
         # FK-Koördineerder - toegewys aan Leriba-kampus
         _get_or_create_test_user(
             session,
@@ -505,6 +579,25 @@ def seed_data():
             user_email="kobus@gmail.com",
             user_password="kobus123",
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
+        )
+
+        # Kontrakteur - KAN aanmeld op mobiele app, slegs toegang tot toegewysde werksopdragte
+        _get_or_create_test_user(
+            session,
+            user_name="Jan",
+            user_surname="Botha",
+            user_email="jan.botha@workfix.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
+        )
+
+        _get_or_create_test_user(
+            session,
+            user_name="Lindiwe",
+            user_surname="Mokoena",
+            user_email="lindiwe.mokoena@plumbright.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
         )
 
         bld1 = _get_or_create_building(
@@ -619,7 +712,10 @@ def seed_data():
             session=session,
             filename="hq_projector_ceiling_mount.png",
             mime_type="image/png",
-            raw_data=mock_bytes
+            raw_data=mock_bytes,
+            parent_id=1,
+            parent_type="asset",
+            display_order=1,
         )
 
         # 3. Pass the valid image_id to your asset creator
@@ -633,7 +729,6 @@ def seed_data():
             room_id=room1.room_id,
             assettype_id=type_elek.assettype_id,
             created_dt=now - timedelta(days=540),
-            image_id=img1.image_id,
         )
 
         _get_or_create_asset(
@@ -759,6 +854,12 @@ def seed_data():
         projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
+        # Haal kontrakteur-gebruikers op om werksopdragte aan hulle toe te ken
+        jan_user = session.exec(select(User).where(User.user_email == "jan.botha@workfix.co.za")).first()
+        lindiwe_user = session.exec(select(User).where(User.user_email == "lindiwe.mokoena@plumbright.co.za")).first()
+        jan_contractor_id = jan_user.user_id if jan_user else None
+        lindiwe_contractor_id = lindiwe_user.user_id if lindiwe_user else None
+
         _get_or_create_job(
             session,
             desc="Projektor lens skoonmaak en kalibrasie.",
@@ -770,18 +871,20 @@ def seed_data():
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
             session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
-job_type="Onderhoud",
+            job_type="Onderhoud",
             created_dt=now - timedelta(days=5),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
@@ -794,6 +897,7 @@ job_type="Onderhoud",
             room_id=room4.room_id,
             building_id=bld3.building_id,
             location_id=loc1.location_id,
+            contractor_id=lindiwe_contractor_id,
         )
 
         _get_or_create_fault(

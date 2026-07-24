@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select from "react-select";
+import Select, { components } from "react-select";
+import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
@@ -25,7 +26,7 @@ function TicketPage() {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
-  const [drillLevel, setDrillLevel] = useState(0);
+
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -62,7 +63,6 @@ function TicketPage() {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-      setDrillLevel(1);
     } else {
       setTerrainFilter("");
     }
@@ -392,32 +392,7 @@ function TicketPage() {
       label: room.room_name || room.room_number || room.room_desc || `Lokaal ${room.room_id}`,
     }));
 
-  const drillOptions = React.useMemo(() => {
-    if (drillLevel === 0) return terrains.map(t => ({ value: `loc:${t.location_id}`, label: t.location_name }));
-    if (drillLevel === 1 && terrainFilter) return [
-      { value: '__back', label: '\u2190 Terrein keuse' },
-      ...buildings.filter(b => Number(b.location_id) === Number(terrainFilter)).map(b => ({ value: `bld:${b.building_id}`, label: b.building_name }))
-    ];
-    if (drillLevel === 2 && buildingFilter) return [
-      { value: '__back', label: '\u2190 Gebou keuse' },
-      ...rooms.filter(r => Number(r.building_id) === Number(buildingFilter)).map(r => ({ value: `rm:${r.room_id}`, label: r.room_name }))
-    ];
-    return [];
-  }, [drillLevel, terrainFilter, buildingFilter, terrains, buildings, rooms]);
 
-  const handleDrillChange = (selected) => {
-    if (!selected) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(0); return; }
-    if (selected.value === '__back') { setDrillLevel(d => d - 1); return; }
-    const [type, id] = selected.value.split(':');
-    if (type === 'loc') { setTerrainFilter(id); setBuildingFilter(''); setRoomFilter(''); setDrillLevel(1); }
-    else if (type === 'bld') { setBuildingFilter(id); setRoomFilter(''); setDrillLevel(2); }
-    else if (type === 'rm') { setRoomFilter(id); }
-  };
-
-  const currentDrillValue = drillLevel === 0 ? null
-    : drillLevel === 1 && terrainFilter ? drillOptions.find(o => o.value === `loc:${terrainFilter}`) || null
-    : drillLevel === 2 && buildingFilter ? drillOptions.find(o => o.value === `bld:${buildingFilter}`) || null
-    : null;
 
   const assetOptions = (assets || [])
     .filter((asset) => !newTicket.room_id || String(asset.room_id) === String(newTicket.room_id))
@@ -456,17 +431,74 @@ function TicketPage() {
                 <option value="priority">Prioriteit</option>
                 <option value="status">Status</option>
               </select>
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                placeholder={drillLevel === 0 ? "Kies 'n terrein..." : drillLevel === 1 ? "Kies 'n gebou..." : "Kies 'n lokaal..."}
-                isSearchable={true}
-                isClearable={true}
-                options={drillOptions}
-                value={currentDrillValue}
-                onChange={handleDrillChange}
-                styles={{ container: (base) => ({ ...base, minWidth: '260px', flex: 1 }) }}
-              />
+              {(() => {
+                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+                  : null;
+                const clearFromLevel = (levelIndex) => {
+                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 2) { setRoomFilter(''); }
+                };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
+                const renderBreadcrumb = () => (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+                    {breadcrumbData.map((item, i) => {
+                      const isLast = i === breadcrumbData.length - 1;
+                      const showArrow = isLast ? cascadeCount < 3 : true;
+                      return (
+                        <React.Fragment key={i}>
+                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                );
+                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                const CascadeControl = ({ children, ...props }) => (
+                  <components.Control {...props}>
+                    {children}
+                    {cascadeCount > 0 && (
+                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
+                        <IoReturnUpBack size={18} />
+                      </span>
+                    )}
+                  </components.Control>
+                );
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {renderBreadcrumb()}
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      components={{ Control: CascadeControl }}
+                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                      options={(() => {
+                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                        return [];
+                      })()}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
+                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
+                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="controls-right">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
