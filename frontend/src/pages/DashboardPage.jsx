@@ -97,7 +97,7 @@ const DashboardPage = () => {
     };
 
     const entityName = getFirstValue([
-      'asset_name', 'room_name', 'stock_name', 'contractor_name', 'user_name', 'job_desc', 'fault_description', 'quote_id', 'location_name', 'report_name', 'name', 'title'
+      'asset_name', 'room_name', 'stock_name', 'user_name', 'job_desc', 'fault_description', 'quote_id', 'location_name', 'report_name', 'name', 'title'
     ]);
     const actionLabel = action === 'delete' ? 'Verwyder' : action === 'update' ? 'Werk' : 'Skep';
 
@@ -108,7 +108,6 @@ const DashboardPage = () => {
       jobcard: 'Werksopdrag',
       fault: 'Foutkaartjie',
       faultcard: 'Foutkaartjie',
-      contractor: 'Kontrakteur',
       room: 'Kamer',
       stock: 'Voorraaditem',
       user: 'Gebruiker',
@@ -244,8 +243,6 @@ const DashboardPage = () => {
               link = '/work-orders';
             } else if (table.includes('fault')) {
               link = '/fault-tickets';
-            } else if (table.includes('contractor')) {
-              link = '/contractors';
             } else if (table.includes('asset')) {
               link = '/assets';
             } else if (table.includes('room')) {
