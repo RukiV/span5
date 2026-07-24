@@ -11,6 +11,7 @@ class UserSession {
   static String userName = "";
   static String userEmail = "";
   static String userCampus = "Hoofkampus (Centurion)";
+  static int? locationId;
 
   /// Die gebruiker se regte (vanaf /auth/me se `rights`-lys). Dit is die enkele
   /// bron van waarheid vir toegangsbeheer — die [UserRole] enum word slegs vir
@@ -28,6 +29,7 @@ class UserSession {
     userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
     userEmail = data['user_email'] ?? "";
     userCampus = data['location_name'] ?? "Hoofkampus (Centurion)";
+    locationId = data['location_id'];
 
     // Regte vanaf die backend — bepaal watter menu-items en aksies sigbaar is.
     final dynamic rawRights = data['rights'];
@@ -83,6 +85,8 @@ class UserSession {
     role = UserRole.student;
     userName = "";
     userEmail = "";
+    userCampus = "Hoofkampus (Centurion)";
+    locationId = null;
     rights = <String>[];
   }
 }
