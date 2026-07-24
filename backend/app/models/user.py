@@ -1,5 +1,6 @@
 from typing import Optional, Any
 from datetime import datetime
+from uuid import uuid4
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -11,10 +12,11 @@ class UserBase(SQLModel):
     user_surname: str = Field(min_length=1, max_length=100)
     user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
     user_number: Optional[str] = Field(default=None, max_length=20)
-    user_password: str
+    # Password is not part of the public base model; it's stored on the DB model only
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
+    location_id: Optional[int] = None
 
     @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
     @classmethod
@@ -24,17 +26,21 @@ class UserBase(SQLModel):
 class User(UserBase, Base, table=True):
     """Model for user data."""
     user_id: Optional[int] = Field(default=None, primary_key=True)
+    user_uuid: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True, max_length=36)
     role_id: int = Field(foreign_key="role.role_id")
+    user_password: str = Field(max_length=255)
 
 
 class UserCreate(UserBase):
     """Input model for creating user records."""
+    user_password: str
     role_id: int
 
 
 class UserRead(UserBase):
     """Output model for reading user records."""
     user_id: int
+    user_uuid: str
     user_name: str
     user_surname: str
     user_email: str
@@ -43,6 +49,10 @@ class UserRead(UserBase):
     user_lastlogouttime: Optional[datetime] = None
     user_status: str
     role_id: int
+    # Never expose the password (hash) in read responses. Inherited from
+    # UserBase, but excluded from serialization here so /users and /auth/me
+    # cannot leak it.
+    user_password: str = Field(exclude=True)
 
 
 class UserUpdate(SQLModel):

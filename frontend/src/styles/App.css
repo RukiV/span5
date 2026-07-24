@@ -294,11 +294,11 @@
 }
 
 .dropdown-content {
-  bottom: -60px;
+  bottom: -30px;
 }
 
 .dropdown-content2{
-  bottom: -30px;
+  bottom: -120px;
 }
 
 .dropdown-content a,.dropdown-content2 a {
@@ -333,4 +333,102 @@
   transform: rotate(90deg);    
   opacity: 1;                  
   color: var(--wit);        
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.analytics-card {
+  background: #fff;
+  border: 1px solid #e8d8c4;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.analytics-card h4 {
+  margin: 0 0 8px;
+  color: #6b3f1d;
+  font-size: 14px;
+}
+
+.analytics-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #935e28;
+  margin: 0 0 6px;
+}
+
+.analytics-value.warning {
+  color: #c97c3c;
+}
+
+.analytics-value.danger {
+  color: #b91c1c;
+}
+
+.analytics-caption {
+  font-size: 13px;
+  color: #6f6f6f;
+}
+
+@media (max-width: 1024px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.field-invalid {
+  border: 2px solid #dc3545 !important;
+  animation: shake 0.4s ease;
+}
+
+.facility-tab-bar {
+  display: flex;
+  background: #f5f0eb;
+  padding: 6px 20px 0;
+  gap: 2px;
+  border-bottom: 2px solid #d4c4b0;
+}
+
+.facility-tab {
+  padding: 8px 18px;
+  text-decoration: none;
+  color: #555;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -2px;
+  transition: all 0.15s;
+}
+
+.facility-tab:hover {
+  background: #e8d5c4;
+  color: #935e28;
+}
+
+.facility-tab.active {
+  background: #fff;
+  color: #935e28;
+  font-weight: 600;
+  border-color: #d4c4b0;
+  border-bottom: 2px solid #fff;
+}
+
+.field-invalid .css-1s2u09g-control,
+.field-invalid .css-13cymwt-control {
+  border-color: #dc3545 !important;
+  animation: shake 0.4s ease;
 }

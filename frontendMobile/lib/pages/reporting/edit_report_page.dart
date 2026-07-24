@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/api_client.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
@@ -28,8 +29,13 @@ class _EditReportPageState extends State<EditReportPage> {
   String? _selectedCampus;
   String? _selectedBuilding;
   String? _selectedLocation;
-  File? _photoFile;
   bool _isLoading = false;
+
+  static const int _maxPhotos = 3;
+  List<int> _existingImageIds = [];
+  final Set<int> _removedImageIds = {};
+  final List<File> _newPhotos = [];
+  bool _imagesLoading = true;
 
   final List<String> _categories = ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
@@ -47,6 +53,22 @@ class _EditReportPageState extends State<EditReportPage> {
     _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
+    }
+    _loadImages();
+  }
+
+  Future<void> _loadImages() async {
+    final faultId = int.tryParse(widget.report.id);
+    if (faultId == null) {
+      if (mounted) setState(() => _imagesLoading = false);
+      return;
+    }
+    final ids = await ImageService.getImagesForParent('ticket', faultId);
+    if (mounted) {
+      setState(() {
+        _existingImageIds = ids;
+        _imagesLoading = false;
+      });
     }
   }
 
@@ -78,11 +100,6 @@ class _EditReportPageState extends State<EditReportPage> {
 
     setState(() => _isLoading = true);
 
-    int? imageId = widget.report.imageId;
-    if (_photoFile != null) {
-      imageId = await ImageService.uploadImage(_photoFile!);
-    }
-
     String roomId = _selectedLocation ?? widget.report.location;
     if (roomId.contains(":")) {
       roomId = roomId.split(":").first;
@@ -108,12 +125,23 @@ class _EditReportPageState extends State<EditReportPage> {
       priority: _priority,
       phase: _status,
       location: roomId,
-      imageId: imageId,
       locationId: resolvedLocationId,
       buildingId: resolvedBuildingId,
     );
 
     final success = await ReportService.updateReport(updatedReport);
+
+    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket'):
+    // verwyder gemerkte fotos, laai dan nuwes op teen die bestaande kaartjie.
+    final faultId = int.tryParse(widget.report.id);
+    for (final id in _removedImageIds) {
+      await ImageService.deleteImage(id);
+    }
+    if (faultId != null) {
+      for (final photo in _newPhotos) {
+        await ImageService.uploadImage(photo, parentId: faultId, parentType: 'ticket');
+      }
+    }
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -223,7 +251,7 @@ class _EditReportPageState extends State<EditReportPage> {
             ),
     );
   }
-
+//checkmark for room asset scanning and barcode scanning
   Widget _buildRoomDropdown() {
     return SearchableDropdown<String>(
       label: "Lokaal",
@@ -238,43 +266,79 @@ class _EditReportPageState extends State<EditReportPage> {
   }
 
   Widget _buildPhotoSection() {
+    final baseUrl = ApiClient().client.options.baseUrl;
+    final visibleExisting = _existingImageIds.where((id) => !_removedImageIds.contains(id)).toList();
+    final total = visibleExisting.length + _newPhotos.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Foto", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+        const Text("Foto's (maks $_maxPhotos)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            InkWell(
-              onTap: () async {
-                final photo = await CameraService.takePhoto();
-                if (photo != null) {
-                  setState(() => _photoFile = photo);
-                }
-              },
-              child: Container(
-                height: 80, width: 80,
-                decoration: BoxDecoration(
-                  color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
+        if (_imagesLoading)
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final id in visibleExisting)
+                _photoThumb(
+                  child: Image.network(
+                    '$baseUrl/image/$id/file',
+                    height: 80, width: 80, fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => Container(
+                      height: 80, width: 80, color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  ),
+                  onRemove: () => setState(() => _removedImageIds.add(id)),
                 ),
-                child: _photoFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(7),
-                        child: Image.file(_photoFile!, fit: BoxFit.cover),
-                      )
-                    : const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
-              ),
-            ),
-            if (_photoFile != null) ...[
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () => setState(() => _photoFile = null),
-                child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
-              ),
+              for (int i = 0; i < _newPhotos.length; i++)
+                _photoThumb(
+                  child: Image.file(_newPhotos[i], height: 80, width: 80, fit: BoxFit.cover),
+                  onRemove: () => setState(() => _newPhotos.removeAt(i)),
+                ),
+              if (total < _maxPhotos)
+                InkWell(
+                  onTap: () async {
+                    final photo = await CameraService.takePhoto();
+                    if (photo != null) {
+                      setState(() => _newPhotos.add(photo));
+                    }
+                  },
+                  child: Container(
+                    height: 80, width: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+                  ),
+                ),
             ],
-          ],
+          ),
+      ],
+    );
+  }
+
+  Widget _photoThumb({required Widget child, required VoidCallback onRemove}) {
+    return Stack(
+      children: [
+        ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
+        Positioned(
+          right: 0, top: 0,
+          child: InkWell(
+            onTap: onRemove,
+            child: Container(
+              decoration: const BoxDecoration(color: AppColors.errorRed, shape: BoxShape.circle),
+              child: const Icon(Icons.close, color: Colors.white, size: 18),
+            ),
+          ),
         ),
       ],
     );

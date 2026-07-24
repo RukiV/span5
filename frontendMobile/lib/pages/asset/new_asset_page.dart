@@ -2,6 +2,8 @@ import '../../widgets/custom_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:flutter/material.dart';
 import '../../services/campus_service.dart';
+import '../../models/asset_type.dart';
+import '../../services/asset_type_service.dart';
 import '../../models/campus.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
@@ -20,22 +22,42 @@ class _NewAssetPageState extends State<NewAssetPage> {
 
   // Veranderlikes wat voorheen ontbreek het:
   String name = "";
-  String serialCode = "";
+  String serialCode = "AK ";
   String brand = "";
+  final _serialController = TextEditingController(text: "AK ");
+
+  void _enforceSerialPrefix() {
+    final text = _serialController.text;
+    if (text.isEmpty) {
+      _serialController.text = "AK ";
+      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
+    } else if (!text.startsWith("AK ")) {
+      _serialController.text = "AK ";
+      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
+    }
+    serialCode = _serialController.text;
+  }
+
+  @override
+  void dispose() {
+    _serialController.removeListener(_enforceSerialPrefix);
+    _serialController.dispose();
+    super.dispose();
+  }
   String assetCode = "";
   bool isFixed = false;
-  String location = ""; // Vir handmatige invoer as geen kamers gelaai is nie
-  final List<String> categories = ["Meubels", "IT Voorraad", "Elektronika", "Kombuis", "Ander"];
-
+  String location = "";
+  int? selectedTypeId;
   String? selectedCampus;
   String? selectedBuilding;
   String? selectedLocation;
-  String category = "Meubels";
   String status = "active";
   
   @override
   void initState() {
     super.initState();
+    _serialController.addListener(_enforceSerialPrefix);
+    AssetTypeService.fetchTypes();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -81,6 +103,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
     String? Function(String?)? validator,
     bool readOnly = false,
     String? initialValue,
+    TextEditingController? controller,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,7 +111,8 @@ class _NewAssetPageState extends State<NewAssetPage> {
         Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
         const SizedBox(height: 6),
         TextFormField(
-          initialValue: initialValue,
+          controller: controller,
+          initialValue: controller != null ? null : initialValue,
           readOnly: readOnly,
           onChanged: onChanged,
           validator: validator,
@@ -151,8 +175,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   _buildCustomTextField(
                     label: "Serienommer",
                     hint: "",
-                    onChanged: (v) => serialCode = v,
-                    validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+                    controller: _serialController,
+                    onChanged: (v) {
+                      serialCode = _serialController.text;
+                    },
+                    validator: (v) {
+                      if (v == null || v.isEmpty) return "Vereis";
+                      final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
+                      if (!regex.hasMatch(v)) {
+                        return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 20),
 
@@ -160,6 +194,24 @@ class _NewAssetPageState extends State<NewAssetPage> {
                     label: "Merk",
                     hint: "",
                     onChanged: (v) => brand = v,
+                  ),
+                  const SizedBox(height: 20),
+
+                  ValueListenableBuilder<List<AssetType>>(
+                    valueListenable: AssetTypeService.typesNotifier,
+                    builder: (context, types, _) {
+                      return CustomDropdown<int>(
+                        label: "Bate Tipe",
+                        hint: "Kies 'n tipe",
+                        value: selectedTypeId,
+                        items: types.map((t) => DropdownMenuItem<int>(
+                          value: t.id,
+                          child: Text(t.name),
+                        )).toList(),
+                        onChanged: (v) => setState(() => selectedTypeId = v),
+                        validator: (v) => v == null ? "Vereis" : null,
+                      );
+                    },
                   ),
                   const SizedBox(height: 20),
 
@@ -260,15 +312,17 @@ class _NewAssetPageState extends State<NewAssetPage> {
                       ElevatedButton(
                         onPressed: () async {
                           if (_formKey.currentState!.validate()) {
+                            if (selectedTypeId == null) return;
+                            final typeName = AssetTypeService.getTypeName(selectedTypeId!);
                             final newAsset = Asset(
                               id: assetCode.isNotEmpty && UserSession.hasAdminPrivileges
                                   ? assetCode
-                                  : AssetService.generateUniqueId(category, selectedCampus ?? "GEN"),
+                                  : AssetService.generateUniqueId(typeName, selectedCampus ?? "GEN"),
                               serialCode: serialCode,
                               name: name,
                               brand: brand,
-                              category: category,
-                              assetTypeId: Asset.getCategoryId(category),
+                              category: typeName,
+                              assetTypeId: selectedTypeId!,
                               location: selectedLocation?.split(":").first ?? "1",
                               status: status,
                               campus: selectedCampus ?? "",

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/stock_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import 'new_stock_page.dart';
@@ -16,11 +17,19 @@ class StockPage extends StatefulWidget {
 class _StockPageState extends State<StockPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+  int? _selectedRoomId;
 
   @override
   void initState() {
     super.initState();
     StockService.fetchStocks();
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
+    _tryAutoSelectCampus();
     _searchController.addListener(() {
       setState(() {
         _query = _searchController.text.toLowerCase();
@@ -28,8 +37,25 @@ class _StockPageState extends State<StockPage> {
     });
   }
 
+  void _tryAutoSelectCampus() {
+    if (UserSession.isManager && _selectedCampusId == null && UserSession.locationId != null) {
+      final match = CampusService.campusesNotifier.value
+          .where((c) => c.id == UserSession.locationId).firstOrNull;
+      if (match != null) _selectedCampusId = match.id;
+    }
+  }
+
+  void _onCampusesChanged() {
+    if (mounted) {
+      setState(() {
+        _tryAutoSelectCampus();
+      });
+    }
+  }
+
   @override
   void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -41,6 +67,7 @@ class _StockPageState extends State<StockPage> {
       body: Column(
         children: [
           _buildSearchBar(),
+          _buildCampusFilter(),
           Expanded(child: _buildStockList()),
         ],
       ),
@@ -77,6 +104,104 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
+  Widget _buildCampusFilter() {
+    final campuses = CampusService.campusesNotifier.value;
+    if (campuses.isEmpty) return const SizedBox.shrink();
+
+    final selectedCampus = _selectedCampusId != null
+        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
+        : null;
+    final buildings = selectedCampus?.buildings ?? [];
+    final selectedBuilding = _selectedBuildingId != null
+        ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
+        : null;
+    final rooms = selectedBuilding?.rooms ?? [];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                isExpanded: true,
+                value: _selectedCampusId,
+                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
+                items: campuses.map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
+                )).toList(),
+                onChanged: (val) => setState(() {
+                  _selectedCampusId = val;
+                  _selectedBuildingId = null;
+                  _selectedRoomId = null;
+                }),
+              ),
+            ),
+          ),
+        ),
+        if (_selectedCampusId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: _selectedBuildingId,
+                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
+                  items: buildings.map((b) => DropdownMenuItem(
+                    value: b.id,
+                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (val) => setState(() {
+                    _selectedBuildingId = val;
+                    _selectedRoomId = null;
+                  }),
+                ),
+              ),
+            ),
+          ),
+        if (_selectedBuildingId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: _selectedRoomId,
+                  hint: const Text("Kies Lokaal", style: TextStyle(fontSize: 13)),
+                  items: rooms.map((r) => DropdownMenuItem(
+                    value: r.id,
+                    child: Text(r.name, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (val) => setState(() => _selectedRoomId = val),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildStockList() {
     return ValueListenableBuilder<List<Stock>>(
       valueListenable: StockService.stocksNotifier,
@@ -84,7 +209,35 @@ class _StockPageState extends State<StockPage> {
         // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
         List<Stock> baseStocks = allStocks;
 
+        final campuses = CampusService.campusesNotifier.value;
+
+        final campusRoomIds = _selectedCampusId != null
+            ? campuses
+                .where((c) => c.id == _selectedCampusId)
+                .expand((c) => c.buildings)
+                .expand((b) => b.rooms ?? [])
+                .map((r) => r.id)
+                .toSet()
+            : null;
+        final buildingRoomIds = _selectedBuildingId != null
+            ? campuses
+                .expand((c) => c.buildings)
+                .where((b) => b.id == _selectedBuildingId)
+                .expand((b) => b.rooms ?? [])
+                .map((r) => r.id)
+                .toSet()
+            : null;
+
         final filtered = baseStocks.where((s) {
+          // Campus filter
+          if (campusRoomIds != null && (s.roomId == null || !campusRoomIds.contains(s.roomId))) return false;
+
+          // Building filter
+          if (buildingRoomIds != null && (s.roomId == null || !buildingRoomIds.contains(s.roomId))) return false;
+
+          // Room filter
+          if (_selectedRoomId != null && s.roomId != _selectedRoomId) return false;
+
           return s.name.toLowerCase().contains(_query) ||
               s.brand.toLowerCase().contains(_query) ||
               s.type.toLowerCase().contains(_query) ||
