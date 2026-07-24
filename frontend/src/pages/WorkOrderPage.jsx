@@ -3,7 +3,7 @@ import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
@@ -41,7 +41,6 @@ function WorkOrderPage() {
   const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [contractors, setContractors] = useState([]);
   const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
@@ -183,7 +182,6 @@ function WorkOrderPage() {
     fetchBuildings();
     fetchTerrains();
     fetchTickets();
-    fetchContractors();
     fetchUsers();
   }, []);
 
@@ -211,18 +209,6 @@ function WorkOrderPage() {
       setBuildings(response.data || []);
     } catch (error) {
       console.error("Fout by haal geboue:", error);
-    }
-  };
-
-  const fetchContractors = async () => {
-    try {
-      const response = await contractorsAPI.getAll();
-      const contractorList = response.data || [];
-      setContractors(contractorList);
-      return contractorList;
-    } catch (error) {
-      console.error("Fout by haal kontrakteurs:", error);
-      return [];
     }
   };
 
@@ -576,18 +562,18 @@ function WorkOrderPage() {
 
     if (quoteIds.length > 0) {
       try {
-        const contractorList = contractors.length > 0 ? contractors : await fetchContractors();
+        const contractorUsers = users.filter(u => u.role_id === 4);
         const quoteResponses = await Promise.allSettled(quoteIds.map((id) => quotesAPI.getById(id)));
         const loadedQuotes = quoteResponses
           .filter((result) => result.status === "fulfilled" && result.value)
           .map((result) => {
             const response = result.value;
             const quoteData = response.data || response;
-            const contractor = contractorList.find((item) => item.contractor_id === Number(quoteData.contractor_id));
+            const contractorUser = contractorUsers.find((u) => u.user_id === Number(quoteData.contractor_id));
             return {
               id: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
-              contractor_name: contractor?.contractor_name || "",
+              contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
               amount: Number(quoteData.quote_price || 0),
               description: quoteData.quote_desc || "",
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
@@ -726,11 +712,11 @@ function WorkOrderPage() {
       return;
     }
 
-    const contractor = contractors.find(c => c.contractor_id === Number(newQuote.contractor_id));
+    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const updatedQuote = {
       id: quoteEditId || Date.now(),
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
-      contractor_name: contractor ? contractor.contractor_name : "",
+      contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
       amount: parseFloat(newQuote.amount),
       description: newQuote.description,
       createdAt: quoteEditId ? quotes.find((q) => q.id === quoteEditId)?.createdAt || new Date().toLocaleDateString('af-ZA') : new Date().toLocaleDateString('af-ZA'),
@@ -1704,9 +1690,9 @@ function WorkOrderPage() {
                         className="quote-input"
                       >
                         <option value="">Kies Kontrakteur</option>
-                        {contractors.map((contractor) => (
-                          <option key={contractor.contractor_id} value={contractor.contractor_id}>
-                            {contractor.contractor_name}
+                        {users.filter(u => u.role_id === 4).map((user) => (
+                          <option key={user.user_id} value={user.user_id}>
+                            {user.user_name} {user.user_surname}
                           </option>
                         ))}
                       </select>

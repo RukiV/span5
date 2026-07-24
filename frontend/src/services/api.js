@@ -201,14 +201,6 @@ export const rightsAPI = {
   delete: (id) => apiClient.delete(`/rights/${id}`),
 };
 
-export const contractorsAPI = {
-  getAll: () => apiClient.get('/contractors'),
-  getById: (id) => apiClient.get(`/contractors/${id}`),
-  create: (data) => apiClient.post('/contractors', data),
-  update: (id, data) => apiClient.patch(`/contractors/${id}`, data),
-  delete: (id) => apiClient.delete(`/contractors/${id}`),
-};
-
 export const quotesAPI = {
   getAll: () => apiClient.get('/quotes'),
   getById: (id) => apiClient.get(`/quotes/${id}`),
@@ -288,7 +280,6 @@ apiClient.auth = authAPI;
 apiClient.users = usersAPI;
 apiClient.roles = rolesAPI;
 apiClient.rights = rightsAPI;
-apiClient.contractors = contractorsAPI;
 apiClient.quotes = quotesAPI;
 apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
