@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
@@ -12,10 +11,9 @@ import UserProfileHeader from '../components/UserProfileHeader';
 
 function TicketPage() {
   // Haal admin-status vir beheer-opsies
-  const { isAdmin, user } = useCurrentUser();
+  const { isAdmin } = useCurrentUser();
   const logout = useLogout();
   const navigate = useNavigate();
-  const MAX_TICKET_IMAGES = 3;
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
@@ -24,9 +22,6 @@ function TicketPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("default");
   const [sortDirection, setSortDirection] = useState("asc");
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -38,12 +33,6 @@ function TicketPage() {
   const [assets, setAssets] = useState([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState([]);
   const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
-  const [ticketImages, setTicketImages] = useState([]);
-  const [imagesToDelete, setImagesToDelete] = useState([]);
-  const [activeImageViewer, setActiveImageViewer] = useState(null);
-  const [cascadeToast, setCascadeToast] = useState(null);
-  const [invalidFields, setInvalidFields] = useState({});
-  const fieldRefs = useRef({});
   
   // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
@@ -56,20 +45,15 @@ function TicketPage() {
     building_id: "",
     room_id: "",
     asset_id: "",
+    image_id: "",
+    image_id_2: "",
+    image_id_3: "",
   });
 
   // Haal foutkaartjies wanneer blad laai
   useEffect(() => {
     Promise.all([fetchTickets(), fetchTerrains(), fetchBuildings(), fetchRooms(), fetchAssets()]);
   }, []);
-
-  useEffect(() => {
-    if (user?.role_id === 2 && user?.location_id) {
-      setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
-    }
-  }, [user]);
 
   // Haal alle foutkaartjies van backend
   const fetchTickets = async () => {
@@ -122,21 +106,6 @@ function TicketPage() {
     }
   };
 
-  const fetchTicketImages = async (ticketId) => {
-    if (!ticketId) {
-      setTicketImages([]);
-      return;
-    }
-
-    try {
-      const response = await apiClient.image.getByParent("ticket", ticketId);
-      setTicketImages(response.data || []);
-    } catch (error) {
-      console.error("Fout by laai van beeld-metadata:", error);
-      setTicketImages([]);
-    }
-  };
-
   const applyTicketLocationSelection = (ticket) => {
     if (!ticket) return;
 
@@ -182,6 +151,9 @@ function TicketPage() {
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
+      image_id: ticket.image_id ? String(ticket.image_id) : "",
+      image_id_2: ticket.image_id_2 ? String(ticket.image_id_2) : "",
+      image_id_3: ticket.image_id_3 ? String(ticket.image_id_3) : "",
     }));
   };
 
@@ -191,71 +163,25 @@ function TicketPage() {
   };
 
   const handleImageFilesChange = (event) => {
-    const files = Array.from(event.target.files || []);
-    const remainingSlots = Math.max(0, MAX_TICKET_IMAGES - (selectedImageFiles.length + ticketImages.length));
-    const incomingFiles = files.slice(0, remainingSlots);
-
-    if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_TICKET_IMAGES} beelde per foutkaartjie oplaai.`);
-    }
-
-    if (incomingFiles.length === 0) {
-      event.target.value = "";
-      return;
-    }
-
-    const previewUrls = incomingFiles.map((file) => URL.createObjectURL(file));
-    setSelectedImageFiles((prev) => [...prev, ...incomingFiles]);
-    setSelectedImagePreviewUrls((prev) => [...prev, ...previewUrls]);
-    event.target.value = "";
-  };
-
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
-
-    setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
-    setSelectedImagePreviewUrls((prev) => {
-      const urlToRevoke = prev[index];
-      if (urlToRevoke) {
-        URL.revokeObjectURL(urlToRevoke);
-      }
-      return prev.filter((_, itemIndex) => itemIndex !== index);
-    });
-  };
-
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
-
-    setTicketImages((prev) => prev.filter((image) => image.image_id !== imageId));
-    setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
+    const files = Array.from(event.target.files || []).slice(0, 3);
+    setSelectedImageFiles(files);
+    const previewUrls = files.map((file) => URL.createObjectURL(file));
+    setSelectedImagePreviewUrls(previewUrls);
   };
 
   useEffect(() => {
     return () => {
       selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, []);
+  }, [selectedImagePreviewUrls]);
 
   // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
     try {
-      const errors = {};
-      if (!newTicket.title?.trim()) errors.title = true;
-      if (!newTicket.category) errors.category = true;
-      if (!newTicket.location_id) errors.location_id = true;
-      if (!newTicket.description?.trim()) errors.description = true;
-      if (Object.keys(errors).length > 0) {
-        setInvalidFields(errors);
-        const firstKey = Object.keys(errors)[0];
-        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
-        fieldRefs.current[firstKey]?.focus();
+      if (!newTicket.title && !newTicket.description) {
+        alert("Voer asseblief 'n titel of beskrywing vir die foutkaartjie in.");
         return;
       }
-      setInvalidFields({});
 
       const payload = {
         fault_description: newTicket.title
@@ -265,34 +191,43 @@ function TicketPage() {
         fault_status: newTicket.status,
         fault_priority: newTicket.priority,
         room_id: newTicket.room_id ? Number(newTicket.room_id) : null,
-        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,
-        building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
+        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
         location_id: newTicket.location_id ? Number(newTicket.location_id) : null,
       };
 
-      let ticketId = editingId;
+      if (newTicket.image_id) {
+        payload.image_id = Number(newTicket.image_id);
+      }
+      if (newTicket.image_id_2) {
+        payload.image_id_2 = Number(newTicket.image_id_2);
+      }
+      if (newTicket.image_id_3) {
+        payload.image_id_3 = Number(newTicket.image_id_3);
+      }
+
+      if (selectedImageFiles.length > 0) {
+        const uploadedIds = [];
+        for (const file of selectedImageFiles.slice(0, 3)) {
+          const imageFormData = new FormData();
+          imageFormData.append('file', file);
+          const imageResponse = await apiClient.image.upload(imageFormData);
+          if (imageResponse?.data?.image_id) {
+            uploadedIds.push(imageResponse.data.image_id);
+          }
+        }
+        if (uploadedIds.length > 0) {
+          payload.image_id = uploadedIds[0] || payload.image_id;
+          payload.image_id_2 = uploadedIds[1] || payload.image_id_2;
+          payload.image_id_3 = uploadedIds[2] || payload.image_id_3;
+        }
+      }
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
         alert("Foutkaartjie suksesvol opgedateer!");
       } else {
-        const response = await apiClient.tickets.create(payload);
-        ticketId = response?.data?.fault_id ?? response?.data?.id ?? null;
+        await apiClient.tickets.create(payload);
         alert("Foutkaartjie suksesvol geskep!");
-      }
-
-      if (isEditing) {
-        for (const imageId of imagesToDelete) {
-          await apiClient.image.delete(imageId);
-        }
-      }
-
-      if (ticketId && selectedImageFiles.length > 0) {
-        for (const file of selectedImageFiles.slice(0, MAX_TICKET_IMAGES)) {
-          const imageFormData = new FormData();
-          imageFormData.append('file', file);
-          await apiClient.image.uploadForParent(ticketId, 'ticket', imageFormData);
-        }
       }
       handleCloseModal();
       fetchTickets();
@@ -320,10 +255,7 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setTicketImages([]);
-    setImagesToDelete([]);
-    setActiveImageViewer(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
   };
 
   const handleNewTicket = () => {
@@ -331,10 +263,7 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setTicketImages([]);
-    setImagesToDelete([]);
-    setActiveImageViewer(null);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
     setShowModal(true);
   };
 
@@ -378,9 +307,6 @@ function TicketPage() {
 
   const filteredTickets = [...tickets]
     .filter((ticket) => {
-      if (terrainFilter && String(ticket.location_id) !== String(terrainFilter)) return false;
-      if (buildingFilter && String(ticket.building_id) !== String(buildingFilter)) return false;
-      if (roomFilter && String(ticket.room_id) !== String(roomFilter)) return false;
       const query = searchTerm.trim().toLowerCase();
       const description = ticket.fault_description || "";
       if (!query) return true;
@@ -427,11 +353,34 @@ function TicketPage() {
       if (currentTicket) {
         applyTicketLocationSelection(currentTicket);
       }
-      fetchTicketImages(editingId);
-    } else if (!showModal) {
-      setTicketImages([]);
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
+
+  const terrainOptions = (terrains || []).map((terrain) => ({
+    value: String(terrain.location_id),
+    label: terrain.location_name || terrain.location_desc || `Terrein ${terrain.location_id}`,
+  }));
+
+  const buildingOptions = (buildings || [])
+    .filter((building) => !newTicket.location_id || String(building.location_id) === String(newTicket.location_id))
+    .map((building) => ({
+      value: String(building.building_id),
+      label: building.building_name || `Gebou ${building.building_id}`,
+    }));
+
+  const roomOptions = (rooms || [])
+    .filter((room) => !newTicket.building_id || String(room.building_id) === String(newTicket.building_id))
+    .map((room) => ({
+      value: String(room.room_id),
+      label: room.room_name || room.room_number || room.room_desc || `Lokaal ${room.room_id}`,
+    }));
+
+  const assetOptions = (assets || [])
+    .filter((asset) => !newTicket.room_id || String(asset.room_id) === String(newTicket.room_id))
+    .map((asset) => ({
+      value: String(asset.asset_id),
+      label: `${asset.asset_id} - ${asset.asset_name || "Bate"}`,
+    }));
 
   return (
     <div style={{ display: "flex" }}>
@@ -463,74 +412,6 @@ function TicketPage() {
                 <option value="priority">Prioriteit</option>
                 <option value="status">Status</option>
               </select>
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                const renderBreadcrumb = () => (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                    {breadcrumbData.map((item, i) => {
-                      const isLast = i === breadcrumbData.length - 1;
-                      const showArrow = isLast ? cascadeCount < 3 : true;
-                      return (
-                        <React.Fragment key={i}>
-                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                );
-                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-                const CascadeControl = ({ children, ...props }) => (
-                  <components.Control {...props}>
-                    {children}
-                    {cascadeCount > 0 && (
-                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                        <IoReturnUpBack size={18} />
-                      </span>
-                    )}
-                  </components.Control>
-                );
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {renderBreadcrumb()}
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      components={{ Control: CascadeControl }}
-                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                      options={(() => {
-                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                        return [];
-                      })()}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) return;
-                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
-                      }}
-                    />
-                  </div>
-                );
-              })()}
             </div>
             <div className="controls-right">
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -564,7 +445,7 @@ function TicketPage() {
             </thead>
             <tbody>
               {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
+                <tr key={ticket.fault_id}>
                   <td>{ticket.fault_id}</td>
                   <td>{extractTitle(ticket.fault_description)}</td>
                   <td>{ticket.asset_id}</td>
@@ -578,8 +459,9 @@ function TicketPage() {
                       {translateStatus(ticket.fault_status)}
                     </span>
                   </td>
-                  <td onClick={e => e.stopPropagation()}>
+                  <td>
                     <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
+                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
                     <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
                   </td>
                 </tr>
@@ -588,28 +470,6 @@ function TicketPage() {
           </table>
         </div>
       </div>
-
-      {activeImageViewer && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
-          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
-            <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
-            <img src={activeImageViewer.src} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} />
-            <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
-              {activeImageViewer.type === 'preview' ? (
-                <button type="button" className="btn-delete" onClick={() => {
-                  handleRemoveSelectedPreview(activeImageViewer.index);
-                  setActiveImageViewer(null);
-                }}>Verwyder</button>
-              ) : (
-                <button type="button" className="btn-delete" onClick={() => {
-                  handleDeleteExistingImage(activeImageViewer.imageId);
-                  setActiveImageViewer(null);
-                }}>Verwyder</button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {showModal && (
         <div className="modal" style={{ display: "flex" }}>
@@ -620,12 +480,12 @@ function TicketPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Titel *</label>
-                <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} />
+                <label>Titel</label>
+                <input type="text" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} />
               </div>
               <div className="input-group">
-                <label>Kategorie *</label>
-                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }}>
+                <label>Kategorie</label>
+                <select value={newTicket.category} onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}>
                   <option value="">Kies kategorie</option>
                   <option value="Instandhouding">Onderhoud</option>
                   <option value="Herstelwerk">Herstel</option>
@@ -645,187 +505,89 @@ function TicketPage() {
             </div>
             
             <div className="input-row">
-              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-                <label>Ligging *</label>
-                {(() => {
-                  const cascadeCount = [newTicket.location_id, newTicket.building_id, newTicket.room_id, newTicket.asset_id].filter(Boolean).length;
-                  const clearFromLevel = (levelIndex) => {
-                    if (levelIndex <= 0) setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
-                    else if (levelIndex === 1) setNewTicket(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
-                    else if (levelIndex === 2) setNewTicket(p => ({...p, room_id: "", asset_id: ""}));
-                    else if (levelIndex === 3) setNewTicket(p => ({...p, asset_id: ""}));
-                  };
-                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                  if (newTicket.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id });
-                  if (newTicket.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id });
-                  if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
-                  if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
-                  const renderBreadcrumb = () => (
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                      {breadcrumbData.map((item, i) => {
-                        const isLast = i === breadcrumbData.length - 1;
-                        const showArrow = isLast ? cascadeCount < 4 : true;
-                        return (
-                          <React.Fragment key={i}>
-                            <button
-                              type="button"
-                              className="breadcrumb-btn"
-                              onClick={() => clearFromLevel(item.level + 1)}
-                              style={{
-                                border: "none", cursor: "pointer", margin: "0",
-                                color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
-                                lineHeight: "1", display: "inline-flex", alignItems: "center",
-                              }}
-                            >{item.name}</button>
-                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  );
-                  const backBtnStyle = {
-                    background: "#935e28", border: "none", borderRadius: "4px",
-                    color: "#fff", cursor: "pointer", display: "flex",
-                    alignItems: "center", padding: "4px 8px", margin: "2px",
-                  };
-                  const CascadeControl = ({ children, ...props }) => (
-                    <components.Control {...props}>
-                      {children}
-                      {cascadeCount > 0 && (
-                        <span
-                          className="cascade-back-indicator"
-                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Terug na vorige vlak"
-                          style={backBtnStyle}
-                        >
-                          <IoReturnUpBack size={24} />
-                        </span>
-                      )}
-                    </components.Control>
-                  );
-                  return (
-                    <>
-                      {renderBreadcrumb()}
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        placeholder={
-                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
-                        }
-                        isClearable
-                        isDisabled={cascadeCount >= 4}
-                        closeMenuOnSelect={false}
-                        components={{ Control: CascadeControl }}
-                        options={(() => {
-                          if (cascadeCount === 0)
-                            return (terrains || []).map((t) => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
-                          if (cascadeCount === 1)
-                            return (buildings || []).filter((b) => String(b.location_id) === String(newTicket.location_id)).map((b) => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                          if (cascadeCount === 2)
-                            return (rooms || []).filter((r) => String(r.building_id) === String(newTicket.building_id)).map((r) => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
-                          if (cascadeCount === 3)
-                            return (assets || []).filter((a) => String(a.room_id) === String(newTicket.room_id)).map((a) => ({ value: String(a.asset_id), label: `${a.asset_id} - ${a.asset_name}` }));
-                          return [];
-                        })()}
-                        value={null}
-                        onChange={(selectedOption) => {
-                          if (!selectedOption) return;
-                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
-                          if (cascadeCount === 0)
-                            setNewTicket(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 1)
-                            setNewTicket(p => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 2)
-                            setNewTicket(p => ({...p, room_id: selectedOption.value, asset_id: ""}));
-                          else if (cascadeCount === 3)
-                            setNewTicket(p => ({...p, asset_id: selectedOption.value}));
-                          setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
-                          const label = labels[cascadeCount] || "";
-                          setCascadeToast(`✓ ${label} suksesvol geselekteer`);
-                          setTimeout(() => setCascadeToast(null), 2000);
-                        }}
-                      />
-                    </>
-                  );
-                })()}
-                {cascadeToast && (
-                  <div style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    background: "#16a34a",
-                    color: "#fff",
-                    padding: "10px 24px",
-                    borderRadius: "10px",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
-                    zIndex: 10,
-                    textAlign: "center",
-                    pointerEvents: "none",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {cascadeToast}
-                  </div>
-                )}
+              <div className="input-group">
+                <label>Terrein</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder="Kies terrein..."
+                  isSearchable
+                  options={terrainOptions}
+                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.location_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, location_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Gebou</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newTicket.location_id ? "Kies eers terrein" : "Kies gebou..."}
+                  isSearchable
+                  isDisabled={!newTicket.location_id}
+                  options={buildingOptions}
+                  value={buildingOptions.find((option) => String(option.value) === String(newTicket.building_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, building_id: selected ? String(selected.value) : "", room_id: "", asset_id: "" })}
+                />
               </div>
             </div>
 
             <div className="input-row">
               <div className="input-group">
-                <label>Beelde (Maksimum {MAX_TICKET_IMAGES})</label>
+                <label>Lokaal</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newTicket.building_id ? "Kies eers gebou" : "Kies lokaal..."}
+                  isSearchable
+                  isDisabled={!newTicket.building_id}
+                  options={roomOptions}
+                  value={roomOptions.find((option) => String(option.value) === String(newTicket.room_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, room_id: selected ? String(selected.value) : "", asset_id: "" })}
+                />
+              </div>
+              <div className="input-group">
+                <label>Bate</label>
+                <Select
+                  className="basic-single"
+                  classNamePrefix="select"
+                  placeholder={!newTicket.room_id ? "Kies eers lokaal" : "Kies bate..."}
+                  isSearchable
+                  isDisabled={!newTicket.room_id}
+                  options={assetOptions}
+                  value={assetOptions.find((option) => String(option.value) === String(newTicket.asset_id)) || null}
+                  onChange={(selected) => setNewTicket({ ...newTicket, asset_id: selected ? String(selected.value) : "" })}
+                />
+              </div>
+            </div>
+
+            <div className="input-row">
+              <div className="input-group">
+                <label>Beelde (maksimum 3)</label>
                 <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
-
                 {selectedImagePreviewUrls.length > 0 && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Nuwe seleksies</p>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {selectedImagePreviewUrls.map((url, index) => (
-                        <div key={`${url}-${index}`} className="record-image-card" style={{ textAlign: 'center' }}>
-                          <img
-                            src={url}
-                            alt={`Voorbeeld ${index + 1}`}
-                            className="ticket-image-thumb"
-                            onClick={() => setActiveImageViewer({ type: 'preview', src: url, index })}
-                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
-                          />
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {selectedImagePreviewUrls.map((url, index) => (
+                      <img key={index} src={url} alt={`Voorbeeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
+                    ))}
                   </div>
                 )}
-
-                {ticketImages.length > 0 && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Bestaande beelde</p>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      {ticketImages.map((image, index) => (
-                        <div key={image.image_id ?? index} className="record-image-card" style={{ textAlign: 'center' }}>
-                          <img
-                            src={getTicketImageUrl(image.image_id)}
-                            alt={`Huidige beeld ${index + 1}`}
-                            className="ticket-image-thumb"
-                            onClick={() => setActiveImageViewer({ type: 'existing', src: getTicketImageUrl(image.image_id), imageId: image.image_id, index })}
-                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
-                          />
-                          <div style={{ marginTop: '0.25rem' }}>
-                            <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {selectedImagePreviewUrls.length === 0 && (
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {[newTicket.image_id, newTicket.image_id_2, newTicket.image_id_3].filter(Boolean).map((id, index) => (
+                      <div key={index} style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.9rem' }}>Huidige beeld {index + 1}</p>
+                        <img src={getTicketImageUrl(id)} alt={`Huidige beeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Beskrywing *</label>
-                <textarea value={newTicket.description} ref={el => fieldRefs.current.description = el} className={invalidFields.description ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, description: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.description; return next; }); }} />
+                <label>Beskrywing</label>
+                <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} />
               </div>
               <div className="input-group">
                 <label>Status</label>

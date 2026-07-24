@@ -16,6 +16,7 @@ const REPORT_TABLES = [
   { value: 'fault', label: 'Foutkaartjies', endpoint: '/fault' },
   { value: 'job', label: 'Werksopdragte', endpoint: '/job' },
   { value: 'users', label: 'Gebruikers', endpoint: '/users' },
+  { value: 'contractors', label: 'Kontrakteurs', endpoint: '/contractors' },
   { value: 'quotes', label: 'Kwotasies', endpoint: '/quotes' }
 ];
 
@@ -27,6 +28,7 @@ const COLUMN_FALLBACKS = {
   fault: ['fault_id', 'fault_title', 'fault_status', 'asset_id', 'created_at'],
   job: ['job_id', 'job_title', 'job_status', 'asset_id', 'assigned_to'],
   users: ['user_id', 'user_name', 'user_surname', 'user_email', 'role_id', 'user_status'],
+  contractors: ['contractor_id', 'contractor_name', 'contractor_email', 'contractor_phone', 'contractor_status'],
   quotes: ['quote_id', 'quote_amount', 'quote_status', 'contractor_id', 'job_id']
 };
 

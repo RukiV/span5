@@ -5,36 +5,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-# The token signing key must never fall back to a shipped default in a real
-# deployment: anyone who knows it can forge valid session tokens for any user.
-# We therefore fail fast at import time (i.e. at startup) unless the app is
-# explicitly running in a local/dev/test environment.
-_DEFAULT_SECRET = "please-change-this-secret"
-_DEV_ENVIRONMENTS = {"development", "dev", "local", "test", "testing"}
-
-ENVIRONMENT = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).strip().lower()
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
-
-if not SECRET_KEY or SECRET_KEY == _DEFAULT_SECRET:
-    if ENVIRONMENT in _DEV_ENVIRONMENTS:
-        # Dev/test convenience only. This key is public knowledge — never rely
-        # on it anywhere real. Set ENVIRONMENT=production (or any non-dev value)
-        # and the block below turns this into a hard startup failure.
-        # ASCII only: this runs at startup and may print to a Windows cp1252
-        # console, where non-ASCII characters raise UnicodeEncodeError.
-        print(
-            "WARNING: AUTH_SECRET_KEY is unset or the known default; using an "
-            f"insecure development key because ENVIRONMENT='{ENVIRONMENT}'. Set a "
-            "strong AUTH_SECRET_KEY for any non-development environment."
-        )
-        SECRET_KEY = _DEFAULT_SECRET
-    else:
-        raise RuntimeError(
-            "AUTH_SECRET_KEY is not set (or is the known default) while "
-            f"ENVIRONMENT='{ENVIRONMENT}'. Refusing to start: set a strong, secret "
-            "AUTH_SECRET_KEY environment variable."
-        )
-
+SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "please-change-this-secret")
 SESSION_DURATION_SECONDS = int(os.getenv("SESSION_DURATION_SECONDS", "7200"))
 
 
@@ -43,12 +14,7 @@ def _sign_message(message: bytes) -> str:
 
 
 def create_session_token(user_id: int) -> str:
-    # Deliberately store ONLY the user_id (plus expiry) in the token — never the
-    # role or the resolved rights. The user (and their rights) are re-resolved
-    # from the DB on every request (see auth/permissions.py), so a role change or
-    # a RoleRight change takes effect immediately without having to revoke any
-    # outstanding tokens. (This resolves the old "#Moet not role add en dalk
-    # rights" note that used to sit here.)
+    #Moet not role add en dalk rights
     payload = {
         "user_id": user_id,
         "exp": int((datetime.now(timezone.utc) + timedelta(seconds=SESSION_DURATION_SECONDS)).timestamp()),

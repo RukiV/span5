@@ -7,10 +7,7 @@ class Campus {
   final String code;
   final String streetNum;
   final String streetName;
-  final String suburb;
-  final String city;
-  final String province;
-  final String country;
+  final int zipcodeId;
   final LatLng location;
   final double radius;
   final String? imageAsset;
@@ -22,24 +19,14 @@ class Campus {
     required this.code,
     required this.streetNum,
     required this.streetName,
-    this.suburb = '',
-    this.city = '',
-    this.province = '',
-    this.country = '',
+    this.zipcodeId = 1,
     required this.location,
     this.radius = 110,
     this.imageAsset,
     this.buildings = const [],
   });
 
-  String get address {
-    final parts = ["$streetNum $streetName".trim()];
-    if (suburb.isNotEmpty) parts.add(suburb);
-    if (city.isNotEmpty) parts.add(city);
-    if (province.isNotEmpty) parts.add(province);
-    if (country.isNotEmpty) parts.add(country);
-    return parts.join(", ");
-  }
+  String get address => "$streetNum $streetName".trim();
 
   Campus copyWith({
     int? id,
@@ -47,10 +34,7 @@ class Campus {
     String? code,
     String? streetNum,
     String? streetName,
-    String? suburb,
-    String? city,
-    String? province,
-    String? country,
+    int? zipcodeId,
     LatLng? location,
     double? radius,
     String? imageAsset,
@@ -62,10 +46,7 @@ class Campus {
       code: code ?? this.code,
       streetNum: streetNum ?? this.streetNum,
       streetName: streetName ?? this.streetName,
-      suburb: suburb ?? this.suburb,
-      city: city ?? this.city,
-      province: province ?? this.province,
-      country: country ?? this.country,
+      zipcodeId: zipcodeId ?? this.zipcodeId,
       location: location ?? this.location,
       radius: radius ?? this.radius,
       imageAsset: imageAsset ?? this.imageAsset,
@@ -78,10 +59,7 @@ class Campus {
     'location_type': code,
     'location_streetnum': streetNum,
     'location_streetname': streetName,
-    'location_suburb': suburb,
-    'location_city': city,
-    'location_province': province,
-    'location_country': country,
+    'zipcode_id': zipcodeId,
   };
 
   factory Campus.fromJson(Map<String, dynamic> json) => Campus(
@@ -90,10 +68,7 @@ class Campus {
     code: json['location_type'] ?? 'KAMPUS',
     streetNum: json['location_streetnum']?.toString() ?? '',
     streetName: json['location_streetname'] ?? '',
-    suburb: json['location_suburb'] ?? '',
-    city: json['location_city'] ?? '',
-    province: json['location_province'] ?? '',
-    country: json['location_country'] ?? '',
+    zipcodeId: json['zipcode_id'] ?? 1,
     location: const LatLng(-25.8480, 28.2366),
     radius: 110.0,
     imageAsset: null,

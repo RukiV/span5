@@ -15,6 +15,5 @@ class AuthConfig {
     'profile',
     'email',
     'User.Read',
-    'Calendars.ReadWrite',
   ];
 }

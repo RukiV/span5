@@ -130,7 +130,20 @@ class CampusService {
 
   static Future<bool> addCampus(Campus campus) async {
     try {
-      final data = campus.toJson();
+      int zipId = campus.zipcodeId;
+      // If default, try to get a real one from backend
+      if (zipId == 1) {
+        try {
+          final zipResponse = await ApiClient().client.get('/zipcode');
+          if (zipResponse.statusCode == 200 && (zipResponse.data as List).isNotEmpty) {
+            zipId = zipResponse.data[0]['zipcode_id'];
+          }
+        } catch (e) {
+          debugPrint("Could not load zipcodes: $e");
+        }
+      }
+
+      final data = campus.copyWith(zipcodeId: zipId).toJson();
 
       final response = await ApiClient().client.post('/location', data: data);
 

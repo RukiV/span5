@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
@@ -27,7 +26,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _canCheckBiometrics = false;
   bool _obscurePassword = true; // Beheer die sigbaarheid van die wagwoord
-  AadOAuth? oauth;
+  late AadOAuth oauth;
 
   final TextEditingController _userControl = TextEditingController();
   final TextEditingController _passControl = TextEditingController();
@@ -44,6 +43,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    oauth = AadOAuth(_oauthConfig);
     _initAuth();
   }
 
@@ -221,17 +221,10 @@ class _LoginPageState extends State<LoginPage> {
 
   /// Hanteer Microsoft Outlook SSO aanmelding.
   Future<void> _outlookLogin() async {
-    // webview_flutter ondersteun nie Windows/Linux nie — wys net 'n boodskap.
-    if (!Platform.isAndroid && !Platform.isIOS) {
-      _showError("Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.");
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
-      oauth ??= AadOAuth(_oauthConfig);
-      await oauth!.login();
-      String? accessToken = await oauth!.getAccessToken();
+      await oauth.login();
+      String? accessToken = await oauth.getAccessToken();
       if (accessToken != null && mounted) {
         final response = await ApiClient().client.post(
           '/auth/microsoft',

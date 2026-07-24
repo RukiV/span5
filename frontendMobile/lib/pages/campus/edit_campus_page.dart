@@ -17,10 +17,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
   late TextEditingController _typeController;
   late TextEditingController _streetNumController;
   late TextEditingController _streetNameController;
-  late TextEditingController _suburbController;
-  late TextEditingController _cityController;
-  late TextEditingController _provinceController;
-  late TextEditingController _countryController;
+  late TextEditingController _zipIdController;
   bool _isSaving = false;
 
   @override
@@ -30,10 +27,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _typeController = TextEditingController(text: widget.campus.code);
     _streetNumController = TextEditingController(text: widget.campus.streetNum);
     _streetNameController = TextEditingController(text: widget.campus.streetName);
-    _suburbController = TextEditingController(text: widget.campus.suburb);
-    _cityController = TextEditingController(text: widget.campus.city);
-    _provinceController = TextEditingController(text: widget.campus.province);
-    _countryController = TextEditingController(text: widget.campus.country);
+    _zipIdController = TextEditingController(text: widget.campus.zipcodeId.toString());
   }
 
   @override
@@ -42,10 +36,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _typeController.dispose();
     _streetNumController.dispose();
     _streetNameController.dispose();
-    _suburbController.dispose();
-    _cityController.dispose();
-    _provinceController.dispose();
-    _countryController.dispose();
+    _zipIdController.dispose();
     super.dispose();
   }
 
@@ -97,10 +88,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
       code: _typeController.text,
       streetNum: _streetNumController.text,
       streetName: _streetNameController.text,
-      suburb: _suburbController.text,
-      city: _cityController.text,
-      province: _provinceController.text,
-      country: _countryController.text,
+      zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
     );
 
     final success = await CampusService.updateCampus(updatedCampus);
@@ -207,31 +195,12 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  _buildFieldLabel("Suburb"),
+                  _buildFieldLabel("Poskode ID"),
                   TextFormField(
-                    controller: _suburbController,
+                    controller: _zipIdController,
                     decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Stad"),
-                  TextFormField(
-                    controller: _cityController,
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Provinsie"),
-                  TextFormField(
-                    controller: _provinceController,
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Land"),
-                  TextFormField(
-                    controller: _countryController,
-                    decoration: _inputDecoration(),
+                    keyboardType: TextInputType.number,
+                    validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 32),
                   
