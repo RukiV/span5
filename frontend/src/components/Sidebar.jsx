@@ -44,11 +44,21 @@ function Sidebar({ currentPath, onLogout }) {
 
         {can('faults.manage_all') && <li><Link to="/fault-tickets" style={isActive('/fault-tickets')}>Foutkaartjies</Link></li>}
         {can('jobs.manage') && <li><Link to="/work-orders" style={isActive('/work-orders')}>Werksopdragte</Link></li>}
-        {can('contractors.manage') && <li><Link to="/contractors" style={isActive('/contractors')}>Kontrakteurs</Link></li>}
         {can('calendar.view') && <li><Link to="/calendar" style={isActive('/calendar')}>Kalender</Link></li>}
         {can('predictions.view') && <li><Link to="/predictions" style={isActive('/predictions')}>Voorspellings</Link></li>}
         {can('reports.view') && <li><Link to="/reports" style={isActive('/reports')}>Verslae</Link></li>}
-        {can('users.manage') && <li><Link to="/users" style={isActive('/users')}>Gebruikers</Link></li>}
+        {can('users.manage') && (
+          <li className="dropdown" style={isInGroup(['/users'])}>
+            <div className="dropdown-trigger">
+              <span>Gebruikers</span>
+            </div>
+            <div className="dropdown-content">
+              <li><Link to="/users/users" style={isActive('/users/users')}>Gebruikers</Link></li>
+              <li><Link to="/users/roles" style={isActive('/users/roles')}>Rolle</Link></li>
+              <li><Link to="/users/rights" style={isActive('/users/rights')}>Regte</Link></li>
+            </div>
+          </li>
+        )}
       </ul>
       <div className="logout-container">
         <button type="button" className="btn-logout-sidebar" onClick={() => onLogout()}>Teken Uit</button>
