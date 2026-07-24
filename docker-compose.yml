@@ -22,6 +22,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/facility_db
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-your_client_id_here}
+      # Local dev default. For any real deployment set ENVIRONMENT to a non-dev
+      # value (e.g. production) AND provide a strong AUTH_SECRET_KEY, otherwise
+      # the backend refuses to start. Generate one with:
+      #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
