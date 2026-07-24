@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
+import 'manage_asset_types_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 
@@ -20,11 +22,19 @@ class _AssetsPageState extends State<AssetsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
   String _statusFilter = "Almal";
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+  int? _selectedRoomId;
 
   @override
   void initState() {
     super.initState();
     AssetService.fetchAssets();
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
+    _tryAutoSelectCampus();
     _searchController.addListener(() {
       setState(() {
         _query = _searchController.text.toLowerCase();
@@ -32,8 +42,25 @@ class _AssetsPageState extends State<AssetsPage> {
     });
   }
 
+  void _tryAutoSelectCampus() {
+    if (UserSession.isManager && _selectedCampusId == null && UserSession.locationId != null) {
+      final match = CampusService.campusesNotifier.value
+          .where((c) => c.id == UserSession.locationId).firstOrNull;
+      if (match != null) _selectedCampusId = match.id;
+    }
+  }
+
+  void _onCampusesChanged() {
+    if (mounted) {
+      setState(() {
+        _tryAutoSelectCampus();
+      });
+    }
+  }
+
   @override
   void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -75,6 +102,7 @@ class _AssetsPageState extends State<AssetsPage> {
       body: Column(
         children: [
           _buildSearchBarWithFilter(),
+          _buildCampusFilter(),
           Expanded(child: _buildAssetList()),
         ],
       ),
@@ -106,6 +134,28 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
           ),
+          if (UserSession.hasAdminPrivileges) ...[
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageAssetTypesPage())),
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 30/255),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.settings, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
+                    Text("Bate Tipes", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -131,14 +181,141 @@ class _AssetsPageState extends State<AssetsPage> {
     );
   }
 
+  Widget _buildCampusFilter() {
+    final campuses = CampusService.campusesNotifier.value;
+    if (campuses.isEmpty) return const SizedBox.shrink();
+
+    final selectedCampus = _selectedCampusId != null
+        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
+        : null;
+    final buildings = selectedCampus?.buildings ?? [];
+    final selectedBuilding = _selectedBuildingId != null
+        ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
+        : null;
+    final rooms = selectedBuilding?.rooms ?? [];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                isExpanded: true,
+                value: _selectedCampusId,
+                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
+                items: campuses.map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
+                )).toList(),
+                onChanged: (val) => setState(() {
+                  _selectedCampusId = val;
+                  _selectedBuildingId = null;
+                  _selectedRoomId = null;
+                }),
+              ),
+            ),
+          ),
+        ),
+        if (_selectedCampusId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: _selectedBuildingId,
+                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
+                  items: buildings.map((b) => DropdownMenuItem(
+                    value: b.id,
+                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (val) => setState(() {
+                    _selectedBuildingId = val;
+                    _selectedRoomId = null;
+                  }),
+                ),
+              ),
+            ),
+          ),
+        if (_selectedBuildingId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: _selectedRoomId,
+                  hint: const Text("Kies Lokaal", style: TextStyle(fontSize: 13)),
+                  items: rooms.map((r) => DropdownMenuItem(
+                    value: r.id,
+                    child: Text(r.name, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (val) => setState(() => _selectedRoomId = val),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildAssetList() {
     return ValueListenableBuilder<List<Asset>>(
       valueListenable: AssetService.assetsNotifier,
       builder: (context, allAssets, _) {
+        final campuses = CampusService.campusesNotifier.value;
+
+        // Build valid room ID sets for cascade filter
+        final campusRoomIds = _selectedCampusId != null
+            ? campuses
+                .where((c) => c.id == _selectedCampusId)
+                .expand((c) => c.buildings)
+        .expand((b) => b.rooms ?? [])
+        .map((r) => r.id.toString())
+        .toSet()
+            : null;
+        final buildingRoomIds = _selectedBuildingId != null
+            ? campuses
+                .expand((c) => c.buildings)
+                .where((b) => b.id == _selectedBuildingId)
+                .expand((b) => b.rooms ?? [])
+                .map((r) => r.id.toString())
+                .toSet()
+            : null;
+
         final filtered = allAssets.where((a) {
           // Room filter from constructor
           if (widget.filterRoomId != null && a.location != widget.filterRoomId) return false;
-          
+
+          // Campus filter
+          if (campusRoomIds != null && !campusRoomIds.contains(a.location)) return false;
+
+          // Building filter
+          if (buildingRoomIds != null && !buildingRoomIds.contains(a.location)) return false;
+
+          // Room filter
+          if (_selectedRoomId != null && a.location != _selectedRoomId.toString()) return false;
+
           // Status filter
           if (_statusFilter != "Almal") {
              String mapped = "active";
@@ -156,7 +333,8 @@ class _AssetsPageState extends State<AssetsPage> {
 
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
-        return Column(
+return Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
@@ -170,30 +348,32 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
             Expanded(
-              child: ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final asset = filtered[index];
-                  return InkWell(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                          Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-                          Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+              child: ListView(
+                children: [
+                  ...filtered.map((asset) => _buildAssetRow(asset)),
+                  const Divider(height: 1),
+                ],
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildAssetRow(Asset asset) {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+        child: Row(
+          children: [
+            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+            Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
+          ],
+        ),
+      ),
     );
   }
 
