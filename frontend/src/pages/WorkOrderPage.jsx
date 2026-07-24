@@ -54,6 +54,10 @@ function WorkOrderPage() {
 
   const [activeTab, setActiveTab] = useState("besonderhede");
   const [cascadeToast, setCascadeToast] = useState(null);
+  const [showSchedulerPopup, setShowSchedulerPopup] = useState(false);
+  const [tempSchedule, setTempSchedule] = useState({ date: '', startH: '08', startTens: '0', startOnes: '0', endH: '09', endTens: '0', endOnes: '0' });
+  const [scheduleViewMonth, setScheduleViewMonth] = useState(new Date().getMonth());
+  const [scheduleViewYear, setScheduleViewYear] = useState(new Date().getFullYear());
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
   const liggingRef = useRef(null);
@@ -71,6 +75,7 @@ function WorkOrderPage() {
     job_priority: "",                // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
+    job_scheduled_end_datetime: "", // Geskeduleerde einddatum
     job_schedule_type: "enkel",     // Herhalingstipe
     
     // Aanspreekpunt-inligting
@@ -524,6 +529,7 @@ function WorkOrderPage() {
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
       job_scheduled_datetime: formatDateTimeForInput(order.job_scheduled_datetime || order.job_createddatetime),
+      job_scheduled_end_datetime: formatDateTimeForInput(order.job_scheduled_end_datetime) || "",
       job_schedule_type: order.job_schedule_type || "enkel",
       contact_name: order.contact_name || "",
       contact_email: order.contact_email || "",
@@ -651,6 +657,7 @@ function WorkOrderPage() {
         nature: formData.nature || null,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
+        job_scheduled_end_datetime: formatDateTimeForPayload(formData.job_scheduled_end_datetime) || null,
         job_schedule_type: formData.job_schedule_type || "enkel",
         asset_id: formData.asset_id ? Number(formData.asset_id) : null,
         room_id: formData.room_id ? Number(formData.room_id) : null,
@@ -816,6 +823,7 @@ function WorkOrderPage() {
       job_priority: "",
       job_createddatetime: "",
       job_scheduled_datetime: "",
+      job_scheduled_end_datetime: "",
       job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
@@ -849,6 +857,7 @@ function WorkOrderPage() {
       job_priority: "",
       job_createddatetime: new Date().toISOString().split('T')[0],
       job_scheduled_datetime: new Date().toISOString().slice(0, 16),
+      job_scheduled_end_datetime: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
       job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
@@ -1159,7 +1168,7 @@ function WorkOrderPage() {
                 </tr>
               ) : (
                 filteredWorkOrders.map((order) => (
-                  <tr key={order.jobcard_id}>
+                  <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
                     <td>{order.jobcard_id}</td>
                     <td className="description-cell">{order.job_desc || "-"}</td>
                     <td>{order.job_type || "-"}</td>
@@ -1174,15 +1183,7 @@ function WorkOrderPage() {
                         {translateStatus(order.job_status)}
                       </span>
                     </td>
-                    <td>
-                      <button 
-                        type="button"
-                        className="btn-edit"
-                        onClick={() => handleEditWorkOrder(order)}
-                        title="Bekyk en wysig werksopdrag"
-                      >
-                        Bekyk
-                      </button>
+                    <td onClick={e => e.stopPropagation()}>
                       <button 
                         type="button"
                         className="btn-delete"
@@ -1374,6 +1375,12 @@ function WorkOrderPage() {
                   if (formData.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id });
                   if (formData.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id });
                   if (formData.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id });
+                  const breadcrumbBaseStyle = {
+                    border: "none", cursor: "pointer",
+                    margin: "0",
+                    color: "#111827", fontSize: "13px",
+                    lineHeight: "1", display: "inline-flex", alignItems: "center",
+                  };
                   const renderBreadcrumb = () => (
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
                       {breadcrumbData.map((item, i) => {
@@ -1383,32 +1390,39 @@ function WorkOrderPage() {
                           <React.Fragment key={i}>
                             <button
                               type="button"
+                              className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
                               style={{
-                                background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0",
-                                color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
-                                lineHeight: "1", display: "inline-flex", alignItems: "center",
+                                ...breadcrumbBaseStyle,
+                                fontWeight: isLast ? 700 : 600,
                               }}
                             >{item.name}</button>
-                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center", margin: 0 }}>›</span>}
                           </React.Fragment>
                         );
                       })}
                     </div>
                   );
-                  const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                  const backBtnStyle = {
+                    background: "#935e28", border: "none", borderRadius: "4px",
+                    color: "#fff", cursor: "pointer", display: "flex",
+                    alignItems: "center", padding: "4px 8px", margin: "2px",
+                  };
                   const CascadeControl = ({ children, ...props }) => (
                     <components.Control {...props}>
                       {children}
                       {cascadeCount > 0 && (
-                        <span
-                          className="cascade-back-indicator"
-                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Vorige vlak"
-                          style={backBtnStyle}
-                        >
-                          <IoReturnUpBack size={18} />
-                        </span>
+                        <>
+                          <span style={{ color: "#ccc", userSelect: "none", display: "inline-flex", alignItems: "center" }}>|</span>
+                          <span
+                            className="cascade-back-btn"
+                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
+                            title="Terug na vorige vlak"
+                            style={backBtnStyle}
+                          >
+                            <IoReturnUpBack size={24} />
+                          </span>
+                        </>
                       )}
                     </components.Control>
                   );
@@ -1584,18 +1598,165 @@ function WorkOrderPage() {
               </div>
               <div className="mri-row flex">
                 <div className="mri-cell w-50 border-r">
-                  <div className="mri-fld" style={{ position: "relative" }}><span>Geskeduleerde Datum en Tyd</span> 
-                    <input 
-                      type="datetime-local"
-                      value={formData.job_scheduled_datetime}
-                      onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
-                    />
+                  <div className="mri-fld" style={{ position: "relative" }}>
+                    <span>Geskeduleerde Datum & Tyd</span>
+                    <button
+                      type="button"
+                      className="btn-add"
+                      style={{ width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '13px', background: formData.job_scheduled_datetime ? '#e5e5e5' : '#fff', color: '#111827', border: '1px solid #ccc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                      onClick={() => {
+                        const dt = formData.job_scheduled_datetime;
+                        const date = dt ? dt.split('T')[0] : new Date().toISOString().split('T')[0];
+                        const startTime = dt ? dt.split('T')[1]?.slice(0, 5) || '08:00' : '08:00';
+                        const endTime = formData.job_scheduled_end_datetime
+                          ? formData.job_scheduled_end_datetime.split('T')[1]?.slice(0, 5) || '09:00'
+                          : '09:00';
+                        const startParts = startTime.split(':');
+                        const endParts = endTime.split(':');
+                        setTempSchedule({
+                          date,
+                          startH: startParts[0] || '08',
+                          startTens: startParts[1]?.[0] || '0',
+                          startOnes: startParts[1]?.[1] || '0',
+                          endH: endParts[0] || '09',
+                          endTens: endParts[1]?.[0] || '0',
+                          endOnes: endParts[1]?.[1] || '0',
+                        });
+                        const d = new Date(date);
+                        setScheduleViewMonth(d.getMonth());
+                        setScheduleViewYear(d.getFullYear());
+                        setShowSchedulerPopup(true);
+                      }}
+                    >
+                      <span>
+                        {formData.job_scheduled_datetime
+                          ? `${new Date(formData.job_scheduled_datetime).toLocaleDateString('af-ZA')} ${formData.job_scheduled_datetime.split('T')[1]?.slice(0, 5) || ''} - ${formData.job_scheduled_end_datetime?.split('T')[1]?.slice(0, 5) || 'geen eindtyd'}`
+                          : 'Kies Datum & Tyd...'}
+                      </span>
+                      <span>📅</span>
+                    </button>
                     {formData.job_scheduled_datetime && (
                       <button
                         type="button"
                         className="input-clear-btn"
-                        onClick={() => setFormData({...formData, job_scheduled_datetime: ""})}
+                        onClick={() => setFormData({...formData, job_scheduled_datetime: "", job_scheduled_end_datetime: ""})}
                       >×</button>
+                    )}
+                    {showSchedulerPopup && (
+                      <>
+                        <div style={{
+                          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99,
+                          background: 'transparent',
+                        }}
+                          onClick={() => {
+                            const start = `${tempSchedule.date}T${tempSchedule.startH}:${tempSchedule.startTens}${tempSchedule.startOnes}`;
+                            const end = `${tempSchedule.date}T${tempSchedule.endH}:${tempSchedule.endTens}${tempSchedule.endOnes}`;
+                            setFormData(p => ({ ...p, job_scheduled_datetime: start, job_scheduled_end_datetime: end }));
+                            setShowSchedulerPopup(false);
+                          }}
+                        />
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, zIndex: 100,
+                          background: '#fff', border: '1px solid #d4c4b0', borderRadius: '8px',
+                          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', padding: '16px', width: '320px',
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <button type="button" onClick={() => {
+                              const d = new Date(scheduleViewYear, scheduleViewMonth - 1);
+                              setScheduleViewMonth(d.getMonth());
+                              setScheduleViewYear(d.getFullYear());
+                            }} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '16px' }}>◀</button>
+                            <span style={{ fontWeight: 600 }}>
+                              {new Date(scheduleViewYear, scheduleViewMonth).toLocaleDateString('af-ZA', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <button type="button" onClick={() => {
+                              const d = new Date(scheduleViewYear, scheduleViewMonth + 1);
+                              setScheduleViewMonth(d.getMonth());
+                              setScheduleViewYear(d.getFullYear());
+                            }} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '16px' }}>▶</button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '2px', textAlign: 'center', fontSize: '12px', marginBottom: '8px' }}>
+                            {['Ma','Di','Wo','Do','Vr','Sa','So'].map(d => <div key={d} style={{ fontWeight: 600, padding: '4px 0' }}>{d}</div>)}
+                            {(() => {
+                              const first = new Date(scheduleViewYear, scheduleViewMonth, 1);
+                              const startDay = (first.getDay() + 6) % 7;
+                              const daysInMonth = new Date(scheduleViewYear, scheduleViewMonth + 1, 0).getDate();
+                              const cells = [];
+                              for (let i = 0; i < startDay; i++) cells.push(<div key={`e${i}`} />);
+                              for (let d = 1; d <= daysInMonth; d++) {
+                                const dateStr = `${scheduleViewYear}-${String(scheduleViewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                                const isSelected = dateStr === tempSchedule.date;
+                                cells.push(
+                                  <div key={d}
+                                    onClick={() => setTempSchedule(p => ({ ...p, date: dateStr }))}
+                                    style={{
+                                      padding: '4px 0', cursor: 'pointer', borderRadius: '4px',
+                                      background: isSelected ? '#935e28' : 'transparent',
+                                      color: isSelected ? '#fff' : '#111827',
+                                      fontWeight: isSelected ? 700 : 400,
+                                    }}
+                                  >{d}</div>
+                                );
+                              }
+                              return cells;
+                            })()}
+                          </div>
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '11px', fontWeight: 600 }}>Begin-tyd</label>
+                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                              <select size={3} value={tempSchedule.startH}
+                                onChange={e => setTempSchedule(p => ({ ...p, startH: e.target.value }))}
+                                style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
+                                {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
+                                  <option key={h} value={h}>{h}</option>
+                                )}
+                              </select>
+                              <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
+                              <select size={3} value={`${tempSchedule.startTens}${tempSchedule.startOnes}`}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setTempSchedule(p => ({ ...p, startTens: v[0], startOnes: v[1] }));
+                                }}
+                                style={{ flex: 2, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
+                                {Array.from({length: 60}, (_, i) => String(i).padStart(2, '0')).map(m =>
+                                  <option key={m} value={m}>{m}</option>
+                                )}
+                              </select>
+                            </div>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label style={{ fontSize: '11px', fontWeight: 600 }}>Eind-tyd</label>
+                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                              <select size={3} value={tempSchedule.endH}
+                                onChange={e => setTempSchedule(p => ({ ...p, endH: e.target.value }))}
+                                style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
+                                {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
+                                  <option key={h} value={h}>{h}</option>
+                                )}
+                              </select>
+                              <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
+                              <select size={3} value={`${tempSchedule.endTens}${tempSchedule.endOnes}`}
+                                onChange={e => {
+                                  const v = e.target.value;
+                                  setTempSchedule(p => ({ ...p, endTens: v[0], endOnes: v[1] }));
+                                }}
+                                style={{ flex: 2, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
+                                {Array.from({length: 60}, (_, i) => String(i).padStart(2, '0')).map(m =>
+                                  <option key={m} value={m}>{m}</option>
+                                )}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button type="button" className="btn-cancel" onClick={() => setShowSchedulerPopup(false)}
+                              style={{ padding: '6px 16px', borderRadius: '4px', border: '1px solid #ccc', background: '#f5f5f5', cursor: 'pointer' }}>
+                              Kanselleer
+                            </button>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>

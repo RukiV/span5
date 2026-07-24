@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { apiClient } from '../services/api';
+import React, { useState, useEffect, useRef } from 'react';
+import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
 import UserProfileHeader from '../components/UserProfileHeader';
+import RolesRightsManager from '../components/RolesRightsManager';
 
 function UsersPage() {
-  const navigate = useNavigate();
-    const logout = useLogout();
+  const logout = useLogout();
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [terrains, setTerrains] = useState([]);
+  const [showRolesManager, setShowRolesManager] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
@@ -19,8 +21,6 @@ function UsersPage() {
   const [sortDirection, setSortDirection] = useState('asc');
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [terrains, setTerrains] = useState([]);
   const [formUser, setFormUser] = useState({
     user_name: '',
     user_surname: '',
@@ -32,53 +32,23 @@ function UsersPage() {
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
-  const roles = [
-    { id: 1, name: 'Gebruiker' },
-    { id: 2, name: 'Fasiliteit Koördineerder' },
-    { id: 3, name: 'Administrateur' }
-  ];
-
-  // Kontroleer of huidige gebruiker 'n Administrateur is
-  // Slegs Administrateure (role_id=3) kan die Gebruikersblad sien
+  // Toegang tot hierdie bladsy word deur
+  // <RightProtectedRoute requiredRight="users.manage"> in App.jsx afgedwing (en
+  // die backend gate elke /users-roete met require_right("users.manage")). Hier
+  // haal ons die gebruikers EN die rolle (rolle dryf die rol-keuselys en word
+  // nou dinamies van die backend gehaal i.p.v. hardgekodeer).
   useEffect(() => {
-    const checkAuthorization = async () => {
-      try {
-        // Haal huidige gebruiker se inligting van backend
-        const response = await apiClient.get('/auth/me');
-        
-        // Kontroleer of rol-ID 3 is (Administrateur)
-        if (response.data.role_id === 3) {
-          setIsAuthorized(true);
-        } else {
-          // As nie administrateur nie, magtig-status sal vals wees
-          setIsAuthorized(false);
-          // Navigeer terug na dashboard na 2 sekondes
-          setTimeout(() => {
-            navigate('/dashboard');
-          }, 2000);
-        }
-      } catch (error) {
-        console.error('Error checking authorization:', error);
-        // As fout, navigeer na login-blad
-        navigate('/login');
-      }
-    };
-
-    checkAuthorization();
-  }, [navigate]);
-
-  // Haal almal gebruikers van backend wanneer magtiging bevestig is
-  useEffect(() => {
-    if (isAuthorized) {
-      fetchUsers();
-      fetchTerrains();
-    }
-  }, [isAuthorized]);
+    fetchUsers();
+    fetchRoles();
+    fetchTerrains();
+  }, []);
 
   const fetchTerrains = async () => {
     try {
-      const response = await apiClient.location.getAll();
+      const response = await locationAPI.getAll();
       setTerrains(response.data || []);
     } catch (error) {
       console.error('Error fetching terrains:', error);
@@ -97,6 +67,15 @@ function UsersPage() {
     }
   };
 
+  const fetchRoles = async () => {
+    try {
+      const response = await apiClient.roles.getAll();
+      setRoles(response.data);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  };
+
   // Hanteer toevoeging van nuwe gebruiker of opdatering van bestaande
   const handleAddUser = async () => {
     try {
@@ -104,25 +83,25 @@ function UsersPage() {
       setSuccess('');
 
       // Valideer dat vereiste velde ingevul is
-      if (!formUser.user_name || !formUser.user_email) {
-        setError('Naam en e-pos is vereist');
+      const errors = {};
+      if (!formUser.user_name?.trim()) errors.user_name = true;
+      if (!formUser.user_surname?.trim()) errors.user_surname = true;
+      if (!formUser.user_email?.trim()) errors.user_email = true;
+      if (!editingUser && !formUser.user_password?.trim()) errors.user_password = true;
+      if (!formUser.role_id) errors.role_id = true;
+      if (!formUser.user_status) errors.user_status = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        setError('');
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
-
-      // Vir nuwe gebruikers, wagwoord is vereist
-      if (!editingUser && !formUser.user_password) {
-        setError('Wagwoord is vereist vir nuwe gebruikers');
-        return;
-      }
+      setInvalidFields({});
+      setError('');
 
       let dataToSend = { ...formUser };
-
-      // Stuur null vir leë terrein (back-end verwag Optional[int])
-      if (!dataToSend.location_id) {
-        delete dataToSend.location_id;
-      } else {
-        dataToSend.location_id = Number(dataToSend.location_id);
-      }
 
       // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
@@ -148,8 +127,7 @@ function UsersPage() {
           user_email: '',
           user_password: '',
           user_status: 'active',
-          role_id: 1,
-          location_id: ''
+          role_id: 1
         });
         setSuccess('');
         fetchUsers();
@@ -170,7 +148,7 @@ function UsersPage() {
       user_password: '', // Laat leeg sodat bestaande wagwoord nie oorskryf word
       user_status: user.user_status,
       role_id: user.role_id,
-      location_id: user.location_id ? String(user.location_id) : ''
+      location_id: user.location_id || ''
     });
     setShowModal(true);
   };
@@ -204,11 +182,15 @@ function UsersPage() {
   };
 
   const getRoleName = (roleId) => {
+    const role = roles.find(r => r.role_id === roleId);
+    if (role) return role.role_name;
+    // Terugval vir ingeboude rolle voordat die rol-lys gelaai het
     switch (roleId) {
       case 1: return 'Gebruiker';
       case 2: return 'Fasiliteit Koördineerder';
       case 3: return 'Administrateur';
-      default: return 'Gebruiker';
+      case 4: return 'Kontrakteur';
+      default: return 'Onbekend';
     }
   };
 
@@ -255,19 +237,9 @@ function UsersPage() {
     return <div>Besig om gebruikers te laai...</div>;
   }
 
-  if (!isAuthorized) {
-    return (
-      <div style={{ padding: '20px', color: 'red', fontSize: '16px' }}>
-              <p>Jammer, jy het nie die regte toestemming om die Gebruikers blad te besoek nie.</p>
-              <p>Alleen administrateurs kan hierdie blad sien.</p>
-              <p>Jy word nou teruggeleei na die Paneelbord...</p>
-            </div>
-    );
-  }
-
   return (
     <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users" isAdmin={true} onLogout={logout} />
+      <Sidebar currentPath="/users" onLogout={logout} />
 
       <div className="main">
         <div className="navbar">
@@ -316,6 +288,7 @@ function UsersPage() {
                 <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
               </div>
 
+              <button className="btn-add" onClick={() => setShowRolesManager(true)}>Bestuur Rolle & Regte</button>
               <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
             </div>
           </div>
@@ -332,13 +305,12 @@ function UsersPage() {
             </thead>
             <tbody>
               {filteredUsers.map(user => (
-                <tr key={user.user_id}>
+                <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
                   <td>{user.user_name}</td>
                   <td>{user.user_email}</td>
                   <td><span className={`badge ${getRoleClass(user.role_id)}`}>{getRoleName(user.role_id)}</span></td>
                   <td className={getStatusClass(user.user_status)}>{user.user_status === 'active' ? 'Aktief' : 'Onaktief'}</td>
-                  <td>
-                    <button className="btn-edit" onClick={() => handleEditUser(user)}>Wysig</button>
+                  <td onClick={e => e.stopPropagation()}>
                     <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
                   </td>
                 </tr>
@@ -358,67 +330,97 @@ function UsersPage() {
             {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
             {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
             <div className="form-group">
-              <label>Voornaam</label>
+              <label>Voornaam *</label>
               <input
+                ref={el => fieldRefs.current.user_name = el}
                 type="text"
+                className={invalidFields.user_name ? "field-invalid" : ""}
                 value={formUser.user_name}
-                onChange={(e) => setFormUser({ ...formUser, user_name: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_name: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
+                }}
               />
             </div>
             <div className="form-group">
-              <label>Van</label>
+              <label>Van *</label>
               <input
+                ref={el => fieldRefs.current.user_surname = el}
                 type="text"
+                className={invalidFields.user_surname ? "field-invalid" : ""}
                 value={formUser.user_surname}
-                onChange={(e) => setFormUser({ ...formUser, user_surname: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_surname: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
+                }}
               />
             </div>
             <div className="form-group">
-              <label>E-pos</label>
+              <label>E-pos *</label>
               <input
+                ref={el => fieldRefs.current.user_email = el}
                 type="email"
+                className={invalidFields.user_email ? "field-invalid" : ""}
                 value={formUser.user_email}
-                onChange={(e) => setFormUser({ ...formUser, user_email: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_email: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+                }}
               />
             </div>
             {!editingUser && (
               <div className="form-group">
-                <label>Wagwoord</label>
+                <label>Wagwoord *</label>
                 <input
+                  ref={el => fieldRefs.current.user_password = el}
                   type="password"
+                  className={invalidFields.user_password ? "field-invalid" : ""}
                   value={formUser.user_password}
-                  onChange={(e) => setFormUser({ ...formUser, user_password: e.target.value })}
+                  onChange={(e) => {
+                    setFormUser({ ...formUser, user_password: e.target.value });
+                    setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+                  }}
                 />
               </div>
             )}
             <div className="form-group">
-              <label>Rol</label>
+              <label>Rol *</label>
               <select
+                ref={el => fieldRefs.current.role_id = el}
+                className={invalidFields.role_id ? "field-invalid" : ""}
                 value={formUser.role_id}
-                onChange={(e) => setFormUser({ ...formUser, role_id: parseInt(e.target.value) })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
+                  setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+                }}
               >
                 {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
+                  <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label>Terrein (slegs vir Fasiliteit Koördineerders)</label>
+              <label>Terrein (slegs vir FK)</label>
               <select
-                value={formUser.location_id}
-                onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value })}
+                value={formUser.location_id || ''}
+                onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
               >
                 <option value="">Geen terrein</option>
                 {terrains.map(t => (
-                  <option key={t.location_id} value={String(t.location_id)}>{t.location_name}</option>
+                  <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
-              <label>Status</label>
+              <label>Status *</label>
               <select
+                ref={el => fieldRefs.current.user_status = el}
+                className={invalidFields.user_status ? "field-invalid" : ""}
                 value={formUser.user_status}
-                onChange={(e) => setFormUser({ ...formUser, user_status: e.target.value })}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_status: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+                }}
               >
                 <option value="active">Aktief</option>
                 <option value="inactive">Onaktief</option>
@@ -430,6 +432,13 @@ function UsersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showRolesManager && (
+        <RolesRightsManager
+          onClose={() => setShowRolesManager(false)}
+          onChanged={fetchRoles}
+        />
       )}
     </div>
   );
