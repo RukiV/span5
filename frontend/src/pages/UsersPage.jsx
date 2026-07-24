@@ -426,7 +426,7 @@ function UsersPage({ embedded = false }) {
 
   return (
     <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users/gebruikers" onLogout={logout} />
+      <Sidebar currentPath="/users" onLogout={logout} />
       <div className="main">
         <div className="navbar">
           <h3>Gebruikers Bestuur</h3>
