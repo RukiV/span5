@@ -9,6 +9,7 @@ import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
 import 'edit_asset_page.dart';
+import 'room_checklist_page.dart';
 
 class AssetDetailPage extends StatefulWidget {
   final Asset asset;
@@ -44,6 +45,17 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         foregroundColor: Colors.white,
         title: Text(_currentAsset.name.toUpperCase()),
         actions: [
+          if (UserSession.hasAdminPrivileges && _currentAsset.location != '1')
+            IconButton(
+              icon: const Icon(Icons.checklist, color: Colors.white),
+              tooltip: "Kontroleer lokaal",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RoomChecklistPage(roomId: int.parse(_currentAsset.location)),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {

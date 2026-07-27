@@ -50,6 +50,7 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS contractor_id INTEGER"))
             if "quote_selection_reason" not in columns:
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
+            connection.execute(text("SELECT setval('quote_quote_id_seq', COALESCE(MAX(quote_id), 1)) FROM quote"))
 
         
         if "contractor" in inspector.get_table_names():

@@ -14,5 +14,6 @@ from .quote import *
 from .document import *
 from .report import *
 from .calendar_event import *
+from .room_check import *
 from .validators import *  # optional export
 

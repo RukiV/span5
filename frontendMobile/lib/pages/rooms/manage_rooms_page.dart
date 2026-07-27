@@ -6,6 +6,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../asset/asset_page.dart';
+import '../asset/room_checklist_page.dart';
 import '../../widgets/searchable_dropdown.dart';
 
 class ManageRoomsPage extends StatefulWidget {
@@ -437,6 +438,16 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       if (UserSession.hasAdminPrivileges) ...[
+                                        IconButton(
+                                          icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
+                                          tooltip: "Kontroleer bates",
+                                          onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RoomChecklistPage(roomId: room.id),
+                                            ),
+                                          ),
+                                        ),
                                         IconButton(
                                           icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
                                           onPressed: () => _showEditRoomDialog(context, room),
