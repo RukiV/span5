@@ -48,7 +48,7 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          debugPrint("❌ API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
+          debugPrint("API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
           
           if (e.response?.statusCode == 401) {
             // Token might be expired. Try to refresh.
@@ -93,7 +93,7 @@ class ApiClient {
         return true;
       }
     } catch (e) {
-      debugPrint("❌ Session refresh failed: $e");
+      debugPrint("Session refresh failed: $e");
     }
     return false;
   }
