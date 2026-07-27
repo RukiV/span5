@@ -7,6 +7,7 @@ import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
 import 'manage_asset_types_page.dart';
+import 'room_checklist_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 
@@ -98,6 +99,19 @@ class _AssetsPageState extends State<AssetsPage> {
         title: Text(widget.filterRoomId != null ? "Lokaal: ${widget.filterRoomId}" : "Bates"),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
+        actions: [
+          if (widget.filterRoomId != null && UserSession.hasAdminPrivileges)
+            IconButton(
+              icon: const Icon(Icons.checklist, color: Colors.white),
+              tooltip: "Kontroleer lokaal",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RoomChecklistPage(roomId: int.parse(widget.filterRoomId!)),
+                ),
+              ),
+            ),
+        ],
       ) : null,
       body: Column(
         children: [
