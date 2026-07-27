@@ -18,7 +18,7 @@ class ApiClient {
 
   ApiClient._internal() {
     //emulator
-    final baseUrl = dotenv.get('API_URL', fallback: 'http://10.12.0.23:8000/api/v1');
+    final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.3.13:8000/api/v1');
     //physical
     //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
     
@@ -45,7 +45,7 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          debugPrint("❌ API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
+          debugPrint("API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
           
           if (e.response?.statusCode == 401) {
             // Token might be expired. Try to refresh.
@@ -90,7 +90,7 @@ class ApiClient {
         return true;
       }
     } catch (e) {
-      debugPrint("❌ Session refresh failed: $e");
+      debugPrint("Session refresh failed: $e");
     }
     return false;
   }
