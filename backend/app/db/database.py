@@ -71,6 +71,11 @@ def createDBandTables():
             if "image_id_3" not in columns:
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_3 INTEGER"))
 
+        if "user" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("user")}
+            if "location_id" not in columns:
+                connection.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES location(location_id)"))
+
 
 def getSession():
     with Session(engine) as session:

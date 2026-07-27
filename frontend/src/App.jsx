@@ -3,21 +3,22 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import './styles/App.css';
 import './logoutInterceptor';
 import { clearAuthSession, isSessionExpired, markUserActivity } from './authSession';
+import { useCurrentUser } from './hooks/useCurrentUser';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import AssetPage from './pages/AssetPage';
-import StockPage from './pages/StockPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
-import UsersPage from './pages/UsersPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
-import RoomsPage from './pages/RoomsPage';
-import TerrainsPage from './pages/TerrainsPage';
-import BuildingsPage from './pages/BuildingsPage';
-import ContractorsPage from './pages/ContractorsPage';
 import ReportsPage from './pages/ReportsPage';
-import FacilitiesPage from './pages/FacilitiesPage';
+import AssetPage from './pages/AssetPage';
+import StockPage from './pages/StockPage';
+import RoomsPage from './pages/RoomsPage';
+import BuildingsPage from './pages/BuildingsPage';
+import TerrainsPage from './pages/TerrainsPage';
+import UsersPage from './pages/UsersPage';
+import RolesPage from './pages/RolesPage';
+import RightsPage from './pages/RightsPage';
 
 /* =========================================================
    1. DIE BESKERMDE ROETE-MEGANISME
@@ -33,6 +34,36 @@ function ProtectedRoute({ children }) {
   }
 
   // As daar 'n token is, laai die bladsy normaalweg
+  return children;
+}
+
+/* =========================================================
+   1b. REGTE-GEBASEERDE ROETE-BESKERMING
+   Draai die token-kontrole (ProtectedRoute) in EN kontroleer boonop
+   dat die gebruiker die vereiste reg het (gelees vanaf /auth/me se
+   `rights`-lys). Nie-gemagtigde rolle word na die paneelbord gestuur.
+   ========================================================= */
+function RightProtectedRoute({ requiredRight, children }) {
+  const token = sessionStorage.getItem('token');
+  const isLoggingOut = sessionStorage.getItem('isLoggingOut');
+  const { loading, error, rights } = useCurrentUser();
+
+  // Eers dieselfde token-kontrole as ProtectedRoute
+  if (!token || isLoggingOut || isSessionExpired()) {
+    sessionStorage.removeItem('isLoggingOut');
+    clearAuthSession();
+    return <Navigate to="/login" replace />;
+  }
+
+  // Wag totdat /auth/me klaar gelaai het voordat ons besluit
+  if (loading) return null;
+  if (error) return <Navigate to="/login" replace />;
+
+  // Regte-kontrole: geen reg -> terug na paneelbord
+  if (requiredRight && !rights.includes(requiredRight)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 }
 
@@ -86,23 +117,29 @@ function App() {
         {/* Openbare roete (Geen beskerming nodig nie) */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Beskermde roetes (Toegedraai in <ProtectedRoute>) */}
+        {/* Beskermde roetes.
+            Paneelbord is toeganklik vir enige web-gemagtigde gebruiker (net
+            Admin/FK kan by die web aanmeld). Elke ander bladsy vereis sy
+            spesifieke reg via <RightProtectedRoute>. FK het alles behalwe
+            users.manage, so FK sien alles behalwe /users. */}
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="/facilities/*" element={<ProtectedRoute><FacilitiesPage /></ProtectedRoute>} />
-        <Route path="/fault-tickets" element={<ProtectedRoute><TicketPage /></ProtectedRoute>} />
-        <Route path="/work-orders" element={<ProtectedRoute><WorkOrderPage /></ProtectedRoute>} />
-        <Route path="/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
-        <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
-        <Route path="/predictions" element={<ProtectedRoute><PredictionsPage /></ProtectedRoute>} />
-        <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+        <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
+        <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
+        <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
+        <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
+        <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
 
-        <Route path="/assets" element={<Navigate to="/facilities/assets" replace />} />
-        <Route path="/stock" element={<Navigate to="/facilities/stock" replace />} />
-        <Route path="/rooms" element={<Navigate to="/facilities/rooms" replace />} />
-        <Route path="/buildings" element={<Navigate to="/facilities/buildings" replace />} />
-        <Route path="/terrains" element={<Navigate to="/facilities/terrains" replace />} />
-        
+        {/* Losstaande bladsye behou hul granulêre reg-kontrole. */}
+        <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
+        <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
+        <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
+        <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
+        <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
+        <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
+        <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
+        <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
+
+
         {/* As die gebruiker op "/" land, stuur hulle outomaties na die dashboard via ProtectedRoute */}
         <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
 

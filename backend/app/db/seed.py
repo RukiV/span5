@@ -8,14 +8,25 @@ from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
 from ..models.contractor import Contractor
-from ..models.role import Role
+from ..models.role import Role, Rights, RoleRight
 from ..models.user import User
 from ..models.audit import Auditlog
 from ..models.quote import Quote
 from decimal import Decimal
 
 from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
-from ..auth.passwords import hash_password
+from ..auth.security import hash_password, is_hashed
+
+# Built-in roles & rights catalog live in a lightweight shared module so both the
+# seed and the management endpoints/services use one source of truth.
+from ..auth.rights_catalog import (  # noqa: F401  (re-exported for existing importers)
+    ROLE_STUDENT,
+    ROLE_FK,
+    ROLE_ADMIN,
+    ROLE_CONTRACTOR,
+    RIGHTS_CATALOG,
+    ROLE_RIGHTS,
+)
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -25,7 +36,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int, location_id: Optional[int] = None) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -34,6 +45,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_email: E-posadres vir soeken/skep
         user_password: Wagwoord vir nuwe gebruiker
         role_id: Rol-ID (1=Gebruiker, 2=FK-Koördineerder, 3=Administrateur)
+        location_id: Opsionele Terrein-ID vir FK-koördineerders
         
     Returns:
         Bestaande of nuwe Gebruiker-objek
@@ -41,14 +53,21 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
+        changed = False
         if user.role_id != role_id:
             user.role_id = role_id
+            changed = True
+        if location_id is not None and user.location_id != location_id:
+            user.location_id = location_id
+            changed = True
+        if changed:
             session.add(user)
             session.commit()
             session.refresh(user)
         return user
 
-    # Skep nuwe toetsgebruiker met gegewe parameters
+    # Skep nuwe toetsgebruiker met gegewe parameters.
+    # Wagwoorde word altyd gehash gestoor (nooit platteks nie).
     user = User(
         user_name=user_name,
         user_surname=user_surname,
@@ -59,6 +78,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_lastlogouttime=None,
         user_status="active",
         role_id=role_id,  # Toekenning van rol vir toesgang-beheer
+        location_id=location_id,
     )
     session.add(user)
     session.commit()
@@ -443,6 +463,71 @@ def _create_asset_audit_log(session: Session, asset: Asset, action: str = "creat
     session.commit()
 
 
+def _get_or_create_right(session: Session, right_name: str, description: str) -> Rights:
+    """Idempotent create of a single Rights row."""
+    right = session.exec(select(Rights).where(Rights.right_name == right_name)).first()
+    if right:
+        return right
+
+    right = Rights(right_name=right_name, right_description=description)
+    session.add(right)
+    session.commit()
+    session.refresh(right)
+    return right
+
+
+def _get_or_create_role_right(session: Session, role_id: int, right_id: int) -> RoleRight:
+    """Idempotent create of a single RoleRight association row."""
+    existing = session.exec(
+        select(RoleRight).where(
+            RoleRight.role_id == role_id,
+            RoleRight.right_id == right_id,
+        )
+    ).first()
+    if existing:
+        return existing
+
+    role_right = RoleRight(role_id=role_id, right_id=right_id)
+    session.add(role_right)
+    session.commit()
+    session.refresh(role_right)
+    return role_right
+
+
+def seed_rights(session: Session) -> None:
+    """Seed the Rights catalog and RoleRight assignments (idempotent).
+
+    Both the catalog (RIGHTS_CATALOG) and the assignments (ROLE_RIGHTS) are the
+    single source of truth used by the app and the tests.
+    """
+    name_to_id: dict[str, int] = {}
+    for right_name, description in RIGHTS_CATALOG.items():
+        right = _get_or_create_right(session, right_name, description)
+        name_to_id[right_name] = right.right_id
+
+    for role_id, right_names in ROLE_RIGHTS.items():
+        for right_name in right_names:
+            _get_or_create_role_right(session, role_id, name_to_id[right_name])
+
+
+def _migrate_plaintext_passwords(session: Session) -> None:
+    """One-time, idempotent migration of any legacy plaintext passwords to hashes.
+
+    Detects already-hashed values by their hash prefix (via ``is_hashed``), so it
+    is safe to run on every startup: hashed rows are skipped.
+    """
+    users = session.exec(select(User)).all()
+    migrated = 0
+    for user in users:
+        if not is_hashed(user.user_password):
+            user.user_password = hash_password(user.user_password)
+            session.add(user)
+            migrated += 1
+    if migrated:
+        session.commit()
+        print(f"Migrated {migrated} plaintext password(s) to hashed storage.")
+
+
 def seed_data():
     """
     Seed-funksie - Inisialiseer databasis met toetsdata.
@@ -457,6 +542,10 @@ def seed_data():
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
         contractor_role = _get_or_create_contractor_role(session) # ID 4
+
+        # Seed the Rights catalog + RoleRight assignments now that roles exist.
+        # This is the source of truth for authorization (see auth/permissions.py).
+        seed_rights(session)
 
         # Skep toetsgebruikers vir elke rol
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
@@ -473,7 +562,7 @@ def seed_data():
         test_quote = _get_or_create_test_quote(session)
         print("Seed ensured test quote_id:", getattr(test_quote, 'quote_id', None))
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Leriba-kampus
         _get_or_create_test_user(
             session,
             user_name="fk",
@@ -481,6 +570,7 @@ def seed_data():
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=1,  # Leriba-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -502,7 +592,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Gerhardstraat-kampus
         _get_or_create_test_user(
             session,
             user_name="Jaco",
@@ -510,6 +600,7 @@ def seed_data():
             user_email="jaco@gmail.com",
             user_password="jaco123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=2,  # Gerhardstraat-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -1031,6 +1122,9 @@ suburb="Villieria",
                 new_value={"room_id": room5.room_id},
                 timestamp=datetime(2025, 6, 1, 16, 20, 0),
             )
+
+        # Upgrade any legacy plaintext passwords already in the DB to hashes.
+        _migrate_plaintext_passwords(session)
 
         session.commit()
         print("Database seeded successfully!")

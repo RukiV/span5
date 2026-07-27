@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
+import '../../services/campus_service.dart';
 import '../../models/report.dart';
+import '../../models/user_session.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';
 
@@ -15,11 +17,34 @@ class ReportingPage extends StatefulWidget {
 class _ReportingPageState extends State<ReportingPage> {
   String _searchQuery = "";
   String _statusFilter = "Alles";
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
 
   @override
   void initState() {
     super.initState();
     ReportService.fetchReports();
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
+    _tryAutoSelectCampus();
+  }
+
+  void _tryAutoSelectCampus() {
+    if (UserSession.isManager && _selectedCampusId == null && UserSession.locationId != null) {
+      final match = CampusService.campusesNotifier.value
+          .where((c) => c.id == UserSession.locationId).firstOrNull;
+      if (match != null) _selectedCampusId = match.id;
+    }
+  }
+
+  void _onCampusesChanged() {
+    if (mounted) {
+      setState(() {
+        _tryAutoSelectCampus();
+      });
+    }
   }
 
   @override
@@ -33,10 +58,13 @@ class _ReportingPageState extends State<ReportingPage> {
               r.id.toLowerCase().contains(_searchQuery.toLowerCase()) ||
               r.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
               r.location.toLowerCase().contains(_searchQuery.toLowerCase());
-          
+
           final matchesStatus = _statusFilter == "Alles" || (r.phase == _statusFilter);
-          
-          return matchesSearch && matchesStatus;
+
+          final matchesCampus = _selectedCampusId == null || r.locationId == _selectedCampusId;
+          final matchesBuilding = _selectedBuildingId == null || r.buildingId == _selectedBuildingId;
+
+          return matchesSearch && matchesStatus && matchesCampus && matchesBuilding;
         }).toList();
 
         // Sortering (Nuutste bo)
@@ -47,6 +75,7 @@ class _ReportingPageState extends State<ReportingPage> {
           body: Column(
             children: [
               _buildSearchBarWithFilter(),
+              _buildCampusFilter(),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => ReportService.fetchReports(),
@@ -64,6 +93,72 @@ class _ReportingPageState extends State<ReportingPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCampusFilter() {
+    final campuses = CampusService.campusesNotifier.value;
+    if (campuses.isEmpty) return const SizedBox.shrink();
+
+    final selectedCampus = _selectedCampusId != null
+        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
+        : null;
+    final buildings = selectedCampus?.buildings ?? [];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<int>(
+                isExpanded: true,
+                value: _selectedCampusId,
+                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
+                items: campuses.map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
+                )).toList(),
+                onChanged: (val) => setState(() {
+                  _selectedCampusId = val;
+                  _selectedBuildingId = null;
+                }),
+              ),
+            ),
+          ),
+        ),
+        if (_selectedCampusId != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<int>(
+                  isExpanded: true,
+                  value: _selectedBuildingId,
+                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
+                  items: buildings.map((b) => DropdownMenuItem(
+                    value: b.id,
+                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (val) => setState(() => _selectedBuildingId = val),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

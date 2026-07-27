@@ -11,6 +11,15 @@ class UserSession {
   static String userName = "";
   static String userEmail = "";
   static String userCampus = "Hoofkampus (Centurion)";
+  static int? locationId;
+
+  /// Die gebruiker se regte (vanaf /auth/me se `rights`-lys). Dit is die enkele
+  /// bron van waarheid vir toegangsbeheer — die [UserRole] enum word slegs vir
+  /// vertoon (bv. [role] se titel) gebruik, nooit meer vir toegangsbesluite nie.
+  static List<String> rights = <String>[];
+
+  /// Kontroleer of die huidige sessie 'n gegewe reg het.
+  static bool can(String right) => rights.contains(right);
 
   /// Helper-metode om rou data vanaf die API te verwerk.
   /// Dit sentraliseer die logika vir roldoewysing.
@@ -20,6 +29,13 @@ class UserSession {
     userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
     userEmail = data['user_email'] ?? "";
     userCampus = data['location_name'] ?? "Hoofkampus (Centurion)";
+    locationId = data['location_id'];
+
+    // Regte vanaf die backend — bepaal watter menu-items en aksies sigbaar is.
+    final dynamic rawRights = data['rights'];
+    rights = (rawRights is List)
+        ? rawRights.map((e) => e.toString()).toList()
+        : <String>[];
 
     // Roldoewysing gebaseer op ID vanaf die backend.
     // 3 = Admin, 2 = Manager (FK), 1 = Student, 4 = Contractor.
@@ -45,10 +61,12 @@ class UserSession {
         role = UserRole.student;
         break;
       default:
-        throw StateError(
-          'Unknown role_id "$roleId" received from server. '
-          'Please contact your administrator.',
-        );
+        // Custom roles (id >= 5) can now be created via the admin UI. Access is
+        // driven entirely by [rights], not this enum (which is only used for the
+        // display roleTitle), so an unknown role_id must NOT crash login — fall
+        // back to a neutral display role and rely on the rights list.
+        role = UserRole.student;
+        break;
     }
   }
 
@@ -67,5 +85,8 @@ class UserSession {
     role = UserRole.student;
     userName = "";
     userEmail = "";
+    userCampus = "Hoofkampus (Centurion)";
+    locationId = null;
+    rights = <String>[];
   }
 }
