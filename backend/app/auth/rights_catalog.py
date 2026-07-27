@@ -32,6 +32,7 @@ RIGHTS_CATALOG: dict[str, str] = {
     "quotes.manage": "Manage quotes.",
     "predictions.view": "View asset lifespan predictions.",
     "reports.view": "View analytics reports.",
+    "analytics.view": "View AI analytics panel.",
     "audit.view": "Read the audit log (read-only, no manage right exists).",
     "calendar.manage": "Full CRUD on calendar events.",
     "calendar.view": "Read-only calendar access.",
@@ -50,7 +51,7 @@ RIGHTS_CATALOG: dict[str, str] = {
 _FK_RIGHTS = {
     "assets.manage", "stock.manage", "buildings.manage", "rooms.manage",
     "locations.manage", "contractors.manage", "quotes.manage",
-    "predictions.view", "reports.view", "audit.view",
+    "predictions.view", "reports.view", "analytics.view", "audit.view",
     "calendar.manage", "calendar.view",
     "faults.manage_all", "faults.create_own", "faults.view_own",
     "jobs.manage",
