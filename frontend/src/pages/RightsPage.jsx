@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
 
 const errBox = { color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' };
 const okBox = { color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' };
 
 function RightsPage({ embedded = false }) {
-  const logout = useLogout();
   const [view, setView] = useState('list');
   const [rights, setRights] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +59,7 @@ function RightsPage({ embedded = false }) {
 
   const backToList = () => { setView('list'); setError(''); };
 
-  if (loading) return <div>Besig om te laai...</div>;
+  if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
   const pageContent = (
     <>
@@ -135,16 +131,9 @@ function RightsPage({ embedded = false }) {
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/users/rights" onLogout={logout} />
-      <div className="main">
-        <div className="navbar">
-          <h3>Regte Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
     </div>
   );

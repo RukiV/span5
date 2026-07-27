@@ -7,12 +7,9 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
-import { useLogout } from "./Page.jsx";
-import Sidebar from '../components/Sidebar';
 
 function AssetPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
   const [assettypes, setAssettypes] = useState([]);
@@ -588,29 +585,11 @@ function AssetPage({ embedded = false }) {
   ];
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Bates</h4>
-          <p className="analytics-value">{assets.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Aktief</h4>
-          <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Instandhouding</h4>
-          <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Buitelug</h4>
-          <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
@@ -1147,35 +1126,9 @@ function AssetPage({ embedded = false }) {
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/assets" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Bates Bestuur</h3>
-    
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>
-                  {user.user_name} {user.user_surname}
-                </div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? "Administrateur" : user.role_id === 2 ? "Personeel" : "Student"}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>
-                  {user.user_email}
-                </div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}

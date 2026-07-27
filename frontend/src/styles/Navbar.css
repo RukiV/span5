@@ -1,0 +1,15 @@
+.navbar {
+  background-color: var(--wit);
+  padding: 15px 24px;
+  border-bottom: 3px solid var(--bruin);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.navbar h3 {
+  margin: 0;
+  color: var(--blou);
+  font-size: 18px;
+}

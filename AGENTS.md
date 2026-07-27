@@ -90,6 +90,10 @@ Pages with room-level items include a room-level filter too. FK auto-filter is s
 
 Admins assign terrain via **Users** page. Only FK users get auto-filtered; `location_id` on other roles is stored but ignored.
 
+## Page layout cleanup
+
+All 14 page files in `frontend/src/pages/` had Sidebar, navbar, UserProfileHeader, and outer flex wrapper removed. Layout is now handled centrally by App.jsx. Each page renders `<div className="main"><div className="content">...</div></div>` as the root structure. Modals are inside `main` but outside `content`.
+
 ## Key files
 
 | What | Where |
