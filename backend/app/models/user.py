@@ -16,6 +16,7 @@ class UserBase(SQLModel):
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
+    location_id: Optional[int] = None
 
     @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
     @classmethod
@@ -48,6 +49,10 @@ class UserRead(UserBase):
     user_lastlogouttime: Optional[datetime] = None
     user_status: str
     role_id: int
+    # Never expose the password (hash) in read responses. Inherited from
+    # UserBase, but excluded from serialization here so /users and /auth/me
+    # cannot leak it.
+    user_password: str = Field(exclude=True)
 
 
 class UserUpdate(SQLModel):

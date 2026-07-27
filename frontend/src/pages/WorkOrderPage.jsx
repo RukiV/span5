@@ -3,7 +3,7 @@ import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
+import { assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
@@ -15,7 +15,7 @@ import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
   // Haal admin-status vir beheer-opsies
-  const { isAdmin } = useCurrentUser();
+  const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const { instance } = useMsal();
   const location = useLocation();
@@ -32,6 +32,10 @@ function WorkOrderPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
   const [sortDirection, setSortDirection] = useState("asc");
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -41,7 +45,6 @@ function WorkOrderPage() {
   const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [contractors, setContractors] = useState([]);
   const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
@@ -183,7 +186,6 @@ function WorkOrderPage() {
     fetchBuildings();
     fetchTerrains();
     fetchTickets();
-    fetchContractors();
     fetchUsers();
   }, []);
 
@@ -195,6 +197,14 @@ function WorkOrderPage() {
       applyTicketSelectionToForm(location.state.ticket);
     }
   }, [location.state?.ticket, assets, rooms, buildings, terrains]);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchTerrains = async () => {
     try {
@@ -211,18 +221,6 @@ function WorkOrderPage() {
       setBuildings(response.data || []);
     } catch (error) {
       console.error("Fout by haal geboue:", error);
-    }
-  };
-
-  const fetchContractors = async () => {
-    try {
-      const response = await contractorsAPI.getAll();
-      const contractorList = response.data || [];
-      setContractors(contractorList);
-      return contractorList;
-    } catch (error) {
-      console.error("Fout by haal kontrakteurs:", error);
-      return [];
     }
   };
 
@@ -576,18 +574,18 @@ function WorkOrderPage() {
 
     if (quoteIds.length > 0) {
       try {
-        const contractorList = contractors.length > 0 ? contractors : await fetchContractors();
+        const contractorUsers = users.filter(u => u.role_id === 4);
         const quoteResponses = await Promise.allSettled(quoteIds.map((id) => quotesAPI.getById(id)));
         const loadedQuotes = quoteResponses
           .filter((result) => result.status === "fulfilled" && result.value)
           .map((result) => {
             const response = result.value;
             const quoteData = response.data || response;
-            const contractor = contractorList.find((item) => item.contractor_id === Number(quoteData.contractor_id));
+            const contractorUser = contractorUsers.find((u) => u.user_id === Number(quoteData.contractor_id));
             return {
               id: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
-              contractor_name: contractor?.contractor_name || "",
+              contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
               amount: Number(quoteData.quote_price || 0),
               description: quoteData.quote_desc || "",
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
@@ -726,11 +724,11 @@ function WorkOrderPage() {
       return;
     }
 
-    const contractor = contractors.find(c => c.contractor_id === Number(newQuote.contractor_id));
+    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const updatedQuote = {
       id: quoteEditId || Date.now(),
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
-      contractor_name: contractor ? contractor.contractor_name : "",
+      contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
       amount: parseFloat(newQuote.amount),
       description: newQuote.description,
       createdAt: quoteEditId ? quotes.find((q) => q.id === quoteEditId)?.createdAt || new Date().toLocaleDateString('af-ZA') : new Date().toLocaleDateString('af-ZA'),
@@ -886,6 +884,10 @@ function WorkOrderPage() {
   // Filter en sorteer werksopdragte vir tabel
   const filteredWorkOrders = [...workOrders]
     .filter((order) => {
+      if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
+      if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
+      if (roomFilter && String(order.room_id) !== roomFilter) return false;
+
       const query = searchTerm.trim().toLowerCase();
       const description = order.job_desc || "";
       if (!query) return true;
@@ -968,6 +970,8 @@ function WorkOrderPage() {
     label: `${t.fault_id} - ${t.fault_desc || t.fault_title || 'Foutkaartjie'}`
   }));
 
+
+
   if (loading) {
     return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
   }
@@ -995,7 +999,7 @@ function WorkOrderPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
               
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ minWidth: '100px' }}>
                 <option value="all">Alle kolomme</option>
                 <option value="id">ID</option>
                 <option value="description">Beskrywing</option>
@@ -1004,10 +1008,78 @@ function WorkOrderPage() {
                 <option value="room_id">Lokaal ID</option>
                 <option value="building_id">Gebou ID</option>
                 <option value="location_id">Terrein ID</option>
-                <option value="fault_id">Terrein ID</option>
+                <option value="fault_id">Fout ID</option>
                 <option value="scheduled">Datum</option>
                 <option value="status">Status</option>
               </select>
+              {(() => {
+                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+                  : null;
+                const clearFromLevel = (levelIndex) => {
+                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 2) { setRoomFilter(''); }
+                };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
+                const renderBreadcrumb = () => (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+                    {breadcrumbData.map((item, i) => {
+                      const isLast = i === breadcrumbData.length - 1;
+                      const showArrow = isLast ? cascadeCount < 3 : true;
+                      return (
+                        <React.Fragment key={i}>
+                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                );
+                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                const CascadeControl = ({ children, ...props }) => (
+                  <components.Control {...props}>
+                    {children}
+                    {cascadeCount > 0 && (
+                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
+                        <IoReturnUpBack size={18} />
+                      </span>
+                    )}
+                  </components.Control>
+                );
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {renderBreadcrumb()}
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      components={{ Control: CascadeControl }}
+                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                      options={(() => {
+                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                        return [];
+                      })()}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
+                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
+                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="controls-right">
@@ -1036,6 +1108,25 @@ function WorkOrderPage() {
               >
                 + Nuwe Werksopdrag
               </button>
+            </div>
+          </div>
+
+          <div className="analytics-grid">
+            <div className="analytics-card">
+              <h4>Totale Werksopdragte</h4>
+              <p className="analytics-value">{filteredWorkOrders.length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Oop / Besig</h4>
+              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Oop" || w.job_status === "Besig").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Voltooid</h4>
+              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Voltooid").length}</p>
+            </div>
+            <div className="analytics-card">
+              <h4>Dringend</h4>
+              <p className="analytics-value danger">{filteredWorkOrders.filter(w => w.job_priority === "Dringend").length}</p>
             </div>
           </div>
 
@@ -1704,9 +1795,9 @@ function WorkOrderPage() {
                         className="quote-input"
                       >
                         <option value="">Kies Kontrakteur</option>
-                        {contractors.map((contractor) => (
-                          <option key={contractor.contractor_id} value={contractor.contractor_id}>
-                            {contractor.contractor_name}
+                        {users.filter(u => u.role_id === 4).map((user) => (
+                          <option key={user.user_id} value={user.user_id}>
+                            {user.user_name} {user.user_surname}
                           </option>
                         ))}
                       </select>

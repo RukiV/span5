@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { authAPI } from "../services/api";
-import { apiClient } from "../services/api";
+import { apiClient, assetsAPI, locationAPI, buildingsAPI, roomsAPI } from "../services/api";
+import Select, { components } from "react-select";
+import { IoReturnUpBack } from "react-icons/io5";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Predictions.css';
@@ -35,18 +37,36 @@ function PredictionsPage() {
   const { isAdmin, user } = useCurrentUser();
   const logout = useLogout();
   const [predictions, setPredictions] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [terrains, setTerrains] = useState([]);
+  const [buildings, setBuildings] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         await authAPI.me();
-        const response = await apiClient.get('/predictions');
+        const [predRes, assetsRes, terrainsRes, buildingsRes, roomsRes] = await Promise.all([
+          apiClient.get('/predictions'),
+          assetsAPI.getAll(),
+          locationAPI.getAll(),
+          buildingsAPI.getAll(),
+          roomsAPI.getAll(),
+        ]);
         if (!mounted) return;
-        setPredictions(response.data || []);
+        setPredictions(predRes.data || []);
+        setAssets(assetsRes.data || []);
+        setTerrains(terrainsRes.data || []);
+        setBuildings(buildingsRes.data || []);
+        setRooms(roomsRes.data || []);
       } catch (err) {
         if (!mounted) return;
         setError('Kon voorspellingsdata nie laai nie.');
@@ -59,6 +79,57 @@ function PredictionsPage() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
+
+  const getPredictionLocationId = (pred) => {
+    const asset = assets.find(a => Number(a.asset_id) === Number(pred.asset_id));
+    if (!asset || !asset.room_id) return null;
+    const room = rooms.find(r => r.room_id === asset.room_id);
+    if (!room) return null;
+    const building = buildings.find(b => b.building_id === room.building_id);
+    return building ? building.location_id : null;
+  };
+
+  const getPredictionBuildingId = (pred) => {
+    const asset = assets.find(a => Number(a.asset_id) === Number(pred.asset_id));
+    if (!asset || !asset.room_id) return null;
+    const room = rooms.find(r => r.room_id === asset.room_id);
+    return room ? room.building_id : null;
+  };
+
+  const getPredictionRoomId = (pred) => {
+    const asset = assets.find(a => Number(a.asset_id) === Number(pred.asset_id));
+    return asset ? asset.room_id : null;
+  };
+
+  const filteredPredictions = predictions.filter(p => {
+    if (terrainFilter) {
+      const locId = getPredictionLocationId(p);
+      if (String(locId) !== terrainFilter) return false;
+    }
+    if (buildingFilter) {
+      const bldId = getPredictionBuildingId(p);
+      if (String(bldId) !== buildingFilter) return false;
+    }
+    if (roomFilter) {
+      const rmId = getPredictionRoomId(p);
+      if (String(rmId) !== roomFilter) return false;
+    }
+    return true;
+  });
+
+  const needsAttention = filteredPredictions.filter(
+    (p) => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested
+  ).length;
+
+
+
   if (loading) {
     return (
       <div style={{ display: 'flex' }}>
@@ -66,10 +137,6 @@ function PredictionsPage() {
       </div>
     );
   }
-
-  const needsAttention = predictions.filter(
-    (p) => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested
-  ).length;
 
   return (
     <div>
@@ -100,10 +167,83 @@ function PredictionsPage() {
         <div className="content">
           {error ? <div className="pred-empty-state">{error}</div> : null}
 
+          <div className="controls" style={{ marginBottom: '0.75rem' }}>
+            <div className="controls-left">
+              {(() => {
+                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+                  : null;
+                const clearFromLevel = (levelIndex) => {
+                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 2) { setRoomFilter(''); }
+                };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
+                const renderBreadcrumb = () => (
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+                    {breadcrumbData.map((item, i) => {
+                      const isLast = i === breadcrumbData.length - 1;
+                      const showArrow = isLast ? cascadeCount < 3 : true;
+                      return (
+                        <React.Fragment key={i}>
+                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                );
+                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
+                const CascadeControl = ({ children, ...props }) => (
+                  <components.Control {...props}>
+                    {children}
+                    {cascadeCount > 0 && (
+                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
+                        <IoReturnUpBack size={18} />
+                      </span>
+                    )}
+                  </components.Control>
+                );
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    {renderBreadcrumb()}
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      components={{ Control: CascadeControl }}
+                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                      options={(() => {
+                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
+                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
+                        return [];
+                      })()}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
+                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
+                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                      }}
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="controls-right"></div>
+          </div>
           <div className="pred-kpi-grid">
             <div className="pred-kpi-card">
               <h4>Totale Bates</h4>
-              <p className="pred-kpi-value">{predictions.length}</p>
+              <p className="pred-kpi-value">{filteredPredictions.length}</p>
             </div>
             <div className="pred-kpi-card">
               <h4>Benodig Aandag</h4>
@@ -112,11 +252,11 @@ function PredictionsPage() {
             </div>
             <div className="pred-kpi-card">
               <h4>Vervanging Voorgestel</h4>
-              <p className="pred-kpi-value pred-kpi-danger">{predictions.filter(p => p.replacement_suggested).length}</p>
+              <p className="pred-kpi-value pred-kpi-danger">{filteredPredictions.filter(p => p.replacement_suggested).length}</p>
             </div>
             <div className="pred-kpi-card">
               <h4>Onderhoud Agterstallig</h4>
-              <p className="pred-kpi-value pred-kpi-danger">{predictions.filter(p => p.maintenance_overdue).length}</p>
+              <p className="pred-kpi-value pred-kpi-danger">{filteredPredictions.filter(p => p.maintenance_overdue).length}</p>
             </div>
           </div>
 
@@ -134,7 +274,7 @@ function PredictionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {predictions.map((pred) => {
+                {filteredPredictions.map((pred) => {
                   const maint = getMaintenanceBadge(pred.maintenance_overdue);
                   const life = getLifespanBadge(pred.lifespan_pct_used);
                   const repl = getReplacementBadge(pred.replacement_suggested);

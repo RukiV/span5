@@ -123,7 +123,6 @@ export const locationAPI = {
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
-  upload: (formData) => apiClient.post('/image/', formData),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
   create: (data) => {
     // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
@@ -182,12 +181,24 @@ export const usersAPI = {
   delete: (id) => apiClient.delete(`/users/${id}`),
 };
 
-export const contractorsAPI = {
-  getAll: () => apiClient.get('/contractors'),
-  getById: (id) => apiClient.get(`/contractors/${id}`),
-  create: (data) => apiClient.post('/contractors', data),
-  update: (id, data) => apiClient.patch(`/contractors/${id}`, data),
-  delete: (id) => apiClient.delete(`/contractors/${id}`),
+// ===== ROLLE-API (admin: bestuur rolle en hul regte) =====
+export const rolesAPI = {
+  getAll: () => apiClient.get('/roles'),
+  getById: (id) => apiClient.get(`/roles/${id}`),
+  create: (data) => apiClient.post('/roles', data),
+  update: (id, data) => apiClient.patch(`/roles/${id}`, data),
+  delete: (id) => apiClient.delete(`/roles/${id}`),
+  getRights: (id) => apiClient.get(`/roles/${id}/rights`),
+  setRights: (id, rightIds) => apiClient.put(`/roles/${id}/rights`, { right_ids: rightIds }),
+};
+
+// ===== REGTE-API (admin: bestuur regte-katalogus) =====
+export const rightsAPI = {
+  getAll: () => apiClient.get('/rights'),
+  getById: (id) => apiClient.get(`/rights/${id}`),
+  create: (data) => apiClient.post('/rights', data),
+  update: (id, data) => apiClient.patch(`/rights/${id}`, data),
+  delete: (id) => apiClient.delete(`/rights/${id}`),
 };
 
 export const quotesAPI = {
@@ -204,14 +215,13 @@ export const predictionsAPI = {
   getByAsset: (id) => apiClient.get(`/predictions/${id}`),
 };
 
+// Die audit-log is doelbewus LEES-ALLEEN aan die agterkant: audit-rye word net
+// intern geskep as 'n newe-effek van werklike data-veranderinge. Die vorige
+// create/update/delete client-metodes is verwyder saam met hul roetes.
 export const auditsAPI = {
   getAllUnsorted: () => apiClient.get('/audit'),
   getAll: () => apiClient.get('/audit'),
   getById: (id) => apiClient.get(`/audit/${id}`),
-  create: (data) => apiClient.post('/audit', data),
-  update: (id, data) => apiClient.patch(`/audit/${id}`, data),
-  delete: (id) => apiClient.delete(`/audit/${id}`),
-
   getRoomChangesForAsset: (asset_id) => apiClient.get(`/audit/asset/${asset_id}`),
 };
 
@@ -268,7 +278,8 @@ apiClient.tickets = ticketsAPI;
 apiClient.workOrders = workOrdersAPI;
 apiClient.auth = authAPI;
 apiClient.users = usersAPI;
-apiClient.contractors = contractorsAPI;
+apiClient.roles = rolesAPI;
+apiClient.rights = rightsAPI;
 apiClient.quotes = quotesAPI;
 apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
