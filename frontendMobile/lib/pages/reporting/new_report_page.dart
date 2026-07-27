@@ -14,7 +14,9 @@ import '../../models/campus.dart';
 import '../../services/asset_service.dart';
 
 class NewReportPage extends StatefulWidget {
-  const NewReportPage({super.key});
+  final String? prefillSerialCode;
+
+  const NewReportPage({super.key, this.prefillSerialCode});
 
   @override
   State<NewReportPage> createState() => _NewReportPageState();
@@ -42,6 +44,12 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     if (UserSession.hasAdminPrivileges) {
       selectedCategory = "Instandhouding";
+    }
+    if (widget.prefillSerialCode != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        serialController.text = widget.prefillSerialCode!;
+        _autoFillFromCode(widget.prefillSerialCode!);
+      });
     }
   }
 
@@ -343,7 +351,7 @@ class _NewReportPageState extends State<NewReportPage> {
                                 const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
                               );
                             }
-                            Navigator.pop(context);
+                            Navigator.pop(context, true);
                           } catch (e) {
                             if (mounted && context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(

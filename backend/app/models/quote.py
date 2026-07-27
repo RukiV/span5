@@ -15,7 +15,7 @@ class QuoteBase(SQLModel):
     quote_desc: str
     quote_date: date
     quote_status: str = Field(max_length=50)
-    contractor_id: Optional[int] = Field(default=None, foreign_key="contractor.contractor_id")
+    contractor_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     quote_selection_reason: Optional[str] = None
 
     @field_validator('quote_desc', 'quote_status', 'quote_selection_reason', mode='before')

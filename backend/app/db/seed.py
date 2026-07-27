@@ -87,38 +87,20 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
 
 
 def _get_or_create_test_quote(session: Session) -> Quote:
-    """Ensure a test Quote exists with id=1 for document uploads during development."""
-    # Try to find quote with id 1
-    quote = session.exec(select(Quote).where(Quote.quote_id == 1)).first()
+    """Ensure a test Quote exists for document uploads during development."""
+    quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
     if quote:
         return quote
 
-    # Create a placeholder quote with explicit ID=1 if possible
     quote = Quote(
-        quote_id=1,
         quote_price=Decimal("100.00"),
         quote_desc="Seed: placeholder quote for testing",
         quote_date=datetime.utcnow().date(),
         quote_status="draft",
     )
     session.add(quote)
-    try:
-        session.commit()
-        session.refresh(quote)
-    except Exception:
-        session.rollback()
-        # Fallback: try creating without explicit id
-        quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
-        if not quote:
-            quote = Quote(
-                quote_price=Decimal("100.00"),
-                quote_desc="Seed: placeholder quote for testing",
-                quote_date=datetime.utcnow().date(),
-                quote_status="draft",
-            )
-            session.add(quote)
-            session.commit()
-            session.refresh(quote)
+    session.commit()
+    session.refresh(quote)
     return quote
 
 def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:

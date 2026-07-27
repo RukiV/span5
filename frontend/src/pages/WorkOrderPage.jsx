@@ -3,7 +3,7 @@ import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import { assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
+import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
@@ -60,6 +60,18 @@ function WorkOrderPage() {
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
   const liggingRef = useRef(null);
+
+  const MAX_JOB_IMAGES = 3;
+  const [jobImages, setJobImages] = useState([]);
+  const [ticketImages, setTicketImages] = useState([]);
+  const [selectedImageFiles, setSelectedImageFiles] = useState([]);
+  const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [activeImageViewer, setActiveImageViewer] = useState(null);
+
+  const [quoteDocuments, setQuoteDocuments] = useState({});
+  const [quotePdfFiles, setQuotePdfFiles] = useState({});
+  const [quotePdfPreviewUrls, setQuotePdfPreviewUrls] = useState({});
 
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
   const [selectedTerrein, setSelectedTerrein] = useState(null);
@@ -195,6 +207,8 @@ function WorkOrderPage() {
       setIsEditing(false);
       setEditingId(null);
       applyTicketSelectionToForm(location.state.ticket);
+      const faultId = location.state.ticket.fault_id;
+      if (faultId) fetchTicketImages(faultId);
     }
   }, [location.state?.ticket, assets, rooms, buildings, terrains]);
 
@@ -205,6 +219,13 @@ function WorkOrderPage() {
       setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    return () => {
+      selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+      Object.values(quotePdfPreviewUrls).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   const fetchTerrains = async () => {
     try {
@@ -248,6 +269,143 @@ function WorkOrderPage() {
       setUsers(response.data || []);
     } catch (error) {
       console.error("Fout by haal gebruikers:", error);
+    }
+  };
+
+  const fetchJobImages = async (jobcardId) => {
+    if (!jobcardId) {
+      setJobImages([]);
+      return;
+    }
+    try {
+      const response = await apiClient.image.getByParent("job", jobcardId);
+      setJobImages(response.data || []);
+    } catch (error) {
+      console.error("Fout by laai van werksopdrag-beelde:", error);
+      setJobImages([]);
+    }
+  };
+
+  const fetchTicketImages = async (faultId) => {
+    if (!faultId) {
+      setTicketImages([]);
+      return;
+    }
+    try {
+      const response = await apiClient.image.getByParent("ticket", faultId);
+      setTicketImages(response.data || []);
+    } catch (error) {
+      console.error("Fout by laai van foutkaartjie-beelde:", error);
+      setTicketImages([]);
+    }
+  };
+
+  const getJobImageUrl = (imageId) => {
+    if (!imageId) return null;
+    return apiClient.image?.getFileUrl ? apiClient.image.getFileUrl(imageId) : null;
+  };
+
+  const handleImageFilesChange = (event) => {
+    const files = Array.from(event.target.files || []);
+    const remainingSlots = Math.max(0, MAX_JOB_IMAGES - (selectedImageFiles.length + jobImages.length));
+    const incomingFiles = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      alert(`Jy kan maksimaal ${MAX_JOB_IMAGES} beelde per werksopdrag oplaai.`);
+    }
+
+    if (incomingFiles.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrls = incomingFiles.map((file) => URL.createObjectURL(file));
+    setSelectedImageFiles((prev) => [...prev, ...incomingFiles]);
+    setSelectedImagePreviewUrls((prev) => [...prev, ...previewUrls]);
+    event.target.value = "";
+  };
+
+  const handleRemoveSelectedPreview = (index) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+
+    setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setSelectedImagePreviewUrls((prev) => {
+      const urlToRevoke = prev[index];
+      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke);
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const handleDeleteExistingImage = (imageId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+
+    setJobImages((prev) => prev.filter((image) => image.image_id !== imageId));
+    setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
+  };
+
+  const fetchQuoteDocuments = async (quoteId) => {
+    if (!quoteId) return [];
+    try {
+      const response = await apiClient.documents.getByQuote(quoteId);
+      return response.data || [];
+    } catch (error) {
+      console.error("Fout by laai van kwotasie-dokumente:", error);
+      return [];
+    }
+  };
+
+  const viewQuotePdf = async (documentId) => {
+    if (!documentId) return;
+    try {
+      const response = await apiClient.get(`/documents/${documentId}/file`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.error("Fout by laai van PDF:", error);
+      alert("Kon nie PDF laai nie.");
+    }
+  };
+
+  const handleQuotePdfSelect = (quoteId, event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      alert("Slegs PDF-lêers word toegelaat.");
+      event.target.value = "";
+      return;
+    }
+    setQuotePdfFiles((prev) => ({ ...prev, [quoteId]: file }));
+    setQuotePdfPreviewUrls((prev) => {
+      if (prev[quoteId]) URL.revokeObjectURL(prev[quoteId]);
+      return { ...prev, [quoteId]: URL.createObjectURL(file) };
+    });
+    event.target.value = "";
+  };
+
+  const handleQuotePdfDelete = (quoteId) => {
+    if (!window.confirm("Is jy seker jy wil hierdie PDF verwyder?")) return;
+    setQuotePdfFiles((prev) => {
+      const next = { ...prev };
+      delete next[quoteId];
+      return next;
+    });
+    setQuotePdfPreviewUrls((prev) => {
+      const next = { ...prev };
+      if (next[quoteId]) URL.revokeObjectURL(next[quoteId]);
+      delete next[quoteId];
+      return next;
+    });
+    const docs = quoteDocuments[quoteId];
+    if (docs && docs.length > 0) {
+      const doc = docs[0];
+      apiClient.documents.delete(doc.document_id).catch(() => {});
+      setQuoteDocuments((prev) => {
+        const next = { ...prev };
+        delete next[quoteId];
+        return next;
+      });
     }
   };
 
@@ -584,6 +742,7 @@ function WorkOrderPage() {
             const contractorUser = contractorUsers.find((u) => u.user_id === Number(quoteData.contractor_id));
             return {
               id: quoteData.quote_id,
+              dbId: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
               contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
               amount: Number(quoteData.quote_price || 0),
@@ -612,6 +771,20 @@ function WorkOrderPage() {
       setQuotes([]);
       setSelectedQuoteId(null);
     }
+
+    fetchJobImages(order.jobcard_id);
+    if (order.fault_id) {
+      fetchTicketImages(order.fault_id);
+    }
+
+    const docsMap = {};
+    for (const qId of quoteIds) {
+      if (qId) {
+        const docs = await fetchQuoteDocuments(qId);
+        if (docs.length > 0) docsMap[qId] = docs;
+      }
+    }
+    setQuoteDocuments(docsMap);
 
     setShowModal(true);
   }
@@ -675,6 +848,7 @@ function WorkOrderPage() {
 
       const createdQuoteIds = [];
       let selectedCreatedQuoteId = null;
+      const failedQuotes = [];
 
       for (const quote of quotes) {
         const quotePayload = {
@@ -686,13 +860,25 @@ function WorkOrderPage() {
           contractor_id: quote.contractor_id ? Number(quote.contractor_id) : null,
         };
 
-        const quoteResponse = await quotesAPI.create(quotePayload);
-        const createdQuote = quoteResponse?.data || quoteResponse;
-        const createdQuoteId = createdQuote?.quote_id ?? null;
-        createdQuoteIds.push(createdQuoteId);
+        try {
+          let createdQuoteId;
+          if (quote.dbId) {
+            await quotesAPI.update(quote.dbId, quotePayload);
+            createdQuoteId = quote.dbId;
+          } else {
+            const quoteResponse = await quotesAPI.create(quotePayload);
+            const createdQuote = quoteResponse?.data || quoteResponse;
+            createdQuoteId = createdQuote?.quote_id ?? null;
+          }
+          createdQuoteIds.push(createdQuoteId);
 
-        if (selectedQuoteId && String(quote.id) === String(selectedQuoteId)) {
-          selectedCreatedQuoteId = createdQuoteId;
+          if (selectedQuoteId && String(quote.id) === String(selectedQuoteId)) {
+            selectedCreatedQuoteId = createdQuoteId;
+          }
+        } catch (quoteErr) {
+          console.error("Fout by stoor van kwotasie:", quoteErr);
+          failedQuotes.push(quote);
+          createdQuoteIds.push(null);
         }
       }
 
@@ -707,6 +893,49 @@ function WorkOrderPage() {
           await deleteScheduledOutlookEventsForWorkOrder(workOrderId);
           await createScheduledOutlookEventForWorkOrder(workOrderId, payload);
         }
+
+        if (isEditing) {
+          for (const imageId of imagesToDelete) {
+            await apiClient.image.delete(imageId);
+          }
+        }
+
+        if (selectedImageFiles.length > 0) {
+          for (const file of selectedImageFiles.slice(0, MAX_JOB_IMAGES)) {
+            const formData = new FormData();
+            formData.append("file", file);
+            await apiClient.image.uploadForParent(workOrderId, "job", formData);
+          }
+        }
+
+        const uploadedQuoteDocIds = [];
+        for (const quote of quotes) {
+          const createdQuoteId = createdQuoteIds[quotes.indexOf(quote)];
+          if (createdQuoteId && quotePdfFiles[quote.id]) {
+            try {
+              const pdfFormData = new FormData();
+              pdfFormData.append("file", quotePdfFiles[quote.id]);
+              await apiClient.documents.create(createdQuoteId, pdfFormData);
+              uploadedQuoteDocIds.push(createdQuoteId);
+            } catch (pdfErr) {
+              console.error("Fout by laai van PDF op:", pdfErr);
+              alert("Kon nie PDF oplaai nie. Kyk die console vir foute.");
+            }
+          }
+        }
+
+        if (uploadedQuoteDocIds.length > 0) {
+          const freshDocs = {};
+          for (const qId of uploadedQuoteDocIds) {
+            const docs = await fetchQuoteDocuments(qId);
+            if (docs.length > 0) freshDocs[qId] = docs;
+          }
+          setQuoteDocuments((prev) => ({ ...prev, ...freshDocs }));
+        }
+      }
+
+      if (failedQuotes.length > 0) {
+        alert(`${failedQuotes.length} kwotasie(s) kon nie gestoor word nie.`);
       }
       
       handleCloseModal();
@@ -725,21 +954,56 @@ function WorkOrderPage() {
     }
 
     const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
+    const existingQuote = quoteEditId ? quotes.find((q) => q.id === quoteEditId) : null;
     const updatedQuote = {
       id: quoteEditId || Date.now(),
+      dbId: existingQuote?.dbId ?? null,
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
       contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
       amount: parseFloat(newQuote.amount),
       description: newQuote.description,
-      createdAt: quoteEditId ? quotes.find((q) => q.id === quoteEditId)?.createdAt || new Date().toLocaleDateString('af-ZA') : new Date().toLocaleDateString('af-ZA'),
+      createdAt: existingQuote?.createdAt || new Date().toLocaleDateString('af-ZA'),
       selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
 
     if (quoteEditId) {
       setQuotes(quotes.map((quote) => (quote.id === quoteEditId ? updatedQuote : quote)));
+      setQuotePdfFiles((prev) => {
+        const next = { ...prev };
+        if (next["new"]) {
+          next[quoteEditId] = next["new"];
+          delete next["new"];
+        }
+        return next;
+      });
+      setQuotePdfPreviewUrls((prev) => {
+        const next = { ...prev };
+        if (next["new"]) {
+          next[quoteEditId] = next["new"];
+          delete next["new"];
+        }
+        return next;
+      });
       setQuoteEditId(null);
     } else {
+      const newId = updatedQuote.id;
       setQuotes([...quotes, updatedQuote]);
+      setQuotePdfFiles((prev) => {
+        const next = { ...prev };
+        if (next["new"]) {
+          next[newId] = next["new"];
+          delete next["new"];
+        }
+        return next;
+      });
+      setQuotePdfPreviewUrls((prev) => {
+        const next = { ...prev };
+        if (next["new"]) {
+          next[newId] = next["new"];
+          delete next["new"];
+        }
+        return next;
+      });
     }
 
     setNewQuote({ contractor_id: "", amount: "", description: "" });
@@ -759,6 +1023,17 @@ function WorkOrderPage() {
 
   const handleCancelQuoteEdit = () => {
     setQuoteEditId(null);
+    setQuotePdfFiles((prev) => {
+      const next = { ...prev };
+      delete next["new"];
+      return next;
+    });
+    setQuotePdfPreviewUrls((prev) => {
+      const next = { ...prev };
+      if (next["new"]) URL.revokeObjectURL(next["new"]);
+      delete next["new"];
+      return next;
+    });
     setNewQuote({ contractor_id: "", amount: "", description: "" });
   };
 
@@ -766,6 +1041,17 @@ function WorkOrderPage() {
     setQuotes(quotes.filter(q => q.id !== quoteId));
     setQuoteSelectionReasons((prev) => {
       const next = { ...prev };
+      delete next[quoteId];
+      return next;
+    });
+    setQuotePdfFiles((prev) => {
+      const next = { ...prev };
+      delete next[quoteId];
+      return next;
+    });
+    setQuotePdfPreviewUrls((prev) => {
+      const next = { ...prev };
+      if (next[quoteId]) URL.revokeObjectURL(next[quoteId]);
       delete next[quoteId];
       return next;
     });
@@ -797,6 +1083,16 @@ function WorkOrderPage() {
     setQuoteEditId(null);
     setQuoteSelectionReasons({});
     setNewQuote({ contractor_id: "", amount: "", description: "" });
+    setJobImages([]);
+    setTicketImages([]);
+    setSelectedImageFiles([]);
+    selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    setSelectedImagePreviewUrls([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setQuoteDocuments({});
+    setQuotePdfFiles({});
+    setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
     setConnectionType("");
     setConnectionTargetId("");
     setSelectedTerrein(null);
@@ -836,6 +1132,15 @@ function WorkOrderPage() {
     setSelectedTerrein(null);
     setSelectedGebou(null);
     setInvalidFields({});
+    setJobImages([]);
+    setTicketImages([]);
+    setSelectedImageFiles([]);
+    setSelectedImagePreviewUrls([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setQuoteDocuments({});
+    setQuotePdfFiles({});
+    setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
     setFormData({
       job_desc: "",
       job_type: "",
@@ -1766,6 +2071,58 @@ function WorkOrderPage() {
             )}
 
             {activeTab === "kontrakteurWerknotas" && (
+              <>
+              <div className="mri-border-box">
+                <div className="mri-fld">
+                  <span>Beelde</span>
+                  <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                  <div className="image-preview-grid" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                    {ticketImages.length > 0 && (
+                      <div style={{ width: '100%' }}>
+                        <p style={{ margin: '0.5rem 0 0.35rem', fontSize: '0.9rem', fontWeight: 600, color: '#6b3f1d' }}>Foutkaartjie Beelde (alleen-lees)</p>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {ticketImages.map((image) => (
+                            <div key={image.image_id} className="record-image-card" style={{ textAlign: 'center', opacity: 0.8 }}>
+                              <img
+                                src={getJobImageUrl(image.image_id)}
+                                alt={image.filename || "Foutkaartjie-beeld"}
+                                className="record-image-thumb"
+                                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                                onClick={() => setActiveImageViewer(getJobImageUrl(image.image_id))}
+                              />
+                              <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.15rem' }}>Foutkaartjie</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {jobImages.map((image) => (
+                      <div key={image.image_id} className="record-image-card" style={{ textAlign: 'center' }}>
+                        <img
+                          src={getJobImageUrl(image.image_id)}
+                          alt={image.filename || "Werksopdrag-beeld"}
+                          className="record-image-thumb"
+                          style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          onClick={() => setActiveImageViewer(getJobImageUrl(image.image_id))}
+                        />
+                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleDeleteExistingImage(image.image_id)}>Verwyder</button>
+                      </div>
+                    ))}
+                    {selectedImagePreviewUrls.map((url, index) => (
+                      <div key={`${url}-${index}`} className="record-image-card" style={{ textAlign: 'center' }}>
+                        <img
+                          src={url}
+                          alt={`Voorgestelde beeld ${index + 1}`}
+                          className="record-image-thumb"
+                          style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          onClick={() => setActiveImageViewer(url)}
+                        />
+                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleRemoveSelectedPreview(index)}>Verwyder</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div className="mri-border-box">
                 <div className="mri-fld">
                   <span>Kontrakteur Werknotas</span>
@@ -1779,6 +2136,7 @@ function WorkOrderPage() {
                   />
                 </div>
               </div>
+              </>
             )}
 
             {activeTab === "kwotasies" && (
@@ -1801,6 +2159,34 @@ function WorkOrderPage() {
                           </option>
                         ))}
                       </select>
+                    </div>
+                    <div className="mri-fld">
+                      <span>PDF Kwotasie</span>
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => handleQuotePdfSelect(quoteEditId || "new", e)}
+                        className="quote-input"
+                      />
+                      {(quotePdfFiles[quoteEditId || "new"] || quoteDocuments[quoteEditId]?.[0]) && (
+                        <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                          {quotePdfFiles[quoteEditId || "new"] ? (
+                            <>
+                              <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
+                              {quotePdfPreviewUrls[quoteEditId || "new"] && (
+                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
+                              )}
+                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            </>
+                          ) : quoteDocuments[quoteEditId]?.[0] && (
+                            <>
+                              <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
+                              <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
+                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="mri-fld">
                       <span>Bedrag</span>
@@ -1851,6 +2237,7 @@ function WorkOrderPage() {
                         <th>Kontrakteur</th>
                         <th>Bedrag</th>
                         <th>Beskrywing</th>
+                        <th>PDF</th>
                         <th>Datum</th>
                         <th>Gekies</th>
                         <th>Aksie</th>
@@ -1862,6 +2249,24 @@ function WorkOrderPage() {
                           <td>{quote.contractor_name || "-"}</td>
                           <td style={{ fontWeight: "700"}}>R {quote.amount.toFixed(2)}</td>
                           <td>{quote.description}</td>
+                          <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {quoteDocuments[quote.id]?.[0] ? (
+                              <>
+                                <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quote.id][0].document_id)}>Bekyk</button>
+                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                              </>
+                            ) : quotePdfFiles[quote.id] ? (
+                              <>
+                                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginRight: '0.5rem' }}>{quotePdfFiles[quote.id].name}</span>
+                                {quotePdfPreviewUrls[quote.id] && (
+                                  <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')}>Bekyk</button>
+                                )}
+                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                              </>
+                            ) : (
+                              <span style={{ color: '#999', fontSize: '0.8rem' }}>-</span>
+                            )}
+                          </td>
                           <td>{quote.createdAt}</td>
                           <td>
                             <input 
@@ -1909,6 +2314,15 @@ function WorkOrderPage() {
                   Geen kwotasies bygevoeg nie
                 </div>
               )}
+              </div>
+            )}
+
+            {activeImageViewer && (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
+                <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+                  <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
+                  <img src={activeImageViewer} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} onClick={(event) => event.stopPropagation()} />
+                </div>
               </div>
             )}
 

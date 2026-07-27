@@ -258,6 +258,16 @@ export const imageAPI = {
   delete: (id) => apiClient.delete(`/image/${id}`),
 };
 
+// ===== KWOTASIE DOKUMENTE-API (PDF) =====
+export const documentsAPI = {
+  getByQuote: (quoteId) => apiClient.get(`/quotes/${quoteId}/documents`),
+  create: (quoteId, formData) => apiClient.post(`/quotes/${quoteId}/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getFileUrl: (documentId) => `${apiClient.defaults.baseURL}/documents/${documentId}/file`,
+  delete: (documentId) => apiClient.delete(`/documents/${documentId}`),
+};
+
 // ===== KALENDER EVENTS-API =====
 export const calendarEventsAPI = {
   getRange: (start, end) => apiClient.get('/calendar/events', { params: { start, end } }),
@@ -283,6 +293,7 @@ apiClient.rights = rightsAPI;
 apiClient.quotes = quotesAPI;
 apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
+apiClient.documents = documentsAPI;
 apiClient.calendarEvents = calendarEventsAPI;
 
 // Voer apiClient uit vir gebruik in komponente
