@@ -4,10 +4,14 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Rooms.css";
 
 function RoomsPage({ embedded = false }) {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { user } = useCurrentUser();
 
   const [rooms, setRooms] = useState([]);
@@ -142,7 +146,7 @@ function RoomsPage({ embedded = false }) {
       console.error("Error saving room:", error);
       // Wys 'n meer beskrywende foutboodskap as die backend validasie gooi
       const errorMsg = error.response?.data?.detail?.[0]?.msg || error.response?.data?.message || "Fout tydens besparing.";
-      alert(`Kon nie lokaal stoor nie:\n${errorMsg}`);
+      showToast({ type: 'error', title: 'Fout', message: `Kon nie lokaal stoor nie:\n${errorMsg}` });
     }
   };
 
@@ -163,15 +167,13 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie lokaal verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie lokaal verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
     try {
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
       console.error("Error deleting room:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -636,6 +638,7 @@ function RoomsPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
@@ -684,6 +687,7 @@ function RoomsPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

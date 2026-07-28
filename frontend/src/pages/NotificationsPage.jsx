@@ -48,14 +48,14 @@ function NotificationsPage() {
   const [filterType, setFilterType] = useState('');
   const [filterRead, setFilterRead] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+
   const [prefs, setPrefs] = useState({});
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const fetchNotifs = useCallback(async () => {
     setLoading(true);
-    setError('');
+
     try {
       const params = { page, per_page: perPage };
       if (filterType) params.notification_type = filterType;
@@ -64,7 +64,7 @@ function NotificationsPage() {
       setNotifications(res.data.items || []);
       setTotal(res.data.total || 0);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie kennisgewings laai nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie kennisgewings laai nie.' });
     } finally {
       setLoading(false);
     }
@@ -202,7 +202,7 @@ function NotificationsPage() {
               </div>
             )}
 
-            {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
+
 
             {loading ? (
               <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>Laai...</div>

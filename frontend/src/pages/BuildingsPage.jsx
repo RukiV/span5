@@ -4,10 +4,14 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
 function BuildingsPage({ embedded = false }) {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { user } = useCurrentUser();
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
@@ -135,20 +139,18 @@ function BuildingsPage({ embedded = false }) {
       handleCloseModal();
     } catch (error) {
       console.error("Error saving building:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteBuilding = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie gebou verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie gebou verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -472,6 +474,7 @@ function BuildingsPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
@@ -522,6 +525,7 @@ function BuildingsPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }
