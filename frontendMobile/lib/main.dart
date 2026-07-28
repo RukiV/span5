@@ -1,15 +1,103 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'services/notification_service.dart' as svc;
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
 import 'core/app_colors.dart';
+import 'core/api_client.dart';
 import 'core/navigation.dart';
 
+final FlutterLocalNotificationsPlugin _localNotifs =
+    FlutterLocalNotificationsPlugin();
 
-// Global key for navigation across the app without context
-// Moved to core/navigation.dart
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('Background FCM: ${message.notification?.title}');
+}
+
+Future<void> _initFirebase() async {
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase Core init failed: $e');
+    return;
+  }
+
+  // Local notifications (can fail independently — icon must be in res/drawable/)
+  try {
+    const androidSettings = AndroidInitializationSettings('notification_icon');
+    await _localNotifs.initialize(
+      const InitializationSettings(android: androidSettings),
+    );
+    debugPrint('Local notifications initialized.');
+  } catch (e) {
+    debugPrint('Local notifications init failed (push will still work): $e');
+  }
+
+  try {
+    final messaging = FirebaseMessaging.instance;
+
+    final notifSettings = await messaging.requestPermission(
+      alert: true, badge: true, sound: true,
+    );
+    debugPrint('FCM permission: ${notifSettings.authorizationStatus}');
+
+    final token = await messaging.getToken();
+    if (token != null) {
+      _registerFcmTokenWhenAuthReady(token);
+    }
+
+    messaging.onTokenRefresh.listen((newToken) {
+      _registerFcmTokenWhenAuthReady(newToken);
+    });
+
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final title = message.notification?.title ?? 'FBS';
+      final body = message.notification?.body ?? '';
+      try {
+        _localNotifs.show(
+          0, title, body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'fbs_channel', 'FBS Kennisgewings',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Local notification show failed: $e');
+      }
+    });
+
+    debugPrint('Firebase initialized for push notifications.');
+  } catch (e) {
+    debugPrint('FCM messaging init failed (push disabled): $e');
+  }
+}
+
+void _registerFcmTokenWhenAuthReady(String token) {
+  if (ApiClient.authNotifier.value) {
+    // Already authenticated (e.g., biometric re-auth on warm start)
+    svc.NotificationService.registerDeviceToken(token);
+  } else {
+    // Wait for login
+    void listener() {
+      if (ApiClient.authNotifier.value) {
+        ApiClient.authNotifier.removeListener(listener);
+        svc.NotificationService.registerDeviceToken(token);
+      }
+    }
+    ApiClient.authNotifier.addListener(listener);
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +107,7 @@ void main() async {
   } catch (e) {
     debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
   }
+  _initFirebase();
   runApp(const MyApp());
 }
 

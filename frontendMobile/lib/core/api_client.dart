@@ -14,11 +14,14 @@ class ApiClient {
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
 
+  /// Fires true when a token is saved, false when cleared.
+  static final authNotifier = ValueNotifier<bool>(false);
+
   factory ApiClient() => _instance;
 
   ApiClient._internal() {
     //emulator
-    final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.3.13:8000/api/v1');
+    final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.0.10:8000/api/v1');
     //physical
     //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
     
@@ -120,10 +123,12 @@ class ApiClient {
   /// Stores the authentication token securely.
   Future<void> saveToken(String token) async {
     await _storage.write(key: 'auth_token', value: token);
+    ApiClient.authNotifier.value = true;
   }
 
   /// Removes the authentication token from secure storage.
   Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
+    ApiClient.authNotifier.value = false;
   }
 }

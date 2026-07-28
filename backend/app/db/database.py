@@ -77,6 +77,53 @@ def createDBandTables():
             if "location_id" not in columns:
                 connection.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES location(location_id)"))
 
+        if "notification" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("notification")}
+            if "is_seen" not in columns:
+                connection.execute(text("ALTER TABLE notification ADD COLUMN IF NOT EXISTS is_seen BOOLEAN DEFAULT FALSE"))
+        else:
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS notification (
+                    notification_id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES "user"(user_id),
+                    actor_id INTEGER REFERENCES "user"(user_id),
+                    notification_type VARCHAR(50) NOT NULL,
+                    title VARCHAR(255) NOT NULL,
+                    message TEXT NOT NULL,
+                    reference_type VARCHAR(50),
+                    reference_id INTEGER,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    is_seen BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_user_read ON notification(user_id, is_read)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_created ON notification(created_at DESC)"))
+
+        if "notification_preferences" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS notification_preferences (
+                    user_id INTEGER NOT NULL REFERENCES "user"(user_id),
+                    notification_type VARCHAR(50) NOT NULL,
+                    in_app_enabled BOOLEAN DEFAULT TRUE,
+                    email_enabled BOOLEAN DEFAULT FALSE,
+                    push_enabled BOOLEAN DEFAULT FALSE,
+                    PRIMARY KEY (user_id, notification_type)
+                )
+            """))
+
+        if "device_tokens" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS device_tokens (
+                    token_id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES "user"(user_id),
+                    fcm_token TEXT NOT NULL,
+                    platform VARCHAR(10) NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+
 
 def getSession():
     with Session(engine) as session:
