@@ -4,11 +4,15 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api"; // Bygevoeg buildingsAPI en locationAPI
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/Asset.css";
 import "../styles/App.css";
 
 
 function StockPage({ embedded = false }) {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { user } = useCurrentUser();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -127,7 +131,7 @@ function StockPage({ embedded = false }) {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_STOCK_IMAGES} beeld per voorraad-item oplaai.`);
+      showToast({ type: 'warning', title: 'Waarskuwing', message: `Jy kan maksimaal ${MAX_STOCK_IMAGES} beeld per voorraad-item oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -141,10 +145,9 @@ function StockPage({ embedded = false }) {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -156,10 +159,9 @@ function StockPage({ embedded = false }) {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setStockImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -227,20 +229,19 @@ function StockPage({ embedded = false }) {
       fetchStockImages(savedStockId);
     } catch (error) {
       console.error("Error saving stock:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteStock = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie voorraad-item verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie voorraad-item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await stockAPI.delete(id);
       fetchStock();
     } catch (error) {
       console.error("Error deleting stock:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -724,6 +725,7 @@ function StockPage({ embedded = false }) {
 
         {showModal && modalContent}
         {imageViewerContent}
+      {dialog}
       </>
     );
   }
@@ -809,6 +811,7 @@ function StockPage({ embedded = false }) {
 
       {showModal && modalContent}
       {imageViewerContent}
+      {dialog}
     </div>
   );
 }

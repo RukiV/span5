@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { apiClient, authAPI } from "../services/api";
 import '../styles/App.css';
 import '../styles/Reports.css';
+import { useToast } from '../components/Toast/useToast';
 
 const REPORT_TABLES = [
   { value: 'assets', label: 'Bates', endpoint: '/assets' },
@@ -28,6 +29,7 @@ const COLUMN_FALLBACKS = {
 };
 
 function ReportsPage() {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState('assets');
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -35,7 +37,7 @@ function ReportsPage() {
   const [tableRecords, setTableRecords] = useState([]);
   const [loadingTable, setLoadingTable] = useState(false);
   const [reportHistory, setReportHistory] = useState([]);
-  const [statusMessage, setStatusMessage] = useState('');
+
 
   useEffect(() => {
     (async () => {
@@ -80,7 +82,7 @@ function ReportsPage() {
         setTableRecords([]);
         setAvailableColumns([]);
         setSelectedColumns([]);
-        setStatusMessage('Kon die tabeldata nie laai nie.');
+        showToast({ type: 'error', message: 'Kon die tabeldata nie laai nie.' });
       })
       .finally(() => {
         setLoadingTable(false);
@@ -195,7 +197,7 @@ function ReportsPage() {
 
   const handleGenerateReport = (format = 'csv') => {
     if (!selectedColumns.length) {
-      alert('Kies asseblief ten minste een kolom.');
+      showToast({ type: 'warning', title: 'Kies asseblief ten minste een kolom.' });
       return;
     }
 
@@ -218,7 +220,7 @@ function ReportsPage() {
       setReportHistory(updatedHistory);
       localStorage.setItem('reportCsvExports', JSON.stringify(updatedHistory));
       downloadExcel(workbookBuffer, fileName);
-      setStatusMessage(`XLSX vir ${tableConfig?.label || selectedTable} is geskep.`);
+      showToast({ type: 'success', message: `XLSX vir ${tableConfig?.label || selectedTable} is geskep.` });
       return;
     }
 
@@ -237,7 +239,7 @@ function ReportsPage() {
     setReportHistory(updatedHistory);
     localStorage.setItem('reportCsvExports', JSON.stringify(updatedHistory));
     downloadCsv(csvContent, fileName);
-    setStatusMessage(`CSV vir ${tableConfig?.label || selectedTable} is geskep.`);
+      showToast({ type: 'success', message: `CSV vir ${tableConfig?.label || selectedTable} is geskep.` });
   };
 
   const handleDownloadHistoryEntry = (entry) => {
@@ -263,7 +265,7 @@ function ReportsPage() {
   return (
     <div className="main">
       <div className="content">
-          {statusMessage && <div className="report-status">{statusMessage}</div>}
+
 
           <div className="report-generator-card">
             <div className="report-generator-header">
