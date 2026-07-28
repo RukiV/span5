@@ -5,8 +5,7 @@ import '../stock/stock_page.dart';
 import '../campus/campus_management_page.dart';
 import '../rooms/manage_rooms_page.dart';
 import '../building/buildings_list_page.dart';
-import '../contractor/contractor_management_page.dart';
-import '../contractor/job_cards_page.dart';
+import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
@@ -16,7 +15,6 @@ import '../../core/api_client.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
-import '../../services/contractor_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
 
@@ -44,7 +42,6 @@ class _HomePageState extends State<HomePage> {
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
         JobcardService.fetchJobs(),
-        ContractorService.fetchContractors(),
         QuoteService.fetchQuotes(),
       ]);
     } catch (e) {
@@ -77,7 +74,7 @@ class _HomePageState extends State<HomePage> {
         'page': DashboardPage(onTabRequested: (index) {
           final titles = [
             "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale",
-            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
+            "Foutkaartjies", "Werksopdragte", "Kalender"
           ];
           if (index >= 0 && index < titles.length) {
             setState(() => _selectedTitle = titles[index]);
@@ -126,11 +123,6 @@ class _HomePageState extends State<HomePage> {
     // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
     if (can('faults.create_own') || can('faults.view_own') || can('faults.manage_all')) {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
-    }
-
-    // Kontrakteurs — Admin/FK.
-    if (can('contractors.manage')) {
-      menu.add({'title': 'Kontrakteurs', 'icon': Icons.engineering_outlined, 'page': const ContractorManagementPage()});
     }
 
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
