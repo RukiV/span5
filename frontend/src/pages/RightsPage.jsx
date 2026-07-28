@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useToast } from '../components/Toast/useToast';
 
-const errBox = { color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' };
-const okBox = { color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' };
 
 function RightsPage({ embedded = false }) {
+  const { confirm, dialog } = useConfirmDialog();
+  const { showToast } = useToast();
   const [view, setView] = useState('list');
   const [rights, setRights] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+
 
   const [rightForm, setRightForm] = useState({ id: null, name: '', description: '', isBuiltin: false });
 
@@ -18,7 +19,7 @@ function RightsPage({ embedded = false }) {
       const res = await apiClient.rights.getAll();
       setRights(res.data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie regte laai nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie regte laai nie.' });
     } finally {
       setLoading(false);
     }
@@ -26,12 +27,11 @@ function RightsPage({ embedded = false }) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  const openNewRight = () => { setRightForm({ id: null, name: '', description: '', isBuiltin: false }); setError(''); setSuccess(''); setView('rightForm'); };
-  const openEditRight = (right) => { setRightForm({ id: right.right_id, name: right.right_name, description: right.right_description || '', isBuiltin: right.is_builtin }); setError(''); setSuccess(''); setView('rightForm'); };
+  const openNewRight = () => { setRightForm({ id: null, name: '', description: '', isBuiltin: false }); setView('rightForm'); };
+  const openEditRight = (right) => { setRightForm({ id: right.right_id, name: right.right_name, description: right.right_description || '', isBuiltin: right.is_builtin }); setView('rightForm'); };
 
   const saveRight = async () => {
-    setError(''); setSuccess('');
-    if (!rightForm.name.trim()) { setError('Regnaam is verpligtend.'); return; }
+    if (!rightForm.name.trim()) { showToast({ type: 'error', message: 'Regnaam is verpligtend.' }); return; }
     try {
       if (rightForm.id) {
         await apiClient.rights.update(rightForm.id, { right_name: rightForm.name.trim(), right_description: rightForm.description });
@@ -39,32 +39,30 @@ function RightsPage({ embedded = false }) {
         await apiClient.rights.create({ right_name: rightForm.name.trim(), right_description: rightForm.description });
       }
       await refetch();
-      setView('list'); setSuccess('Reg gestoor.');
+      setView('list'); showToast({ type: 'success', message: 'Reg gestoor.' });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie reg stoor nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie reg stoor nie.' });
     }
   };
 
   const deleteRight = async (right) => {
-    if (!window.confirm(`Verwyder reg "${right.right_name}"?`)) return;
-    setError(''); setSuccess('');
+    const confirmed = await confirm({ message: `Verwyder reg "${right.right_name}"?`, variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await apiClient.rights.delete(right.right_id);
       await refetch();
-      setSuccess('Reg verwyder.');
+      showToast({ type: 'success', message: 'Reg verwyder.' });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie reg verwyder nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie reg verwyder nie.' });
     }
   };
 
-  const backToList = () => { setView('list'); setError(''); };
+  const backToList = () => { setView('list'); };
 
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
   const pageContent = (
     <>
-      {error && <div style={errBox}>{error}</div>}
-      {success && <div style={okBox}>{success}</div>}
 
       {view === 'list' ? (
         <>
@@ -127,7 +125,7 @@ function RightsPage({ embedded = false }) {
   );
 
   if (embedded) {
-    return <>{pageContent}</>;
+    return <>{pageContent}{dialog}</>;
   }
 
   return (
@@ -135,6 +133,7 @@ function RightsPage({ embedded = false }) {
       <div className="content">
         {pageContent}
       </div>
+      {dialog}
     </div>
   );
 }

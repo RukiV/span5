@@ -12,6 +12,7 @@ from ..models.role import Role, Rights, RoleRight
 from ..models.user import User
 from ..models.audit import Auditlog
 from ..models.quote import Quote
+from ..models.notification import NotificationPreference
 from decimal import Decimal
 
 from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
@@ -1362,6 +1363,32 @@ suburb="Villieria",
 
         # Upgrade any legacy plaintext passwords already in the DB to hashes.
         _migrate_plaintext_passwords(session)
+
+        # Seed default notification preferences for all active users
+        NOTIF_TYPES = [
+            "fault.created", "fault.assigned", "fault.resolved", "fault.status_changed",
+            "job.created", "job.assigned", "job.status_changed",
+            "stock.low",
+            "system.announcement",
+            "calendar.reminder",
+        ]
+        all_users = session.exec(select(User).where(User.user_status == "active")).all()
+        for user in all_users:
+            for ntype in NOTIF_TYPES:
+                existing = session.exec(
+                    select(NotificationPreference).where(
+                        NotificationPreference.user_id == user.user_id,
+                        NotificationPreference.notification_type == ntype,
+                    )
+                ).first()
+                if not existing:
+                    session.add(NotificationPreference(
+                        user_id=user.user_id,
+                        notification_type=ntype,
+                        in_app_enabled=True,
+                        email_enabled=False,
+                        push_enabled=False,
+                    ))
 
         session.commit()
         print("Database seeded successfully!")

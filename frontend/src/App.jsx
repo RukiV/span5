@@ -26,9 +26,12 @@ import TerrainsPage from './pages/TerrainsPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import RightsPage from './pages/RightsPage';
+import NotificationsPage from './pages/NotificationsPage';
+import { ToastProvider } from './components/Toast/ToastContext';
+import { NotificationProvider } from './components/Notifications/NotificationContext';
 
 /* =========================================================
-   1. DIE BESKERMDE ROETE-MEGANISME
+    1. DIE BESKERMDE ROETE-MEGANISME
    ========================================================= */
 function ProtectedRoute({ children }) {
   const token = sessionStorage.getItem('token');
@@ -105,6 +108,7 @@ function AppContent() {
               <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
               <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
               <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
               <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
               <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
               <Route path="*" element={<Navigate to="/login" replace />} />
@@ -172,7 +176,11 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/*" element={
             <AnalyticsProvider>
-              <AppContent />
+              <ToastProvider>
+                <NotificationProvider>
+                  <AppContent />
+                </NotificationProvider>
+              </ToastProvider>
             </AnalyticsProvider>
           } />
         </Routes>

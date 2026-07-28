@@ -1,0 +1,307 @@
+import 'package:flutter/material.dart';
+import '../../core/app_colors.dart';
+import '../../services/notification_service.dart';
+import 'notification_preferences_page.dart';
+
+class NotificationListPage extends StatefulWidget {
+  const NotificationListPage({super.key});
+
+  @override
+  State<NotificationListPage> createState() => _NotificationListPageState();
+}
+
+class _NotificationListPageState extends State<NotificationListPage> {
+  List<AppNotification> _notifications = [];
+  bool _loading = true;
+  int _page = 1;
+  bool _hasMore = true;
+  String _filterType = '';
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (_hasMore && !_loading) {
+        _page++;
+        _loadNotifications();
+      }
+    }
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _loading = true);
+    final items = await NotificationService.fetchAll(
+      page: _page,
+      type: _filterType.isNotEmpty ? _filterType : null,
+    );
+    setState(() {
+      if (_page == 1) {
+        _notifications = items;
+      } else {
+        _notifications.addAll(items);
+      }
+      _hasMore = items.length >= 20;
+      _loading = false;
+    });
+  }
+
+  Future<void> _onRefresh() async {
+    _page = 1;
+    _hasMore = true;
+    await _loadNotifications();
+  }
+
+  Color _typeColor(String type) {
+    switch (type) {
+      case 'fault.created':
+      case 'stock.low':
+        return Colors.red;
+      case 'fault.assigned':
+        return Colors.orange;
+      case 'fault.resolved':
+        return Colors.green;
+      case 'job.created':
+        return Colors.blue;
+      case 'job.assigned':
+        return Colors.brown;
+      case 'job.status_changed':
+        return Colors.purple;
+      case 'system.announcement':
+        return const Color(0xFF0e1e3b);
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case 'fault.created':
+      case 'fault.assigned':
+      case 'fault.resolved':
+        return Icons.bug_report_outlined;
+      case 'job.created':
+      case 'job.assigned':
+      case 'job.status_changed':
+        return Icons.construction_outlined;
+      case 'stock.low':
+        return Icons.warning_amber_outlined;
+      case 'system.announcement':
+        return Icons.campaign_outlined;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
+
+  String _timeAgo(String dateStr) {
+    try {
+      final dt = DateTime.parse(dateStr);
+      final diff = DateTime.now().difference(dt);
+      if (diff.inSeconds < 60) return 'Nou net';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m gelede';
+      if (diff.inHours < 24) return '${diff.inHours}h gelede';
+      if (diff.inDays < 7) return '${diff.inDays}d gelede';
+      return '${dt.day}/${dt.month}/${dt.year}';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  void _handleTap(AppNotification notif) {
+    NotificationService.markAsRead(notif.notificationId);
+    setState(() {
+      final idx = _notifications.indexWhere(
+        (n) => n.notificationId == notif.notificationId,
+      );
+      if (idx >= 0) {
+        _notifications[idx] = AppNotification(
+          notificationId: notif.notificationId,
+          notificationType: notif.notificationType,
+          title: notif.title,
+          message: notif.message,
+          referenceType: notif.referenceType,
+          referenceId: notif.referenceId,
+          isRead: true,
+          createdAt: notif.createdAt,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Kennisgewings'),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationPreferencesPage(),
+                ),
+              );
+            },
+          ),
+          if (_notifications.any((n) => !n.isRead))
+            TextButton(
+              onPressed: () async {
+                await NotificationService.markAllAsRead();
+                _onRefresh();
+              },
+              child: const Text(
+                'Merk almal as gelees',
+                style: TextStyle(color: Colors.white, fontSize: 13),
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _filterType.isEmpty ? null : _filterType,
+                    decoration: const InputDecoration(
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(),
+                      hintText: 'Alle tipes',
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: '', child: Text('Alle tipes')),
+                      DropdownMenuItem(
+                          value: 'fault.created',
+                          child: Text('Fout Aangeteken')),
+                      DropdownMenuItem(
+                          value: 'job.created',
+                          child: Text('Werksopdrag Geskep')),
+                      DropdownMenuItem(
+                          value: 'stock.low', child: Text('Lae Voorraad')),
+                      DropdownMenuItem(
+                          value: 'system.announcement',
+                          child: Text('Aankondiging')),
+                    ],
+                    onChanged: (v) {
+                      _filterType = v ?? '';
+                      _page = 1;
+                      _loadNotifications();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading && _notifications.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : _notifications.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Geen kennisgewings nie',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _onRefresh,
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          itemCount: _notifications.length,
+                          itemBuilder: (context, index) {
+                            final n = _notifications[index];
+                            return InkWell(
+                              onTap: () => _handleTap(n),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: n.isRead
+                                      ? Colors.white
+                                      : const Color(0xFFEEF3FA),
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: Colors.grey.shade200,
+                                      width: 0.5,
+                                    ),
+                                    left: n.isRead
+                                        ? BorderSide.none
+                                        : const BorderSide(
+                                            color: Color(0xFF2a5f9e),
+                                            width: 3,
+                                          ),
+                                  ),
+                                ),
+                                padding: const EdgeInsets.all(14),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      _typeIcon(n.notificationType),
+                                      color: _typeColor(n.notificationType),
+                                      size: 22,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            n.title,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            n.message,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _timeAgo(n.createdAt),
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey.shade400,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+}
