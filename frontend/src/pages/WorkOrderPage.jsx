@@ -7,10 +7,14 @@ import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, b
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
 import { normalizeWorkOrdersPayload } from './workOrderUtils';
+import { useToast } from '../components/Toast/useToast';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 
 function WorkOrderPage() {
+  const { confirm, dialog } = useConfirmDialog();
+  const { showToast } = useToast();
   const { user } = useCurrentUser();
   const { instance } = useMsal();
   const location = useLocation();
@@ -306,7 +310,7 @@ function WorkOrderPage() {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_JOB_IMAGES} beelde per werksopdrag oplaai.`);
+      showToast({ type: 'warning', title: `Jy kan maksimaal ${MAX_JOB_IMAGES} beelde per werksopdrag oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -320,8 +324,9 @@ function WorkOrderPage() {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -331,8 +336,9 @@ function WorkOrderPage() {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setJobImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -359,7 +365,7 @@ function WorkOrderPage() {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
       console.error("Fout by laai van PDF:", error);
-      alert("Kon nie PDF laai nie.");
+      showToast({ type: 'error', title: 'Kon nie PDF laai nie.' });
     }
   };
 
@@ -367,7 +373,7 @@ function WorkOrderPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.type !== "application/pdf") {
-      alert("Slegs PDF-lêers word toegelaat.");
+      showToast({ type: 'warning', title: 'Slegs PDF-lêers word toegelaat.' });
       event.target.value = "";
       return;
     }
@@ -379,8 +385,9 @@ function WorkOrderPage() {
     event.target.value = "";
   };
 
-  const handleQuotePdfDelete = (quoteId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie PDF verwyder?")) return;
+  const handleQuotePdfDelete = async (quoteId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie PDF verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     setQuotePdfFiles((prev) => {
       const next = { ...prev };
       delete next[quoteId];
@@ -832,12 +839,12 @@ function WorkOrderPage() {
       const workOrderId = savedWorkOrder?.jobcard_id || editingId;
 
       if (quotes.some((quote) => !quote.contractor_id || !String(quote.description || "").trim())) {
-        alert("Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê.");
+        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê." });
         return;
       }
 
       if (selectedQuoteId && !String(quoteSelectionReasons[selectedQuoteId] || "").trim()) {
-        alert("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.");
+        showToast({ type: 'warning', title: "Gee asseblief 'n rede waarom die gekose kwotasie gekies is." });
         return;
       }
 
@@ -914,7 +921,7 @@ function WorkOrderPage() {
               uploadedQuoteDocIds.push(createdQuoteId);
             } catch (pdfErr) {
               console.error("Fout by laai van PDF op:", pdfErr);
-              alert("Kon nie PDF oplaai nie. Kyk die console vir foute.");
+              showToast({ type: 'error', title: 'Kon nie PDF oplaai nie. Kyk die console vir foute.' });
             }
           }
         }
@@ -930,21 +937,21 @@ function WorkOrderPage() {
       }
 
       if (failedQuotes.length > 0) {
-        alert(`${failedQuotes.length} kwotasie(s) kon nie gestoor word nie.`);
+        showToast({ type: 'error', title: `${failedQuotes.length} kwotasie(s) kon nie gestoor word nie.` });
       }
       
       handleCloseModal();
       fetchWorkOrders();
     } catch (error) {
       console.error("Fout by besparing:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });
     }
   };
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
     if (!newQuote.contractor_id || !newQuote.amount || !String(newQuote.description || "").trim()) {
-      alert("Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie.");
+      showToast({ type: 'warning', title: "Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie." });
       return;
     }
 
@@ -1168,16 +1175,15 @@ function WorkOrderPage() {
   };
 
   const handleDeleteWorkOrder = async (workOrderId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie werksopdrag verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie werksopdrag verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await workOrdersAPI.delete(workOrderId);
       await deleteScheduledOutlookEventsForWorkOrder(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Fout by verwydering:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
     }
   };
 
@@ -2301,6 +2307,7 @@ function WorkOrderPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

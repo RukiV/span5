@@ -8,6 +8,8 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
     def create(self, session, data, user_id=None):
         obj = self.model.model_validate(data)
         obj.fault_reportdatetime = datetime.now(timezone.utc)
+        if user_id is not None:
+            obj.user_id = user_id
 
         session.add(obj)
         try:

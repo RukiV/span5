@@ -4,11 +4,15 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
 
 function AssetPage({ embedded = false }) {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
@@ -188,7 +192,7 @@ function AssetPage({ embedded = false }) {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_ASSET_IMAGES} beeld per bate oplaai.`);
+      showToast({ type: 'warning', title: `Jy kan maksimaal ${MAX_ASSET_IMAGES} beeld per bate oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -202,10 +206,9 @@ function AssetPage({ embedded = false }) {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -217,10 +220,9 @@ function AssetPage({ embedded = false }) {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setAssetImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -246,7 +248,7 @@ function AssetPage({ embedded = false }) {
       const cleanedSerial = newAsset.asset_serial.trim();
       const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
-        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).");
+        showToast({ type: 'warning', title: 'Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).' });
         return;
       }
       const isDuplicate = assets.some((asset) => {
@@ -257,7 +259,7 @@ function AssetPage({ embedded = false }) {
         }
       });
       if (isDuplicate) {
-        alert(`Hierdie serienommer (${cleanedSerial}) is reeds in gebruik. Voer asseblief 'n unieke serienommer in.`);
+        showToast({ type: 'warning', title: `Hierdie serienommer (${cleanedSerial}) is reeds in gebruik. Voer asseblief 'n unieke serienommer in.` });
         return;
       }
       if (!newAsset.assettype_id) errors.assettype_id = true;
@@ -318,20 +320,19 @@ function AssetPage({ embedded = false }) {
       } else if (error.request) {
         console.error("Geen antwoord van die bediener nie.");
       }
-      alert("Fout tydens besparing.");
+      showToast({ type: 'error', title: 'Fout tydens besparing.' });
     }
   };
 
   const handleDeleteAsset = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie item verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await assetsAPI.delete(id);
       fetchAssets();
     } catch (error) {
       console.error("Error deleting asset:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
     }
   };
 
@@ -468,7 +469,7 @@ function AssetPage({ embedded = false }) {
 
   const handleSaveType = async () => {
     if (!newType.assettype_name.trim()) {
-      alert("Voer asseblief 'n tipe naam in.");
+      showToast({ type: 'warning', title: "Voer asseblief 'n tipe naam in." });
       return;
     }
     const payload = {
@@ -489,20 +490,19 @@ function AssetPage({ embedded = false }) {
       fetchAssettypes();
     } catch (error) {
       console.error("Error saving asset type:", error);
-      alert("Fout tydens stoor van bate tipe.");
+      showToast({ type: 'error', title: 'Fout tydens stoor van bate tipe.' });
     }
   };
 
   const handleDeleteType = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie bate tipe verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie bate tipe verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await assettypesAPI.delete(id);
       fetchAssettypes();
     } catch (error) {
       console.error("Error deleting asset type:", error);
-      alert("Fout tydens verwydering van bate tipe.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering van bate tipe.' });
     }
   };
   
@@ -1121,6 +1121,7 @@ function AssetPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
@@ -1301,6 +1302,7 @@ function AssetPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

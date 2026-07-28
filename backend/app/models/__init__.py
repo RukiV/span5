@@ -15,5 +15,6 @@ from .document import *
 from .report import *
 from .calendar_event import *
 from .room_check import *
+from .notification import *
 from .validators import *  # optional export
 

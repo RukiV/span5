@@ -4,11 +4,15 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Ticket.css";
 
 
 function TicketPage() {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { user } = useCurrentUser();
   const navigate = useNavigate();
   const MAX_TICKET_IMAGES = 3;
@@ -76,7 +80,7 @@ function TicketPage() {
       setTickets(response.data || []);
     } catch (error) {
       console.error("Error fetching tickets:", error);
-      alert("Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message));
+      showToast({ type: 'error', title: 'Fout', message: "Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message) });
     } finally {
       setLoading(false);
     }
@@ -192,7 +196,7 @@ function TicketPage() {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_TICKET_IMAGES} beelde per foutkaartjie oplaai.`);
+      showToast({ type: 'warning', title: 'Waarskuwing', message: `Jy kan maksimaal ${MAX_TICKET_IMAGES} beelde per foutkaartjie oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -206,10 +210,9 @@ function TicketPage() {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -221,10 +224,9 @@ function TicketPage() {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setTicketImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -270,11 +272,11 @@ function TicketPage() {
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
-        alert("Foutkaartjie suksesvol opgedateer!");
+        showToast({ type: 'success', title: 'Sukses', message: "Foutkaartjie suksesvol opgedateer!" });
       } else {
         const response = await apiClient.tickets.create(payload);
         ticketId = response?.data?.fault_id ?? response?.data?.id ?? null;
-        alert("Foutkaartjie suksesvol geskep!");
+        showToast({ type: 'success', title: 'Sukses', message: "Foutkaartjie suksesvol geskep!" });
       }
 
       if (isEditing) {
@@ -298,7 +300,7 @@ function TicketPage() {
       const errorMsg = Array.isArray(errorDetail) 
         ? errorDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join('\n')
         : errorDetail || error.message;
-      alert("Fout by besparing van foutkaartjie:\n" + errorMsg);
+      showToast({ type: 'error', title: 'Fout', message: "Fout by besparing van foutkaartjie:\n" + errorMsg });
     }
   };
 
@@ -335,15 +337,14 @@ function TicketPage() {
   };
 
   const handleDeleteTicket = async (ticketId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie foutkaartjie verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie foutkaartjie verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await apiClient.tickets.delete(ticketId);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
-      alert("Fout tydens verwydering van foutkaartjie.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering van foutkaartjie." });
     }
   };
 
@@ -833,6 +834,7 @@ function TicketPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

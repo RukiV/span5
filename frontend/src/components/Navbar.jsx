@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import UserProfileHeader from './UserProfileHeader';
+import NotificationBell from './Notifications/NotificationBell';
 import '../styles/Navbar.css';
 
 const PATH_TITLES = {
@@ -17,6 +18,7 @@ const PATH_TITLES = {
   '/users/rights': 'Bestuur Regte',
   '/predictions': 'Voorspellings',
   '/calendar': 'Kalender',
+  '/notifications': 'Kennisgewings',
   '/reports': 'Verslae',
 };
 
@@ -31,7 +33,10 @@ function Navbar() {
   return (
     <div className="navbar">
       <h3>{title}</h3>
-      <UserProfileHeader />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <NotificationBell />
+        <UserProfileHeader />
+      </div>
     </div>
   );
 }

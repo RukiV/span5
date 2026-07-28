@@ -8,6 +8,7 @@ from ..db.database import engine
 from ..models.calendar_event import CalendarEvent
 from ..models.user import User
 from .email_service import send_reminder
+from .notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -55,3 +56,12 @@ def _check_and_send_reminders():
                         session.add(event)
                         session.commit()
                         logger.info(f"Herinnering gestuur vir event {event.event_id}")
+                    notif_svc = NotificationService(session)
+                    notif_svc.create_notification(
+                        user_id=event.user_id,
+                        notification_type="calendar.reminder",
+                        title="Kalender herinnering",
+                        message=f"{event.title} begin om {start_str}",
+                        reference_type="calendar",
+                        reference_id=event.event_id,
+                    )
