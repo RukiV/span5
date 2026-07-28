@@ -6,14 +6,10 @@ import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import "../styles/Ticket.css";
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
+
 
 function TicketPage() {
-  // Haal admin-status vir beheer-opsies
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
   const navigate = useNavigate();
   const MAX_TICKET_IMAGES = 3;
   
@@ -434,16 +430,8 @@ function TicketPage() {
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/fault-tickets" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Foutkaartjies Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
               <input
@@ -587,7 +575,6 @@ function TicketPage() {
             </tbody>
           </table>
         </div>
-      </div>
 
       {activeImageViewer && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>

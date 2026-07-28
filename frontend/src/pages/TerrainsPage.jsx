@@ -1,16 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function TerrainsPage({ embedded = false }) {
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,29 +186,11 @@ function TerrainsPage({ embedded = false }) {
     });
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Terreine</h4>
-          <p className="analytics-value">{terrains.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Geboue</h4>
-          <p className="analytics-value">{buildings.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Tipes</h4>
-          <p className="analytics-value">{new Set(terrains.map(t => t.location_type).filter(Boolean)).size}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Geboue per Terrein</h4>
-          <p className="analytics-value">{terrains.length > 0 ? (buildings.length / terrains.length).toFixed(1) : '-'}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -456,18 +432,9 @@ function TerrainsPage({ embedded = false }) {
   }
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/terrains" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Terrein Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}

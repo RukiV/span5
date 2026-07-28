@@ -2,12 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function UsersPage({ embedded = false }) {
-  const logout = useLogout();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [terrains, setTerrains] = useState([]);
@@ -231,7 +227,7 @@ function UsersPage({ embedded = false }) {
     return (status === 'Aktief' || status === 'active') ? 'status-aktief' : 'status-onaktief';
   };
 
-  if (loading) return <div>Besig om gebruikers te laai...</div>;
+  if (loading) return <div className="main"><div className="content">Besig om gebruikers te laai...</div></div>;
 
   const pageContent = (
     <>
@@ -425,18 +421,11 @@ function UsersPage({ embedded = false }) {
   }
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users" onLogout={logout} />
-      <div className="main">
-        <div className="navbar">
-          <h3>Gebruikers Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
+        {modalContent}
       </div>
-      {modalContent}
     </div>
   );
 }
