@@ -6,13 +6,10 @@ import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../ser
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/Asset.css";
 import "../styles/App.css";
-import { useLogout } from "./Page.jsx";
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
+
 
 function StockPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]); // Bygevoeg
@@ -361,29 +358,11 @@ function StockPage({ embedded = false }) {
     });
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Voorraad</h4>
-          <p className="analytics-value">{stock.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Minimum Voorraad</h4>
-          <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Uit Voorraad</h4>
-          <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Tipes</h4>
-          <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -750,34 +729,8 @@ function StockPage({ embedded = false }) {
   }
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/stock" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Voorraad Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-          <div className="content">
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Voorraad</h4>
-              <p className="analytics-value">{stock.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Minimum Voorraad</h4>
-              <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Uit Voorraad</h4>
-              <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Tipes</h4>
-              <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
-            </div>
-          </div>
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -853,7 +806,6 @@ function StockPage({ embedded = false }) {
             </tbody>
           </table>
         </div>
-      </div>
 
       {showModal && modalContent}
       {imageViewerContent}

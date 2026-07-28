@@ -2,12 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Line, Doughnut } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
-import { useCurrentUser } from '../hooks/useCurrentUser';
 import '../styles/App.css';
 import '../styles/Dashboard.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
 import { auditsAPI, workOrdersAPI, assetsAPI, ticketsAPI } from '../services/api';
 import { apiClient } from '../services/api';
 
@@ -35,8 +31,6 @@ const calcChange = (current, previous) => {
 };
 
 const DashboardPage = () => {
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
   const [recentRepairs, setRecentRepairs] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
   const [predictionSummary, setPredictionSummary] = useState({ total: 0, attention: 0, replacement: 0, overdue: 0 });
@@ -354,16 +348,8 @@ const DashboardPage = () => {
   }, []);
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/dashboard" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Paneelbord</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
+    <div className="main">
+      <div className="content">
           <div className="stats-grid">
             <div className="stat-card">
               <h4>Totale Bates</h4>
@@ -493,7 +479,6 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
-    </div>
   );
 };
 

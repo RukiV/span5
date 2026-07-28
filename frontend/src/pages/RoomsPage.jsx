@@ -2,17 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import Sidebar from '../components/Sidebar';
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import "../styles/App.css";
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function RoomsPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
 
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -290,35 +286,11 @@ function RoomsPage({ embedded = false }) {
   ];
 
   if (loading) {
-    return (
-      <div style={{ display: "flex" }}>
-        <div className="main">
-          <div className="content">Laai...</div>
-        </div>
-      </div>
-    );
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Lokale</h4>
-          <p className="analytics-value">{rooms.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Operasioneel</h4>
-          <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Fout Aangemeld</h4>
-          <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Instandhouding</h4>
-          <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -669,18 +641,9 @@ function RoomsPage({ embedded = false }) {
   }
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/rooms" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Lokale Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}

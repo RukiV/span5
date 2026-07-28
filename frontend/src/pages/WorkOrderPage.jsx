@@ -5,18 +5,13 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
 import { loginRequest } from '../services/msalConfig';
-import UserProfileHeader from '../components/UserProfileHeader';
 import { normalizeWorkOrdersPayload } from './workOrderUtils';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
 
 function WorkOrderPage() {
-  // Haal admin-status vir beheer-opsies
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
   const { instance } = useMsal();
   const location = useLocation();
   
@@ -1278,21 +1273,12 @@ function WorkOrderPage() {
 
 
   if (loading) {
-    return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   return (
-    <div className="page-layout" style={{ display: "flex" }}>
-      <Sidebar currentPath="/work-orders" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Bestuur Werksopdragte</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {/* Beheer-reeks */}
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
               <input 
@@ -1416,25 +1402,6 @@ function WorkOrderPage() {
             </div>
           </div>
 
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Werksopdragte</h4>
-              <p className="analytics-value">{filteredWorkOrders.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Oop / Besig</h4>
-              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Oop" || w.job_status === "Besig").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Voltooid</h4>
-              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Voltooid").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Dringend</h4>
-              <p className="analytics-value danger">{filteredWorkOrders.filter(w => w.job_priority === "Dringend").length}</p>
-            </div>
-          </div>
-
           {/* Tabel van Werksopdragte */}
           <table className="standard-table">
             <thead>
@@ -1490,7 +1457,6 @@ function WorkOrderPage() {
             </tbody>
           </table>
         </div>
-      </div>
 {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
         <div className="modal">

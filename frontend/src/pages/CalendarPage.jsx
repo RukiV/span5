@@ -2,11 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { authAPI, calendarEventsAPI, workOrdersAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Calendar.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
 import { loginRequest } from '../services/msalConfig';
 
 const formatDateInput = (date) => {
@@ -54,8 +51,6 @@ const SOURCE_LABELS = {
 };
 
 function CalendarPage() {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
   const { instance } = useMsal();
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
@@ -416,35 +411,13 @@ function CalendarPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex" }}>
-        <div className="main"><div className="content">Laai...</div></div>
-      </div>
+      <div className="main"><div className="content">Laai...</div></div>
     );
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/calendar" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Kalender {hasMsToken ? "(Lokaal + Outlook)" : "(Lokaal)"}</h3>
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>{user.user_name} {user.user_surname}</div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? "Administrateur" : user.role_id === 2 ? "Personeel" : "Student"}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>{user.user_email}</div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+    <div className="main">
+      <div className="content" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           {calendarError && (
             <div style={{ color: '#d9534f', padding: '10px', background: '#f9f2f2', borderRadius: '4px' }}>
               {calendarError}
@@ -720,7 +693,6 @@ function CalendarPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
