@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
-from typing import List
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlmodel import Session, select
 from ....auth.permissions import require_right
 from ....db.database import getSession
 from ....models.room_check import RoomCheckRead, RoomCheckCreate
@@ -20,13 +20,16 @@ def create_room_check(
 @router.get("", response_model=List[RoomCheckRead])
 def list_room_checks(
     room_id: int,
+    limit: Optional[int] = Query(None),
     session: Session = Depends(getSession),
     _user: User = Depends(require_right("assets.manage")),
 ):
-    from sqlmodel import select
-    return session.exec(
-        select(room_check_service.model).where(room_check_service.model.room_id == room_id)
-    ).all()
+    query = select(room_check_service.model).where(
+        room_check_service.model.room_id == room_id
+    ).order_by(room_check_service.model.checked_datetime.desc())
+    if limit:
+        query = query.limit(limit)
+    return session.exec(query).all()
 
 @router.get("/{check_id}", response_model=RoomCheckRead)
 def get_room_check(
