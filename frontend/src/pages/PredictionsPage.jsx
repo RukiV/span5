@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { authAPI } from "../services/api";
 import { apiClient, assetsAPI, locationAPI, buildingsAPI, roomsAPI } from "../services/api";
 import Select, { components } from "react-select";
@@ -8,6 +8,7 @@ import '../styles/App.css';
 import '../styles/Predictions.css';
 import { useLogout } from './Page.jsx';
 import Sidebar from '../components/Sidebar';
+import { buildFlatLocationOptions } from './locationSearchUtils';
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -48,6 +49,7 @@ function PredictionsPage() {
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
 
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
 
   useEffect(() => {
     let mounted = true;
@@ -220,18 +222,28 @@ function PredictionsPage() {
                       isDisabled={cascadeCount >= 3}
                       components={{ Control: CascadeControl }}
                       styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                      options={(() => {
-                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                        return [];
-                      })()}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                        return false;
+                      }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
                         if (!selectedOption) return;
-                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
                     />
                   </div>
