@@ -1,3 +1,10 @@
+# =============================================================================
+# E-posversending (SMTP via Gmail)
+# Vloei:  calendar endpoint / reminder_scheduler → hierdie funksies
+#         Hierdie word NIE deur die NotificationService gebruik nie.
+#         email_enabled in NotificationPreference word tans nie hier gelees nie.
+# Konfigurasie: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM in .env
+# =============================================================================
 import os
 import smtplib
 import logging
@@ -12,6 +19,7 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "")
 
+# --- Stuur bevestiging wanneer 'n kalender-afspraak geskep word (slegs as notify_email=True op die gebeurtenis) ---
 def send_event_created(
     to_email: str,
     event_title: str,
@@ -72,6 +80,9 @@ def send_event_created(
         return False
 
 
+# --- Stuur e-pos wanneer 'n werksopdrag toegewys word
+#     LET WEL: Hierdie funksie word tans NERENS geroep nie (dooie kode).
+#     As jy dit wil aktiveer, roep dit in die job.py endpoint. ---
 def send_jobcard_assigned(
     to_email: str,
     job_desc: str,
@@ -130,6 +141,8 @@ def send_jobcard_assigned(
         return False
 
 
+# --- Stuur 'n kalender-herinnering per e-pos
+#     Geroep deur reminder_scheduler.py vir CalendarEvent waar notify_email=True ---
 def send_reminder(
     to_email: str,
     event_title: str,
