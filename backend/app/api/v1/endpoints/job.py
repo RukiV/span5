@@ -6,10 +6,26 @@ from datetime import datetime
 from ....auth.permissions import get_current_user, require_right, user_has_right
 from ....db.database import getSession
 from ....models.job import Jobcard, JobcardRead, JobcardCreate, JobcardUpdate
+from ....models.asset import Asset
 from ....models.user import User
 from ....services.job_service import job_service
+from ....services.notification_service import NotificationService
 
 router = APIRouter()
+
+
+def _job_summary(session: Session, job: Jobcard, max_desc_len: int = 60) -> str:
+    parts = [f"Werksopdrag #{job.jobcard_id}"]
+    if job.job_desc:
+        desc = job.job_desc.strip()
+        if len(desc) > max_desc_len:
+            desc = desc[:max_desc_len].rsplit(" ", 1)[0] + "…"
+        parts.append(desc)
+    if job.asset_id:
+        asset = session.get(Asset, job.asset_id)
+        if asset:
+            parts.append(f"({asset.asset_name})")
+    return " — ".join(parts)
 
 # Authorization is driven by the rights system (see auth/permissions.py):
 #   - jobs.manage            : Admin/FK — create/delete/edit any job.
@@ -66,7 +82,28 @@ def readJob(jobID: int, session: Session = Depends(getSession), user: User = Dep
 @router.post("", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
 def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: User = Depends(require_right("jobs.manage"))):
     """Create new jobcard. Requires jobs.manage (Admin/FK)."""
-    return job_service.create(session, jobIn, user_id=user.user_id)
+    job = job_service.create(session, jobIn, user_id=user.user_id)
+    notif_svc = NotificationService(session)
+    summary = _job_summary(session, job)
+    notif_svc.notify_admins(
+        notification_type="job.created",
+        title="Nuwe werksopdrag",
+        message=f"{summary} geskep deur {user.user_name}",
+        actor_id=user.user_id,
+        reference_type="job",
+        reference_id=job.jobcard_id,
+    )
+    if job.location_id:
+        notif_svc.notify_location_users(
+            location_id=job.location_id,
+            notification_type="job.created",
+            title="Nuwe werksopdrag",
+            message=f"{summary} by jou terrein",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
+        )
+    return job
 
 
 @router.patch("/{jobID}", response_model=JobcardRead)
@@ -89,7 +126,46 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
         disallowed = set(update_data.keys()) - allowed_fields
         if disallowed:
             raise HTTPException(status_code=403, detail="Contractors can only update job status")
+    old_status = job.job_status if job else None
     result = job_service.update(session, jobID, jobIn, user_id=user.user_id)
+    result = job_service.getByID(session, jobID)
+
+    if (
+        jobIn.job_status is not None
+        and old_status != result.job_status
+    ):
+        notif_svc = NotificationService(session)
+        summary = _job_summary(session, result)
+        if result.contractor_id:
+            notif_svc.create_notification(
+                user_id=result.contractor_id,
+                notification_type="job.status_changed",
+                title="Werksopdrag status verander",
+                message=f"{summary} status verander na {result.job_status.value}",
+                actor_id=user.user_id,
+                reference_type="job",
+                reference_id=result.jobcard_id,
+            )
+        # Stuur ook aan Admin / FK sodat hulle weet die status het verander
+        notif_svc.notify_admins(
+            notification_type="job.status_changed",
+            title="Werksopdrag status verander",
+            message=f"{summary} status verander na {result.job_status.value}",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=result.jobcard_id,
+        )
+        if result.location_id:
+            notif_svc.notify_location_users(
+                location_id=result.location_id,
+                notification_type="job.status_changed",
+                title="Werksopdrag status verander",
+                message=f"{summary} status verander na {result.job_status.value}",
+                actor_id=user.user_id,
+                reference_type="job",
+                reference_id=result.jobcard_id,
+            )
+
     return result
 
 

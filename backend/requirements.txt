@@ -11,3 +11,4 @@ Pillow>=10.0.0
 # Wagwoord-hashing via passlib (pbkdf2_sha256 — suiwer Python, geen inheemse
 # bcrypt C-afhanklikheid in houers nie).
 passlib>=1.7.4
+firebase-admin>=6.0.0

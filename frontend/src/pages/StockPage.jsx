@@ -4,16 +4,16 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api"; // Bygevoeg buildingsAPI en locationAPI
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/Asset.css";
 import "../styles/App.css";
-import { useLogout } from "./Page.jsx";
-import Sidebar from '../components/Sidebar';
 import { buildFlatLocationOptions } from './locationSearchUtils';
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function StockPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user } = useCurrentUser();
   const [stock, setStock] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]); // Bygevoeg
@@ -132,7 +132,7 @@ function StockPage({ embedded = false }) {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_STOCK_IMAGES} beeld per voorraad-item oplaai.`);
+      showToast({ type: 'warning', title: 'Waarskuwing', message: `Jy kan maksimaal ${MAX_STOCK_IMAGES} beeld per voorraad-item oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -146,10 +146,9 @@ function StockPage({ embedded = false }) {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -161,10 +160,9 @@ function StockPage({ embedded = false }) {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setStockImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -232,20 +230,19 @@ function StockPage({ embedded = false }) {
       fetchStockImages(savedStockId);
     } catch (error) {
       console.error("Error saving stock:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteStock = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie voorraad-item verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie voorraad-item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await stockAPI.delete(id);
       fetchStock();
     } catch (error) {
       console.error("Error deleting stock:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -363,29 +360,11 @@ function StockPage({ embedded = false }) {
     });
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Voorraad</h4>
-          <p className="analytics-value">{stock.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Minimum Voorraad</h4>
-          <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Uit Voorraad</h4>
-          <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Tipes</h4>
-          <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -766,39 +745,14 @@ function StockPage({ embedded = false }) {
 
         {showModal && modalContent}
         {imageViewerContent}
+      {dialog}
       </>
     );
   }
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/stock" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Voorraad Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-          <div className="content">
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Voorraad</h4>
-              <p className="analytics-value">{stock.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Minimum Voorraad</h4>
-              <p className="analytics-value warning">{stock.filter(s => Number(s.stock_amount) < Number(s.stock_minimum)).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Uit Voorraad</h4>
-              <p className="analytics-value danger">{stock.filter(s => Number(s.stock_amount) === 0).length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Tipes</h4>
-              <p className="analytics-value">{new Set(stock.map(s => s.stock_type).filter(Boolean)).size}</p>
-            </div>
-          </div>
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -874,10 +828,10 @@ function StockPage({ embedded = false }) {
             </tbody>
           </table>
         </div>
-      </div>
 
       {showModal && modalContent}
       {imageViewerContent}
+      {dialog}
     </div>
   );
 }

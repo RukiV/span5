@@ -6,8 +6,6 @@ import { IoReturnUpBack } from "react-icons/io5";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Predictions.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
 import { buildFlatLocationOptions } from './locationSearchUtils';
 
 const formatDate = (value) => {
@@ -35,8 +33,7 @@ const getReplacementBadge = (suggested) => {
 };
 
 function PredictionsPage() {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { user } = useCurrentUser();
   const [predictions, setPredictions] = useState([]);
   const [assets, setAssets] = useState([]);
   const [terrains, setTerrains] = useState([]);
@@ -134,39 +131,13 @@ function PredictionsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex' }}>
-        <div className="main"><div className="content">Laai voorspellings...</div></div>
-      </div>
+      <div className="main"><div className="content">Laai voorspellings...</div></div>
     );
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/predictions" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Bate Voorspellings</h3>
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>
-                  {user.user_name} {user.user_surname}
-                </div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? 'Administrateur' : user.role_id === 2 ? 'Personeel' : 'Student'}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>
-                  {user.user_email}
-                </div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content">
+    <div className="main">
+      <div className="content">
           {error ? <div className="pred-empty-state">{error}</div> : null}
 
           <div className="controls" style={{ marginBottom: '0.75rem' }}>
@@ -356,7 +327,6 @@ function PredictionsPage() {
           </div>
         </div>
       </div>
-    </div>
   );
 }
 

@@ -4,16 +4,17 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
-import { useLogout } from "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
-import Sidebar from '../components/Sidebar';
 
 function AssetPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user } = useCurrentUser();
   const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
   const [assettypes, setAssettypes] = useState([]);
@@ -193,7 +194,7 @@ function AssetPage({ embedded = false }) {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_ASSET_IMAGES} beeld per bate oplaai.`);
+      showToast({ type: 'warning', title: `Jy kan maksimaal ${MAX_ASSET_IMAGES} beeld per bate oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -207,10 +208,9 @@ function AssetPage({ embedded = false }) {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -222,10 +222,9 @@ function AssetPage({ embedded = false }) {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) {
-      return;
-    }
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setAssetImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -251,7 +250,7 @@ function AssetPage({ embedded = false }) {
       const cleanedSerial = newAsset.asset_serial.trim();
       const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
-        alert("Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).");
+        showToast({ type: 'warning', title: 'Ongeldige serienommer-formaat! Dit moet in die formaat AK XX000000 wees (bv. AK MT123456).' });
         return;
       }
       const isDuplicate = assets.some((asset) => {
@@ -262,7 +261,7 @@ function AssetPage({ embedded = false }) {
         }
       });
       if (isDuplicate) {
-        alert(`Hierdie serienommer (${cleanedSerial}) is reeds in gebruik. Voer asseblief 'n unieke serienommer in.`);
+        showToast({ type: 'warning', title: `Hierdie serienommer (${cleanedSerial}) is reeds in gebruik. Voer asseblief 'n unieke serienommer in.` });
         return;
       }
       if (!newAsset.assettype_id) errors.assettype_id = true;
@@ -323,20 +322,19 @@ function AssetPage({ embedded = false }) {
       } else if (error.request) {
         console.error("Geen antwoord van die bediener nie.");
       }
-      alert("Fout tydens besparing.");
+      showToast({ type: 'error', title: 'Fout tydens besparing.' });
     }
   };
 
   const handleDeleteAsset = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie item verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await assetsAPI.delete(id);
       fetchAssets();
     } catch (error) {
       console.error("Error deleting asset:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
     }
   };
 
@@ -473,7 +471,7 @@ function AssetPage({ embedded = false }) {
 
   const handleSaveType = async () => {
     if (!newType.assettype_name.trim()) {
-      alert("Voer asseblief 'n tipe naam in.");
+      showToast({ type: 'warning', title: "Voer asseblief 'n tipe naam in." });
       return;
     }
     const payload = {
@@ -494,20 +492,19 @@ function AssetPage({ embedded = false }) {
       fetchAssettypes();
     } catch (error) {
       console.error("Error saving asset type:", error);
-      alert("Fout tydens stoor van bate tipe.");
+      showToast({ type: 'error', title: 'Fout tydens stoor van bate tipe.' });
     }
   };
 
   const handleDeleteType = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie bate tipe verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie bate tipe verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await assettypesAPI.delete(id);
       fetchAssettypes();
     } catch (error) {
       console.error("Error deleting asset type:", error);
-      alert("Fout tydens verwydering van bate tipe.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering van bate tipe.' });
     }
   };
   
@@ -590,29 +587,11 @@ function AssetPage({ embedded = false }) {
   ];
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Bates</h4>
-          <p className="analytics-value">{assets.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Aktief</h4>
-          <p className="analytics-value">{assets.filter(a => a.asset_status === "Aktief").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Instandhouding</h4>
-          <p className="analytics-value warning">{assets.filter(a => a.asset_status === "Instandhouding").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Buitelug</h4>
-          <p className="analytics-value">{assets.filter(a => a.asset_isoutdoor).length}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
@@ -1159,40 +1138,15 @@ function AssetPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/assets" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Bates Bestuur</h3>
-    
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>
-                  {user.user_name} {user.user_surname}
-                </div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? "Administrateur" : user.role_id === 2 ? "Personeel" : "Student"}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>
-                  {user.user_email}
-                </div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}
@@ -1365,6 +1319,7 @@ function AssetPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

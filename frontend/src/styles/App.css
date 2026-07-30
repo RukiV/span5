@@ -5,6 +5,53 @@
   font-family: Arial, sans-serif;
 }
 
+.app-body {
+  display: flex;
+  flex: 1;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-inner {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.app-inner:not(.panel-open) .analytics-inline-panel,
+.app-inner:not(.panel-open) .drag-handle {
+  flex: 0 0 0 !important;
+  max-width: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+.app-inner.panel-open .analytics-inline-panel {
+  flex: 0 0 var(--analytics-width, 33.33%);
+  max-width: var(--analytics-width, 33.33%);
+  overflow-y: auto;
+  border-left: 1px solid #d0d8e8;
+  padding: unset;
+  margin: unset;
+}
+
+.app-inner.panel-open .drag-handle {
+  flex: 0 0 6px;
+  max-width: 6px;
+  display: block;
+}
+
 :root {
     --wit: #ffffff;
     --bruin: #935e28;
@@ -19,13 +66,12 @@
 
 .sidebar {
     width: 250px;
+    flex: 0 0 250px;
     background-color: var(--blou);
     color: var(--wit);
     padding: 20px 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    position: fixed;
 }
 
 .sidebar h2 {
@@ -126,11 +172,9 @@
 .main { 
   display: flex;
   flex-direction: column;
-  margin-left: 250px; 
-  width: calc(100vw - 250px); 
-  min-height: 100vh; 
-  flex: 1; 
-  overflow: hidden; 
+  flex: 1;
+  overflow-y: auto;
+  min-width: 0;
 }
 
 /* --- Algemene Inhoud --- */
@@ -251,6 +295,7 @@
 
 .standard-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   background: white;
   border-radius: 8px;
@@ -427,4 +472,28 @@
 .field-invalid .css-13cymwt-control {
   border-color: #dc3545 !important;
   animation: shake 0.4s ease;
+}
+
+.analytics-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #935e28;
+  color: #fff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(147, 94, 40, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.analytics-fab:hover {
+  background: #7a4d20;
+  transform: scale(1.05);
 }

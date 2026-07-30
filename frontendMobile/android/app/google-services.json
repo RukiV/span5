@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "656935927740",
+    "project_id": "fbs-akademia",
+    "storage_bucket": "fbs-akademia.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:656935927740:android:772178dc2d022976f535b9",
+        "android_client_info": {
+          "package_name": "com.fbs.akademiafbs"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwFD_eiRWYSW5QAzO9OIn5jdrZCZp7Dvg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

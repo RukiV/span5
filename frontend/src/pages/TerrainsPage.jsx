@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function TerrainsPage({ embedded = false }) {
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,20 +100,18 @@ function TerrainsPage({ embedded = false }) {
       fetchTerrains();
     } catch (error) {
       console.error("Error saving terrain:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteTerrain = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie terrein verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie terrein verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
     try {
       await locationAPI.delete(id);
       fetchTerrains();
     } catch (error) {
       console.error("Error deleting terrain:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -192,29 +188,11 @@ function TerrainsPage({ embedded = false }) {
     });
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Terreine</h4>
-          <p className="analytics-value">{terrains.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Geboue</h4>
-          <p className="analytics-value">{buildings.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Tipes</h4>
-          <p className="analytics-value">{new Set(terrains.map(t => t.location_type).filter(Boolean)).size}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Geboue per Terrein</h4>
-          <p className="analytics-value">{terrains.length > 0 ? (buildings.length / terrains.length).toFixed(1) : '-'}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -451,23 +429,15 @@ function TerrainsPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/terrains" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Terrein Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}
@@ -503,6 +473,7 @@ function TerrainsPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

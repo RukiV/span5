@@ -5,19 +5,18 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
 import { loginRequest } from '../services/msalConfig';
-import UserProfileHeader from '../components/UserProfileHeader';
 import { normalizeWorkOrdersPayload } from './workOrderUtils';
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import { useToast } from '../components/Toast/useToast';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 
 function WorkOrderPage() {
-  // Haal admin-status vir beheer-opsies
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { confirm, dialog } = useConfirmDialog();
+  const { showToast } = useToast();
+  const { user } = useCurrentUser();
   const { instance } = useMsal();
   const location = useLocation();
   
@@ -314,7 +313,7 @@ function WorkOrderPage() {
     const incomingFiles = files.slice(0, remainingSlots);
 
     if (files.length > remainingSlots) {
-      alert(`Jy kan maksimaal ${MAX_JOB_IMAGES} beelde per werksopdrag oplaai.`);
+      showToast({ type: 'warning', title: `Jy kan maksimaal ${MAX_JOB_IMAGES} beelde per werksopdrag oplaai.` });
     }
 
     if (incomingFiles.length === 0) {
@@ -328,8 +327,9 @@ function WorkOrderPage() {
     event.target.value = "";
   };
 
-  const handleRemoveSelectedPreview = (index) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
     setSelectedImagePreviewUrls((prev) => {
@@ -339,8 +339,9 @@ function WorkOrderPage() {
     });
   };
 
-  const handleDeleteExistingImage = (imageId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie beeld verwyder?")) return;
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
 
     setJobImages((prev) => prev.filter((image) => image.image_id !== imageId));
     setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
@@ -367,7 +368,7 @@ function WorkOrderPage() {
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error) {
       console.error("Fout by laai van PDF:", error);
-      alert("Kon nie PDF laai nie.");
+      showToast({ type: 'error', title: 'Kon nie PDF laai nie.' });
     }
   };
 
@@ -375,7 +376,7 @@ function WorkOrderPage() {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.type !== "application/pdf") {
-      alert("Slegs PDF-lêers word toegelaat.");
+      showToast({ type: 'warning', title: 'Slegs PDF-lêers word toegelaat.' });
       event.target.value = "";
       return;
     }
@@ -387,8 +388,9 @@ function WorkOrderPage() {
     event.target.value = "";
   };
 
-  const handleQuotePdfDelete = (quoteId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie PDF verwyder?")) return;
+  const handleQuotePdfDelete = async (quoteId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie PDF verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     setQuotePdfFiles((prev) => {
       const next = { ...prev };
       delete next[quoteId];
@@ -840,12 +842,12 @@ function WorkOrderPage() {
       const workOrderId = savedWorkOrder?.jobcard_id || editingId;
 
       if (quotes.some((quote) => !quote.contractor_id || !String(quote.description || "").trim())) {
-        alert("Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê.");
+        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê." });
         return;
       }
 
       if (selectedQuoteId && !String(quoteSelectionReasons[selectedQuoteId] || "").trim()) {
-        alert("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.");
+        showToast({ type: 'warning', title: "Gee asseblief 'n rede waarom die gekose kwotasie gekies is." });
         return;
       }
 
@@ -922,7 +924,7 @@ function WorkOrderPage() {
               uploadedQuoteDocIds.push(createdQuoteId);
             } catch (pdfErr) {
               console.error("Fout by laai van PDF op:", pdfErr);
-              alert("Kon nie PDF oplaai nie. Kyk die console vir foute.");
+              showToast({ type: 'error', title: 'Kon nie PDF oplaai nie. Kyk die console vir foute.' });
             }
           }
         }
@@ -938,21 +940,21 @@ function WorkOrderPage() {
       }
 
       if (failedQuotes.length > 0) {
-        alert(`${failedQuotes.length} kwotasie(s) kon nie gestoor word nie.`);
+        showToast({ type: 'error', title: `${failedQuotes.length} kwotasie(s) kon nie gestoor word nie.` });
       }
       
       handleCloseModal();
       fetchWorkOrders();
     } catch (error) {
       console.error("Fout by besparing:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });
     }
   };
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
     if (!newQuote.contractor_id || !newQuote.amount || !String(newQuote.description || "").trim()) {
-      alert("Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie.");
+      showToast({ type: 'warning', title: "Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie." });
       return;
     }
 
@@ -1176,16 +1178,15 @@ function WorkOrderPage() {
   };
 
   const handleDeleteWorkOrder = async (workOrderId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie werksopdrag verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie werksopdrag verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await workOrdersAPI.delete(workOrderId);
       await deleteScheduledOutlookEventsForWorkOrder(workOrderId);
       fetchWorkOrders();
     } catch (error) {
       console.error("Fout by verwydering:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
     }
   };
 
@@ -1281,21 +1282,12 @@ function WorkOrderPage() {
 
 
   if (loading) {
-    return <div className="page-layout" style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   return (
-    <div className="page-layout" style={{ display: "flex" }}>
-      <Sidebar currentPath="/work-orders" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Bestuur Werksopdragte</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {/* Beheer-reeks */}
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
               <input 
@@ -1429,25 +1421,6 @@ function WorkOrderPage() {
             </div>
           </div>
 
-          <div className="analytics-grid">
-            <div className="analytics-card">
-              <h4>Totale Werksopdragte</h4>
-              <p className="analytics-value">{filteredWorkOrders.length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Oop / Besig</h4>
-              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Oop" || w.job_status === "Besig").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Voltooid</h4>
-              <p className="analytics-value">{filteredWorkOrders.filter(w => w.job_status === "Voltooid").length}</p>
-            </div>
-            <div className="analytics-card">
-              <h4>Dringend</h4>
-              <p className="analytics-value danger">{filteredWorkOrders.filter(w => w.job_priority === "Dringend").length}</p>
-            </div>
-          </div>
-
           {/* Tabel van Werksopdragte */}
           <table className="standard-table">
             <thead>
@@ -1503,7 +1476,6 @@ function WorkOrderPage() {
             </tbody>
           </table>
         </div>
-      </div>
 {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
         <div className="modal">
@@ -2352,6 +2324,7 @@ function WorkOrderPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

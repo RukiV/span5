@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useToast } from '../components/Toast/useToast';
 
 function UsersPage({ embedded = false }) {
-  const logout = useLogout();
+  const { confirm, dialog } = useConfirmDialog();
+  const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [terrains, setTerrains] = useState([]);
@@ -28,8 +28,7 @@ function UsersPage({ embedded = false }) {
     role_id: 1,
     location_id: ''
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
 
@@ -77,8 +76,6 @@ function UsersPage({ embedded = false }) {
   // Hanteer toevoeging van nuwe gebruiker of opdatering van bestaande
   const handleAddUser = async () => {
     try {
-      setError('');
-      setSuccess('');
 
       // Valideer dat vereiste velde ingevul is
       const errors = {};
@@ -90,14 +87,12 @@ function UsersPage({ embedded = false }) {
       if (!formUser.user_status) errors.user_status = true;
       if (Object.keys(errors).length > 0) {
         setInvalidFields(errors);
-        setError('');
         const firstKey = Object.keys(errors)[0];
         fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
         fieldRefs.current[firstKey]?.focus();
         return;
       }
       setInvalidFields({});
-      setError('');
 
       let dataToSend = { ...formUser };
 
@@ -109,10 +104,10 @@ function UsersPage({ embedded = false }) {
       // As ons redigeer, stuur PATCH-versoek, anders POST vir nuwe gebruiker
       if (editingUser) {
         await apiClient.users.update(editingUser.user_id, dataToSend);
-        setSuccess('Gebruiker het succesvol opgedateer');
+        showToast({ type: 'success', message: 'Gebruiker het succesvol opgedateer' });
       } else {
         await apiClient.users.create(dataToSend);
-        setSuccess('Gebruiker het suksesvol geskep');
+        showToast({ type: 'success', message: 'Gebruiker het suksesvol geskep' });
       }
 
       // Sluit modale na 1.5 sekondes en herlaai gebruikerlys
@@ -127,12 +122,11 @@ function UsersPage({ embedded = false }) {
           user_status: 'active',
           role_id: 1
         });
-        setSuccess('');
         fetchUsers();
       }, 1500);
     } catch (error) {
       console.error('Error saving user:', error);
-      setError(error.response?.data?.detail || 'Fout by die opslaan van gebruiker');
+      showToast({ type: 'error', message: error.response?.data?.detail || 'Fout by die opslaan van gebruiker' });
     }
   };
 
@@ -153,14 +147,13 @@ function UsersPage({ embedded = false }) {
 
   // Verwyder gebruiker na bevestiging
   const handleDeleteUser = async (userId) => {
-    // Vra bevestiging voordat verwyder word
-    if (window.confirm('Is jy seker jy wil hierdie gebruiker verwyder?')) {
-      try {
-        await apiClient.users.delete(userId);
-        fetchUsers(); // Herlaai lys na suksesvol verwyder
-      } catch (error) {
-        console.error('Error deleting user:', error);
-      }
+    const confirmed = await confirm({ message: 'Is jy seker jy wil hierdie gebruiker verwyder?', variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
+    try {
+      await apiClient.users.delete(userId);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error deleting user:', error);
     }
   };
 
@@ -231,7 +224,7 @@ function UsersPage({ embedded = false }) {
     return (status === 'Aktief' || status === 'active') ? 'status-aktief' : 'status-onaktief';
   };
 
-  if (loading) return <div>Besig om gebruikers te laai...</div>;
+  if (loading) return <div className="main"><div className="content">Besig om gebruikers te laai...</div></div>;
 
   const pageContent = (
     <>
@@ -313,8 +306,7 @@ function UsersPage({ embedded = false }) {
           <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
           <span className="close" onClick={handleCloseModal}>&times;</span>
         </div>
-        {error && <div style={{ color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>{error}</div>}
-        {success && <div style={{ color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>{success}</div>}
+
         <div className="form-group">
           <label>Voornaam *</label>
           <input
@@ -421,22 +413,16 @@ function UsersPage({ embedded = false }) {
   );
 
   if (embedded) {
-    return <>{pageContent}{modalContent}</>;
+    return <>{pageContent}{modalContent}{dialog}</>;
   }
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/users" onLogout={logout} />
-      <div className="main">
-        <div className="navbar">
-          <h3>Gebruikers Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
+        {modalContent}
       </div>
-      {modalContent}
+      {dialog}
     </div>
   );
 }
