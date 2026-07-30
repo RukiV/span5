@@ -107,7 +107,7 @@ def createDBandTables():
                     notification_type VARCHAR(50) NOT NULL,
                     in_app_enabled BOOLEAN DEFAULT TRUE,
                     email_enabled BOOLEAN DEFAULT FALSE,
-                    push_enabled BOOLEAN DEFAULT FALSE,
+                    push_enabled BOOLEAN DEFAULT TRUE,
                     PRIMARY KEY (user_id, notification_type)
                 )
             """))

@@ -5,22 +5,26 @@ const TYPE_ICONS = {
   'fault.created': IoBug,
   'fault.assigned': IoBug,
   'fault.resolved': IoBug,
+  'fault.status_changed': IoBug,
   'job.created': IoConstruct,
   'job.assigned': IoConstruct,
   'job.status_changed': IoConstruct,
   'stock.low': IoWarning,
   'system.announcement': IoMegaphone,
+  'calendar.reminder': IoCalendar,
 };
 
 const TYPE_COLORS = {
   'fault.created': '#dc3545',
   'fault.assigned': '#e0a800',
   'fault.resolved': '#28a745',
+  'fault.status_changed': '#6f42c1',
   'job.created': '#2a5f9e',
   'job.assigned': '#935e28',
   'job.status_changed': '#6f42c1',
   'stock.low': '#dc3545',
   'system.announcement': '#0e1e3b',
+  'calendar.reminder': '#0e1e3b',
 };
 
 function timeAgo(dateStr) {
