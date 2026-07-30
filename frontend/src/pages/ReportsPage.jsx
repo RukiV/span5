@@ -2,11 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { apiClient, authAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Reports.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
+import { useToast } from '../components/Toast/useToast';
 
 const REPORT_TABLES = [
   { value: 'assets', label: 'Bates', endpoint: '/assets' },
@@ -31,8 +29,7 @@ const COLUMN_FALLBACKS = {
 };
 
 function ReportsPage() {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState('assets');
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -40,7 +37,7 @@ function ReportsPage() {
   const [tableRecords, setTableRecords] = useState([]);
   const [loadingTable, setLoadingTable] = useState(false);
   const [reportHistory, setReportHistory] = useState([]);
-  const [statusMessage, setStatusMessage] = useState('');
+
 
   useEffect(() => {
     (async () => {
@@ -85,7 +82,7 @@ function ReportsPage() {
         setTableRecords([]);
         setAvailableColumns([]);
         setSelectedColumns([]);
-        setStatusMessage('Kon die tabeldata nie laai nie.');
+        showToast({ type: 'error', message: 'Kon die tabeldata nie laai nie.' });
       })
       .finally(() => {
         setLoadingTable(false);
@@ -200,7 +197,7 @@ function ReportsPage() {
 
   const handleGenerateReport = (format = 'csv') => {
     if (!selectedColumns.length) {
-      alert('Kies asseblief ten minste een kolom.');
+      showToast({ type: 'warning', title: 'Kies asseblief ten minste een kolom.' });
       return;
     }
 
@@ -223,7 +220,7 @@ function ReportsPage() {
       setReportHistory(updatedHistory);
       localStorage.setItem('reportCsvExports', JSON.stringify(updatedHistory));
       downloadExcel(workbookBuffer, fileName);
-      setStatusMessage(`XLSX vir ${tableConfig?.label || selectedTable} is geskep.`);
+      showToast({ type: 'success', message: `XLSX vir ${tableConfig?.label || selectedTable} is geskep.` });
       return;
     }
 
@@ -242,7 +239,7 @@ function ReportsPage() {
     setReportHistory(updatedHistory);
     localStorage.setItem('reportCsvExports', JSON.stringify(updatedHistory));
     downloadCsv(csvContent, fileName);
-    setStatusMessage(`CSV vir ${tableConfig?.label || selectedTable} is geskep.`);
+      showToast({ type: 'success', message: `CSV vir ${tableConfig?.label || selectedTable} is geskep.` });
   };
 
   const handleDownloadHistoryEntry = (entry) => {
@@ -259,42 +256,16 @@ function ReportsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex" }}>
-        <div className="main">
-          <div className="content">Laai...</div>
-        </div>
+      <div className="main">
+        <div className="content">Laai...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/reports" isAdmin={isAdmin} onLogout={logout} />
+    <div className="main">
+      <div className="content">
 
-      <div className="main">
-        <div className="navbar">
-          <h3>Verslae</h3>
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>
-                  {user.user_name} {user.user_surname}
-                </div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? 'Administrateur' : user.role_id === 2 ? 'Personeel' : 'Student'}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>
-                  {user.user_email}
-                </div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content">
-          {statusMessage && <div className="report-status">{statusMessage}</div>}
 
           <div className="report-generator-card">
             <div className="report-generator-header">
@@ -374,7 +345,6 @@ function ReportsPage() {
           )}
         </div>
       </div>
-    </div>
   );
 }
 

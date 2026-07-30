@@ -32,6 +32,7 @@ RIGHTS_CATALOG: dict[str, str] = {
     "quotes.manage": "Manage quotes.",
     "predictions.view": "View asset lifespan predictions.",
     "reports.view": "View analytics reports.",
+    "analytics.view": "View AI analytics panel.",
     "audit.view": "Read the audit log (read-only, no manage right exists).",
     "calendar.manage": "Full CRUD on calendar events.",
     "calendar.view": "Read-only calendar access.",
@@ -41,6 +42,9 @@ RIGHTS_CATALOG: dict[str, str] = {
     "jobs.manage": "Create/delete/edit any job.",
     "jobs.view_own": "See only jobs assigned to you.",
     "jobs.update_own_status": "Update only status fields on your own jobs.",
+    "notifications.view": "View own notifications and history.",
+    "notifications.manage": "Manage own notification preferences.",
+    "notifications.send": "Send system-wide announcements.",
 }
 
 # --- RoleRight assignments -------------------------------------------------
@@ -50,16 +54,17 @@ RIGHTS_CATALOG: dict[str, str] = {
 _FK_RIGHTS = {
     "assets.manage", "stock.manage", "buildings.manage", "rooms.manage",
     "locations.manage", "contractors.manage", "quotes.manage",
-    "predictions.view", "reports.view", "audit.view",
+    "predictions.view", "reports.view", "analytics.view", "audit.view",
     "calendar.manage", "calendar.view",
     "faults.manage_all", "faults.create_own", "faults.view_own",
     "jobs.manage",
+    "notifications.view", "notifications.manage",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
-    ROLE_ADMIN: _FK_RIGHTS | {"users.manage"},
+    ROLE_ADMIN: _FK_RIGHTS | {"users.manage", "notifications.send"},
     ROLE_FK: set(_FK_RIGHTS),
-    ROLE_STUDENT: {"faults.create_own", "faults.view_own"},
-    ROLE_CONTRACTOR: {"calendar.view", "jobs.view_own", "jobs.update_own_status"},
+    ROLE_STUDENT: {"faults.create_own", "faults.view_own", "notifications.view", "notifications.manage"},
+    ROLE_CONTRACTOR: {"calendar.view", "jobs.view_own", "jobs.update_own_status", "notifications.view", "notifications.manage"},
 }
 
 # The management API protects these from rename/delete.

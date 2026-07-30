@@ -2,18 +2,18 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import Sidebar from '../components/Sidebar';
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
-import UserProfileHeader from '../components/UserProfileHeader';
 
 function BuildingsPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user } = useCurrentUser();
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -141,20 +141,18 @@ function BuildingsPage({ embedded = false }) {
       handleCloseModal();
     } catch (error) {
       console.error("Error saving building:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteBuilding = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie gebou verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie gebou verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -241,29 +239,11 @@ function BuildingsPage({ embedded = false }) {
   }));
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Geboue</h4>
-          <p className="analytics-value">{buildings.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Lokale</h4>
-          <p className="analytics-value">{rooms.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Tipes</h4>
-          <p className="analytics-value">{new Set(buildings.map(b => b.building_type).filter(Boolean)).size}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Terreine</h4>
-          <p className="analytics-value">{new Set(buildings.map(b => b.location_id).filter(Boolean)).size}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -547,23 +527,15 @@ function BuildingsPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {dialog}
       </>
     );
   }
 
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/buildings" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Gebou Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}
@@ -606,6 +578,7 @@ function BuildingsPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

@@ -5,10 +5,27 @@ from typing import List
 from ....auth.permissions import get_current_user, require_right, user_has_right
 from ....db.database import getSession
 from ....models.fault import Faultcard, FaultcardRead, FaultcardCreate, FaultcardUpdate
+from ....models.asset import Asset
 from ....models.user import User
+from ....models.enums import FaultStatus
 from ....services.fault_service import fault_service
+from ....services.notification_service import NotificationService
 
 router = APIRouter()
+
+
+def _fault_summary(session: Session, fault: Faultcard, max_desc_len: int = 60) -> str:
+    parts = [f"Fout #{fault.fault_id}"]
+    if fault.fault_description:
+        desc = fault.fault_description.strip()
+        if len(desc) > max_desc_len:
+            desc = desc[:max_desc_len].rsplit(" ", 1)[0] + "…"
+        parts.append(desc)
+    if fault.asset_id:
+        asset = session.get(Asset, fault.asset_id)
+        if asset:
+            parts.append(f"({asset.asset_name})")
+    return " — ".join(parts)
 
 # Authorization is driven entirely by the rights system now (see
 # auth/permissions.py), not by raw role_id comparisons:
@@ -49,7 +66,28 @@ def readFault(faultID: int, session: Session = Depends(getSession), user: User =
 @router.post("", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
 def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession), user: User = Depends(require_right("faults.create_own"))):
     """Create a new fault report. Requires faults.create_own (Admin/FK/Student)."""
-    return fault_service.create(session, faultIn, user_id=user.user_id)
+    fault = fault_service.create(session, faultIn, user_id=user.user_id)
+    notif_svc = NotificationService(session)
+    summary = _fault_summary(session, fault)
+    notif_svc.notify_admins(
+        notification_type="fault.created",
+        title="Nuwe foutkaartjie",
+        message=f"{summary} aangeteken deur {user.user_name}",
+        actor_id=user.user_id,
+        reference_type="fault",
+        reference_id=fault.fault_id,
+    )
+    if fault.location_id:
+        notif_svc.notify_location_users(
+            location_id=fault.location_id,
+            notification_type="fault.created",
+            title="Nuwe foutkaartjie",
+            message=f"{summary} by jou terrein",
+            actor_id=user.user_id,
+            reference_type="fault",
+            reference_id=fault.fault_id,
+        )
+    return fault
 
 
 @router.patch("/{faultID}", response_model=FaultcardRead)
@@ -65,9 +103,49 @@ def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depend
         existing = fault_service.getByID(session, faultID)
         if not existing or existing.user_id != user.user_id:
             raise HTTPException(status_code=403, detail="Access denied")
+    old = fault_service.getByID(session, faultID)
+    old_status = old.fault_status if old else None
     fault = fault_service.update(session, faultID, faultIn, user_id=user.user_id)
     if not fault:
         raise HTTPException(status_code=404, detail="Fault not found")
+
+    if (
+        faultIn.fault_status is not None
+        and old
+        and old_status != fault.fault_status
+    ):
+        notif_svc = NotificationService(session)
+        summary = _fault_summary(session, fault)
+        if fault.user_id:
+            notif_svc.create_notification(
+                user_id=fault.user_id,
+                notification_type="fault.status_changed",
+                title="Fout status verander",
+                message=f"{summary} status verander na {fault.fault_status.value}",
+                actor_id=user.user_id,
+                reference_type="fault",
+                reference_id=fault.fault_id,
+            )
+        if fault.location_id:
+            notif_svc.notify_location_users(
+                location_id=fault.location_id,
+                notification_type="fault.status_changed",
+                title="Fout status verander",
+                message=f"{summary} status verander na {fault.fault_status.value}",
+                actor_id=user.user_id,
+                reference_type="fault",
+                reference_id=fault.fault_id,
+            )
+        if fault.fault_status == FaultStatus.RESOLVED:
+            notif_svc.notify_admins(
+                notification_type="fault.resolved",
+                title="Fout opgelos",
+                message=f"{summary} opgelos deur {user.user_name}",
+                actor_id=user.user_id,
+                reference_type="fault",
+                reference_id=fault.fault_id,
+            )
+
     return fault
 
 

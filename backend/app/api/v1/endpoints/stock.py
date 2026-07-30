@@ -7,6 +7,7 @@ from ....db.database import getSession
 from ....models.stock import StockRead, StockCreate, StockUpdate
 from ....models.user import User
 from ....services.stock_service import stock_service
+from ....services.notification_service import NotificationService
 
 router = APIRouter()
 
@@ -35,6 +36,25 @@ def patchStock(stockID: int, stockIn: StockUpdate, session: Session = Depends(ge
     stock = stock_service.update(session, stockID, stockIn, user_id=user.user_id)
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
+
+    if stock.stock_amount < stock.stock_minimum:
+        notif_svc = NotificationService(session)
+        if stock.room_id:
+            from ....models.room import Room
+            room = session.get(Room, stock.room_id)
+            if room and room.building_id:
+                from ....models.location import Building
+                bld = session.get(Building, room.building_id)
+                if bld and bld.location_id:
+                    notif_svc.notify_location_users(
+                        location_id=bld.location_id,
+                        notification_type="stock.low",
+                        title="Voorraad laag",
+                        message=f"{stock.stock_name} ({stock.stock_amount}/{stock.stock_minimum}) is onder minimum",
+                        actor_id=user.user_id,
+                        reference_type="stock",
+                        reference_id=stock.stock_id,
+                    )
 
     return stock
 

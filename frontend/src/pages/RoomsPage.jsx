@@ -2,18 +2,18 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import Sidebar from '../components/Sidebar';
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
 import { buildFlatLocationOptions } from './locationSearchUtils';
 
 function RoomsPage({ embedded = false }) {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user } = useCurrentUser();
 
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -151,7 +151,7 @@ function RoomsPage({ embedded = false }) {
       console.error("Error saving room:", error);
       // Wys 'n meer beskrywende foutboodskap as die backend validasie gooi
       const errorMsg = error.response?.data?.detail?.[0]?.msg || error.response?.data?.message || "Fout tydens besparing.";
-      alert(`Kon nie lokaal stoor nie:\n${errorMsg}`);
+      showToast({ type: 'error', title: 'Fout', message: `Kon nie lokaal stoor nie:\n${errorMsg}` });
     }
   };
 
@@ -172,15 +172,13 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie lokaal verwyder?")) {
-      return;
-    }
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie lokaal verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
     try {
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
       console.error("Error deleting room:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
     }
   };
 
@@ -310,35 +308,11 @@ function RoomsPage({ embedded = false }) {
   ];
 
   if (loading) {
-    return (
-      <div style={{ display: "flex" }}>
-        <div className="main">
-          <div className="content">Laai...</div>
-        </div>
-      </div>
-    );
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
   const pageContent = (
     <>
-      <div className="analytics-grid">
-        <div className="analytics-card">
-          <h4>Totale Lokale</h4>
-          <p className="analytics-value">{rooms.length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Operasioneel</h4>
-          <p className="analytics-value">{rooms.filter(r => r.room_status === "Operasioneel").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Fout Aangemeld</h4>
-          <p className="analytics-value warning">{rooms.filter(r => r.room_status === "Fout Aangemeld").length}</p>
-        </div>
-        <div className="analytics-card">
-          <h4>Instandhouding</h4>
-          <p className="analytics-value danger">{rooms.filter(r => r.room_status === "Instandhouding" || r.room_status === "Buite Werking").length}</p>
-        </div>
-      </div>
       <div className="controls">
         <div className="controls-left">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -757,23 +731,15 @@ function RoomsPage({ embedded = false }) {
         )}
 
         {historyModalContent}
+      {dialog}
       </>
     );
   }
 
   return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar currentPath="/rooms" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Lokale Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
 
       {showModal && modalContent}
@@ -816,6 +782,7 @@ function RoomsPage({ embedded = false }) {
         )}
 
         {historyModalContent}
+      {dialog}
     </div>
   );
 }

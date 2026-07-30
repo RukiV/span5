@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useToast } from '../components/Toast/useToast';
 
-const errBox = { color: '#dc3545', padding: '10px', marginBottom: '10px', backgroundColor: '#f8d7da', borderRadius: '4px' };
-const okBox = { color: '#155724', padding: '10px', marginBottom: '10px', backgroundColor: '#d4edda', borderRadius: '4px' };
 
 function RolesPage({ embedded = false }) {
-  const logout = useLogout();
+  const { confirm, dialog } = useConfirmDialog();
+  const { showToast } = useToast();
   const [view, setView] = useState('list');
   const [roles, setRoles] = useState([]);
   const [rights, setRights] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+
 
   const [roleForm, setRoleForm] = useState({ id: null, name: '', isBuiltin: false, rightIds: [] });
 
@@ -24,7 +21,7 @@ function RolesPage({ embedded = false }) {
       setRoles(rolesRes.data);
       setRights(rightsRes.data);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie rolle/regte laai nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie rolle/regte laai nie.' });
     } finally {
       setLoading(false);
     }
@@ -32,16 +29,15 @@ function RolesPage({ embedded = false }) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  const openNewRole = () => { setRoleForm({ id: null, name: '', isBuiltin: false, rightIds: [] }); setError(''); setSuccess(''); setView('roleForm'); };
-  const openEditRole = (role) => { setRoleForm({ id: role.role_id, name: role.role_name, isBuiltin: role.is_builtin, rightIds: role.right_ids || [] }); setError(''); setSuccess(''); setView('roleForm'); };
+  const openNewRole = () => { setRoleForm({ id: null, name: '', isBuiltin: false, rightIds: [] }); setView('roleForm'); };
+  const openEditRole = (role) => { setRoleForm({ id: role.role_id, name: role.role_name, isBuiltin: role.is_builtin, rightIds: role.right_ids || [] }); setView('roleForm'); };
   const toggleRight = (id) => setRoleForm(f => ({
     ...f,
     rightIds: f.rightIds.includes(id) ? f.rightIds.filter(x => x !== id) : [...f.rightIds, id],
   }));
 
   const saveRole = async () => {
-    setError(''); setSuccess('');
-    if (!roleForm.name.trim()) { setError('Rolnaam is verpligtend.'); return; }
+    if (!roleForm.name.trim()) { showToast({ type: 'error', message: 'Rolnaam is verpligtend.' }); return; }
     try {
       if (roleForm.id) {
         const payload = { right_ids: roleForm.rightIds };
@@ -51,32 +47,30 @@ function RolesPage({ embedded = false }) {
         await apiClient.roles.create({ role_name: roleForm.name.trim(), right_ids: roleForm.rightIds });
       }
       await refetch();
-      setView('list'); setSuccess('Rol gestoor.');
+      setView('list'); showToast({ type: 'success', message: 'Rol gestoor.' });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie rol stoor nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie rol stoor nie.' });
     }
   };
 
   const deleteRole = async (role) => {
-    if (!window.confirm(`Verwyder rol "${role.role_name}"?`)) return;
-    setError(''); setSuccess('');
+    const confirmed = await confirm({ message: `Verwyder rol "${role.role_name}"?`, variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
     try {
       await apiClient.roles.delete(role.role_id);
       await refetch();
-      setSuccess('Rol verwyder.');
+      showToast({ type: 'success', message: 'Rol verwyder.' });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kon nie rol verwyder nie.');
+      showToast({ type: 'error', message: err.response?.data?.detail || 'Kon nie rol verwyder nie.' });
     }
   };
 
-  const backToList = () => { setView('list'); setError(''); };
+  const backToList = () => { setView('list'); };
 
-  if (loading) return <div>Besig om te laai...</div>;
+  if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
   const pageContent = (
     <>
-      {error && <div style={errBox}>{error}</div>}
-      {success && <div style={okBox}>{success}</div>}
 
       {view === 'list' ? (
         <>
@@ -146,21 +140,15 @@ function RolesPage({ embedded = false }) {
   );
 
   if (embedded) {
-    return <>{pageContent}</>;
+    return <>{pageContent}{dialog}</>;
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/users/roles" onLogout={logout} />
-      <div className="main">
-        <div className="navbar">
-          <h3>Rolle Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-        <div className="content">
-          {pageContent}
-        </div>
+    <div className="main">
+      <div className="content">
+        {pageContent}
       </div>
+      {dialog}
     </div>
   );
 }

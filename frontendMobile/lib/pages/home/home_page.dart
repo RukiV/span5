@@ -5,18 +5,18 @@ import '../stock/stock_page.dart';
 import '../campus/campus_management_page.dart';
 import '../rooms/manage_rooms_page.dart';
 import '../building/buildings_list_page.dart';
-import '../contractor/contractor_management_page.dart';
-import '../contractor/job_cards_page.dart';
+import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
+import '../notifications/notification_list_page.dart';
 import '../../models/user_session.dart';
+import '../../services/notification_service.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
-import '../../services/contractor_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
 import '../room_checklist/room_checklist_page.dart';
@@ -36,6 +36,13 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _initialDataSync();
+    NotificationService.startPolling();
+  }
+
+  @override
+  void dispose() {
+    NotificationService.stopPolling();
+    super.dispose();
   }
 
   Future<void> _initialDataSync() async {
@@ -45,7 +52,6 @@ class _HomePageState extends State<HomePage> {
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
         JobcardService.fetchJobs(),
-        ContractorService.fetchContractors(),
         QuoteService.fetchQuotes(),
       ]);
     } catch (e) {
@@ -78,7 +84,7 @@ class _HomePageState extends State<HomePage> {
         'page': DashboardPage(onTabRequested: (index) {
           final titles = [
             "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale",
-            "Foutkaartjies", "Kontrakteurs", "Werksopdragte", "Kalender"
+            "Foutkaartjies", "Werksopdragte", "Kalender"
           ];
           if (index >= 0 && index < titles.length) {
             setState(() => _selectedTitle = titles[index]);
@@ -136,11 +142,6 @@ class _HomePageState extends State<HomePage> {
     // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
     if (can('faults.create_own') || can('faults.view_own') || can('faults.manage_all')) {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
-    }
-
-    // Kontrakteurs — Admin/FK.
-    if (can('contractors.manage')) {
-      menu.add({'title': 'Kontrakteurs', 'icon': Icons.engineering_outlined, 'page': const ContractorManagementPage()});
     }
 
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
@@ -226,6 +227,49 @@ class _HomePageState extends State<HomePage> {
         ),
         centerTitle: false,
         actions: [
+          if (UserSession.rights.contains('notifications.view'))
+            ValueListenableBuilder<int>(
+              valueListenable: NotificationService.unreadCountNotifier,
+              builder: (context, count, _) {
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                      onPressed: () async {
+                        await NotificationService.markAllAsRead();
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const NotificationListPage(),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        right: 4,
+                        top: 2,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          child: Text(
+                            count > 99 ? '99+' : '$count',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           if (roleTitle.isNotEmpty)
             Center(
               child: Padding(

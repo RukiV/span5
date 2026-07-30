@@ -2,12 +2,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import { authAPI, calendarEventsAPI, workOrdersAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
 import '../styles/App.css';
 import '../styles/Calendar.css';
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
 import { loginRequest } from '../services/msalConfig';
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -54,8 +53,8 @@ const SOURCE_LABELS = {
 };
 
 function CalendarPage() {
-  const { isAdmin, user } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
   const { instance } = useMsal();
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
@@ -255,14 +254,14 @@ function CalendarPage() {
     try {
       msAccessToken = await getMicrosoftAccessToken();
     } catch {
-      alert("Meld asseblief eers aan met Microsoft om te sinkroniseer.");
+      showToast({ type: 'warning', title: 'Meld asseblief eers aan met Microsoft om te sinkroniseer.' });
       return;
     }
 
     setSyncingEventId(eventId);
     try {
       const event = events.find((e) => e.source_id === eventId && e.source === 'calendar_event');
-      if (!event) { alert("Event nie gevind nie"); return; }
+      if (!event) { showToast({ type: 'error', title: 'Event nie gevind nie' }); return; }
 
       const startDateTime = `${formatDateInput(new Date(event.start_datetime))}T${formatTimeInput(new Date(event.start_datetime))}`;
       const endMs = event.end_datetime ? new Date(event.end_datetime).getTime() : new Date(event.start_datetime).getTime() + 3600000;
@@ -299,10 +298,10 @@ function CalendarPage() {
           : ev
       ));
 
-      alert("Gesinkroniseer na Outlook!");
+      showToast({ type: 'success', title: 'Gesinkroniseer na Outlook!' });
     } catch (err) {
       console.error("Sync fout:", err);
-      alert("Fout tydens sinkronisering na Outlook.");
+      showToast({ type: 'error', title: 'Fout tydens sinkronisering na Outlook.' });
     } finally {
       setSyncingEventId(null);
     }
@@ -310,7 +309,7 @@ function CalendarPage() {
 
   const handleDeleteEvent = async (eventId, source) => {
     if (source === 'outlook') {
-      const confirmed = window.confirm('Verwyder hierdie Outlook afspraak? (Dit sal van Outlook verwyder word)');
+      const confirmed = await confirm({ message: 'Verwyder hierdie Outlook afspraak? (Dit sal van Outlook verwyder word)', variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
       if (!confirmed) return;
       try {
         setDeletingEventId(eventId);
@@ -320,38 +319,38 @@ function CalendarPage() {
           headers: { Authorization: `Bearer ${msAccessToken}` },
         });
         setEvents((prev) => prev.filter((ev) => !(ev.source === 'outlook' && ev.source_id === eventId)));
-        alert('Outlook afspraak verwyder.');
+        showToast({ type: 'success', title: 'Outlook afspraak verwyder.' });
       } catch (err) {
         console.error('Outlook DELETE Error:', err);
-        alert('Fout tydens verwydering van Outlook afspraak.');
+        showToast({ type: 'error', title: 'Fout tydens verwydering van Outlook afspraak.' });
       } finally {
         setDeletingEventId(null);
       }
     } else if (source === 'calendar_event') {
-      const confirmed = window.confirm('Verwyder hierdie kalenderafspraak?');
+      const confirmed = await confirm({ message: 'Verwyder hierdie kalenderafspraak?', variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
       if (!confirmed) return;
       try {
         setDeletingEventId(eventId);
         await calendarEventsAPI.delete(eventId);
         setEvents((prev) => prev.filter((ev) => !(ev.source === 'calendar_event' && ev.source_id === eventId)));
-        alert('Afspraak verwyder.');
+        showToast({ type: 'success', title: 'Afspraak verwyder.' });
       } catch (err) {
         console.error('DELETE Error:', err);
-        alert('Fout tydens verwydering.');
+        showToast({ type: 'error', title: 'Fout tydens verwydering.' });
       } finally {
         setDeletingEventId(null);
       }
     } else if (source === 'jobcard') {
-      const confirmed = window.confirm('Verwyder slegs die skedulering van hierdie werksopdrag? (Die werksopdrag self bly behoue.)');
+      const confirmed = await confirm({ message: 'Verwyder slegs die skedulering van hierdie werksopdrag? (Die werksopdrag self bly behoue.)', variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
       if (!confirmed) return;
       try {
         setDeletingEventId(eventId);
         await workOrdersAPI.update(eventId, { job_scheduled_datetime: null, job_schedule_type: 'enkel', job_scheduled_end_datetime: null });
         setEvents((prev) => prev.filter((ev) => !(ev.source === 'jobcard' && ev.source_id === eventId)));
-        alert('Skedulering van werksopdrag verwyder.');
+        showToast({ type: 'success', title: 'Skedulering van werksopdrag verwyder.' });
       } catch (err) {
         console.error('Verwyder skedulering Error:', err);
-        alert('Fout tydens verwydering van skedulering.');
+        showToast({ type: 'error', title: 'Fout tydens verwydering van skedulering.' });
       } finally {
         setDeletingEventId(null);
       }
@@ -361,7 +360,7 @@ function CalendarPage() {
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.title || !newEvent.startDate || !newEvent.startTime) {
-      alert("Vul asseblief die verpligte velde in.");
+      showToast({ type: 'warning', title: 'Vul asseblief die verpligte velde in.' });
       return;
     }
 
@@ -405,10 +404,10 @@ function CalendarPage() {
         reminder_minutes: 60,
       });
 
-      alert("Afspraak suksesvol geskep!");
+      showToast({ type: 'success', title: 'Afspraak suksesvol geskep!' });
     } catch (err) {
       console.error("CREATE Error:", err);
-      alert("Fout tydens skep van afspraak.");
+      showToast({ type: 'error', title: 'Fout tydens skep van afspraak.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -416,35 +415,13 @@ function CalendarPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex" }}>
-        <div className="main"><div className="content">Laai...</div></div>
-      </div>
+      <div className="main"><div className="content">Laai...</div></div>
     );
   }
 
   return (
-    <div>
-      <Sidebar currentPath="/calendar" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Kalender {hasMsToken ? "(Lokaal + Outlook)" : "(Lokaal)"}</h3>
-          <div className="user-profile-box" style={{ textAlign: 'right', fontSize: '14px', lineHeight: '1.3' }}>
-            {user ? (
-              <>
-                <div className="user-name" style={{ fontWeight: 'bold' }}>{user.user_name} {user.user_surname}</div>
-                <div className="user-role" style={{ fontSize: '12px', color: '#935e28', fontWeight: '600' }}>
-                  {user.role_id === 3 ? "Administrateur" : user.role_id === 2 ? "Personeel" : "Student"}
-                </div>
-                <div className="user-email" style={{ fontSize: '11px', color: '#666' }}>{user.user_email}</div>
-              </>
-            ) : (
-              <div className="user-loading" style={{ color: '#999' }}>Laai profiel...</div>
-            )}
-          </div>
-        </div>
-
-        <div className="content" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+    <div className="main">
+      <div className="content" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
           {calendarError && (
             <div style={{ color: '#d9534f', padding: '10px', background: '#f9f2f2', borderRadius: '4px' }}>
               {calendarError}
@@ -719,8 +696,8 @@ function CalendarPage() {
             </div>
           </div>
         </div>
+      {dialog}
       </div>
-    </div>
   );
 }
 
