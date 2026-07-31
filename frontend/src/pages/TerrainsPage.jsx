@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { buildingsAPI, locationAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
@@ -14,8 +17,20 @@ function TerrainsPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const TERRAIN_COLUMNS = [
+    { key: 'id', label: 'ID Terrein', render: (t) => t.location_id, sortKey: 'id', defaultVisible: true },
+    { key: 'name', label: 'Naam', render: (t) => t.location_name, sortKey: 'name', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (t) => t.location_type, sortKey: 'type', defaultVisible: true },
+    { key: 'streetnum', label: 'Straatnommer', render: (t) => t.location_streetnum || '-', sortKey: 'streetnum', defaultVisible: true },
+    { key: 'streetname', label: 'Straatnaam', render: (t) => t.location_streetname || '-', sortKey: 'streetname', defaultVisible: true },
+    { key: 'suburb', label: 'Suburb', render: (t) => t.location_suburb || '-', sortKey: 'suburb', defaultVisible: true },
+    { key: 'city', label: 'Stad', render: (t) => t.location_city || '-', sortKey: 'city', defaultVisible: true },
+    { key: 'province', label: 'Provinsie', render: (t) => t.location_province || '-', sortKey: 'province', defaultVisible: true },
+    { key: 'country', label: 'Land', render: (t) => t.location_country || '-', sortKey: 'country', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('terrains-page', TERRAIN_COLUMNS);
+  const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showBuildingsModal, setShowBuildingsModal] = useState(false);
   const [selectedTerrain, setSelectedTerrain] = useState(null);
@@ -180,10 +195,16 @@ function TerrainsPage({ embedded = false }) {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.location_id || 0) - Number(b.location_id || 0)) * direction;
-      if (sortBy === 'name') return String(a.location_name || '').localeCompare(String(b.location_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'id') return (Number(a.location_id || 0) - Number(b.location_id || 0)) * dir;
+      if (sortKey === 'name') return String(a.location_name || '').localeCompare(String(b.location_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(a.location_type || '').localeCompare(String(b.location_type || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'streetnum') return String(a.location_streetnum || '').localeCompare(String(b.location_streetnum || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'streetname') return String(a.location_streetname || '').localeCompare(String(b.location_streetname || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'suburb') return String(a.location_suburb || '').localeCompare(String(b.location_suburb || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'city') return String(a.location_city || '').localeCompare(String(b.location_city || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'province') return String(a.location_province || '').localeCompare(String(b.location_province || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
 
@@ -214,15 +235,7 @@ function TerrainsPage({ embedded = false }) {
           </select>
         </div>
         <div className="controls-right">
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="default">Standaard</option>
-            <option value="id">ID</option>
-            <option value="name">Naam</option>
-          </select>
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-          </div>
+          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} />
           <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
         </div>
       </div>
@@ -230,34 +243,34 @@ function TerrainsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>ID Terrein</th>
-            <th>Naam</th>
-            <th>Tipe</th>
-            <th>Straatnommer</th>
-            <th>Straatnaam</th>
-            <th>Suburb</th>
-            <th>Stad</th>
-            <th>Provinsie</th>
+            {colVis.visibleColumns.map((col) => (
+              <th key={col.key} className={getSortClass(col.sortKey)} onClick={() => handleSort(col.sortKey)} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
+                {col.label}{getSortIndicator(col.sortKey)}
+              </th>
+            ))}
             <th>Aksies</th>
           </tr>
         </thead>
         <tbody>
-          {filteredTerrains.map((terrain) => (
-            <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
-              <td>{terrain.location_id}</td>
-              <td>{terrain.location_name}</td>
-              <td>{terrain.location_type}</td>
-              <td>{terrain.location_streetnum || '-'}</td>
-              <td>{terrain.location_streetname || '-'}</td>
-              <td>{terrain.location_suburb || '-'}</td>
-              <td>{terrain.location_city || '-'}</td>
-              <td>{terrain.location_province || '-'}</td>
-              <td onClick={e => e.stopPropagation()}>
-                <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
-                <button className="btn-delete" onClick={() => handleDeleteTerrain(terrain.location_id)}>Verwyder</button>
+          {filteredTerrains.length === 0 ? (
+            <tr>
+              <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>
+                Geen terreine gevind
               </td>
             </tr>
-          ))}
+          ) : (
+            filteredTerrains.map((terrain) => (
+              <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
+                {colVis.visibleColumns.map((col) => (
+                  <td key={col.key}>{col.render(terrain)}</td>
+                ))}
+                <td onClick={e => e.stopPropagation()}>
+                  <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
+                  <button className="btn-delete" onClick={() => handleDeleteTerrain(terrain.location_id)}>Verwyder</button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </>

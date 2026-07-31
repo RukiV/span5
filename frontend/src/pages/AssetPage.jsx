@@ -4,6 +4,9 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
@@ -23,8 +26,20 @@ function AssetPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const ASSET_COLUMNS = [
+    { key: 'id', label: 'ID', render: (a) => a.asset_id, sortKey: 'id', defaultVisible: false },
+    { key: 'asset_name', label: 'Naam', render: (a) => a.asset_name, sortKey: 'asset_name', defaultVisible: true },
+    { key: 'asset_brand', label: 'Merk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
+    { key: 'asset_serial', label: 'Serienommer', render: (a) => a.asset_serial, sortKey: 'asset_serial', defaultVisible: true },
+    { key: 'assettype', label: 'Tipe', render: (a) => getAssettypeName(a), sortKey: 'assettype', defaultVisible: true },
+    { key: 'isoutdoor', label: 'Buite', render: (a) => a.asset_isoutdoor ? 'Ja' : 'Nee', sortKey: 'isoutdoor', defaultVisible: false },
+    { key: 'room', label: 'Lokaal', render: (a) => getRoomName(a), sortKey: 'room', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (a) => getStatusLabel(a.asset_status), sortKey: 'status', defaultVisible: true },
+    { key: 'created', label: 'Geskep', render: (a) => a.asset_created_datetime ? new Date(a.asset_created_datetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('asset-page', ASSET_COLUMNS);
+  const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -539,10 +554,15 @@ function AssetPage({ embedded = false }) {
       return String(getColumnValue(filterColumn) ?? "").toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === "default") return 0;
-      const direction = sortDirection === "asc" ? 1 : -1;
-      if (sortBy === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * direction;
-      if (sortBy === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === "asc" ? 1 : -1;
+      if (sortKey === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "asset_brand") return String(a.asset_brand || "").localeCompare(String(b.asset_brand || ""), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "asset_serial") return String(a.asset_serial || "").localeCompare(String(b.asset_serial || ""), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "assettype") return String(getAssettypeName(a) || "").localeCompare(String(getAssettypeName(b) || ""), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "isoutdoor") return String(a.asset_isoutdoor ? "Ja" : "Nee").localeCompare(String(b.asset_isoutdoor ? "Ja" : "Nee"), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "room") return String(getRoomName(a) || "").localeCompare(String(getRoomName(b) || ""), "af", { sensitivity: "base" }) * dir;
+      if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
       return 0;
     });
 
@@ -571,11 +591,6 @@ function AssetPage({ embedded = false }) {
     { value: "status", label: "Status" }
   ];
 
-  const sortByOptions = [
-    { value: "default", label: "Standaard" },
-    { value: "asset_name", label: "Naam" },
-    { value: "status", label: "Status" }
-  ];
 
   const statusOptions = [
     { value: "Aktief", label: "Aktief" },
@@ -679,19 +694,13 @@ function AssetPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
-          <Select
-            className="basic-single"
-            classNamePrefix="select"
-            value={sortByOptions.find(option => option.value === sortBy)}
-            onChange={(selectedOption) => setSortBy(selectedOption.value)}
-            options={sortByOptions}
-            isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={ASSET_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
           />
-          <div style={{ display: "flex", gap: "0.25rem" }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection("asc")} style={{ minWidth: "40px", background: sortDirection === "asc" ? "#935e28" : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection("desc")} style={{ minWidth: "40px", background: sortDirection === "desc" ? "#935e28" : undefined }} title="Dalend">▼</button>
-          </div>
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
         </div>
@@ -700,38 +709,35 @@ function AssetPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>Naam</th>
-            <th>Merk</th>
-            <th>Serienommer</th>
-            <th>Tipe</th>
-            <th>Buite</th>
-            <th>Lokaal</th>
-            <th>Status</th>
-            <th>Aksies</th>
+            {colVis.visibleColumns.map((col) => (
+              <th
+                key={col.key}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </th>
+            ))}
+            <th style={{ width: '120px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
-          {filteredItems.map((item) => (
-            <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
-              <td>{item.asset_name}</td>
-              <td>{item.asset_brand}</td>
-              <td>{item.asset_serial}</td>
-              <td>{getAssettypeName(item)}</td>
-              <td>{item.asset_isoutdoor ? "Ja" : "Nee"}</td>
-              <td>{getRoomName(item)}</td>
-              <td>
-                <span className={`status ${getStatusClass(item.asset_status)}`}>
-                  {getStatusLabel(item.asset_status)}
-                </span>
-              </td>
-              <td onClick={e => e.stopPropagation()}>
-                <button className="btn-view" onClick={() => handleViewHistory(item)}>
-                  Besigtig Geskiedenis
-                </button>
-                <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
-              </td>
-            </tr>
-          ))}
+          {filteredItems.length === 0 ? (
+            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
+          ) : (
+            filteredItems.map((item) => (
+              <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
+                {colVis.visibleColumns.map((col) => (
+                  <td key={col.key}>{col.render(item)}</td>
+                ))}
+                <td onClick={e => e.stopPropagation()}>
+                  <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
+                  <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </>
