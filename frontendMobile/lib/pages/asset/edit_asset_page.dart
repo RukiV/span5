@@ -1,10 +1,10 @@
-import '../../widgets/custom_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 import 'package:flutter/material.dart';
 import '../../services/campus_service.dart';
 import '../../models/asset_type.dart';
 import '../../services/asset_type_service.dart';
-import '../../models/campus.dart';
+import '../../models/room.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
@@ -84,20 +84,50 @@ class _EditAssetPageState extends State<EditAssetPage> {
     super.dispose();
   }
 
-  List<String> get _availableBuildings {
-    if (selectedCampus == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus!);
-    if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
+  String? _locationError;
+
+  /// Die bate se `location` is 'n lokaal-ID. Ons soek die pad daarheen op sodat
+  /// die kieser met die bestaande ligging oopmaak.
+  int? get _initialRoomId => int.tryParse(widget.asset.location);
+
+  int? get _initialBuildingId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return b.id;
+      }
+    }
+    return null;
   }
 
-  List<String> get availableRooms {
-    if (selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus ?? '');
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  int? get _initialCampusId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return c.id;
+      }
+    }
+    return null;
+  }
+
+  /// Vertaal die kieser se ID's terug na die string-vorm wat die stoor-logika
+  /// hieronder steeds verwag.
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room =
+        (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
+
+    setState(() {
+      selectedCampus = campus?.name;
+      selectedBuilding = building?.name;
+      selectedLocation = room == null ? null : '${room.id}:${room.name}';
+      if (room != null) _locationError = null;
+    });
   }
 
   Widget _buildCustomTextField({
@@ -206,14 +236,13 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   ValueListenableBuilder<List<AssetType>>(
                     valueListenable: AssetTypeService.typesNotifier,
                     builder: (context, types, _) {
-                      return CustomDropdown<int>(
+                      return SearchableDropdown<int>(
                         label: "Bate Tipe",
                         hint: "Kies 'n tipe",
                         value: selectedTypeId,
-                        items: types.map((t) => DropdownMenuItem<int>(
-                          value: t.id,
-                          child: Text(t.name),
-                        )).toList(),
+                        items: types
+                            .map((t) => SearchableDropdownItem(value: t.id, label: t.name))
+                            .toList(),
                         onChanged: (v) => setState(() => selectedTypeId = v ?? selectedTypeId),
                         validator: (v) => v == null ? "Vereis" : null,
                       );
@@ -239,72 +268,26 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  ValueListenableBuilder<List<Campus>>(
-                    valueListenable: CampusService.campusesNotifier,
-                    builder: (context, campuses, _) {
-                      return SearchableDropdown<String>(
-                        label: "Kampus",
-                        hint: "Kies 'n kampus",
-                        value: selectedCampus,
-                        items: campuses
-                            .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                            .toList(),
-                        onChanged: (v) {
-                          setState(() {
-                            selectedCampus = v;
-                            selectedBuilding = null;
-                            selectedLocation = null;
-                          });
-                        },
-                        validator: (v) => (v == null) ? "Vereis" : null,
-                      );
-                    },
+                  LocationCascadePicker(
+                    label: "Ligging *",
+                    initialCampusId: _initialCampusId,
+                    initialBuildingId: _initialBuildingId,
+                    initialRoomId: _initialRoomId,
+                    errorText: _locationError,
+                    onChanged: _onLocationChanged,
                   ),
                   const SizedBox(height: 20),
 
                   SearchableDropdown<String>(
-                    label: "Gebou",
-                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
-                    value: selectedBuilding,
-                    items: _availableBuildings
-                        .map((b) => SearchableDropdownItem(value: b, label: b))
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() {
-                        selectedBuilding = v;
-                        selectedLocation = null;
-                      });
-                    },
-                    validator: (v) => (v == null) ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 20),
-
-                  SearchableDropdown<String>(
-                    label: "Lokaal",
-                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
-                    value: selectedLocation,
-                    items: availableRooms.map((r) {
-                      final name = r.contains(":") ? r.split(":").last : r;
-                      return SearchableDropdownItem(value: r, label: name);
-                    }).toList(),
-                    onChanged: (v) => setState(() => selectedLocation = v),
-                    validator: (v) => (v == null) ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 20),
-
-                  CustomDropdown<String>(
                     label: "Status",
-                    hint: "",
+                    hint: "Kies 'n status",
                     value: status,
-                    items: [
-                      {"value": "active", "label": "Aktief"},
-                      {"value": "maintenance", "label": "Onderhoud"},
-                      {"value": "retired", "label": "Afgedank"},
-                      {"value": "inactive", "label": "Onaktief"},
-                    ].map((s) => DropdownMenuItem(
-                      value: s["value"] as String,
-                      child: Text(s["label"] as String)
-                    )).toList(),
+                    items: const [
+                      SearchableDropdownItem(value: "active", label: "Aktief"),
+                      SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
+                      SearchableDropdownItem(value: "retired", label: "Afgedank"),
+                      SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+                    ],
                     onChanged: (v) => setState(() => status = v!),
                   ),
 
@@ -319,6 +302,12 @@ class _EditAssetPageState extends State<EditAssetPage> {
                       const SizedBox(width: 16),
                       ElevatedButton(
                         onPressed: () async {
+                          // Die ligging-kieser is nie 'n FormField nie, so die
+                          // volledige pad word hier afsonderlik nagegaan.
+                          if (selectedLocation == null) {
+                            setState(() => _locationError = "Kies 'n volledige ligging");
+                            return;
+                          }
                           if (_formKey.currentState!.validate()) {
                             final typeName = AssetTypeService.getTypeName(selectedTypeId);
                             final updated = widget.asset.copyWith(

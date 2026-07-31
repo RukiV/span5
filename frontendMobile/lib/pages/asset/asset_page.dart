@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
@@ -177,16 +179,26 @@ class _AssetsPageState extends State<AssetsPage> {
               color: Colors.white.withValues(alpha: 30/255),
               borderRadius: BorderRadius.circular(30),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _statusFilter,
-                dropdownColor: AppColors.navy,
-                icon: const Icon(Icons.filter_list, color: AppColors.gold),
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                items: ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+            child: InkWell(
+              onTap: () => showSearchableDialog<String>(
+                context: context,
+                title: "Status",
+                initialValue: _statusFilter,
+                items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
+                    .map((s) => SearchableDropdownItem(value: s, label: s))
                     .toList(),
-                onChanged: (val) => setState(() => _statusFilter = val!),
+                onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _statusFilter,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const Icon(Icons.filter_list, color: AppColors.gold),
+                ],
               ),
             ),
           ),
@@ -196,100 +208,22 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildCampusFilter() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (campuses.isEmpty) return const SizedBox.shrink();
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    final selectedCampus = _selectedCampusId != null
-        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
-        : null;
-    final buildings = selectedCampus?.buildings ?? [];
-    final selectedBuilding = _selectedBuildingId != null
-        ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
-        : null;
-    final rooms = selectedBuilding?.rooms ?? [];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                value: _selectedCampusId,
-                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
-                items: campuses.map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
-                )).toList(),
-                onChanged: (val) => setState(() {
-                  _selectedCampusId = val;
-                  _selectedBuildingId = null;
-                  _selectedRoomId = null;
-                }),
-              ),
-            ),
-          ),
-        ),
-        if (_selectedCampusId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedBuildingId,
-                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
-                  items: buildings.map((b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() {
-                    _selectedBuildingId = val;
-                    _selectedRoomId = null;
-                  }),
-                ),
-              ),
-            ),
-          ),
-        if (_selectedBuildingId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedRoomId,
-                  hint: const Text("Kies Lokaal", style: TextStyle(fontSize: 13)),
-                  items: rooms.map((r) => DropdownMenuItem(
-                    value: r.id,
-                    child: Text(r.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() => _selectedRoomId = val),
-                ),
-              ),
-            ),
-          ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
+      ),
     );
   }
 

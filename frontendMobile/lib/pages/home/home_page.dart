@@ -80,52 +80,40 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
-        'page': DashboardPage(onTabRequested: (index) {
-          final titles = [
-            "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale",
-            "Foutkaartjies", "Werksopdragte", "Kalender"
-          ];
-          if (index >= 0 && index < titles.length) {
-            setState(() => _selectedTitle = titles[index]);
+        // Die paneelbord se statistiek-kaarte vra 'n bladsy aan op naam. Vroeër
+        // was dit 'n indeks in 'n hardgekodeerde lys, wat stilweg verkeerd
+        // geloop het sodra 'n gebruiker nie al die regte gehad het nie.
+        'page': DashboardPage(onTabRequested: (title) {
+          if (_getFlatMenu().any((item) => item['title'] == title)) {
+            setState(() => _selectedTitle = title);
           }
         }),
       });
     }
 
-    // Bates & Voorraad
-    final assetsChildren = <Map<String, dynamic>>[];
+    // Fasiliteite — bates, voorraad en die ligging-hiërargie onder een groep.
+    final facilitiesChildren = <Map<String, dynamic>>[];
     if (can('assets.manage')) {
-      assetsChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
+      facilitiesChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
     }
     if (can('stock.manage')) {
-      assetsChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
+      facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
     }
-    if (assetsChildren.isNotEmpty) {
-      menu.add({
-        'title': 'Bates & Voorraad',
-        'icon': Icons.inventory_2_outlined,
-        'isExpandable': true,
-        'children': assetsChildren,
-      });
-    }
-
-    // Lokale & Terreine
-    final locationChildren = <Map<String, dynamic>>[];
     if (can('locations.manage')) {
-      locationChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
+      facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
     }
     if (can('buildings.manage')) {
-      locationChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
+      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
     }
     if (can('rooms.manage')) {
-      locationChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
+      facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
     }
-    if (locationChildren.isNotEmpty) {
+    if (facilitiesChildren.isNotEmpty) {
       menu.add({
-        'title': 'Lokale & Terreine',
-        'icon': Icons.map_outlined,
+        'title': 'Fasiliteite',
+        'icon': Icons.business_outlined,
         'isExpandable': true,
-        'children': locationChildren,
+        'children': facilitiesChildren,
       });
     }
 
