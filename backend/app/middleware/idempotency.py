@@ -48,7 +48,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
     How it works
     ------------
-    1. Compute ``sha256(method + ":" + path + ":" + body)``.
+    1. Compute the dedup key:
+       - If an ``X-Idempotency-Key`` header is present, it is used as the
+         dedup key (``sha256(method + ":" + path + ":" + key)``).  This
+         survives body changes, so clients can retry the same logical
+         request even when the body differs (e.g. a ``new Date().toISOString()``
+         timestamp injected on every click).
+       - Otherwise fall back to ``sha256(method + ":" + path + ":" + body)``.
     2. Try to INSERT a record with that hash (DB unique constraint =
        distributed lock).
     3. INSERT succeeds -> this is the **first** request -> let it through.
@@ -105,7 +111,16 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
         request._receive = receive
 
-        key_hash = compute_key_hash(request.method, path, body)
+        # --- 1b. Determine the dedup key ---
+        # If the client supplies an X-Idempotency-Key header, prefer it as the
+        # dedup key (method + path + key) so retries of the same logical
+        # request are deduplicated even if the body changed between attempts.
+        # Otherwise fall back to hashing the raw body.
+        idempotency_key = request.headers.get("X-Idempotency-Key")
+        if idempotency_key:
+            key_hash = compute_key_hash(request.method, path, idempotency_key.encode())
+        else:
+            key_hash = compute_key_hash(request.method, path, body)
         engine = _resolve_engine(request)
 
         # --- 2. Try to claim this hash ---
