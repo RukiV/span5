@@ -142,7 +142,7 @@ export const workOrdersAPI = {
   getRecent: (limit = 5) => apiClient.get('/job/recent', { params: { limit } }),
   getById: (id) => apiClient.get(`/job/${id}`),
   getScheduled: () => apiClient.get('/job/scheduled/upcoming'),
-  create: (data) => apiClient.post('/job', data),
+  create: (data, config) => apiClient.post('/job', data, config),
   update: (id, data) => apiClient.patch(`/job/${id}`, data),
   delete: (id) => apiClient.delete(`/job/${id}`),
 };

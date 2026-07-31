@@ -98,6 +98,11 @@ function WorkOrderPage() {
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
   const [selectedTerrein, setSelectedTerrein] = useState(null);
   const [selectedGebou, setSelectedGebou] = useState(null);
+
+  // Beheer dubbel-submissie: verhoed spam-klikke op "Stoor Kaart" en hou 'n
+  // stabiele idempotensie-sleutel per modaal-oop vir dedup op die backend.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
   
   // Vorm-data vir werksopdrag (uitgebreide velde)
   const [formData, setFormData] = useState({
@@ -833,6 +838,9 @@ function WorkOrderPage() {
       }
       setInvalidFields({});
 
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+
       const payload = {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
         job_type: formData.job_type || null,
@@ -855,11 +863,27 @@ function WorkOrderPage() {
           : null,
       };
 
-      const savedWorkOrderResponse = isEditing
-        ? await workOrdersAPI.update(editingId, payload)
-        : await workOrdersAPI.create(payload);
-      const savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
-      const workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      let savedWorkOrderResponse;
+      let savedWorkOrder;
+      let workOrderId;
+
+      if (isEditing) {
+        savedWorkOrderResponse = await workOrdersAPI.update(editingId, payload);
+        savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
+        workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      } else {
+        // Stabiliseer die sleutel vir die volle modaal-oop: dieselfde
+        // X-Idempotency-Key word hergebruik vir alle pogings sodat spam-klikke
+        // (met 'n nuwe job_createddatetime per klik) op die backend gededupeer word.
+        const key = idempotencyKey
+          || (typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+        if (!idempotencyKey) setIdempotencyKey(key);
+        savedWorkOrderResponse = await workOrdersAPI.create(payload, { headers: { 'X-Idempotency-Key': key } });
+        savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
+        workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      }
 
       if (quotes.some((quote) => !quote.contractor_id || !String(quote.description || "").trim())) {
         showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê." });
@@ -968,6 +992,9 @@ function WorkOrderPage() {
     } catch (error) {
       console.error("Fout by besparing:", error);
       showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });
+    } finally {
+      // Stel die submissie-vlag altyd terug, ook by vroeë returns of foute.
+      setIsSubmitting(false);
     }
   };
 
@@ -1103,6 +1130,8 @@ function WorkOrderPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
+    setIdempotencyKey(null);
+    setIsSubmitting(false);
     setQuotes([]);
     setSelectedQuoteId(null);
     setQuoteEditId(null);
@@ -2310,7 +2339,9 @@ function WorkOrderPage() {
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
-              <button type="button" className="btn-add" onClick={handleSaveWorkOrder}>Stoor Kaart</button>
+              <button type="button" className="btn-add" onClick={handleSaveWorkOrder} disabled={isSubmitting}>
+                {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
+              </button>
             </div>
           </div>
         </div>
