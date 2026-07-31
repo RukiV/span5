@@ -5,6 +5,8 @@ import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
   const WorksAssignmentsPage({super.key});
@@ -14,6 +16,12 @@ class WorksAssignmentsPage extends StatefulWidget {
 }
 
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('works-assignments', [
+    const ColumnDef(key: 'description', label: 'Beskrywing'),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+  ]);
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
@@ -61,6 +69,22 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   if (_selectedRoomId != null && job.roomId != _selectedRoomId) return false;
                   return true;
                 }).toList();
+
+                if (_sortCtrl.isActive) {
+                  filtered.sort((a, b) {
+                    final dir = _sortCtrl.direction;
+                    switch (_sortCtrl.sortKey) {
+                      case 'description':
+                        return a.description.toLowerCase().compareTo(b.description.toLowerCase()) * dir;
+                      case 'type':
+                        return (a.type ?? '').toLowerCase().compareTo((b.type ?? '').toLowerCase()) * dir;
+                      case 'status':
+                        return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+                      default:
+                        return 0;
+                    }
+                  });
+                }
 
                 if (filtered.isEmpty) {
                   return const Center(
@@ -116,18 +140,32 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
       return const SizedBox.shrink();
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+          child: LocationCascadePicker(
+            initialCampusId: _selectedCampusId,
+            initialBuildingId: _selectedBuildingId,
+            initialRoomId: _selectedRoomId,
+            onChanged: (campusId, buildingId, roomId) => setState(() {
+              _selectedCampusId = campusId;
+              _selectedBuildingId = buildingId;
+              _selectedRoomId = roomId;
+            }),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ColumnVisibilityButton(controller: _colVis),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

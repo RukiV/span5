@@ -12,6 +12,8 @@ import 'manage_asset_types_page.dart';
 import 'room_checklist_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class AssetsPage extends StatefulWidget {
   final String? filterRoomId;
@@ -28,6 +30,17 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('assets', [
+    const ColumnDef(key: 'id', label: '#ID'),
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'brand', label: 'Merk', defaultVisible: false),
+    const ColumnDef(key: 'serial', label: 'Serienommer', defaultVisible: false),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'isOutdoor', label: 'Buite', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+    const ColumnDef(key: 'created', label: 'Geskep', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -142,7 +155,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 fillColor: Colors.white.withValues(alpha: 30/255),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -172,6 +185,8 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
           ],
+          const SizedBox(width: 6),
+          ColumnVisibilityButton(controller: _colVis),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -279,6 +294,24 @@ class _AssetsPageState extends State<AssetsPage> {
                  a.id.toLowerCase().contains(_query);
         }).toList();
 
+        // Apply sorting
+        if (_sortCtrl.isActive) {
+          filtered.sort((a, b) {
+            final dir = _sortCtrl.direction;
+            switch (_sortCtrl.sortKey) {
+              case 'id': return a.id.compareTo(b.id) * dir;
+              case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+              case 'brand': return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) * dir;
+              case 'serial': return a.serialCode.toLowerCase().compareTo(b.serialCode.toLowerCase()) * dir;
+              case 'type': return a.category.toLowerCase().compareTo(b.category.toLowerCase()) * dir;
+              case 'isOutdoor': return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) * dir;
+              case 'status': return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+              case 'created': return 0;
+              default: return 0;
+            }
+          });
+        }
+
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
 return Column(
@@ -287,11 +320,21 @@ return Column(
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               color: AppColors.gold,
-              child: const Row(
+              child: Row(
                 children: [
-                  Expanded(flex: 1, child: Text("ID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 3, child: Text("NAAM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 2, child: Text("STATUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                  ..._colVis.visibleColumns.map((col) {
+                    int flex = 2;
+                    if (col.key == 'id') flex = 1;
+                    if (col.key == 'name') flex = 3;
+                    if (col.key == 'status') flex = 2;
+                    return SortableHeader(
+                      label: col.label,
+                      sortKey: col.key,
+                      controller: _sortCtrl,
+                      flex: flex,
+                      onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -315,11 +358,22 @@ return Column(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         child: Row(
-          children: [
-            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
-          ],
+          children: _colVis.visibleColumns.map((col) {
+            int flex = 2;
+            Widget child;
+            switch (col.key) {
+              case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
+              case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
+              case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
+              case 'created': child = const Text('-', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)); break;
+              default: child = const Text(''); break;
+            }
+            return Expanded(flex: flex, child: child);
+          }).toList(),
         ),
       ),
     );
