@@ -146,6 +146,15 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
                 reference_type="job",
                 reference_id=result.jobcard_id,
             )
+        # Stuur ook aan Admin / FK sodat hulle weet die status het verander
+        notif_svc.notify_admins(
+            notification_type="job.status_changed",
+            title="Werksopdrag status verander",
+            message=f"{summary} status verander na {result.job_status.value}",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=result.jobcard_id,
+        )
         if result.location_id:
             notif_svc.notify_location_users(
                 location_id=result.location_id,

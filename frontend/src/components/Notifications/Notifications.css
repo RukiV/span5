@@ -162,8 +162,9 @@
 
 /* History page */
 .notif-page {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .notif-page-header {
@@ -195,6 +196,7 @@
 .notif-page-list {
   display: flex;
   flex-direction: column;
+  flex: 1;
   gap: 1px;
   background: #f0f0f0;
   border-radius: 8px;
@@ -212,10 +214,6 @@
 
 .notif-page-item:hover {
   background: #f8f9fb;
-}
-
-.notif-page-item.unread {
-  border-left: 3px solid #2a5f9e;
 }
 
 /* Preferences */
