@@ -9,6 +9,8 @@ import '../asset/asset_page.dart';
 import '../asset/room_checklist_page.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -23,6 +25,12 @@ class ManageRoomsPage extends StatefulWidget {
 class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Campus? _selectedCampus;
   Building? _selectedBuilding;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('rooms', [
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'type', label: 'Tipe'),
+    const ColumnDef(key: 'capacity', label: 'Kapasiteit'),
+  ]);
 
   @override
   void initState() {
@@ -359,18 +367,37 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       ],
                     ),
                   const SizedBox(height: 30),
-                  const Text(
-                    "BESTAANDE LOKALE (Klik om bates te sien)",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "BESTAANDE LOKALE (Klik om bates te sien)",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
+                      ),
+                      ColumnVisibilityButton(controller: _colVis),
+                    ],
                   ),
                   const SizedBox(height: 10),
-                  Expanded(
-                    child: _availableRooms.isEmpty
-                        ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
-                        : ListView.builder(
-                            itemCount: _availableRooms.length,
-                            itemBuilder: (context, index) {
-                              final room = _availableRooms[index];
+                  () {
+                    final filtered = List<Room>.from(_availableRooms);
+                    if (_sortCtrl.isActive) {
+                      filtered.sort((a, b) {
+                        final dir = _sortCtrl.direction;
+                        switch (_sortCtrl.sortKey) {
+                          case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                          case 'type': return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
+                          case 'capacity': return (a.capacity ?? 0).compareTo(b.capacity ?? 0) * dir;
+                          default: return 0;
+                        }
+                      });
+                    }
+                    return Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final room = filtered[index];
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 10),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -415,7 +442,8 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                               );
                             },
                           ),
-                  ),
+                    );
+                  }(),
                 ],
               ],
             ),

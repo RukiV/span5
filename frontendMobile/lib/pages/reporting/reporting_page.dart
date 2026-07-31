@@ -6,6 +6,8 @@ import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/report.dart';
 import '../../models/user_session.dart';
+import '../../widgets/column_visibility.dart';
+import '../../widgets/sort_utils.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';
 
@@ -21,6 +23,14 @@ class _ReportingPageState extends State<ReportingPage> {
   String _statusFilter = "Alles";
   int? _selectedCampusId;
   int? _selectedBuildingId;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('reports', [
+    const ColumnDef(key: 'id', label: 'ID'),
+    const ColumnDef(key: 'title', label: 'TITEL'),
+    const ColumnDef(key: 'location', label: 'Ligging', defaultVisible: false),
+    const ColumnDef(key: 'phase', label: 'FASE'),
+    const ColumnDef(key: 'timestamp', label: 'Datum', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -69,8 +79,20 @@ class _ReportingPageState extends State<ReportingPage> {
           return matchesSearch && matchesStatus && matchesCampus && matchesBuilding;
         }).toList();
 
-        // Sortering (Nuutste bo)
-        filtered.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        // Dynamiese sortering
+        if (_sortCtrl.isActive) {
+          filtered.sort((a, b) {
+            final dir = _sortCtrl.direction;
+            switch (_sortCtrl.sortKey) {
+              case 'id': return a.id.toLowerCase().compareTo(b.id.toLowerCase()) * dir;
+              case 'title': return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
+              case 'location': return a.location.toLowerCase().compareTo(b.location.toLowerCase()) * dir;
+              case 'phase': return a.phase.toLowerCase().compareTo(b.phase.toLowerCase()) * dir;
+              case 'timestamp': return a.timestamp.compareTo(b.timestamp) * dir;
+              default: return 0;
+            }
+          });
+        }
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -133,7 +155,7 @@ class _ReportingPageState extends State<ReportingPage> {
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 fillColor: Colors.white.withValues(alpha: 30/255),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -171,6 +193,8 @@ class _ReportingPageState extends State<ReportingPage> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          ColumnVisibilityButton(controller: _colVis),
         ],
       ),
     );
@@ -183,14 +207,19 @@ class _ReportingPageState extends State<ReportingPage> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
           color: AppColors.gold,
-          child: const Row(
-            children: [
-              Expanded(flex: 1, child: Text("ID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 3, child: Text("Beskrywing", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-              Expanded(flex: 2, child: Text("Status", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-            ],
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            children: _colVis.visibleColumns.map((col) {
+              return SortableHeader(
+                label: col.label,
+                sortKey: col.key,
+                controller: _sortCtrl,
+                flex: _columnFlex(col.key),
+                textAlign: TextAlign.left,
+                onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
+              );
+            }).toList(),
           ),
         ),
         Expanded(
@@ -211,26 +240,12 @@ class _ReportingPageState extends State<ReportingPage> {
                   color: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
                   child: Row(
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: Text("#${r.id}", style: const TextStyle(color: Colors.black87, fontSize: 13)),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                            Text(r.location, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: _buildStatusChip(r.phase),
-                      ),
-                    ],
+                    children: _colVis.visibleColumns.map((col) {
+                      return Expanded(
+                        flex: _columnFlex(col.key),
+                        child: _buildColumnContent(r, col.key),
+                      );
+                    }).toList(),
                   ),
                 ),
               );
@@ -266,6 +281,39 @@ class _ReportingPageState extends State<ReportingPage> {
   }
 
   // _buildStatusText verwyder aangesien ons nou die herbruikbare StatusBadge widget gebruik
+
+  /// Returns the flex value for a given column key.
+  int _columnFlex(String key) {
+    switch (key) {
+      case 'id': return 1;
+      case 'title': return 3;
+      case 'location': return 2;
+      case 'phase': return 2;
+      case 'timestamp': return 2;
+      default: return 1;
+    }
+  }
+
+  /// Builds the content widget for a column in a report list row.
+  Widget _buildColumnContent(Report r, String key) {
+    switch (key) {
+      case 'id':
+        return Text("#${r.id}", style: const TextStyle(color: Colors.black87, fontSize: 13));
+      case 'title':
+        return Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14));
+      case 'location':
+        return Text(r.location, style: const TextStyle(fontSize: 11, color: Colors.grey));
+      case 'phase':
+        return _buildStatusChip(r.phase);
+      case 'timestamp':
+        return Text(
+          '${r.timestamp.day}/${r.timestamp.month}/${r.timestamp.year}',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
 
   void _handleNewReport(BuildContext context) async {
     await Navigator.push(
