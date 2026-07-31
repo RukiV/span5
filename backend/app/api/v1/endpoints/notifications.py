@@ -1,3 +1,8 @@
+# =============================================================================
+# API-eindpunte vir die kennisgewingstelsel
+# Vloei:  frontend (web/mobiel) → hierdie endpoints → NotificationService → modelle
+# Elk van die endpoints gebruik require_right(...) vir regtebeheer.
+# =============================================================================
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
@@ -13,6 +18,7 @@ router = APIRouter()
 def get_notif_service(session: Session = Depends(getSession)):
     return NotificationService(session)
 
+# --- Lys kennisgewings met filter (tipe, gelees/ongelees) en paginering ---
 @router.get("", response_model=dict)
 def list_notifications(
     page: int = Query(1, ge=1),
@@ -36,6 +42,7 @@ def list_notifications(
         "per_page": per_page,
     }
 
+# --- Kry ongelees-telling + die 5 mees onlangse (vir die navbar-kenteken en toast-voorskou) ---
 @router.get("/unread")
 def get_unread(
     current_user: User = Depends(require_right("notifications.view")),
@@ -48,6 +55,7 @@ def get_unread(
         "latest": [NotificationRead.model_validate(n) for n in items],
     }
 
+# --- Merk een kennisgewing as gelees ---
 @router.patch("/{notification_id}/read")
 def mark_read(
     notification_id: int,
@@ -59,6 +67,7 @@ def mark_read(
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"ok": True}
 
+# --- Merk alle kennisgewings as gelees ---
 @router.patch("/read-all")
 def mark_all_read(
     current_user: User = Depends(require_right("notifications.view")),
@@ -67,6 +76,7 @@ def mark_all_read(
     count = service.mark_all_read(current_user.user_id)
     return {"ok": True, "count": count}
 
+# --- Verwyder een kennisgewing permanent ---
 @router.delete("/{notification_id}")
 def delete_notification(
     notification_id: int,
@@ -78,6 +88,7 @@ def delete_notification(
         raise HTTPException(status_code=404, detail="Notification not found")
     return {"ok": True}
 
+# --- Laai die huidige gebruiker se voorkeure (per kennisgewing-tipe) ---
 @router.get("/preferences")
 def get_preferences(
     current_user: User = Depends(require_right("notifications.manage")),
