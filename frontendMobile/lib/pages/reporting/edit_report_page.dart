@@ -7,8 +7,9 @@ import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
 import '../../models/report.dart';
-import '../../models/campus.dart';
+import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 
 class EditReportPage extends StatefulWidget {
   final Report report;
@@ -79,20 +80,46 @@ class _EditReportPageState extends State<EditReportPage> {
     super.dispose();
   }
 
-  List<String> get _filteredBuildings {
-    if (_selectedCampus == null) return [];
-    final campus = CampusService.getCampusByName(_selectedCampus!);
-    if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
+  /// Die verslag se `location` is 'n lokaal-ID; ons soek die pad daarheen op
+  /// sodat die kieser met die bestaande ligging oopmaak.
+  int? get _initialRoomId => int.tryParse(widget.report.location);
+
+  int? get _initialBuildingId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return b.id;
+      }
+    }
+    return null;
   }
 
-  List<String> get _filteredRooms {
-    if (_selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(_selectedCampus ?? '');
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == _selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  int? get _initialCampusId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return c.id;
+      }
+    }
+    return null;
+  }
+
+  /// Vertaal die kieser se ID's na die string-vorm wat [_saveChanges] verwag.
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room =
+        (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
+
+    setState(() {
+      _selectedCampus = campus?.name;
+      _selectedBuilding = building?.name;
+      _selectedLocation = room == null ? null : '${room.id}:${room.name}';
+    });
   }
 
   Future<void> _saveChanges() async {
@@ -187,47 +214,13 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     _buildDropdown("Status", _status, _statuses, (val) => setState(() => _status = val!)),
                     const SizedBox(height: 20),
-                    ValueListenableBuilder<List<Campus>>(
-                      valueListenable: CampusService.campusesNotifier,
-                      builder: (context, campuses, _) {
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: SearchableDropdown<String>(
-                                label: "Kampus",
-                                hint: "Kies Kampus",
-                                value: _selectedCampus,
-                                items: campuses
-                                    .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                                    .toList(),
-                                onChanged: (v) => setState(() {
-                                  _selectedCampus = v;
-                                  _selectedBuilding = null;
-                                  _selectedLocation = null;
-                                }),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: SearchableDropdown<String>(
-                                label: "Gebou",
-                                hint: "Kies Gebou",
-                                value: _selectedBuilding,
-                                items: _filteredBuildings
-                                    .map((b) => SearchableDropdownItem(value: b, label: b))
-                                    .toList(),
-                                onChanged: (v) => setState(() {
-                                  _selectedBuilding = v;
-                                  _selectedLocation = null;
-                                }),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    LocationCascadePicker(
+                      label: "Ligging *",
+                      initialCampusId: _initialCampusId,
+                      initialBuildingId: _initialBuildingId,
+                      initialRoomId: _initialRoomId,
+                      onChanged: _onLocationChanged,
                     ),
-                    const SizedBox(height: 20),
-                    _buildRoomDropdown(),
                     const SizedBox(height: 20),
                     _buildTextField("Beskrywing", _descriptionController, maxLines: 5),
                     const SizedBox(height: 16),
@@ -252,19 +245,6 @@ class _EditReportPageState extends State<EditReportPage> {
     );
   }
 //checkmark for room asset scanning and barcode scanning
-  Widget _buildRoomDropdown() {
-    return SearchableDropdown<String>(
-      label: "Lokaal",
-      hint: "Kies Lokaal",
-      value: _selectedLocation ?? widget.report.location,
-      items: _filteredRooms.map((r) {
-        final name = r.contains(":") ? r.split(":").last : r;
-        return SearchableDropdownItem(value: r, label: name);
-      }).toList(),
-      onChanged: (v) => setState(() => _selectedLocation = v),
-    );
-  }
-
   Widget _buildPhotoSection() {
     final baseUrl = ApiClient().client.options.baseUrl;
     final visibleExisting = _existingImageIds.where((id) => !_removedImageIds.contains(id)).toList();
