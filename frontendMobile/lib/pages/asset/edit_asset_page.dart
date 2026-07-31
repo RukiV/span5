@@ -53,6 +53,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -61,6 +62,30 @@ class _EditAssetPageState extends State<EditAssetPage> {
           selectedBuilding = CampusService.getBuildingNameByRoomId(a.location);
           selectedLocation = a.location;
         });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _serialController.removeListener(_enforceSerialPrefix);
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    _serialController.dispose();
+    super.dispose();
+  }
+
+  /// Wanneer die kampusboom eers ná die eerste bou laai, moet die kieser se
+  /// beginligging steeds ingevul word. Moenie die gebruiker se eie keuse
+  /// oorskryf as hy reeds 'n nuwe ligging gekies het nie.
+  void _onCampusesChanged() {
+    if (!mounted) return;
+    final original = widget.asset.location;
+    final userHasNotChanged = selectedLocation == null || selectedLocation == original;
+    setState(() {
+      if (userHasNotChanged) {
+        selectedCampus = CampusService.getCampusNameByRoomId(original);
+        selectedBuilding = CampusService.getBuildingNameByRoomId(original);
+        selectedLocation = original;
       }
     });
   }
@@ -75,13 +100,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
       _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
     }
     serialCode = _serialController.text;
-  }
-
-  @override
-  void dispose() {
-    _serialController.removeListener(_enforceSerialPrefix);
-    _serialController.dispose();
-    super.dispose();
   }
 
   String? _locationError;

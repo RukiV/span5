@@ -9,6 +9,7 @@ import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
+import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
 import '../../models/user_session.dart';
 import '../../services/notification_service.dart';
@@ -136,6 +137,11 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
     }
 
+    // Gebruikers — Admin slegs (users.manage), laaste item in die navigasie.
+    if (can('users.manage')) {
+      menu.add({'title': 'Gebruikers', 'icon': Icons.group_outlined, 'page': const UsersPage()});
+    }
+
     return menu; // Kan leeg wees as geen reg pas nie (gebruiker moet weer aanmeld).
   }
 
@@ -215,7 +221,6 @@ class _HomePageState extends State<HomePage> {
                     IconButton(
                       icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                       onPressed: () async {
-                        await NotificationService.markAllAsRead();
                         if (context.mounted) {
                           Navigator.push(
                             context,
