@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/campus_service.dart';
 import '../../services/stock_service.dart';
 import '../../models/stock.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 
 class EditStockPage extends StatefulWidget {
   final Stock stock;
@@ -23,9 +23,34 @@ class _EditStockPageState extends State<EditStockPage> {
   late int boxTotal;
   late String type;
   late String description;
-  String? selectedCampus;
-  String? selectedBuilding;
-  String? selectedRoom;
+  int? _campusId;
+  int? _buildingId;
+  int? _roomId;
+  String? _locationError;
+
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    setState(() {
+      _campusId = campusId;
+      _buildingId = buildingId;
+      _roomId = roomId;
+      if (roomId != null) _locationError = null;
+    });
+  }
+
+  void _resolveRoomPath(int roomId) {
+    for (final campus in CampusService.campusesNotifier.value) {
+      for (final building in campus.buildings) {
+        for (final room in building.rooms ?? const []) {
+          if (room.id == roomId) {
+            _campusId = campus.id;
+            _buildingId = building.id;
+            _roomId = room.id;
+            return;
+          }
+        }
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -42,32 +67,32 @@ class _EditStockPageState extends State<EditStockPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() {
-          selectedCampus = s.roomId != null ? CampusService.getCampusNameByRoomId(s.roomId.toString()) : null;
-          selectedBuilding = s.roomId != null ? CampusService.getBuildingNameByRoomId(s.roomId.toString()) : null;
-          selectedRoom = s.roomId?.toString();
+          if (s.roomId != null) {
+            _resolveRoomPath(s.roomId!);
+          }
         });
       }
     });
   }
 
-  List<String> get _availableBuildings {
-    if (selectedCampus == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus!);
-    if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
+  @override
+  void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    super.dispose();
   }
 
-  List<String> get availableRooms {
-    if (selectedCampus == null || selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus!);
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  void _onCampusesChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (widget.stock.roomId != null && _campusId == null) {
+        _resolveRoomPath(widget.stock.roomId!);
+      }
+    });
   }
 
   @override
@@ -134,49 +159,13 @@ class _EditStockPageState extends State<EditStockPage> {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  SearchableDropdown<String>(
-                    label: "Kampus",
-                    hint: "Kies 'n kampus",
-                    value: selectedCampus,
-                    items: CampusService.campusesNotifier.value
-                        .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() {
-                        selectedCampus = v;
-                        selectedBuilding = null;
-                        selectedRoom = null;
-                      });
-                    },
-                    validator: (v) => (v == null) ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 20),
-                  SearchableDropdown<String>(
-                    label: "Gebou",
-                    hint: selectedCampus == null ? "Kies eers 'n kampus" : "Kies 'n gebou",
-                    value: selectedBuilding,
-                    items: _availableBuildings
-                        .map((b) => SearchableDropdownItem(value: b, label: b))
-                        .toList(),
-                    onChanged: (v) {
-                      setState(() {
-                        selectedBuilding = v;
-                        selectedRoom = null;
-                      });
-                    },
-                    validator: (v) => (v == null) ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 20),
-                  SearchableDropdown<String>(
-                    label: "Lokaal",
-                    hint: selectedBuilding == null ? "Kies eers 'n gebou" : "Kies 'n lokaal",
-                    value: selectedRoom,
-                    items: availableRooms.map((r) {
-                      final name = r.contains(":") ? r.split(":").last : r;
-                      return SearchableDropdownItem(value: r, label: name);
-                    }).toList(),
-                    onChanged: (v) => setState(() => selectedRoom = v),
-                    validator: (v) => (v == null) ? "Vereis" : null,
+                  LocationCascadePicker(
+                    label: "Ligging *",
+                    initialCampusId: _campusId,
+                    initialBuildingId: _buildingId,
+                    initialRoomId: _roomId,
+                    errorText: _locationError,
+                    onChanged: _onLocationChanged,
                   ),
                   const SizedBox(height: 20),
                   _buildField("Beskrywing", (v) => description = v, initialValue: description, maxLines: 3),
@@ -191,12 +180,11 @@ class _EditStockPageState extends State<EditStockPage> {
                       const SizedBox(width: 16),
                       ElevatedButton(
                         onPressed: () async {
+                          if (_roomId == null) {
+                            setState(() => _locationError = "Kies 'n volledige ligging");
+                            return;
+                          }
                           if (_formKey.currentState!.validate()) {
-                            int? roomId;
-                            if (selectedRoom != null && selectedRoom!.contains(":")) {
-                              roomId = int.tryParse(selectedRoom!.split(":").first);
-                            }
-
                             final updated = Stock(
                               id: widget.stock.id,
                               name: name,
@@ -206,7 +194,7 @@ class _EditStockPageState extends State<EditStockPage> {
                               boxTotal: boxTotal,
                               type: type,
                               description: description,
-                              roomId: roomId,
+                              roomId: _roomId,
                             );
 
                             final success = await StockService.updateStock(updated);

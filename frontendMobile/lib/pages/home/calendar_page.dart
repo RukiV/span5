@@ -144,7 +144,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     const Spacer(),
                     Switch(
                       value: notifyEmail,
-                      activeColor: AppColors.gold,
+                      activeThumbColor: AppColors.gold,
                       onChanged: (v) => setDialogState(() => notifyEmail = v),
                     ),
                   ],

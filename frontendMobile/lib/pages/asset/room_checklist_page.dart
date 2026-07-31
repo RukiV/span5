@@ -16,10 +16,10 @@ enum _CheckStatus { pending, confirmed, faultReported, missing }
 
 class _CheckItem {
   final Asset asset;
-  _CheckStatus status;
+  _CheckStatus status = _CheckStatus.pending;
   int? faultId;
 
-  _CheckItem({required this.asset, this.status = _CheckStatus.pending, this.faultId});
+  _CheckItem({required this.asset});
 }
 
 class RoomChecklistPage extends StatefulWidget {
@@ -88,16 +88,15 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   }
 
   String get _roomName {
-    return CampusService.getRoomName(widget.roomId.toString()) ??
-        "Lokaal ${widget.roomId}";
+    return CampusService.getRoomName(widget.roomId.toString());
   }
 
   String get _buildingName {
-    return CampusService.getBuildingNameByRoomId(widget.roomId.toString()) ?? "";
+    return CampusService.getBuildingNameByRoomId(widget.roomId.toString());
   }
 
   String get _campusName {
-    return CampusService.getCampusNameByRoomId(widget.roomId.toString()) ?? "";
+    return CampusService.getCampusNameByRoomId(widget.roomId.toString());
   }
 
   Future<void> _handleScanResult(String code) async {

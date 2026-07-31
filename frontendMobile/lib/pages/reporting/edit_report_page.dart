@@ -55,7 +55,32 @@ class _EditReportPageState extends State<EditReportPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
     _loadImages();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    super.dispose();
+  }
+
+  /// Wanneer die kampusboom eers ná die eerste bou laai, moet die kieser se
+  /// beginligging steeds ingevul word. Moenie die gebruiker se eie keuse
+  /// oorskryf as hy reeds 'n nuwe ligging gekies het nie.
+  void _onCampusesChanged() {
+    if (!mounted) return;
+    final original = widget.report.location;
+    final userHasNotChanged = _selectedLocation == null || _selectedLocation == original;
+    setState(() {
+      if (userHasNotChanged) {
+        _selectedCampus = CampusService.getCampusNameByRoomId(original);
+        _selectedBuilding = CampusService.getBuildingNameByRoomId(original);
+        _selectedLocation = original;
+      }
+    });
   }
 
   Future<void> _loadImages() async {
@@ -71,13 +96,6 @@ class _EditReportPageState extends State<EditReportPage> {
         _imagesLoading = false;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
   }
 
   /// Die verslag se `location` is 'n lokaal-ID; ons soek die pad daarheen op
