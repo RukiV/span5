@@ -4,6 +4,9 @@ import '../styles/App.css';
 import '../styles/Users.css';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import { useToast } from '../components/Toast/useToast';
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
@@ -15,8 +18,22 @@ function UsersPage({ embedded = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
   const [filterColumn, setFilterColumn] = useState('all');
-  const [sortBy, setSortBy] = useState('default');
-  const [sortDirection, setSortDirection] = useState('asc');
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+
+  const USER_COLUMNS = [
+    { key: 'id', label: 'ID', render: (u) => u.user_id, sortKey: 'id', defaultVisible: false },
+    { key: 'name', label: 'Naam', render: (u) => u.user_name, sortKey: 'name', defaultVisible: true },
+    { key: 'surname', label: 'Van', render: (u) => u.user_surname || '-', sortKey: 'surname', defaultVisible: false },
+    { key: 'email', label: 'E-pos', render: (u) => u.user_email, sortKey: 'email', defaultVisible: true },
+    { key: 'number', label: 'Telefoon', render: (u) => u.user_number || '-', sortKey: 'number', defaultVisible: false },
+    { key: 'role', label: 'Rol', render: (u) => { const role = roles.find(r => r.role_id === u.role_id); return <span className={`badge ${getRoleClass(u.role_id)}`}>{role ? role.role_name : u.role_id}</span>; }, sortKey: 'role', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (u) => { const label = u.user_status === 'active' ? 'Aktief' : 'Onaktief'; return <span className={getStatusClass(u.user_status)}>{label}</span>; }, sortKey: 'status', defaultVisible: true },
+    { key: 'terrain', label: 'Terrein', render: (u) => { const t = terrains.find(t => t.location_id === u.location_id); return t ? t.location_name : '-'; }, sortKey: 'terrain', defaultVisible: false },
+    { key: 'lastlogin', label: 'Laaste Aanmelding', render: (u) => u.user_lastlogintime ? new Date(u.user_lastlogintime).toLocaleDateString('af-ZA') : '-', sortKey: 'lastlogin', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('users-page', USER_COLUMNS);
+  const colPickerRef = useRef(null);
+
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [formUser, setFormUser] = useState({
@@ -203,10 +220,25 @@ function UsersPage({ embedded = false }) {
       return matchesFilter && matchesColumn;
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'name') return String(a.user_name || '').localeCompare(String(b.user_name || ''), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'email') return String(a.user_email || '').localeCompare(String(b.user_email || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'id') return ((a.user_id || 0) - (b.user_id || 0)) * dir;
+      if (sortKey === 'name') return String(a.user_name || '').localeCompare(String(b.user_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'surname') return String(a.user_surname || '').localeCompare(String(b.user_surname || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'email') return String(a.user_email || '').localeCompare(String(b.user_email || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'number') return String(a.user_number || '').localeCompare(String(b.user_number || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'role') return String(getRoleName(a.role_id) || '').localeCompare(String(getRoleName(b.role_id) || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'status') return String(a.user_status || '').localeCompare(String(b.user_status || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'terrain') {
+        const ta = terrains.find(t => t.location_id === a.location_id);
+        const tb = terrains.find(t => t.location_id === b.location_id);
+        return String(ta ? ta.location_name : '').localeCompare(String(tb ? tb.location_name : ''), 'af', { sensitivity: 'base' }) * dir;
+      }
+      if (sortKey === 'lastlogin') {
+        const da = a.user_lastlogintime ? new Date(a.user_lastlogintime).getTime() : 0;
+        const db = b.user_lastlogintime ? new Date(b.user_lastlogintime).getTime() : 0;
+        return (da - db) * dir;
+      }
       return 0;
     });
 
@@ -258,16 +290,13 @@ function UsersPage({ embedded = false }) {
           </select>
         </div>
         <div className="controls-right">
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="default">Standaard</option>
-            <option value="name">Naam</option>
-            <option value="email">E-pos</option>
-          </select>
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-          </div>
-
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={USER_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+          />
           <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
         </div>
       </div>
@@ -275,25 +304,34 @@ function UsersPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>Naam</th>
-            <th>E-pos</th>
-            <th>Rol</th>
-            <th>Status</th>
-            <th>Aksies</th>
+            {colVis.visibleColumns.map((col) => (
+              <th
+                key={col.key}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </th>
+            ))}
+            <th style={{ width: '120px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
-          {filteredUsers.map(user => (
-            <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
-              <td>{user.user_name}</td>
-              <td>{user.user_email}</td>
-              <td><span className={`badge ${getRoleClass(user.role_id)}`}>{getRoleName(user.role_id)}</span></td>
-              <td className={getStatusClass(user.user_status)}>{user.user_status === 'active' ? 'Aktief' : 'Onaktief'}</td>
-              <td onClick={e => e.stopPropagation()}>
-                <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
-              </td>
-            </tr>
-          ))}
+          {filteredUsers.length === 0 ? (
+            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen gebruikers gevind</td></tr>
+          ) : (
+            filteredUsers.map(user => (
+              <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
+                {colVis.visibleColumns.map((col) => (
+                  <td key={col.key}>{col.render(user)}</td>
+                ))}
+                <td onClick={e => e.stopPropagation()}>
+                  <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </>

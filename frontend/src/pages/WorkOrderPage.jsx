@@ -11,6 +11,9 @@ import { useToast } from '../components/Toast/useToast';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -29,8 +32,28 @@ function WorkOrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
+
+  const WORKORDER_COLUMNS = [
+    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: true },
+    { key: 'description', label: 'Beskrywing', render: (o) => o.job_desc || '-', sortKey: 'description', defaultVisible: true },
+    { key: 'type', label: 'Werksoort', render: (o) => o.job_type || '-', sortKey: 'type', defaultVisible: true },
+    { key: 'priority', label: 'Prioriteit', render: (o) => o.job_priority || '-', sortKey: 'priority', defaultVisible: false },
+    { key: 'asset_id', label: 'Bate ID', render: (o) => o.asset_id || '-', sortKey: 'asset_id', defaultVisible: false },
+    { key: 'fault_id', label: 'Fault ID', render: (o) => o.fault_id || '-', sortKey: 'fault_id', defaultVisible: false },
+    { key: 'location_id', label: 'Terrein ID', render: (o) => o.location_id || '-', sortKey: 'location_id', defaultVisible: false },
+    { key: 'building_id', label: 'Gebou ID', render: (o) => o.building_id || '-', sortKey: 'building_id', defaultVisible: false },
+    { key: 'room_id', label: 'Lokaal ID', render: (o) => o.room_id || '-', sortKey: 'room_id', defaultVisible: false },
+    { key: 'date', label: 'Datum', render: (o) => o.job_scheduled_datetime ? new Date(o.job_scheduled_datetime).toLocaleDateString('af-ZA') : (o.job_createddatetime ? new Date(o.job_createddatetime).toLocaleDateString('af-ZA') : '-'), sortKey: 'date', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (o) => <span className={`status-badge ${getStatusClass(o.job_status)}`}>{translateStatus(o.job_status)}</span>, sortKey: 'status', defaultVisible: true },
+    { key: 'assigned', label: 'Toegewys', render: (o) => o.assigned_to || '-', sortKey: 'assigned', defaultVisible: false },
+    { key: 'nature', label: 'Aard', render: (o) => o.nature || '-', sortKey: 'nature', defaultVisible: false },
+    { key: 'created', label: 'Geskep', render: (o) => o.job_createddatetime ? new Date(o.job_createddatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
+    { key: 'finished', label: 'Voltooi', render: (o) => o.job_finisheddatetime ? new Date(o.job_finisheddatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'finished', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('workorder-page', WORKORDER_COLUMNS);
+  const colPickerRef = useRef(null);
+
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
@@ -1214,13 +1237,23 @@ function WorkOrderPage() {
       return matchesColumn;
     })
     .sort((a, b) => {
-      switch (sortBy) {
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      switch (sortKey) {
         case "date":
-          return new Date(b.job_createddatetime) - new Date(a.job_createddatetime);
+          return (new Date(a.job_createddatetime) - new Date(b.job_createddatetime)) * dir;
         case "status":
-          return (a.job_status || "").localeCompare(b.job_status || "");
+          return String(a.job_status || "").localeCompare(String(b.job_status || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "description":
+          return String(a.job_desc || "").localeCompare(String(b.job_desc || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "type":
+          return String(a.job_type || "").localeCompare(String(b.job_type || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "asset_id":
+          return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * dir;
+        case "fault_id":
+          return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
         default:
-          return (a.jobcard_id || 0) - (b.jobcard_id || 0);
+          return (Number(a.jobcard_id || 0) - Number(b.jobcard_id || 0)) * dir;
       }
     });
 
@@ -1380,22 +1413,13 @@ function WorkOrderPage() {
             </div>
 
             <div className="controls-right">
-              <select 
-                className="sort-select"
-                id="jobSort"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="id">ID</option>
-                <option value="date">Datum</option>
-                <option value="status">Status</option>
-              </select>
-
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={colVis.columnDefs}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+              />
               <button 
                 type="button"
                 className="btn-add" 
@@ -1412,41 +1436,25 @@ function WorkOrderPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Beskrywing</th>
-                <th>Werksoort</th>
-                <th>Bate ID</th>
-                <th>Lokaal ID</th>
-                <th>Gebou ID</th>
-                <th>Terrein ID</th>
-                <th>Fault ID</th>
-                <th>Datum</th>
-                <th>Status</th>
+                {colVis.visibleColumns.map((col) => (
+                  <th key={col.key} className={col.sortKey ? getSortClass(col.sortKey) : ''} onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
+                    {col.label}{col.sortKey ? getSortIndicator(col.sortKey) : ''}
+                  </th>
+                ))}
                 <th>Aksies</th>
               </tr>
             </thead>
             <tbody>
               {filteredWorkOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
+                  <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
                 </tr>
               ) : (
                 filteredWorkOrders.map((order) => (
                   <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
-                    <td>{order.jobcard_id}</td>
-                    <td className="description-cell">{order.job_desc || "-"}</td>
-                    <td>{order.job_type || "-"}</td>
-                    <td>{order.asset_id || "-"}</td>
-                    <td>{order.room_id || "-"}</td>
-                    <td>{order.building_id || "-"}</td>
-                    <td>{order.location_id || "-"}</td>
-                    <td>{order.fault_id || "-"}</td>
-                    <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
-                    <td>
-                      <span className={`status-badge ${getStatusClass(order.job_status)}`}>
-                        {translateStatus(order.job_status)}
-                      </span>
-                    </td>
+                    {colVis.visibleColumns.map((col) => (
+                      <td key={col.key}>{col.render(order)}</td>
+                    ))}
                     <td onClick={e => e.stopPropagation()}>
                       <button 
                         type="button"

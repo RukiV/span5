@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { authAPI } from "../services/api";
 import { apiClient, assetsAPI, locationAPI, buildingsAPI, roomsAPI } from "../services/api";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import '../styles/App.css';
 import '../styles/Predictions.css';
 
@@ -45,6 +48,23 @@ function PredictionsPage() {
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
 
+const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+
+const getAssetName = (p) => p.asset_name || '-';
+const getAssetSerial = (p) => p.asset_serial || '-';
+const getAssetTypeName = (p) => p.assettype_name || '-';
+
+const PREDICTION_COLUMNS = [
+  { key: 'asset_name', label: 'Bate', render: (p) => getAssetName(p), sortKey: 'asset_name', defaultVisible: true },
+  { key: 'serial', label: 'Serienommer', render: (p) => getAssetSerial(p), sortKey: 'serial', defaultVisible: true },
+  { key: 'type', label: 'Tipe', render: (p) => getAssetTypeName(p), sortKey: 'type', defaultVisible: true },
+  { key: 'maintenance', label: 'Onderhoud', render: (p) => { const b = getMaintenanceBadge(p.maintenance_overdue); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'maintenance', defaultVisible: true },
+  { key: 'lifespan', label: 'Lewensduur', render: (p) => { const b = getLifespanBadge(p.lifespan_pct_used); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'lifespan', defaultVisible: true },
+  { key: 'replacement', label: 'Vervang', render: (p) => { const b = getReplacementBadge(p.replacement_suggested); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'replacement', defaultVisible: true },
+  { key: 'details', label: 'Besonderhede', render: (p) => null, sortKey: null, defaultVisible: true },
+];
+const colVis = useColumnVisibility('predictions-page', PREDICTION_COLUMNS);
+const colPickerRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -119,6 +139,25 @@ function PredictionsPage() {
       if (String(rmId) !== roomFilter) return false;
     }
     return true;
+  })
+  .sort((a, b) => {
+    if (!sortKey) return 0;
+    const dir = sortDirection === 'asc' ? 1 : -1;
+    if (sortKey === 'asset_name') return String(a.asset_name || '').localeCompare(String(b.asset_name || ''), 'af', { sensitivity: 'base' }) * dir;
+    if (sortKey === 'serial') return String(a.asset_serial || '').localeCompare(String(b.asset_serial || ''), 'af', { sensitivity: 'base' }) * dir;
+    if (sortKey === 'type') return String(a.assettype_name || '').localeCompare(String(b.assettype_name || ''), 'af', { sensitivity: 'base' }) * dir;
+    if (sortKey === 'maintenance') {
+      const aVal = a.maintenance_overdue ? 1 : 0;
+      const bVal = b.maintenance_overdue ? 1 : 0;
+      return (aVal - bVal) * dir;
+    }
+    if (sortKey === 'lifespan') return (Number(a.lifespan_pct_used || 0) - Number(b.lifespan_pct_used || 0)) * dir;
+    if (sortKey === 'replacement') {
+      const aVal = a.replacement_suggested ? 1 : 0;
+      const bVal = b.replacement_suggested ? 1 : 0;
+      return (aVal - bVal) * dir;
+    }
+    return 0;
   });
 
   const needsAttention = filteredPredictions.filter(
@@ -209,7 +248,15 @@ function PredictionsPage() {
                 );
               })()}
             </div>
-            <div className="controls-right"></div>
+            <div className="controls-right">
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={PREDICTION_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+              />
+            </div>
           </div>
           <div className="pred-kpi-grid">
             <div className="pred-kpi-card">
@@ -235,20 +282,20 @@ function PredictionsPage() {
             <table className="standard-table">
               <thead>
                 <tr>
-                  <th>Bate</th>
-                  <th>Serienommer</th>
-                  <th>Tipe</th>
-                  <th>Onderhoud</th>
-                  <th>Lewensduur</th>
-                  <th>Vervang</th>
-                  <th>Foute (12m)</th>
+                  {colVis.visibleColumns.map((col) => (
+                    <th
+                      key={col.key}
+                      className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                      onClick={() => col.sortKey && handleSort(col.sortKey)}
+                      onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+                    >
+                      {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {filteredPredictions.map((pred) => {
-                  const maint = getMaintenanceBadge(pred.maintenance_overdue);
-                  const life = getLifespanBadge(pred.lifespan_pct_used);
-                  const repl = getReplacementBadge(pred.replacement_suggested);
                   const isExpanded = expandedId === pred.asset_id;
 
                   return (
@@ -258,17 +305,13 @@ function PredictionsPage() {
                         onClick={() => setExpandedId(isExpanded ? null : pred.asset_id)}
                         style={{ cursor: 'pointer' }}
                       >
-                        <td>{pred.asset_name}</td>
-                        <td>{pred.asset_serial}</td>
-                        <td>{pred.assettype_name || '-'}</td>
-                        <td><span className={`pred-badge ${maint.class}`}>{maint.label}</span></td>
-                        <td><span className={`pred-badge ${life.class}`}>{life.label}</span></td>
-                        <td><span className={`pred-badge ${repl.class}`}>{repl.label}</span></td>
-                        <td>{pred.fault_count_12months}</td>
+                        {colVis.visibleColumns.map((col) => (
+                          <td key={col.key}>{col.render(pred)}</td>
+                        ))}
                       </tr>
                       {isExpanded && (
                         <tr className="pred-detail-row">
-                          <td colSpan="7">
+                          <td colSpan={colVis.visibleColumns.length}>
                             <div className="pred-detail-grid">
                               <div className="pred-detail-section">
                                 <h5>Onderhoud</h5>

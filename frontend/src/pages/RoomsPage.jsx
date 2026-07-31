@@ -8,6 +8,9 @@ import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Rooms.css";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -21,8 +24,18 @@ function RoomsPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const ROOM_COLUMNS = [
+    { key: 'id', label: 'ID', render: (r) => r.room_id, sortKey: 'id', defaultVisible: false },
+    { key: 'name', label: 'Naam', render: (r) => r.room_name, sortKey: 'name', defaultVisible: true },
+    { key: 'code', label: 'Kode', render: (r) => r.room_code || '-', sortKey: 'code', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (r) => translateRoomType(r.room_type), sortKey: 'type', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (r) => r.room_status, sortKey: 'status', defaultVisible: true },
+    { key: 'building', label: 'Gebou', render: (r) => getBuildingName(r.building_id), sortKey: 'building', defaultVisible: true },
+    { key: 'capacity', label: 'Kapasiteit', render: (r) => r.room_capacity ?? '-', sortKey: 'capacity', defaultVisible: true },
+  ];
+  const colVis = useColumnVisibility('rooms-page', ROOM_COLUMNS);
+  const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
@@ -244,11 +257,14 @@ function RoomsPage({ embedded = false }) {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'code') return String(a.room_code || '').localeCompare(String(b.room_code || ''), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'code') return String(a.room_code || '').localeCompare(String(b.room_code || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(translateRoomType(a.room_type) || '').localeCompare(String(translateRoomType(b.room_type) || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'status') return String(a.room_status || '').localeCompare(String(b.room_status || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'building') return String(getBuildingName(a.building_id)).localeCompare(String(getBuildingName(b.building_id)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
       return 0;
     });
 
@@ -259,13 +275,6 @@ function RoomsPage({ embedded = false }) {
     { value: "type", label: "Tipe" },
     { value: "status", label: "Status" },
     { value: "building", label: "Gebou" },
-    { value: "capacity", label: "Kapasiteit" }
-  ];
-
-  const sortByOptions = [
-    { value: "default", label: "Standaard" },
-    { value: "name", label: "Naam" },
-    { value: "code", label: "Kode" },
     { value: "capacity", label: "Kapasiteit" }
   ];
 
@@ -383,19 +392,13 @@ function RoomsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
-          <Select
-            className="basic-single"
-            classNamePrefix="select"
-            value={sortByOptions.find(o => o.value === sortBy)}
-            onChange={(selected) => setSortBy(selected ? selected.value : "default")}
-            options={sortByOptions}
-            isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={ROOM_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
           />
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-          </div>
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
         </div>
       </div>
@@ -403,34 +406,35 @@ function RoomsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>Naam</th>
-            <th>Kode</th>
-            <th>Tipe</th>
-            <th>Status</th>
-            <th>Gebou</th>
-            <th>Kapasiteit</th>
-            <th>Aksies</th>
+            {colVis.visibleColumns.map((col) => (
+              <th
+                key={col.key}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </th>
+            ))}
+            <th style={{ width: '180px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
-          {filteredRooms.map((room) => (
-            <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
-              <td>{room.room_name}</td>
-              <td>{room.room_code ?? '-'}</td>
-              <td>{translateRoomType(room.room_type || 'Ander')}</td>
-              <td>{translateRoomStatus(room.room_status || 'Operasioneel')}</td>
-              <td>{getBuildingName(room.building_id)}</td>
-              <td>{room.room_capacity ?? '-'}</td>
-              <td onClick={e => e.stopPropagation()}>
-                <button className="btn-view" onClick={() => handleViewAssets(room)}>
-                  Besigtig Bates
-                </button>
-                <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>
-                  Verwyder
-                </button>
-              </td>
-            </tr>
-          ))}
+          {filteredRooms.length === 0 ? (
+            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
+          ) : (
+            filteredRooms.map((room) => (
+              <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
+                {colVis.visibleColumns.map((col) => (
+                  <td key={col.key}>{col.render(room)}</td>
+                ))}
+                <td onClick={e => e.stopPropagation()}>
+                  <button className="btn-view" onClick={() => handleViewAssets(room)}>Bekyk Bates</button>
+                  <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>Verwyder</button>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </>
