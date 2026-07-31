@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/quote.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 class QuoteService {
   static final List<Quote> _quotes = [];
   static final ValueNotifier<List<Quote>> quotesNotifier = ValueNotifier(_quotes);
+
+  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
+  static String? _pendingKey;
 
   static Future<void> fetchQuotes() async {
     try {
@@ -22,8 +27,14 @@ class QuoteService {
 
   static Future<bool> addQuote(Quote quote) async {
     try {
-      final response = await ApiClient().client.post('/quotes', data: quote.toJson());
+      _pendingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/quotes',
+        data: quote.toJson(),
+        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+      );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingKey = null;
         await fetchQuotes();
         return true;
       }

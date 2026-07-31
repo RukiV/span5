@@ -1,10 +1,40 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/jobcard.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 class JobcardService {
   static final List<Jobcard> _jobcards = [];
   static final ValueNotifier<List<Jobcard>> jobcardsNotifier = ValueNotifier(_jobcards);
+
+  static String? _pendingCreateKey;
+
+  /// Skep 'n nuwe werksopdrag op die backend.
+  /// Gee die nuwe jobcard_id terug, of null op mislukking.
+  /// 'n Pending X-Idempotency-Key word hergebruik totdat die skep slaag,
+  /// sodat spam-taps / retries nooit duplikaat-werksopdragte maak nie.
+  static Future<int?> createJobcard(Map<String, dynamic> payload) async {
+    _pendingCreateKey ??= Idempotency.generate();
+    try {
+      final response = await ApiClient().client.post(
+        '/job',
+        data: payload,
+        options: Options(headers: {'X-Idempotency-Key': _pendingCreateKey!}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingCreateKey = null;
+        await fetchJobs();
+        final data = response.data;
+        if (data is Map && data['jobcard_id'] != null) {
+          return (data['jobcard_id'] as num).toInt();
+        }
+      }
+    } catch (e) {
+      debugPrint("Fout met skep van werksopdrag: $e");
+    }
+    return null;
+  }
 
   static int get openCount => _jobcards.where((j) => j.status == 'Oop' || j.status == 'Wag').length;
   static int get inProgressCount => _jobcards.where((j) => j.status == 'Besig').length;
