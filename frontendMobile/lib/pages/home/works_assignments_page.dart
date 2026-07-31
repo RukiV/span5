@@ -7,6 +7,7 @@ import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../jobcards/create_jobcard_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
   const WorksAssignmentsPage({super.key});
@@ -56,6 +57,25 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.gold,
+        foregroundColor: Colors.white,
+        onPressed: () async {
+          final created = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const CreateJobcardPage()),
+          );
+          if (created == true && mounted) {
+            ScaffoldMessenger.of(this.context).showSnackBar(
+              const SnackBar(
+                content: Text("Werksopdrag geskep"),
+                backgroundColor: AppColors.successGreen,
+              ),
+            );
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           _buildCampusFilter(),
