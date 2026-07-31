@@ -3,10 +3,10 @@ from sqlmodel import Session
 from datetime import datetime
 
 from ....db.database import getSession
-from ....auth.permissions import get_current_user, require_right
+from ....auth.permissions import require_right
 from ....models.user import User
-from ....models.analytics import AnalyticsRequest, AnalyticsResponse, Suggestion, ChatRequest, ChatResponse
-from ....services.analytics_service import generate_insights, _execute_suggestion, answer_chat_query
+from ....models.analytics import AnalyticsRequest, AnalyticsResponse, Suggestion
+from ....services.analytics_service import generate_insights, _execute_suggestion
 
 router = APIRouter()
 
@@ -33,13 +33,3 @@ def execute_suggestion(
     user: User = Depends(require_right("analytics.view")),
 ):
     return _execute_suggestion(suggestion, session, user.user_id)
-
-
-@router.post("/analytics/chat", response_model=ChatResponse)
-def chat_with_analytics(
-    req: ChatRequest,
-    session: Session = Depends(getSession),
-    _user: User = Depends(require_right("analytics.view")),
-):
-    answer = answer_chat_query(req.page, req.query, req.history, session)
-    return ChatResponse(answer=answer)
