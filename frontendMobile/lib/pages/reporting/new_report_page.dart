@@ -1,5 +1,6 @@
 import 'dart:io';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
@@ -10,7 +11,7 @@ import '../../services/report_service.dart';
 import '../../services/image_service.dart';
 import '../../services/camera_service.dart';
 import '../../models/report.dart';
-import '../../models/campus.dart';
+import '../../models/room.dart';
 import '../../services/asset_service.dart';
 
 class NewReportPage extends StatefulWidget {
@@ -100,20 +101,43 @@ class _NewReportPageState extends State<NewReportPage> {
     }
   }
 
-  List<String> get filteredBuildings {
-    if (selectedCampus == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus!);
-    if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
+  String? _locationError;
+
+  int? _campusIdForName(String? name) {
+    if (name == null) return null;
+    return CampusService.campusesNotifier.value
+        .where((c) => c.name == name)
+        .firstOrNull
+        ?.id;
   }
 
-  List<String> get filteredRooms {
-    if (selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(selectedCampus ?? '');
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  int? _buildingIdForName(String? campusName, String? buildingName) {
+    if (campusName == null || buildingName == null) return null;
+    final campus = CampusService.getCampusByName(campusName);
+    return campus?.buildings.where((b) => b.name == buildingName).firstOrNull?.id;
+  }
+
+  /// `selectedLocation` word as "lokaalId:lokaalNaam" gestoor.
+  int? _roomIdFromFormatted(String? formatted) {
+    if (formatted == null) return null;
+    return int.tryParse(formatted.split(':').first);
+  }
+
+  /// Vertaal die kieser se ID's na die string-vorm wat die stoor-logika verwag.
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room =
+        (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
+
+    setState(() {
+      selectedCampus = campus?.name;
+      selectedBuilding = building?.name;
+      selectedLocation = room == null ? null : '${room.id}:${room.name}';
+      if (room != null) _locationError = null;
+    });
   }
 
   @override
@@ -178,51 +202,14 @@ class _NewReportPageState extends State<NewReportPage> {
 
                   const SizedBox(height: 20),
 
-                  ValueListenableBuilder<List<Campus>>(
-                    valueListenable: CampusService.campusesNotifier,
-                    builder: (context, campuses, _) {
-                      return Row(
-                        children: [
-                          Expanded(
-                            child: SearchableDropdown<String>(
-                              label: "Kampus *",
-                              hint: "Kies Kampus",
-                              value: selectedCampus,
-                              items: campuses
-                                  .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                                  .toList(),
-                              onChanged: (v) => setState(() {
-                                selectedCampus = v;
-                                selectedBuilding = null;
-                                selectedLocation = null;
-                              }),
-                              validator: (v) => v == null ? "Kampus word vereis" : null,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SearchableDropdown<String>(
-                              label: "Gebou *",
-                              hint: selectedCampus == null ? "Kies eers kampus" : "Kies Gebou",
-                              value: selectedBuilding,
-                              items: filteredBuildings
-                                  .map((b) => SearchableDropdownItem(value: b, label: b))
-                                  .toList(),
-                              onChanged: (v) => setState(() {
-                                selectedBuilding = v;
-                                selectedLocation = null;
-                              }),
-                              validator: (v) => v == null ? "Gebou word vereis" : null,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  LocationCascadePicker(
+                    label: "Ligging *",
+                    initialCampusId: _campusIdForName(selectedCampus),
+                    initialBuildingId: _buildingIdForName(selectedCampus, selectedBuilding),
+                    initialRoomId: _roomIdFromFormatted(selectedLocation),
+                    errorText: _locationError,
+                    onChanged: _onLocationChanged,
                   ),
-
-                  const SizedBox(height: 20),
-
-                  _buildRoomDropdown(),
 
                   const SizedBox(height: 20),
 
@@ -260,6 +247,12 @@ class _NewReportPageState extends State<NewReportPage> {
                       const SizedBox(width: 16),
                       ElevatedButton(
                         onPressed: () async {
+                          // Die ligging-kieser is nie 'n FormField nie, so die
+                          // volledige pad word hier afsonderlik nagegaan.
+                          if (selectedLocation == null) {
+                            setState(() => _locationError = "Kies 'n volledige ligging");
+                            return;
+                          }
                           if (!_formKey.currentState!.validate()) {
                             return;
                           }
@@ -449,46 +442,13 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  Widget _buildRoomDropdown() {
-    return SearchableDropdown<String>(
-      label: "Lokaal *",
-      hint: selectedCampus == null ? "Kies eers 'n Kampus" : (selectedBuilding == null ? "Kies eers 'n Gebou" : "Kies Lokaal"),
-      value: selectedLocation,
-      items: filteredRooms.map((r) {
-        final name = r.contains(":") ? r.split(":").last : r;
-        return SearchableDropdownItem(value: r, label: name);
-      }).toList(),
-      onChanged: (v) => setState(() => selectedLocation = v),
-      validator: (v) => v == null ? "Lokaal word vereis" : null,
-    );
-  }
-
   Widget _buildSimpleDropdown(String label, String value, List<String> items, ValueChanged<String> onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-        const SizedBox(height: 6),
-        Container(
-          height: 48,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              isExpanded: true,
-              icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5E34)),
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
-              items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (v) { if (v != null) onChanged(v); },
-            ),
-          ),
-        ),
-      ],
+    return SearchableDropdown<String>(
+      label: label,
+      hint: "Kies $label",
+      value: value,
+      items: items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+      onChanged: (v) { if (v != null) onChanged(v); },
     );
   }
 

@@ -8,6 +8,7 @@ import '../../models/room.dart';
 import '../asset/asset_page.dart';
 import '../asset/room_checklist_page.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -55,11 +56,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
       }
     }
     setState(() {});
-  }
-
-  List<Building> get _availableBuildings {
-    if (_selectedCampus == null) return [];
-    return _selectedCampus!.buildings;
   }
 
   List<Room> get _availableRooms {
@@ -328,74 +324,21 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (UserSession.hasAdminPrivileges && widget.initialCampus == null) ...[
-                  const Text("KIES TERREIN:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Campus>(
-                        isExpanded: true,
-                        value: campuses.any((c) => c.id == _selectedCampus?.id)
-                            ? campuses.firstWhere((c) => c.id == _selectedCampus?.id)
-                            : null,
-                        hint: const Text("Kies 'n terrein"),
-                        items: campuses.map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(c.name),
-                        )).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedCampus = val;
-                            _selectedBuilding = null;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ] else if (_selectedCampus != null) ...[
-                  Text(
-                    "Terrein: ${_selectedCampus!.name}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-                if (_selectedCampus != null) ...[
-                  const Text("KIES GEBOU:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Building>(
-                        isExpanded: true,
-                        value: _availableBuildings.any((b) => b.id == _selectedBuilding?.id)
-                            ? _availableBuildings.firstWhere((b) => b.id == _selectedBuilding?.id)
-                            : null,
-                        hint: const Text("Kies 'n gebou"),
-                        items: _availableBuildings.map((b) => DropdownMenuItem(
-                          value: b,
-                          child: Text(b.name),
-                        )).toList(),
-                        onChanged: (val) {
-                          setState(() => _selectedBuilding = val);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                LocationCascadePicker(
+                  depth: LocationDepth.building,
+                  initialCampusId: _selectedCampus?.id,
+                  initialBuildingId: _selectedBuilding?.id,
+                  onChanged: (campusId, buildingId, _) {
+                    setState(() {
+                      _selectedCampus =
+                          campuses.where((c) => c.id == campusId).firstOrNull;
+                      _selectedBuilding = _selectedCampus?.buildings
+                          .where((b) => b.id == buildingId)
+                          .firstOrNull;
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
 
                 if (_selectedBuilding == null)
                   const Expanded(child: Center(child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey))))
