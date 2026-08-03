@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
 import '../../services/calendar_service.dart';
@@ -143,20 +144,21 @@ class _CalendarPageState extends State<CalendarPage> {
                     const Spacer(),
                     Switch(
                       value: notifyEmail,
-                      activeColor: AppColors.gold,
+                      activeThumbColor: AppColors.gold,
                       onChanged: (v) => setDialogState(() => notifyEmail = v),
                     ),
                   ],
                 ),
                 if (notifyEmail)
-                  DropdownButtonFormField<int>(
+                  SearchableDropdown<int>(
+                    label: "Herinnering",
+                    hint: "Kies herinnering",
                     value: reminderMinutes,
-                    decoration: const InputDecoration(labelText: "Herinnering"),
                     items: const [
-                      DropdownMenuItem(value: 30, child: Text("30 minute voor tyd")),
-                      DropdownMenuItem(value: 60, child: Text("1 uur voor tyd")),
-                      DropdownMenuItem(value: 120, child: Text("2 ure voor tyd")),
-                      DropdownMenuItem(value: 1440, child: Text("24 ure voor tyd")),
+                      SearchableDropdownItem(value: 30, label: "30 minute voor tyd"),
+                      SearchableDropdownItem(value: 60, label: "1 uur voor tyd"),
+                      SearchableDropdownItem(value: 120, label: "2 ure voor tyd"),
+                      SearchableDropdownItem(value: 1440, label: "24 ure voor tyd"),
                     ],
                     onChanged: (v) {
                       if (v != null) setDialogState(() => reminderMinutes = v);

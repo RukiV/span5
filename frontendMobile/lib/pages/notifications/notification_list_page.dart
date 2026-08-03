@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
 import '../../services/notification_service.dart';
 import 'notification_preferences_page.dart';
@@ -179,28 +180,19 @@ class _NotificationListPageState extends State<NotificationListPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: SearchableDropdown<String>(
+                    hint: 'Alle tipes',
                     value: _filterType.isEmpty ? null : _filterType,
-                    decoration: const InputDecoration(
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(),
-                      hintText: 'Alle tipes',
-                      isDense: true,
-                    ),
                     items: const [
-                      DropdownMenuItem(value: '', child: Text('Alle tipes')),
-                      DropdownMenuItem(
-                          value: 'fault.created',
-                          child: Text('Fout Aangeteken')),
-                      DropdownMenuItem(
-                          value: 'job.created',
-                          child: Text('Werksopdrag Geskep')),
-                      DropdownMenuItem(
-                          value: 'stock.low', child: Text('Lae Voorraad')),
-                      DropdownMenuItem(
-                          value: 'system.announcement',
-                          child: Text('Aankondiging')),
+                      SearchableDropdownItem(value: '', label: 'Alle tipes'),
+                      SearchableDropdownItem(
+                          value: 'fault.created', label: 'Fout Aangeteken'),
+                      SearchableDropdownItem(
+                          value: 'job.created', label: 'Werksopdrag Geskep'),
+                      SearchableDropdownItem(
+                          value: 'stock.low', label: 'Lae Voorraad'),
+                      SearchableDropdownItem(
+                          value: 'system.announcement', label: 'Aankondiging'),
                     ],
                     onChanged: (v) {
                       _filterType = v ?? '';

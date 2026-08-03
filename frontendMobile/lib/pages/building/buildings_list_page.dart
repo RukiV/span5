@@ -4,6 +4,7 @@ import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
+import '../../widgets/location_cascade_picker.dart';
 import 'add_building_page.dart';
 import 'edit_building_page.dart';
 import '../rooms/manage_rooms_page.dart';
@@ -96,43 +97,19 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
 
           return Column(
             children: [
-              if (UserSession.hasAdminPrivileges) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Campus>(
-                        isExpanded: true,
-                        value: campuses.any((c) => c.id == _selectedCampus?.id)
-                            ? campuses.firstWhere((c) => c.id == _selectedCampus?.id)
-                            : null,
-                        hint: const Text("Kies 'n terrein"),
-                        items: campuses.map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(c.name),
-                        )).toList(),
-                        onChanged: (val) {
-                          setState(() => _selectedCampus = val);
-                        },
-                      ),
-                    ),
-                  ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                child: LocationCascadePicker(
+                  depth: LocationDepth.campus,
+                  initialCampusId: _selectedCampus?.id,
+                  onChanged: (campusId, _, __) {
+                    setState(() {
+                      _selectedCampus =
+                          campuses.where((c) => c.id == campusId).firstOrNull;
+                    });
+                  },
                 ),
-              ] else if (_selectedCampus != null) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  child: Text(
-                    "Terrein: ${_selectedCampus!.name}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
-                  ),
-                ),
-              ],
+              ),
 
               if (UserSession.hasAdminPrivileges)
                 Padding(
