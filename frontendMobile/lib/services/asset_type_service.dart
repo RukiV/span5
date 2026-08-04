@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 import '../models/asset_type.dart';
 
 class AssetTypeService {
   static final List<AssetType> _types = [];
   static final ValueNotifier<List<AssetType>> typesNotifier = ValueNotifier(_types);
+
+  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
+  static String? _pendingKey;
 
   static Future<void> fetchTypes() async {
     try {
@@ -35,8 +40,14 @@ class AssetTypeService {
       if (avgLifespan != null) data['assettype_avg_lifespan'] = avgLifespan;
       if (minLifespan != null) data['assettype_min_lifespan'] = minLifespan;
       if (maxLifespan != null) data['assettype_max_lifespan'] = maxLifespan;
-      final response = await ApiClient().client.post('/assettypes', data: data);
+      _pendingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/assettypes',
+        data: data,
+        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+      );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingKey = null;
         await fetchTypes();
         return true;
       }

@@ -118,7 +118,7 @@ function AppContent() {
           <AnalyticsPanel />
         </div>
       </div>
-      <button className="analytics-fab" onClick={toggle} title="KI Analise">
+      <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
         {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
       </button>
     </div>
