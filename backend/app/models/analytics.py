@@ -1,21 +1,5 @@
 from typing import Optional
-from datetime import datetime
 from pydantic import BaseModel
-
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatRequest(BaseModel):
-    page: str
-    query: str
-    history: list[ChatMessage] = []
-
-
-class ChatResponse(BaseModel):
-    answer: str
 
 
 class AnalyticsRequest(BaseModel):

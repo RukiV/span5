@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/stock.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 // StockService: Manages the inventory levels and stock items available in the system.
 class StockService {
   // Notifier to alert UI components when the stock list is updated.
   static final List<Stock> _stocks = [];
   static final ValueNotifier<List<Stock>> stocksNotifier = ValueNotifier(_stocks);
+
+  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
+  static String? _pendingKey;
 
   // Fetches current stock levels from the backend.
   static Future<void> fetchStocks() async {
@@ -26,8 +31,14 @@ class StockService {
   // Adds a new stock item to the database.
   static Future<bool> addStock(Stock stock) async {
     try {
-      final response = await ApiClient().client.post('/stock', data: stock.toJson());
+      _pendingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/stock',
+        data: stock.toJson(),
+        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+      );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingKey = null;
         await fetchStocks();
         return true;
       }

@@ -8,6 +8,9 @@ import '../../models/room.dart';
 import '../asset/asset_page.dart';
 import '../room_checklist/room_checklist_page.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -22,6 +25,12 @@ class ManageRoomsPage extends StatefulWidget {
 class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Campus? _selectedCampus;
   Building? _selectedBuilding;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('rooms', [
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'type', label: 'Tipe'),
+    const ColumnDef(key: 'capacity', label: 'Kapasiteit'),
+  ]);
 
   @override
   void initState() {
@@ -55,11 +64,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
       }
     }
     setState(() {});
-  }
-
-  List<Building> get _availableBuildings {
-    if (_selectedCampus == null) return [];
-    return _selectedCampus!.buildings;
   }
 
   List<Room> get _availableRooms {
@@ -328,74 +332,21 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (UserSession.hasAdminPrivileges && widget.initialCampus == null) ...[
-                  const Text("KIES TERREIN:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Campus>(
-                        isExpanded: true,
-                        value: campuses.any((c) => c.id == _selectedCampus?.id)
-                            ? campuses.firstWhere((c) => c.id == _selectedCampus?.id)
-                            : null,
-                        hint: const Text("Kies 'n terrein"),
-                        items: campuses.map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(c.name),
-                        )).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedCampus = val;
-                            _selectedBuilding = null;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ] else if (_selectedCampus != null) ...[
-                  Text(
-                    "Terrein: ${_selectedCampus!.name}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-
-                if (_selectedCampus != null) ...[
-                  const Text("KIES GEBOU:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Building>(
-                        isExpanded: true,
-                        value: _availableBuildings.any((b) => b.id == _selectedBuilding?.id)
-                            ? _availableBuildings.firstWhere((b) => b.id == _selectedBuilding?.id)
-                            : null,
-                        hint: const Text("Kies 'n gebou"),
-                        items: _availableBuildings.map((b) => DropdownMenuItem(
-                          value: b,
-                          child: Text(b.name),
-                        )).toList(),
-                        onChanged: (val) {
-                          setState(() => _selectedBuilding = val);
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                LocationCascadePicker(
+                  depth: LocationDepth.building,
+                  initialCampusId: _selectedCampus?.id,
+                  initialBuildingId: _selectedBuilding?.id,
+                  onChanged: (campusId, buildingId, _) {
+                    setState(() {
+                      _selectedCampus =
+                          campuses.where((c) => c.id == campusId).firstOrNull;
+                      _selectedBuilding = _selectedCampus?.buildings
+                          .where((b) => b.id == buildingId)
+                          .firstOrNull;
+                    });
+                  },
+                ),
+                const SizedBox(height: 20),
 
                 if (_selectedBuilding == null)
                   const Expanded(child: Center(child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey))))
@@ -416,18 +367,37 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       ],
                     ),
                   const SizedBox(height: 30),
-                  const Text(
-                    "BESTAANDE LOKALE (Klik om bates te sien)",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "BESTAANDE LOKALE (Klik om bates te sien)",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
+                      ),
+                      ColumnVisibilityButton(controller: _colVis),
+                    ],
                   ),
                   const SizedBox(height: 10),
-                  Expanded(
-                    child: _availableRooms.isEmpty
-                        ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
-                        : ListView.builder(
-                            itemCount: _availableRooms.length,
-                            itemBuilder: (context, index) {
-                              final room = _availableRooms[index];
+                  () {
+                    final filtered = List<Room>.from(_availableRooms);
+                    if (_sortCtrl.isActive) {
+                      filtered.sort((a, b) {
+                        final dir = _sortCtrl.direction;
+                        switch (_sortCtrl.sortKey) {
+                          case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                          case 'type': return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
+                          case 'capacity': return (a.capacity ?? 0).compareTo(b.capacity ?? 0) * dir;
+                          default: return 0;
+                        }
+                      });
+                    }
+                    return Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (context, index) {
+                                final room = filtered[index];
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 10),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -472,7 +442,8 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                               );
                             },
                           ),
-                  ),
+                    );
+                  }(),
                 ],
               ],
             ),

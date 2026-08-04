@@ -36,6 +36,7 @@ from app.auth import permissions  # noqa: E402
 from app.auth.session import create_session_token  # noqa: E402
 from app.db import seed  # noqa: E402
 from app.db.database import getSession  # noqa: E402
+from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 from app.models.fault import Faultcard  # noqa: E402
 from app.models.job import Jobcard  # noqa: E402
 
@@ -108,6 +109,10 @@ def seeded_fixture(engine):
 def client_fixture(engine, seeded):
     app = FastAPI()
     app.include_router(api_router, prefix="/api/v1")
+
+    # Add idempotency middleware with the test engine so it uses SQLite
+    app.add_middleware(IdempotencyMiddleware)
+    app.state.idempotency_engine = engine
 
     def override_get_session():
         with Session(engine) as session:

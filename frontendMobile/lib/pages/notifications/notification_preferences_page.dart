@@ -108,7 +108,7 @@ class _NotificationPreferencesPageState
         Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
         Switch(
           value: _enabled(type, field),
-          activeColor: AppColors.navy,
+          activeThumbColor: AppColors.navy,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           onChanged: (_) => _toggle(type, field),
         ),

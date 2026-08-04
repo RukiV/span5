@@ -8,6 +8,7 @@ class Stock {
   final String type;
   final String? description;
   final int? roomId;
+  final String? roomName;
 
   Stock({
     this.id,
@@ -19,6 +20,7 @@ class Stock {
     required this.type,
     this.description,
     this.roomId,
+    this.roomName,
   });
 
   factory Stock.fromJson(Map<String, dynamic> json) => Stock(
@@ -31,6 +33,7 @@ class Stock {
     type: json['stock_type'] ?? "",
     description: json['stock_desc'],
     roomId: json['room_id'],
+    roomName: json['room_name'],
   );
 
   Map<String, dynamic> toJson() => {
