@@ -18,4 +18,5 @@ code {
 
 #root {
   min-height: 100vh;
+  width: 100%; /* verseker die app vat altyd die volle viewport-breedte, selfs as `body` ooit 'n flex-container word */
 }

@@ -5,6 +5,8 @@ import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
 import 'campus_detail_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class CampusManagementPage extends StatefulWidget {
   const CampusManagementPage({super.key});
@@ -15,6 +17,12 @@ class CampusManagementPage extends StatefulWidget {
 
 class _CampusManagementPageState extends State<CampusManagementPage> {
   final TextEditingController _searchController = TextEditingController();
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('campuses', [
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
+    const ColumnDef(key: 'buildings', label: 'Geboue'),
+  ]);
   String _query = "";
 
   @override
@@ -80,6 +88,22 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               c.address.toLowerCase().contains(_query)
           ).toList();
 
+          if (_sortCtrl.isActive) {
+            filtered.sort((a, b) {
+              final dir = _sortCtrl.direction;
+              switch (_sortCtrl.sortKey) {
+                case 'name':
+                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                case 'address':
+                  return a.address.toLowerCase().compareTo(b.address.toLowerCase()) * dir;
+                case 'buildings':
+                  return a.buildings.length.compareTo(b.buildings.length) * dir;
+                default:
+                  return 0;
+              }
+            });
+          }
+
           return RefreshIndicator(
             onRefresh: () => CampusService.fetchCampuses(),
             child: Column(
@@ -87,21 +111,29 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                 Container(
                   color: AppColors.navy,
                   padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-                  child: TextField(
-                    controller: _searchController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Soek terreine...",
-                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-                      prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                      fillColor: Colors.white.withValues(alpha: 30 / 255),
-                      filled: true,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(30),
-                        borderSide: BorderSide.none,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: "Soek terreine...",
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
+                            prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                            fillColor: Colors.white.withValues(alpha: 30 / 255),
+                            filled: true,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      ColumnVisibilityButton(controller: _colVis),
+                    ],
                   ),
                 ),
                 if (UserSession.hasAdminPrivileges)

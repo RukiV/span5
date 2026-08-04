@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/report.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 // ReportService: Hanteer alle logika vir die skep, haal en opdatering van foutverslae.
 class ReportService {
   static final List<Report> _reports = [];
   static final ValueNotifier<List<Report>> reportsNotifier = ValueNotifier(_reports);
+
+  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
+  static String? _pendingKey;
 
   static int get pendingCount => _reports.where((r) => r.phase == "Ontvang" || r.phase == "Besig").length;
   static int get highPriorityCount => _reports.where((r) => r.priority == "Hoog").length;
@@ -31,12 +36,18 @@ class ReportService {
   // daarna aan die nuwe kaartjie kan koppel; null op mislukking.
   static Future<Report?> addReport(Report report) async {
     try {
-      final response = await ApiClient().client.post('/fault', data: report.toJson());
+      _pendingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/fault',
+        data: report.toJson(),
+        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final newReport = Report.fromJson(response.data);
         _reports.insert(0, newReport);
         reportsNotifier.value = List.from(_reports);
+        _pendingKey = null;
         return newReport;
       }
     } catch (e) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/jobcard_service.dart';
 import '../../models/jobcard.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class JobCardsPage extends StatefulWidget {
   const JobCardsPage({super.key});
@@ -12,6 +14,14 @@ class JobCardsPage extends StatefulWidget {
 
 class _JobCardsPageState extends State<JobCardsPage> {
   final TextEditingController _searchController = TextEditingController();
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('jobcards', [
+    const ColumnDef(key: 'id', label: 'ID'),
+    const ColumnDef(key: 'description', label: 'Beskrywing'),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+    const ColumnDef(key: 'date', label: 'Datum', defaultVisible: false),
+  ]);
   String _searchQuery = "";
 
   @override
@@ -51,6 +61,26 @@ class _JobCardsPageState extends State<JobCardsPage> {
                 (j.type?.toLowerCase().contains(_searchQuery) ?? false);
           }).toList();
 
+          if (_sortCtrl.isActive) {
+            filtered.sort((a, b) {
+              final dir = _sortCtrl.direction;
+              switch (_sortCtrl.sortKey) {
+                case 'id':
+                  return a.id.compareTo(b.id) * dir;
+                case 'description':
+                  return a.description.toLowerCase().compareTo(b.description.toLowerCase()) * dir;
+                case 'type':
+                  return (a.type ?? '').toLowerCase().compareTo((b.type ?? '').toLowerCase()) * dir;
+                case 'status':
+                  return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+                case 'date':
+                  return (a.createdDatetime ?? DateTime(0)).compareTo(b.createdDatetime ?? DateTime(0)) * dir;
+                default:
+                  return 0;
+              }
+            });
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -89,23 +119,31 @@ class _JobCardsPageState extends State<JobCardsPage> {
     return Container(
       color: AppColors.navy,
       padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: TextField(
-        controller: _searchController,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          hintText: "Soek werkkaarte...",
-          hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-          prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-          fillColor: Colors.white.withValues(alpha: 30 / 255),
-          filled: true,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(30),
-            borderSide: BorderSide.none,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "Soek werkkaarte...",
+                hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
+                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                fillColor: Colors.white.withValues(alpha: 30 / 255),
+                filled: true,
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          ColumnVisibilityButton(controller: _colVis),
+        ],
       ),
     );
   }

@@ -8,6 +8,8 @@ import '../../widgets/location_cascade_picker.dart';
 import 'add_building_page.dart';
 import 'edit_building_page.dart';
 import '../rooms/manage_rooms_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class BuildingsListPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -19,6 +21,12 @@ class BuildingsListPage extends StatefulWidget {
 
 class _BuildingsListPageState extends State<BuildingsListPage> {
   Campus? _selectedCampus;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('buildings', [
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'rooms', label: 'Lokale'),
+    const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -94,6 +102,16 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           if (_selectedCampus != null) {
             buildings = _selectedCampus!.buildings;
           }
+          if (_sortCtrl.isActive) {
+            buildings.sort((a, b) {
+              final dir = _sortCtrl.direction;
+              switch (_sortCtrl.sortKey) {
+                case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                case 'rooms': return (a.rooms?.length ?? 0).compareTo(b.rooms?.length ?? 0) * dir;
+                default: return 0;
+              }
+            });
+          }
 
           return Column(
             children: [
@@ -138,7 +156,16 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                   ),
                 ),
 
-              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ColumnVisibilityButton(controller: _colVis),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
 
               Expanded(
                 child: buildings.isEmpty
