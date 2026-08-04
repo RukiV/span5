@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
@@ -14,6 +14,7 @@ import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
+import { buildFlatLocationOptions } from './locationSearchUtils';
 
 function AssetPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -50,6 +51,7 @@ function AssetPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -670,28 +672,36 @@ function AssetPage({ embedded = false }) {
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {renderBreadcrumb()}
-                <Select
-                  className="react-select-container"
-                  classNamePrefix="react-select"
-                  placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                  isClearable
-                  isDisabled={cascadeCount >= 3}
-                  components={{ Control: CascadeControl }}
-                  styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                  options={(() => {
-                    if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                    if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                    if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                    return [];
-                  })()}
-                  value={currentDisplayValue}
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) return;
-                    if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                    else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                    else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
-                  }}
-                />
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 3}
+                    components={{ Control: CascadeControl }}
+                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    options={allLocationOptions}
+                    filterOption={(option, rawInput) => {
+                      if (rawInput) {
+                        if (cascadeCount === 0)
+                          return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 1)
+                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 2)
+                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      }
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                      return false;
+                    }}
+                    value={currentDisplayValue}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const f = selectedOption._fields;
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                    }}
+                  />
               </div>
             );
           })()}
@@ -863,32 +873,39 @@ function AssetPage({ embedded = false }) {
               return (
                 <>
                   {renderBreadcrumb()}
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    closeMenuOnSelect={false}
-                    components={{ Control: CascadeControl }}
-                    options={(() => {
-                      if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                      if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newAsset.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                      if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newAsset.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                      return [];
-                    })()}
-                    value={null}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) return;
-                      const labels = ["Terrein","Gebou","Lokaal"];
-                      if (cascadeCount === 0) setNewAsset(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
-                      else if (cascadeCount === 1) setNewAsset(p => ({...p, building_id: selectedOption.value, room_id: ""}));
-                      else if (cascadeCount === 2) setNewAsset(p => ({...p, room_id: selectedOption.value}));
-                      if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
-                      setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
-                      setTimeout(() => setCascadeToast(null), 2000);
-                    }}
-                  />
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      closeMenuOnSelect={false}
+                      components={{ Control: CascadeControl }}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(newAsset.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(newAsset.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newAsset.location_id);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newAsset.building_id);
+                        return false;
+                      }}
+                      value={null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        setNewAsset(p => ({...p, ...selectedOption._fields}));
+                        if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                        const labels = ["Terrein","Gebou","Lokaal"];
+                        setCascadeToast(`✓ ${labels[selectedOption._cascadeLevel]} suksesvol geselekteer`);
+                        setTimeout(() => setCascadeToast(null), 2000);
+                      }}
+                    />
                 </>
               );
             })()}
