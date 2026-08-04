@@ -20,6 +20,7 @@ Two design decisions worth calling out (so they are not re-litigated later):
 """
 
 import time
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, status
@@ -27,6 +28,7 @@ from sqlmodel import Session, select
 
 from ..db.database import getSession
 from ..models.role import Rights, RoleRight
+from ..models.revoked_token import RevokedToken
 from ..models.user import User
 from ..services.user_service import user_service
 from .session import verify_session_token
@@ -43,7 +45,14 @@ def _resolve_user(request: Request, session: Session) -> Optional[User]:
     token = _extract_bearer_token(request)
     if not token:
         return None
-    payload = verify_session_token(token)
+
+    revoked_hashes = {
+        r.token_hash for r in session.exec(
+            select(RevokedToken).where(RevokedToken.expires_at > datetime.utcnow())
+        ).all()
+    }
+
+    payload = verify_session_token(token, revoked_hashes=revoked_hashes)
     if not payload:
         return None
     return user_service.getByID(session, payload.get("user_id"))

@@ -27,14 +27,22 @@ class Jobcard {
   final String? type;
   final int? faultId;
   final int? contractorId;
-  final int? userId;
+  final int? creatorId;
   final int? assetId;
   final int? roomId;
   final int? buildingId;
   final int? locationId;
   final DateTime? createdDatetime;
   final DateTime? scheduledDatetime;
+  final DateTime? scheduledEndDatetime;
   final DateTime? finishedDatetime;
+  final String? priority;
+  final String? nature;
+  final String? scheduleType;
+  final int? assignedTo;
+  final String? ccUsers;
+  final int? quoteId;
+  final List<int> quoteIds;
 
   Jobcard({
     required this.id,
@@ -44,14 +52,22 @@ class Jobcard {
     this.type,
     this.faultId,
     this.contractorId,
-    this.userId,
+    this.creatorId,
     this.assetId,
     this.roomId,
     this.buildingId,
     this.locationId,
     this.createdDatetime,
     this.scheduledDatetime,
+    this.scheduledEndDatetime,
     this.finishedDatetime,
+    this.priority,
+    this.nature,
+    this.scheduleType,
+    this.assignedTo,
+    this.ccUsers,
+    this.quoteId,
+    this.quoteIds = const [],
   });
 
   factory Jobcard.fromJson(Map<String, dynamic> json) {
@@ -73,7 +89,7 @@ class Jobcard {
       type: json['job_type'],
       faultId: json['fault_id'],
       contractorId: json['contractor_id'],
-      userId: json['user_id'],
+      creatorId: json['user_id'],
       assetId: json['asset_id'],
       roomId: json['room_id'],
       buildingId: json['building_id'],
@@ -84,10 +100,33 @@ class Jobcard {
       scheduledDatetime: json['job_scheduled_datetime'] != null
           ? DateTime.tryParse(json['job_scheduled_datetime'])
           : null,
+      scheduledEndDatetime: json['job_scheduled_end_datetime'] != null
+          ? DateTime.tryParse(json['job_scheduled_end_datetime'])
+          : null,
       finishedDatetime: json['job_finisheddatetime'] != null
           ? DateTime.tryParse(json['job_finisheddatetime'])
           : null,
+      priority: json['job_priority'],
+      nature: json['nature'],
+      scheduleType: json['job_schedule_type'],
+      assignedTo: json['assigned_to'],
+      ccUsers: json['cc_users'],
+      quoteId: json['quote_id'],
+      quoteIds: _parseQuoteIds(json['quote_ids']),
     );
+  }
+
+  static List<int> _parseQuoteIds(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+    }
+    return raw
+        .toString()
+        .split(',')
+        .map((e) => int.tryParse(e.trim()) ?? 0)
+        .where((e) => e != 0)
+        .toList();
   }
 
   Map<String, dynamic> toJson() {
@@ -117,14 +156,22 @@ class Jobcard {
     String? type,
     int? faultId,
     int? contractorId,
-    int? userId,
+    int? creatorId,
     int? assetId,
     int? roomId,
     int? buildingId,
     int? locationId,
     DateTime? createdDatetime,
     DateTime? scheduledDatetime,
+    DateTime? scheduledEndDatetime,
     DateTime? finishedDatetime,
+    String? priority,
+    String? nature,
+    String? scheduleType,
+    int? assignedTo,
+    String? ccUsers,
+    int? quoteId,
+    List<int>? quoteIds,
   }) {
     return Jobcard(
       id: id ?? this.id,
@@ -134,14 +181,22 @@ class Jobcard {
       type: type ?? this.type,
       faultId: faultId ?? this.faultId,
       contractorId: contractorId ?? this.contractorId,
-      userId: userId ?? this.userId,
+      creatorId: creatorId ?? this.creatorId,
       assetId: assetId ?? this.assetId,
       roomId: roomId ?? this.roomId,
       buildingId: buildingId ?? this.buildingId,
       locationId: locationId ?? this.locationId,
       createdDatetime: createdDatetime ?? this.createdDatetime,
       scheduledDatetime: scheduledDatetime ?? this.scheduledDatetime,
+      scheduledEndDatetime: scheduledEndDatetime ?? this.scheduledEndDatetime,
       finishedDatetime: finishedDatetime ?? this.finishedDatetime,
+      priority: priority ?? this.priority,
+      nature: nature ?? this.nature,
+      scheduleType: scheduleType ?? this.scheduleType,
+      assignedTo: assignedTo ?? this.assignedTo,
+      ccUsers: ccUsers ?? this.ccUsers,
+      quoteId: quoteId ?? this.quoteId,
+      quoteIds: quoteIds ?? this.quoteIds,
     );
   }
 }

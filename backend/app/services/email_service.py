@@ -187,3 +187,57 @@ def send_reminder(
     except Exception as e:
         logger.error(f"Onverwagte fout met e-pos stuur: {e}")
         return False
+
+
+def send_password_reset(to_email: str, reset_url: str) -> bool:
+    if not SMTP_USER or not SMTP_PASS:
+        logger.warning("SMTP nie gekonfigureer. Stuur geen wagwoordherstel-e-pos nie.")
+        return False
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"] = EMAIL_FROM or SMTP_USER
+        msg["To"] = to_email
+        msg["Subject"] = "Wagwoord Herstel - Akademia FBS"
+
+        body = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px;">
+            <div style="background: #0E1E3B; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                <h2 style="margin: 0;">Wagwoord Herstel</h2>
+            </div>
+            <div style="padding: 20px; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
+                <p style="font-size: 16px;">Jy het 'n versoek ontvang om jou wagwoord te herstel.</p>
+                <p>Kliek op die skakel hieronder om jou wagwoord te herstel. Die skakel is geldig vir 1 uur.</p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_url}" style="background: #0E1E3B; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-size: 16px; display: inline-block;">
+                        Herstel Wagwoord
+                    </a>
+                </div>
+                <p style="color: #666; font-size: 13px;">As jy nie 'n wagwoordherstel versoek het nie, ignoreer hierdie e-pos.</p>
+                <hr style="border: none; border-top: 1px solid #eee;">
+                <p style="color: #666; font-size: 12px;">
+                    Akademia Fasiliteitbestuurstelsel
+                </p>
+            </div>
+        </div>
+        """
+
+        msg.attach(MIMEText(body, "html"))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+
+        logger.info(f"Wagwoordherstel-e-pos gestuur na {to_email}")
+        return True
+
+    except smtplib.SMTPAuthenticationError:
+        logger.error("Gmail SMTP authenticatie fout — check SMTP_USER/SMTP_PASS in .env")
+        return False
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP fout: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Onverwagte fout met e-pos stuur: {e}")
+        return False

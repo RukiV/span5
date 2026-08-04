@@ -4,6 +4,7 @@ import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
+import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
   const WorksAssignmentsPage({super.key});
@@ -47,6 +48,21 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final created = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const JobcardFormPage()),
+          );
+          if (created == true) {
+            await JobcardService.fetchJobs();
+          }
+        },
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text("NUWE WERKSOPDRAG", style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
       body: Column(
         children: [
           _buildCampusFilter(),
@@ -98,6 +114,17 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                           ],
                         ),
                         trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                        onTap: () async {
+                          final changed = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => JobcardFormPage(jobcard: job),
+                            ),
+                          );
+                          if (changed == true) {
+                            await JobcardService.fetchJobs();
+                          }
+                        },
                       ),
                     );
                   },

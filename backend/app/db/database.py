@@ -50,6 +50,8 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS contractor_id INTEGER"))
             if "quote_selection_reason" not in columns:
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
+            connection.execute(text("ALTER TABLE quote DROP COLUMN IF EXISTS quote_price"))
+            connection.execute(text("ALTER TABLE quote DROP COLUMN IF EXISTS quote_desc"))
             connection.execute(text("SELECT setval('quote_quote_id_seq', COALESCE(MAX(quote_id), 1)) FROM quote"))
 
         
@@ -76,6 +78,10 @@ def createDBandTables():
             columns = {column["name"] for column in inspector.get_columns("user")}
             if "location_id" not in columns:
                 connection.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS location_id INTEGER REFERENCES location(location_id)"))
+            if "failed_login_attempts" not in columns:
+                connection.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0"))
+            if "locked_until" not in columns:
+                connection.execute(text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP"))
 
         if "notification" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("notification")}
@@ -100,6 +106,19 @@ def createDBandTables():
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_user_read ON notification(user_id, is_read)"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_created ON notification(created_at DESC)"))
 
+        if "revoked_tokens" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    token_id SERIAL PRIMARY KEY,
+                    token_hash VARCHAR(64) NOT NULL,
+                    revoked_at TIMESTAMP DEFAULT NOW(),
+                    expires_at TIMESTAMP NOT NULL,
+                    user_id INTEGER NOT NULL
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_revoked_hash ON revoked_tokens(token_hash)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_revoked_expires ON revoked_tokens(expires_at)"))
+
         if "notification_preferences" not in inspector.get_table_names():
             connection.execute(text("""
                 CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -112,6 +131,19 @@ def createDBandTables():
                 )
             """))
 
+        if "password_reset_tokens" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    reset_id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES "user"(user_id),
+                    token_hash VARCHAR(64) NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    used BOOLEAN DEFAULT FALSE
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_reset_token_hash ON password_reset_tokens(token_hash)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_reset_user ON password_reset_tokens(user_id)"))
+
         if "device_tokens" not in inspector.get_table_names():
             connection.execute(text("""
                 CREATE TABLE IF NOT EXISTS device_tokens (
@@ -123,6 +155,13 @@ def createDBandTables():
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
             """))
+
+
+def purge_expired_revoked_tokens():
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM revoked_tokens WHERE expires_at < NOW()")
+        )
 
 
 def getSession():

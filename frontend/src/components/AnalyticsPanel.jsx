@@ -55,7 +55,7 @@ function SkeletonBlock({ lines = 3 }) {
 
 function AnalyticsPanel() {
   const location = useLocation();
-  const { close } = useAnalytics();
+  const { isOpen, close } = useAnalytics();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -146,6 +146,8 @@ function AnalyticsPanel() {
         })),
       }
     : null;
+
+  if (!isOpen) return null;
 
   return (
     <div className="analytics-inline-panel">
