@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../widgets/searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
 import '../../services/calendar_service.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -16,6 +19,12 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime? _selectedDay;
   List<CalendarEvent> _events = [];
   bool _loading = true;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('calendar', [
+    const ColumnDef(key: 'title', label: 'Titel'),
+    const ColumnDef(key: 'time', label: 'Tyd'),
+    const ColumnDef(key: 'location', label: 'Ligging', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -143,20 +152,21 @@ class _CalendarPageState extends State<CalendarPage> {
                     const Spacer(),
                     Switch(
                       value: notifyEmail,
-                      activeColor: AppColors.gold,
+                      activeThumbColor: AppColors.gold,
                       onChanged: (v) => setDialogState(() => notifyEmail = v),
                     ),
                   ],
                 ),
                 if (notifyEmail)
-                  DropdownButtonFormField<int>(
+                  SearchableDropdown<int>(
+                    label: "Herinnering",
+                    hint: "Kies herinnering",
                     value: reminderMinutes,
-                    decoration: const InputDecoration(labelText: "Herinnering"),
                     items: const [
-                      DropdownMenuItem(value: 30, child: Text("30 minute voor tyd")),
-                      DropdownMenuItem(value: 60, child: Text("1 uur voor tyd")),
-                      DropdownMenuItem(value: 120, child: Text("2 ure voor tyd")),
-                      DropdownMenuItem(value: 1440, child: Text("24 ure voor tyd")),
+                      SearchableDropdownItem(value: 30, label: "30 minute voor tyd"),
+                      SearchableDropdownItem(value: 60, label: "1 uur voor tyd"),
+                      SearchableDropdownItem(value: 120, label: "2 ure voor tyd"),
+                      SearchableDropdownItem(value: 1440, label: "24 ure voor tyd"),
                     ],
                     onChanged: (v) {
                       if (v != null) setDialogState(() => reminderMinutes = v);
@@ -365,10 +375,13 @@ class _CalendarPageState extends State<CalendarPage> {
                       children: [
                         const Icon(Icons.event, size: 18, color: AppColors.navy),
                         const SizedBox(width: 8),
-                        Text(
-                          "Gebeure vir ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}",
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+                        Expanded(
+                          child: Text(
+                            "Gebeure vir ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}",
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+                          ),
                         ),
+                        ColumnVisibilityButton(controller: _colVis),
                       ],
                     ),
                   ),
@@ -385,6 +398,16 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Widget _buildEventList() {
     final events = _getEventsForDay(_selectedDay!);
+    if (_sortCtrl.isActive) {
+      events.sort((a, b) {
+        final dir = _sortCtrl.direction;
+        switch (_sortCtrl.sortKey) {
+          case 'title': return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
+          case 'time': return a.startDatetime.compareTo(b.startDatetime) * dir;
+          default: return 0;
+        }
+      });
+    }
     if (events.isEmpty) {
       return Center(
         child: Column(

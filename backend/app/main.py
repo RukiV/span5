@@ -13,6 +13,8 @@ from .db.database import createDBandTables
 from .db.seed import seed_data
 from .services.reminder_scheduler import reminder_loop
 
+from .middleware.idempotency import IdempotencyMiddleware
+
 app = FastAPI(
     title="FBS Facility Management API", 
     version="1.0.0"
@@ -61,6 +63,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # =============================================================================
+
+# Idempotency middleware — prevents duplicate POST submissions.
+# Must be added AFTER CORS so it runs inside CORS (outermost = first).
+app.add_middleware(IdempotencyMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
 

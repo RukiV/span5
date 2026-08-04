@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
+import '../../core/idempotency.dart';
 import '../../models/asset.dart';
 import '../../models/user_session.dart';
 import '../../models/campus.dart';
@@ -18,7 +20,7 @@ enum _CheckStatus { pending, confirmed, faultReported, missing }
 
 class _CheckItem {
   final Asset asset;
-  _CheckStatus status;
+  _CheckStatus status = _CheckStatus.pending;
   int? faultId;
   bool previouslyMissing;
 
@@ -38,6 +40,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   List<_CheckItem> _items = [];
   bool _isLoading = true;
   bool _isSaving = false;
+  String? _idempotencyKey;
 
   // Cascade selection state (used when widget.roomId is null)
   int? _selectedCampusId;
@@ -358,6 +361,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   }
 
   Future<void> _complete() async {
+    _idempotencyKey ??= Idempotency.generate();
     if (_pendingCount > 0) {
       final confirm = await showDialog<bool>(
         context: context,
@@ -421,11 +425,16 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     }).toList();
 
     try {
-      await ApiClient().client.post('/room-checks', data: {
-        'room_id': _activeRoomId,
-        'summary': jsonEncode(summary),
-      });
+      await ApiClient().client.post(
+        '/room-checks',
+        data: {
+          'room_id': _activeRoomId,
+          'summary': jsonEncode(summary),
+        },
+        options: Options(headers: {'X-Idempotency-Key': _idempotencyKey!}),
+      );
       if (!mounted) return;
+      _idempotencyKey = null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text("Kontrole voltooi: $_confirmedCount bevestig, $_faultReportedCount foute, $_missingCount vermis"),

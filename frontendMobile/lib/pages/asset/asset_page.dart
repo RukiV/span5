@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
@@ -11,6 +13,8 @@ import '../room_checklist/room_checklist_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_check_history_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class AssetsPage extends StatefulWidget {
   final String? filterRoomId;
@@ -27,6 +31,17 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('assets', [
+    const ColumnDef(key: 'id', label: '#ID'),
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'brand', label: 'Merk', defaultVisible: false),
+    const ColumnDef(key: 'serial', label: 'Serienommer', defaultVisible: false),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'isOutdoor', label: 'Buite', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+    const ColumnDef(key: 'created', label: 'Geskep', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -152,7 +167,7 @@ class _AssetsPageState extends State<AssetsPage> {
                 prefixIcon: const Icon(Icons.search, color: AppColors.gold),
                 fillColor: Colors.white.withValues(alpha: 30/255),
                 filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(30),
                   borderSide: BorderSide.none,
@@ -182,6 +197,8 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
           ],
+          const SizedBox(width: 6),
+          ColumnVisibilityButton(controller: _colVis),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -189,16 +206,26 @@ class _AssetsPageState extends State<AssetsPage> {
               color: Colors.white.withValues(alpha: 30/255),
               borderRadius: BorderRadius.circular(30),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _statusFilter,
-                dropdownColor: AppColors.navy,
-                icon: const Icon(Icons.filter_list, color: AppColors.gold),
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                items: ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+            child: InkWell(
+              onTap: () => showSearchableDialog<String>(
+                context: context,
+                title: "Status",
+                initialValue: _statusFilter,
+                items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
+                    .map((s) => SearchableDropdownItem(value: s, label: s))
                     .toList(),
-                onChanged: (val) => setState(() => _statusFilter = val!),
+                onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _statusFilter,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const Icon(Icons.filter_list, color: AppColors.gold),
+                ],
               ),
             ),
           ),
@@ -208,100 +235,22 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildCampusFilter() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (campuses.isEmpty) return const SizedBox.shrink();
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
-    final selectedCampus = _selectedCampusId != null
-        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
-        : null;
-    final buildings = selectedCampus?.buildings ?? [];
-    final selectedBuilding = _selectedBuildingId != null
-        ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
-        : null;
-    final rooms = selectedBuilding?.rooms ?? [];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                value: _selectedCampusId,
-                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
-                items: campuses.map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
-                )).toList(),
-                onChanged: (val) => setState(() {
-                  _selectedCampusId = val;
-                  _selectedBuildingId = null;
-                  _selectedRoomId = null;
-                }),
-              ),
-            ),
-          ),
-        ),
-        if (_selectedCampusId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedBuildingId,
-                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
-                  items: buildings.map((b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() {
-                    _selectedBuildingId = val;
-                    _selectedRoomId = null;
-                  }),
-                ),
-              ),
-            ),
-          ),
-        if (_selectedBuildingId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedRoomId,
-                  hint: const Text("Kies Lokaal", style: TextStyle(fontSize: 13)),
-                  items: rooms.map((r) => DropdownMenuItem(
-                    value: r.id,
-                    child: Text(r.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() => _selectedRoomId = val),
-                ),
-              ),
-            ),
-          ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
+      ),
     );
   }
 
@@ -357,6 +306,24 @@ class _AssetsPageState extends State<AssetsPage> {
                  a.id.toLowerCase().contains(_query);
         }).toList();
 
+        // Apply sorting
+        if (_sortCtrl.isActive) {
+          filtered.sort((a, b) {
+            final dir = _sortCtrl.direction;
+            switch (_sortCtrl.sortKey) {
+              case 'id': return a.id.compareTo(b.id) * dir;
+              case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+              case 'brand': return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) * dir;
+              case 'serial': return a.serialCode.toLowerCase().compareTo(b.serialCode.toLowerCase()) * dir;
+              case 'type': return a.category.toLowerCase().compareTo(b.category.toLowerCase()) * dir;
+              case 'isOutdoor': return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) * dir;
+              case 'status': return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+              case 'created': return 0;
+              default: return 0;
+            }
+          });
+        }
+
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
 return Column(
@@ -365,11 +332,21 @@ return Column(
             Container(
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
               color: AppColors.gold,
-              child: const Row(
+              child: Row(
                 children: [
-                  Expanded(flex: 1, child: Text("ID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 3, child: Text("NAAM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 2, child: Text("STATUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+                  ..._colVis.visibleColumns.map((col) {
+                    int flex = 2;
+                    if (col.key == 'id') flex = 1;
+                    if (col.key == 'name') flex = 3;
+                    if (col.key == 'status') flex = 2;
+                    return SortableHeader(
+                      label: col.label,
+                      sortKey: col.key,
+                      controller: _sortCtrl,
+                      flex: flex,
+                      onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
+                    );
+                  }),
                 ],
               ),
             ),
@@ -393,11 +370,22 @@ return Column(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         child: Row(
-          children: [
-            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
-          ],
+          children: _colVis.visibleColumns.map((col) {
+            int flex = 2;
+            Widget child;
+            switch (col.key) {
+              case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
+              case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
+              case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
+              case 'created': child = const Text('-', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)); break;
+              default: child = const Text(''); break;
+            }
+            return Expanded(flex: flex, child: child);
+          }).toList(),
         ),
       ),
     );

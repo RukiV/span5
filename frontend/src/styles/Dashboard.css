@@ -6,9 +6,15 @@
     font-family: 'Segoe UI', Arial, sans-serif;
 }
 
+/*
+   NB: Moenie `display: flex; height: 100vh` op body plaas nie!
+   CSS word globaal gebundel (CRA), so hierdie reël raak ALLE bladsye:
+   body word 'n flex-container en #root word inhoud-grootte in plaas van
+   viewport-grootte. Gevolg: bladsye met min inhoud (Kennisgewings/Verslae)
+   krimp tot hul inhoudbreedte, en die Dashboard kan verby die viewport
+   uitrek wanneer die Analitiese Paneel oopmaak.
+*/
 body {
-    display: flex;
-    height: 100vh;
     background-color: var(--grys-agtergrond);
 }
 
@@ -34,7 +40,7 @@ body {
 
 /* --- Kaartjies (Dashboard) --- */
 
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 20px; margin-bottom: 30px; }
 
 .stat-card { 
     display: flex;
@@ -57,7 +63,7 @@ body {
 .stat-change.positive { color: #10b981; }
 .stat-change.negative { color: #ef4444; }
 
-.charts-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.charts-container { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 
 .chart-box { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
 
@@ -145,7 +151,7 @@ table tbody tr:hover {
 /* Rooster vir Tabel en Aktiwiteit */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 20px;
     margin-top: 25px;
 }
@@ -163,6 +169,7 @@ table tbody tr:hover {
     height: 250px;
     width: 100%;
     margin-top: 15px;
+    overflow: hidden; /* verhoed dat die canvas (vaste pixel-breedte) uitskiet terwyl Chart.js hergrootte */
 }
 
 .data-panel {
@@ -195,7 +202,7 @@ table tbody tr:hover {
 }
 
 @media (max-width: 768px) {
-    .charts-row {
+    .charts-container {
         grid-template-columns: 1fr;
     }
 }

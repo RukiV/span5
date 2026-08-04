@@ -41,7 +41,7 @@
   flex: 0 0 var(--analytics-width, 33.33%);
   max-width: var(--analytics-width, 33.33%);
   overflow-y: auto;
-  border-left: 1px solid #d0d8e8;
+  border-left: 1px solid #e8d8c4;
   padding: unset;
   margin: unset;
 }
@@ -160,11 +160,24 @@
     margin-left: auto;
 }
 
-.controls input, .controls select {
+.controls input,
+.controls select:not([class*="cascade"]) {
     padding: 10px;
     border: 1px solid #cbd5e1;
     border-radius: 5px;
     background-color: white;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.controls .btn-add,
+.controls .colpick-btn {
+    height: 40px;
+    box-sizing: border-box;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 
@@ -496,4 +509,46 @@
 .analytics-fab:hover {
   background: #7a4d20;
   transform: scale(1.05);
+}
+
+/* ── Sortable column headers ───────────────────────────────────── */
+.standard-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  transition: background 0.15s ease;
+}
+.standard-table th.sortable:hover {
+  background: #f0e6d8;
+}
+.standard-table th.sortable .sort-arrow {
+  font-size: 11px;
+  margin-left: 4px;
+  color: #935e28;
+  opacity: 0.6;
+}
+.standard-table th.sortable.sorted-asc .sort-arrow,
+.standard-table th.sortable.sorted-desc .sort-arrow {
+  opacity: 1;
+  color: #935e28;
+  font-weight: bold;
+}
+
+/* ── Column resizer handle ─────────────────────────────────────── */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1;
+  transition: background 0.15s ease;
+  touch-action: none;
+}
+.col-resizer:hover {
+  background: rgba(147, 94, 40, 0.35);
+}
+.col-resizer--active {
+  background: rgba(147, 94, 40, 0.55);
 }

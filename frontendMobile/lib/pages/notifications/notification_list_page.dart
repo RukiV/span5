@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
 import '../../services/notification_service.dart';
 import 'notification_preferences_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class NotificationListPage extends StatefulWidget {
   const NotificationListPage({super.key});
@@ -16,6 +19,13 @@ class _NotificationListPageState extends State<NotificationListPage> {
   int _page = 1;
   bool _hasMore = true;
   String _filterType = '';
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('notifications', [
+    const ColumnDef(key: 'type', label: 'Tipe'),
+    const ColumnDef(key: 'title', label: 'Titel'),
+    const ColumnDef(key: 'message', label: 'Boodskap', defaultVisible: false),
+    const ColumnDef(key: 'date', label: 'Datum'),
+  ]);
   final _scrollController = ScrollController();
 
   @override
@@ -52,6 +62,23 @@ class _NotificationListPageState extends State<NotificationListPage> {
         _notifications = items;
       } else {
         _notifications.addAll(items);
+      }
+      if (_sortCtrl.isActive) {
+        _notifications.sort((a, b) {
+          final dir = _sortCtrl.direction;
+          switch (_sortCtrl.sortKey) {
+            case 'title':
+              return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
+            case 'type':
+              return a.notificationType.toLowerCase().compareTo(b.notificationType.toLowerCase()) * dir;
+            case 'date':
+              final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
+              final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
+              return da.compareTo(db) * dir;
+            default:
+              return 0;
+          }
+        });
       }
       _hasMore = items.length >= 20;
       _loading = false;
@@ -179,28 +206,19 @@ class _NotificationListPageState extends State<NotificationListPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: DropdownButtonFormField<String>(
+                  child: SearchableDropdown<String>(
+                    hint: 'Alle tipes',
                     value: _filterType.isEmpty ? null : _filterType,
-                    decoration: const InputDecoration(
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: OutlineInputBorder(),
-                      hintText: 'Alle tipes',
-                      isDense: true,
-                    ),
                     items: const [
-                      DropdownMenuItem(value: '', child: Text('Alle tipes')),
-                      DropdownMenuItem(
-                          value: 'fault.created',
-                          child: Text('Fout Aangeteken')),
-                      DropdownMenuItem(
-                          value: 'job.created',
-                          child: Text('Werksopdrag Geskep')),
-                      DropdownMenuItem(
-                          value: 'stock.low', child: Text('Lae Voorraad')),
-                      DropdownMenuItem(
-                          value: 'system.announcement',
-                          child: Text('Aankondiging')),
+                      SearchableDropdownItem(value: '', label: 'Alle tipes'),
+                      SearchableDropdownItem(
+                          value: 'fault.created', label: 'Fout Aangeteken'),
+                      SearchableDropdownItem(
+                          value: 'job.created', label: 'Werksopdrag Geskep'),
+                      SearchableDropdownItem(
+                          value: 'stock.low', label: 'Lae Voorraad'),
+                      SearchableDropdownItem(
+                          value: 'system.announcement', label: 'Aankondiging'),
                     ],
                     onChanged: (v) {
                       _filterType = v ?? '';
@@ -209,6 +227,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
                     },
                   ),
                 ),
+                const SizedBox(width: 8),
+                ColumnVisibilityButton(controller: _colVis),
               ],
             ),
           ),

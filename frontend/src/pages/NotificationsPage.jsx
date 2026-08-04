@@ -164,13 +164,6 @@ function NotificationsPage() {
               <span style={{ color: '#666', fontSize: '13px' }}>{total} totaal</span>
             </div>
 
-            <div className="analytics-grid" style={{ marginBottom: '16px' }}>
-              <div className="analytics-card"><h4>Totale Kennisgewings</h4><p className="analytics-value">{notifications.length}</p></div>
-              <div className="analytics-card"><h4>Ongelees</h4><p className="analytics-value warning">{notifications.filter(n => !n.is_read).length}</p></div>
-              <div className="analytics-card"><h4>Foute</h4><p className="analytics-value">{notifications.filter(n => n.notification_type?.startsWith('fault')).length}</p></div>
-              <div className="analytics-card"><h4>Werksopdragte</h4><p className="analytics-value">{notifications.filter(n => n.notification_type?.startsWith('job')).length}</p></div>
-            </div>
-
             <div className="notif-page-filters">
               <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
                 {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

@@ -4,6 +4,11 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
@@ -20,8 +25,16 @@ function BuildingsPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const BUILDING_COLUMNS = [
+    { key: 'id', label: 'ID', render: (b) => b.building_id, sortKey: 'id', defaultVisible: false },
+    { key: 'name', label: 'Naam', render: (b) => b.building_name, sortKey: 'name', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (b) => translateBuildingType(b.building_type), sortKey: 'type', defaultVisible: true },
+    { key: 'terrain', label: 'Terrein', render: (b) => getTerrainName(b.location_id), sortKey: 'terrain', defaultVisible: true },
+  ];
+  const colVis = useColumnVisibility('buildings-page', BUILDING_COLUMNS);
+  const colWidths = useColumnWidths('buildings-page', BUILDING_COLUMNS);
+  const colPickerRef = useRef(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
@@ -204,10 +217,11 @@ function BuildingsPage({ embedded = false }) {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.building_id || 0) - Number(b.building_id || 0)) * direction;
-      if (sortBy === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(translateBuildingType(a.building_type)).localeCompare(String(translateBuildingType(b.building_type)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
 
@@ -217,11 +231,6 @@ function BuildingsPage({ embedded = false }) {
     { value: "name", label: "Naam" },
     { value: "type", label: "Tipe" },
     { value: "terrain", label: "Terrein" }
-  ];
-
-  const sortByOptions = [
-    { value: "default", label: "Standaard" },
-    { value: "name", label: "Naam" }
   ];
 
   const buildingTypeOptions = [
@@ -333,19 +342,14 @@ function BuildingsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
-          <Select
-            className="basic-single"
-            classNamePrefix="select"
-            value={sortByOptions.find(o => o.value === sortBy)}
-            onChange={(selected) => setSortBy(selected ? selected.value : "default")}
-            options={sortByOptions}
-            isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={BUILDING_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-          </div>
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
         </div>
       </div>
@@ -353,18 +357,27 @@ function BuildingsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>Naam</th>
-            <th>Tipe</th>
-            <th>Terrein</th>
-            <th>Aksies</th>
+            {colVis.visibleColumns.map((col) => (
+              <ResizableTh
+                key={col.key}
+                col={col}
+                colWidths={colWidths}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </ResizableTh>
+            ))}
+            <th style={{ width: '200px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredBuildings.map((building) => (
             <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
-              <td>{building.building_name}</td>
-              <td>{translateBuildingType(building.building_type)}</td>
-              <td>{getTerrainName(building.location_id)}</td>
+              {colVis.visibleColumns.map((col) => (
+                <td key={col.key}>{col.render(building)}</td>
+              ))}
               <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
                 <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
