@@ -11,6 +11,8 @@ import '../styles/App.css';
 import "../styles/Ticket.css";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 
 function TicketPage() {
@@ -40,6 +42,7 @@ function TicketPage() {
     { key: 'updated', label: 'Opgedateer', render: (t) => t.fault_updatedatetime ? new Date(t.fault_updatedatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'updated', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('ticket-page', TICKET_COLUMNS);
+  const colWidths = useColumnWidths('ticket-page', TICKET_COLUMNS);
   const colPickerRef = useRef(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
@@ -547,6 +550,7 @@ function TicketPage() {
                 visibleColumns={colVis.visibleColumns}
                 toggleColumn={colVis.toggleColumn}
                 resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
               />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
             </div>
@@ -556,14 +560,16 @@ function TicketPage() {
             <thead>
               <tr>
                 {colVis.visibleColumns.map((col) => (
-                  <th
+                  <ResizableTh
                     key={col.key}
+                    col={col}
+                    colWidths={colWidths}
                     className={col.sortKey ? getSortClass(col.sortKey) : ''}
                     onClick={() => col.sortKey && handleSort(col.sortKey)}
                     onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                   >
                     {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-                  </th>
+                  </ResizableTh>
                 ))}
                 <th style={{ width: '120px' }}>Aksies</th>
               </tr>

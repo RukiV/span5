@@ -7,6 +7,8 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
@@ -39,6 +41,7 @@ function AssetPage({ embedded = false }) {
     { key: 'created', label: 'Geskep', render: (a) => a.asset_created_datetime ? new Date(a.asset_created_datetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('asset-page', ASSET_COLUMNS);
+  const colWidths = useColumnWidths('asset-page', ASSET_COLUMNS);
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -700,6 +703,7 @@ function AssetPage({ embedded = false }) {
             visibleColumns={colVis.visibleColumns}
             toggleColumn={colVis.toggleColumn}
             resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
@@ -710,14 +714,16 @@ function AssetPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th
+              <ResizableTh
                 key={col.key}
+                col={col}
+                colWidths={colWidths}
                 className={col.sortKey ? getSortClass(col.sortKey) : ''}
                 onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th style={{ width: '120px' }}>Aksies</th>
           </tr>

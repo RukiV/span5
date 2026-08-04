@@ -7,6 +7,8 @@ import { useToast } from '../components/Toast/useToast';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
@@ -32,6 +34,7 @@ function UsersPage({ embedded = false }) {
     { key: 'lastlogin', label: 'Laaste Aanmelding', render: (u) => u.user_lastlogintime ? new Date(u.user_lastlogintime).toLocaleDateString('af-ZA') : '-', sortKey: 'lastlogin', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('users-page', USER_COLUMNS);
+  const colWidths = useColumnWidths('users-page', USER_COLUMNS);
   const colPickerRef = useRef(null);
 
   const [showModal, setShowModal] = useState(false);
@@ -296,6 +299,7 @@ function UsersPage({ embedded = false }) {
             visibleColumns={colVis.visibleColumns}
             toggleColumn={colVis.toggleColumn}
             resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
         </div>
@@ -305,14 +309,16 @@ function UsersPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th
+              <ResizableTh
                 key={col.key}
+                col={col}
+                colWidths={colWidths}
                 className={col.sortKey ? getSortClass(col.sortKey) : ''}
                 onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th style={{ width: '120px' }}>Aksies</th>
           </tr>

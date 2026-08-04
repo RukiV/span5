@@ -7,6 +7,8 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
@@ -30,6 +32,7 @@ function BuildingsPage({ embedded = false }) {
     { key: 'terrain', label: 'Terrein', render: (b) => getTerrainName(b.location_id), sortKey: 'terrain', defaultVisible: true },
   ];
   const colVis = useColumnVisibility('buildings-page', BUILDING_COLUMNS);
+  const colWidths = useColumnWidths('buildings-page', BUILDING_COLUMNS);
   const colPickerRef = useRef(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
@@ -340,6 +343,7 @@ function BuildingsPage({ embedded = false }) {
             visibleColumns={colVis.visibleColumns}
             toggleColumn={colVis.toggleColumn}
             resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
         </div>
@@ -349,14 +353,16 @@ function BuildingsPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th
+              <ResizableTh
                 key={col.key}
+                col={col}
+                colWidths={colWidths}
                 className={col.sortKey ? getSortClass(col.sortKey) : ''}
                 onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th style={{ width: '200px' }}>Aksies</th>
           </tr>

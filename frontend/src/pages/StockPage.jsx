@@ -7,6 +7,8 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/Asset.css";
@@ -38,6 +40,7 @@ function StockPage({ embedded = false }) {
     { key: 'description', label: 'Beskrywing', render: (s) => s.stock_desc || '-', sortKey: 'description', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('stock-page', STOCK_COLUMNS);
+  const colWidths = useColumnWidths('stock-page', STOCK_COLUMNS);
   const colPickerRef = useRef(null);
 
   const [stockImages, setStockImages] = useState([]);
@@ -483,6 +486,7 @@ function StockPage({ embedded = false }) {
             visibleColumns={colVis.visibleColumns}
             toggleColumn={colVis.toggleColumn}
             resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
         </div>
@@ -492,14 +496,16 @@ function StockPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th
+              <ResizableTh
                 key={col.key}
+                col={col}
+                colWidths={colWidths}
                 className={col.sortKey ? getSortClass(col.sortKey) : ''}
                 onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th style={{ width: '120px' }}>Aksies</th>
           </tr>
@@ -774,6 +780,7 @@ function StockPage({ embedded = false }) {
                 visibleColumns={colVis.visibleColumns}
                 toggleColumn={colVis.toggleColumn}
                 resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
               />
               <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
             </div>
@@ -783,14 +790,16 @@ function StockPage({ embedded = false }) {
             <thead>
               <tr>
                 {colVis.visibleColumns.map((col) => (
-                  <th
+                  <ResizableTh
                     key={col.key}
+                    col={col}
+                    colWidths={colWidths}
                     className={col.sortKey ? getSortClass(col.sortKey) : ''}
                     onClick={() => col.sortKey && handleSort(col.sortKey)}
                     onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                   >
                     {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-                  </th>
+                  </ResizableTh>
                 ))}
                 <th style={{ width: '120px' }}>Aksies</th>
               </tr>

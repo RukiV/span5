@@ -533,3 +533,22 @@
   color: #935e28;
   font-weight: bold;
 }
+
+/* ── Column resizer handle ─────────────────────────────────────── */
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  cursor: col-resize;
+  background: transparent;
+  z-index: 1;
+  transition: background 0.15s ease;
+  touch-action: none;
+}
+.col-resizer:hover {
+  background: rgba(147, 94, 40, 0.35);
+}
+.col-resizer--active {
+  background: rgba(147, 94, 40, 0.55);
+}
