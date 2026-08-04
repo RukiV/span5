@@ -23,7 +23,7 @@ class ApiClient {
     //emulator
     final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.1.95:8000/api/v1');
     //physical
-    //final baseUrl = dotenv.get('API_URL', fallback: 'http://localhost:8000/api/v1');
+    //final baseUrl = dotenv.get('API_URL', fallback: 'http://127.0.0.1:8000/api/v1');
     
     _dio = Dio(
       BaseOptions(

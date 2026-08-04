@@ -6,6 +6,7 @@ import '../../core/api_client.dart';
 import '../../core/idempotency.dart';
 import '../../models/asset.dart';
 import '../../models/user_session.dart';
+import '../../models/campus.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
@@ -13,6 +14,7 @@ import '../../models/report.dart';
 import '../../widgets/status_badge.dart';
 import '../reporting/new_report_page.dart';
 import '../reporting/scan_page.dart';
+import 'room_check_history_page.dart';
 
 enum _CheckStatus { pending, confirmed, faultReported, missing }
 
@@ -20,14 +22,15 @@ class _CheckItem {
   final Asset asset;
   _CheckStatus status = _CheckStatus.pending;
   int? faultId;
+  bool previouslyMissing;
 
-  _CheckItem({required this.asset});
+  _CheckItem({required this.asset, this.status = _CheckStatus.pending, this.faultId, this.previouslyMissing = false});
 }
 
 class RoomChecklistPage extends StatefulWidget {
-  final int roomId;
+  final int? roomId;
 
-  const RoomChecklistPage({super.key, required this.roomId});
+  const RoomChecklistPage({super.key, this.roomId});
 
   @override
   State<RoomChecklistPage> createState() => _RoomChecklistPageState();
@@ -39,10 +42,19 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   bool _isSaving = false;
   String? _idempotencyKey;
 
+  // Cascade selection state (used when widget.roomId is null)
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+
   @override
   void initState() {
     super.initState();
-    _load();
+    if (widget.roomId != null) {
+      _load();
+    }
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
   }
 
   void _load() {
@@ -51,6 +63,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     } else {
       _filterAssets();
     }
+    _populatePrevious(widget.roomId!);
   }
 
   void _filterAssets() {
@@ -65,16 +78,57 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     });
   }
 
+  Future<void> _populatePrevious(int roomId) async {
+    final missingIds = await _fetchPreviousMissing(roomId);
+    if (!mounted || missingIds.isEmpty) return;
+    setState(() {
+      for (final item in _items) {
+        if (missingIds.contains(item.asset.id)) {
+          item.status = _CheckStatus.missing;
+          item.previouslyMissing = true;
+        }
+      }
+    });
+  }
+
+  Future<Set<String>> _fetchPreviousMissing(int roomId) async {
+    try {
+      final response = await ApiClient().client.get('/room-checks', queryParameters: {'room_id': roomId, 'limit': 1});
+      final List data = response.data as List;
+      if (data.isEmpty) return {};
+      final summary = jsonDecode(data[0]['summary']) as List;
+      return summary
+          .where((e) => e['status'] == 'missing')
+          .map((e) => e['asset_id'].toString())
+          .toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
   int get _confirmedCount => _items.where((i) => i.status == _CheckStatus.confirmed).length;
   int get _faultReportedCount => _items.where((i) => i.status == _CheckStatus.faultReported).length;
   int get _missingCount => _items.where((i) => i.status == _CheckStatus.missing).length;
   int get _pendingCount => _items.where((i) => i.status == _CheckStatus.pending).length;
+  int get _activeRoomId => widget.roomId ?? 0;
+
+  String get _roomName {
+    return CampusService.getRoomName(_activeRoomId.toString()) ?? "Lokaal $_activeRoomId";
+  }
+
+  String get _buildingName {
+    return CampusService.getBuildingNameByRoomId(_activeRoomId.toString()) ?? "";
+  }
+
+  String get _campusName {
+    return CampusService.getCampusNameByRoomId(_activeRoomId.toString()) ?? "";
+  }
 
   int? _buildingIdForRoom() {
     final campuses = CampusService.campusesNotifier.value;
     for (final c in campuses) {
       for (final b in c.buildings) {
-        if (b.rooms?.any((r) => r.id == widget.roomId) == true) return b.id;
+        if (b.rooms?.any((r) => r.id == _activeRoomId) == true) return b.id;
       }
     }
     return null;
@@ -84,22 +138,10 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     final campuses = CampusService.campusesNotifier.value;
     for (final c in campuses) {
       for (final b in c.buildings) {
-        if (b.rooms?.any((r) => r.id == widget.roomId) == true) return c.id;
+        if (b.rooms?.any((r) => r.id == _activeRoomId) == true) return c.id;
       }
     }
     return null;
-  }
-
-  String get _roomName {
-    return CampusService.getRoomName(widget.roomId.toString());
-  }
-
-  String get _buildingName {
-    return CampusService.getBuildingNameByRoomId(widget.roomId.toString());
-  }
-
-  String get _campusName {
-    return CampusService.getCampusNameByRoomId(widget.roomId.toString());
   }
 
   Future<void> _handleScanResult(String code) async {
@@ -109,7 +151,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       _showSnack("Geen bate gevind met hierdie kode nie", AppColors.warningOrange);
       return;
     }
-    if (asset.location != widget.roomId.toString()) {
+    if (asset.location != _activeRoomId.toString()) {
       _showSnack("Bate is nie in hierdie lokaal nie", AppColors.warningOrange);
       return;
     }
@@ -120,6 +162,11 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     }
     if (match.status == _CheckStatus.confirmed) {
       _showSnack("${asset.name} is reeds bevestig", AppColors.successGreen);
+      return;
+    }
+    if (match.status == _CheckStatus.missing && match.previouslyMissing) {
+      setState(() => match.status = _CheckStatus.confirmed);
+      _showSnack("${asset.name} gevind en as teenwoordig gemerk (was vermis)", AppColors.successGreen);
       return;
     }
     setState(() => match.status = _CheckStatus.confirmed);
@@ -184,7 +231,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       id: "0",
       assetId: asset.id,
       assetSerialCode: asset.serialCode,
-      location: widget.roomId.toString(),
+      location: _activeRoomId.toString(),
       title: "Bate vermis: ${asset.name}",
       description: description,
       category: "Instandhouding",
@@ -220,8 +267,14 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
                 "Kode: ${item.asset.serialCode}",
                 style: TextStyle(color: Colors.grey[600], fontSize: 13),
               ),
+              if (item.previouslyMissing)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text("Vermis in vorige kontrole",
+                    style: TextStyle(color: Colors.orange[700], fontSize: 12, fontStyle: FontStyle.italic)),
+                ),
               const Divider(height: 24),
-              if (item.status == _CheckStatus.pending) ...[
+              if (item.status == _CheckStatus.pending || item.previouslyMissing) ...[
                 ListTile(
                   leading: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
                   title: const Text("Skandeer kode"),
@@ -276,6 +329,29 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
         item.status = _CheckStatus.faultReported;
       });
     }
+  }
+
+  void _uncheckItem(_CheckItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Herroep"),
+        content: Text("Herroep ${item.asset.name}? Dit sal die status terugstel na hangend."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Kanselleer")),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                item.status = _CheckStatus.pending;
+                item.previouslyMissing = false;
+              });
+            },
+            child: const Text("Herroep"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnack(String msg, Color color) {
@@ -352,7 +428,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       await ApiClient().client.post(
         '/room-checks',
         data: {
-          'room_id': widget.roomId,
+          'room_id': _activeRoomId,
           'summary': jsonEncode(summary),
         },
         options: Options(headers: {'X-Idempotency-Key': _idempotencyKey!}),
@@ -365,7 +441,9 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
           backgroundColor: AppColors.successGreen,
         ),
       );
-      Navigator.pop(context, true);
+      if (widget.roomId != null) {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -380,59 +458,230 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: const Text("KONTROLE LOKAAL"),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _items.isEmpty
-              ? const Center(child: Text("Geen bates in hierdie lokaal nie."))
-              : Column(
-                  children: [
-                    _buildHeader(),
-                    _buildProgressBar(),
-                    const Divider(height: 1),
-                    Expanded(child: _buildAssetList()),
-                  ],
-                ),
-      floatingActionButton: (_items.isEmpty || _isSaving)
-          ? null
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.small(
-                  heroTag: "scanChecklist",
-                  backgroundColor: AppColors.navy,
-                  onPressed: _openScanner,
-                  child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: "typeCode",
-                  backgroundColor: AppColors.gold,
-                  onPressed: _openManualEntry,
-                  child: const Icon(Icons.keyboard, color: Colors.white),
-                ),
-              ],
-            ),
-      bottomNavigationBar: _items.isEmpty
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _complete,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8B5E34),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : Text("VOLTOOI ($_confirmedCount / ${_items.length} bevestig)"),
+        title: Text(widget.roomId != null && _items.isNotEmpty ? "KONTROLE LOKAAL" : "Lokaal Kontrole"),
+        actions: [
+          if (widget.roomId != null && _items.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.history, color: Colors.white),
+              tooltip: "Geskiedenis",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RoomCheckHistoryPage(roomId: _activeRoomId),
                 ),
               ),
             ),
+        ],
+      ),
+      body: _buildBody(),
+      floatingActionButton: widget.roomId != null && _items.isNotEmpty && !_isSaving ? _buildFab() : null,
+      bottomNavigationBar: widget.roomId != null && _items.isNotEmpty ? _buildBottomBar() : null,
+    );
+  }
+
+  Widget _buildBody() {
+    if (widget.roomId == null) {
+      return _buildSelectionView();
+    }
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_items.isEmpty) {
+      return const Center(
+        child: Text("Geen bates in hierdie lokaal nie."),
+      );
+    }
+    return Column(
+      children: [
+        _buildHeader(),
+        _buildProgressBar(),
+        const Divider(height: 1),
+        Expanded(child: _buildAssetList()),
+      ],
+    );
+  }
+
+  Widget _buildSelectionView() {
+    return ValueListenableBuilder<List<Campus>>(
+      valueListenable: CampusService.campusesNotifier,
+      builder: (context, campuses, _) {
+        if (campuses.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final selectedCampus = _selectedCampusId != null
+            ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
+            : null;
+        final buildings = selectedCampus?.buildings ?? [];
+        final selectedBuilding = _selectedBuildingId != null
+            ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
+            : null;
+        final rooms = selectedBuilding?.rooms ?? [];
+
+        return Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("KIES LOKAAL OM TE KONTROLEER",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.navy)),
+                  const SizedBox(height: 20),
+                  const Text("Terrein", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  const SizedBox(height: 6),
+                  _buildDropdown<int>(
+                    value: _selectedCampusId,
+                    hint: "Kies terrein",
+                    items: campuses.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
+                    onChanged: (val) => setState(() {
+                      _selectedCampusId = val;
+                      _selectedBuildingId = null;
+                    }),
+                  ),
+                  if (_selectedCampusId != null) ...[
+                    const SizedBox(height: 16),
+                    const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    _buildDropdown<int>(
+                      value: _selectedBuildingId,
+                      hint: "Kies gebou",
+                      items: buildings.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
+                      onChanged: (val) => setState(() => _selectedBuildingId = val),
+                    ),
+                  ],
+                  if (_selectedBuildingId != null) ...[
+                    const SizedBox(height: 20),
+                    const Text("LOKALE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 10),
+                    if (rooms.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Center(child: Text("Geen lokale in hierdie gebou nie.", style: TextStyle(color: Colors.grey))),
+                      )
+                    else
+                      ...rooms.map((room) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(room.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                    Text("${room.type} | Kap: ${room.capacity ?? '-'}",
+                                      style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                  ],
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RoomChecklistPage(roomId: room.id),
+                                  ),
+                                ),
+                                style: TextButton.styleFrom(foregroundColor: const Color(0xFF8B5E34)),
+                                child: const Text("Begin Kontrole", style: TextStyle(fontSize: 12)),
+                              ),
+                              const SizedBox(width: 4),
+                              TextButton(
+                                onPressed: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RoomCheckHistoryPage(roomId: room.id),
+                                  ),
+                                ),
+                                style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                                child: const Text("Geskiedenis", style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDropdown<T>({
+    required T? value,
+    required String hint,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          isExpanded: true,
+          value: value,
+          hint: Text(hint, style: const TextStyle(fontSize: 13)),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildFab() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton.small(
+          heroTag: "scanChecklist",
+          backgroundColor: AppColors.navy,
+          onPressed: _openScanner,
+          child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+        ),
+        const SizedBox(height: 8),
+        FloatingActionButton.small(
+          heroTag: "typeCode",
+          backgroundColor: AppColors.gold,
+          onPressed: _openManualEntry,
+          child: const Icon(Icons.keyboard, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
+  Widget? _buildBottomBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: _isSaving ? null : _complete,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF8B5E34),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: _isSaving
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+              : Text("VOLTOOI ($_confirmedCount / ${_items.length} bevestig)"),
+        ),
+      ),
     );
   }
 
@@ -503,9 +752,15 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ListTile(
             title: Text(item.asset.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Text(
-              "Kode: ${item.asset.serialCode}",
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Kode: ${item.asset.serialCode}",
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                if (item.previouslyMissing && item.status == _CheckStatus.missing)
+                  Text("Vermis in vorige kontrole",
+                    style: TextStyle(fontSize: 10, color: Colors.orange[700])),
+              ],
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -520,25 +775,32 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
                   color: Colors.grey[300],
                 ),
                 const SizedBox(width: 8),
-                _statusIcon(item.status),
+                _statusIcon(item),
               ],
             ),
-            onTap: item.status == _CheckStatus.pending
-                ? () => _showAssetActions(item)
-                : null,
+            onTap: () {
+              if (item.status == _CheckStatus.pending || item.previouslyMissing) {
+                _showAssetActions(item);
+              } else {
+                _uncheckItem(item);
+              }
+            },
           ),
         );
       },
     );
   }
 
-  Widget _statusIcon(_CheckStatus status) {
-    switch (status) {
+  Widget _statusIcon(_CheckItem item) {
+    switch (item.status) {
       case _CheckStatus.confirmed:
         return const Icon(Icons.check_circle, color: AppColors.successGreen, size: 28);
       case _CheckStatus.faultReported:
         return const Icon(Icons.warning, color: AppColors.warningOrange, size: 28);
       case _CheckStatus.missing:
+        if (item.previouslyMissing) {
+          return const Icon(Icons.schedule, color: Colors.orange, size: 28);
+        }
         return const Icon(Icons.highlight_off, color: AppColors.errorRed, size: 28);
       case _CheckStatus.pending:
         return const Icon(Icons.radio_button_unchecked, color: Colors.grey, size: 28);

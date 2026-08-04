@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
@@ -9,6 +9,7 @@ import useColumnSort from "../hooks/useColumnSort";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Ticket.css";
+import { buildFlatLocationOptions } from './locationSearchUtils';
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
@@ -64,6 +65,7 @@ function TicketPage() {
   const [cascadeToast, setCascadeToast] = useState(null);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   
   // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
@@ -525,18 +527,28 @@ function TicketPage() {
                       isDisabled={cascadeCount >= 3}
                       components={{ Control: CascadeControl }}
                       styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                      options={(() => {
-                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                        return [];
-                      })()}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                        return false;
+                      }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
                         if (!selectedOption) return;
-                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
                     />
                   </div>
@@ -721,31 +733,31 @@ function TicketPage() {
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
                         components={{ Control: CascadeControl }}
-                        options={(() => {
-                          if (cascadeCount === 0)
-                            return (terrains || []).map((t) => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
-                          if (cascadeCount === 1)
-                            return (buildings || []).filter((b) => String(b.location_id) === String(newTicket.location_id)).map((b) => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                          if (cascadeCount === 2)
-                            return (rooms || []).filter((r) => String(r.building_id) === String(newTicket.building_id)).map((r) => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
-                          if (cascadeCount === 3)
-                            return (assets || []).filter((a) => String(a.room_id) === String(newTicket.room_id)).map((a) => ({ value: String(a.asset_id), label: `${a.asset_id} - ${a.asset_name}` }));
-                          return [];
-                        })()}
+                        options={allLocationOptions}
+                        filterOption={(option, rawInput) => {
+                          if (rawInput) {
+                            if (cascadeCount === 0)
+                              return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 1)
+                              return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(newTicket.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 2)
+                              return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(newTicket.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 3)
+                              return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(newTicket.room_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          }
+                          if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                          if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newTicket.location_id);
+                          if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newTicket.building_id);
+                          if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(newTicket.room_id);
+                          return false;
+                        }}
                         value={null}
                         onChange={(selectedOption) => {
                           if (!selectedOption) return;
-                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
-                          if (cascadeCount === 0)
-                            setNewTicket(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 1)
-                            setNewTicket(p => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 2)
-                            setNewTicket(p => ({...p, room_id: selectedOption.value, asset_id: ""}));
-                          else if (cascadeCount === 3)
-                            setNewTicket(p => ({...p, asset_id: selectedOption.value}));
+                          setNewTicket(p => ({...p, ...selectedOption._fields}));
                           setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
-                          const label = labels[cascadeCount] || "";
+                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
+                          const label = labels[selectedOption._cascadeLevel] || "";
                           setCascadeToast(`✓ ${label} suksesvol geselekteer`);
                           setTimeout(() => setCascadeToast(null), 2000);
                         }}

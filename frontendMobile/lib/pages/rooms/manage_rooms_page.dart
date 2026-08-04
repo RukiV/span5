@@ -6,7 +6,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../asset/asset_page.dart';
-import '../asset/room_checklist_page.dart';
+import '../room_checklist/room_checklist_page.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/sort_utils.dart';

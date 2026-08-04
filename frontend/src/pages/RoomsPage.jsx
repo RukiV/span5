@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import { assetsAPI, buildingsAPI, roomsAPI, locationAPI } from "../services/api";
+import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/App.css";
 import "../styles/Rooms.css";
+import { buildFlatLocationOptions } from './locationSearchUtils';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -41,13 +43,17 @@ function RoomsPage({ embedded = false }) {
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [roomChecks, setRoomChecks] = useState([]);
+  const [loadingChecks, setLoadingChecks] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   
   // Opdateer: Verander die standaard room_type na 'Ander' om by die backend te pas
   const [newRoom, setNewRoom] = useState({
@@ -230,6 +236,21 @@ function RoomsPage({ embedded = false }) {
 
   const getAssetsForRoom = (roomId) => assets.filter((asset) => asset.room_id === roomId);
 
+  const handleViewHistory = async (room) => {
+    setSelectedRoom(room);
+    setShowHistoryModal(true);
+    setLoadingChecks(true);
+    try {
+      const response = await roomChecksAPI.getByRoom(room.room_id);
+      setRoomChecks(response.data || []);
+    } catch (error) {
+      console.error("Error fetching room checks:", error);
+      setRoomChecks([]);
+    } finally {
+      setLoadingChecks(false);
+    }
+  };
+
   const getBuildingName = (buildingId) => {
     const building = buildings.find((b) => b.building_id === buildingId);
     return building ? building.building_name : "-";
@@ -368,28 +389,34 @@ function RoomsPage({ embedded = false }) {
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {renderBreadcrumb()}
-                <Select
-                  className="react-select-container"
-                  classNamePrefix="react-select"
-                  placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                  isClearable
-                  isDisabled={cascadeCount >= 3}
-                  components={{ Control: CascadeControl }}
-                  styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                  options={(() => {
-                    if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                    if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                    if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                    return [];
-                  })()}
-                  value={currentDisplayValue}
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) return;
-                    if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                    else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                    else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
-                  }}
-                />
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 3}
+                    components={{ Control: CascadeControl }}
+                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    options={allLocationOptions}
+                    filterOption={(option, rawInput) => {
+                      if (rawInput) {
+                        if (cascadeCount === 0)
+                          return option.data._cascadeLevel <= 1 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 1)
+                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 1 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      }
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                      return false;
+                    }}
+                    value={currentDisplayValue}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const f = selectedOption._fields;
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                    }}
+                  />
               </div>
             );
           })()}
@@ -436,6 +463,7 @@ function RoomsPage({ embedded = false }) {
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-view" onClick={() => handleViewAssets(room)}>Bekyk Bates</button>
+                  <button className="btn-view" onClick={() => handleViewHistory(room)}>Geskiedenis</button>
                   <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>Verwyder</button>
                 </td>
               </tr>
@@ -562,30 +590,37 @@ function RoomsPage({ embedded = false }) {
               return (
                 <>
                   {renderBreadcrumb()}
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 2}
-                    closeMenuOnSelect={false}
-                    components={{ Control: CascadeControl }}
-                    options={(() => {
-                      if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                      if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newRoom.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                      return [];
-                    })()}
-                    value={null}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) return;
-                      const labels = ["Terrein","Gebou"];
-                      if (cascadeCount === 0) setNewRoom(p => ({...p, location_id: selectedOption.value, building_id: ""}));
-                      else if (cascadeCount === 1) setNewRoom(p => ({...p, building_id: selectedOption.value}));
-                      if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
-                      setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
-                      setTimeout(() => setCascadeToast(null), 2000);
-                    }}
-                  />
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 2}
+                      closeMenuOnSelect={false}
+                      components={{ Control: CascadeControl }}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 1 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 1 && String(option.data._fields.location_id) === String(newRoom.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newRoom.location_id);
+                        return false;
+                      }}
+                      value={null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        setNewRoom(p => ({...p, ...selectedOption._fields}));
+                        if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                        const labels = ["Terrein","Gebou"];
+                        const label = labels[selectedOption._cascadeLevel] || "";
+                        setCascadeToast(`✓ ${label} suksesvol geselekteer`);
+                        setTimeout(() => setCascadeToast(null), 2000);
+                      }}
+                    />
                 </>
               );
             })()}
@@ -600,6 +635,61 @@ function RoomsPage({ embedded = false }) {
         <div className="modal-footer">
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const historyModalContent = showHistoryModal && selectedRoom && (
+    <div className="modal" style={{ display: "flex" }}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>Kontrole-geskiedenis: {selectedRoom.room_name}</h3>
+          <span className="close" onClick={() => { setShowHistoryModal(false); setRoomChecks([]); }}>&times;</span>
+        </div>
+        <div className="modal-body">
+          {loadingChecks ? (
+            <p>Laai geskiedenis...</p>
+          ) : roomChecks.length === 0 ? (
+            <p>Geen kontrole-geskiedenis nie.</p>
+          ) : (
+            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+              {roomChecks.map((check) => {
+                let summary = [];
+                try { summary = JSON.parse(check.summary || '[]'); } catch(e) {}
+                const confirmed = summary.filter(s => s.status === 'confirmed').length;
+                const missing = summary.filter(s => s.status === 'missing').length;
+                const faultReported = summary.filter(s => s.status === 'fault_reported').length;
+                const dt = new Date(check.checked_datetime);
+                const dateStr = `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
+                return (
+                  <details key={check.room_check_id} style={{ marginBottom: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px" }}>
+                    <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
+                      {dateStr} {check.user_id ? `(Gebruiker #${check.user_id})` : ''}
+                    </summary>
+                    <div style={{ marginTop: "8px", fontSize: "13px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                      <span style={{ color: "#16a34a", fontWeight: 600 }}>Bevestig: {confirmed}</span>
+                      <span style={{ color: "#d97706", fontWeight: 600 }}>Foute: {faultReported}</span>
+                      <span style={{ color: "#dc2626", fontWeight: 600 }}>Vermis: {missing}</span>
+                    </div>
+                    <ul style={{ marginTop: "8px", paddingLeft: "16px", fontSize: "12px" }}>
+                      {summary.map((item, i) => (
+                        <li key={i} style={{ marginBottom: "4px" }}>
+                          Bate #{item.asset_id} — {
+                            item.status === 'confirmed' ? 'Bevestig'
+                            : item.status === 'missing' ? 'Vermis'
+                            : item.status === 'fault_reported' ? 'Fout aangemeld'
+                            : 'Hangend'
+                          }
+                          {item.fault_id ? ` (FK#${item.fault_id})` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -648,6 +738,8 @@ function RoomsPage({ embedded = false }) {
             </div>
           </div>
         )}
+
+        {historyModalContent}
       {dialog}
       </>
     );
@@ -695,8 +787,10 @@ function RoomsPage({ embedded = false }) {
               )}
             </div>
           </div>
-        </div>
-      )}
+          </div>
+        )}
+
+        {historyModalContent}
       {dialog}
     </div>
   );
