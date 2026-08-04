@@ -24,4 +24,9 @@ htmlcov/
 webblad/
 frontendMobile/skills/
 backend/uploads/
+backend/firebase-service-account.json
 AGENTS.md
+.agents/
+.agents
+skills-lock.json
+.opencode/

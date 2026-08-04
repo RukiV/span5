@@ -2,6 +2,9 @@ import os
 from sqlalchemy import inspect, text
 from sqlmodel import create_engine, Session, SQLModel
 
+# Import models so SQLModel.metadata.create_all() picks them up
+from ..models.idempotency import IdempotencyRecord  # noqa: F401
+
 # Database Configuration
 # Prefer a full DATABASE_URL, otherwise build one from individual env vars.
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -126,7 +129,7 @@ def createDBandTables():
                     notification_type VARCHAR(50) NOT NULL,
                     in_app_enabled BOOLEAN DEFAULT TRUE,
                     email_enabled BOOLEAN DEFAULT FALSE,
-                    push_enabled BOOLEAN DEFAULT FALSE,
+                    push_enabled BOOLEAN DEFAULT TRUE,
                     PRIMARY KEY (user_id, notification_type)
                 )
             """))

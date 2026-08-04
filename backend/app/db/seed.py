@@ -1384,7 +1384,7 @@ suburb="Villieria",
                         notification_type=ntype,
                         in_app_enabled=True,
                         email_enabled=False,
-                        push_enabled=False,
+                        push_enabled=True,
                     ))
 
         session.commit()

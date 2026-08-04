@@ -9,7 +9,7 @@ import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
 import 'edit_asset_page.dart';
-import 'room_checklist_page.dart';
+import '../room_checklist/room_checklist_page.dart';
 
 class AssetDetailPage extends StatefulWidget {
   final Asset asset;

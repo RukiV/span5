@@ -125,13 +125,13 @@ function AppContent() {
         </div>
         {!hideAnalytics && <DragHandle />}
         {!hideAnalytics && <AnalyticsPanel />}
+        </div>
+        {!hideAnalytics && (
+          <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
+            {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
+          </button>
+        )}
       </div>
-      {!hideAnalytics && (
-        <button className="analytics-fab" onClick={toggle} title="KI Analise">
-          {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
-        </button>
-      )}
-    </div>
   );
 }
 

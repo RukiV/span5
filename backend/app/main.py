@@ -14,6 +14,8 @@ from .db.database import createDBandTables, purge_expired_revoked_tokens
 from .db.seed import seed_data
 from .services.reminder_scheduler import reminder_loop
 
+from .middleware.idempotency import IdempotencyMiddleware
+
 app = FastAPI(
     title="FBS Facility Management API", 
     version="1.0.0"
@@ -68,7 +70,6 @@ app.add_middleware(
 )
 # =============================================================================
 
-
 # Security headers middleware
 @app.middleware("http")
 async def add_security_headers(request, call_next):
@@ -80,6 +81,9 @@ async def add_security_headers(request, call_next):
     response.headers["Cache-Control"] = "no-store"
     return response
 
+# Idempotency middleware — prevents duplicate POST submissions.
+# Must be added AFTER CORS so it runs inside CORS (outermost = first).
+app.add_middleware(IdempotencyMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
 

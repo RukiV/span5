@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
-import '../../widgets/cascading_location_filter.dart';
+import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
@@ -8,9 +9,12 @@ import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
 import 'manage_asset_types_page.dart';
-import 'room_checklist_page.dart';
+import '../room_checklist/room_checklist_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
+import '../room_checklist/room_check_history_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 
 class AssetsPage extends StatefulWidget {
   final String? filterRoomId;
@@ -27,6 +31,17 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('assets', [
+    const ColumnDef(key: 'id', label: '#ID'),
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'brand', label: 'Merk', defaultVisible: false),
+    const ColumnDef(key: 'serial', label: 'Serienommer', defaultVisible: false),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'isOutdoor', label: 'Buite', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+    const ColumnDef(key: 'created', label: 'Geskep', defaultVisible: false),
+  ]);
 
   @override
   void initState() {
@@ -94,24 +109,26 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget build(BuildContext context) {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: canPop ? AppBar(
-        title: Text(widget.filterRoomId != null ? "Lokaal: ${widget.filterRoomId}" : "Bates"),
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        actions: [
-          if (widget.filterRoomId != null && UserSession.hasAdminPrivileges)
-            IconButton(
-              icon: const Icon(Icons.checklist, color: Colors.white),
-              tooltip: "Kontroleer lokaal",
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
+              tooltip: "Geskiedenis",
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => RoomChecklistPage(roomId: int.parse(widget.filterRoomId!)),
+                  builder: (_) => RoomCheckHistoryPage(roomId: int.parse(widget.filterRoomId!)),
                 ),
               ),
             ),
+          ],
         ],
       ) : null,
       body: Column(
@@ -126,26 +143,17 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildSearchBarWithFilter() {
-    return Container(
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Soek bates...",
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150/255), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                fillColor: Colors.white.withValues(alpha: 30/255),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
               ),
             ),
           ),
@@ -171,6 +179,8 @@ class _AssetsPageState extends State<AssetsPage> {
               ),
             ),
           ],
+          const SizedBox(width: 6),
+          ColumnVisibilityButton(controller: _colVis),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -178,16 +188,26 @@ class _AssetsPageState extends State<AssetsPage> {
               color: Colors.white.withValues(alpha: 30/255),
               borderRadius: BorderRadius.circular(30),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _statusFilter,
-                dropdownColor: AppColors.navy,
-                icon: const Icon(Icons.filter_list, color: AppColors.gold),
-                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                items: ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+            child: InkWell(
+              onTap: () => showSearchableDialog<String>(
+                context: context,
+                title: "Status",
+                initialValue: _statusFilter,
+                items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
+                    .map((s) => SearchableDropdownItem(value: s, label: s))
                     .toList(),
-                onChanged: (val) => setState(() => _statusFilter = val!),
+                onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _statusFilter,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                  const Icon(Icons.filter_list, color: AppColors.gold),
+                ],
               ),
             ),
           ),
@@ -197,27 +217,21 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildCampusFilter() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (campuses.isEmpty) return const SizedBox.shrink();
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: CascadingLocationFilter(
-        campuses: campuses,
-        campusId: _selectedCampusId,
-        buildingId: _selectedBuildingId,
-        roomId: _selectedRoomId,
-        maxLevel: 3,
-        onCampusChanged: (id) => setState(() {
-          _selectedCampusId = id;
-          _selectedBuildingId = null;
-          _selectedRoomId = null;
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
         }),
-        onBuildingChanged: (id) => setState(() {
-          _selectedBuildingId = id;
-          _selectedRoomId = null;
-        }),
-        onRoomChanged: (id) => setState(() => _selectedRoomId = id),
       ),
     );
   }
@@ -274,19 +288,40 @@ class _AssetsPageState extends State<AssetsPage> {
                  a.id.toLowerCase().contains(_query);
         }).toList();
 
+        // Apply sorting
+        if (_sortCtrl.isActive) {
+          filtered.sort((a, b) {
+            final dir = _sortCtrl.direction;
+            switch (_sortCtrl.sortKey) {
+              case 'id': return a.id.compareTo(b.id) * dir;
+              case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+              case 'brand': return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) * dir;
+              case 'serial': return a.serialCode.toLowerCase().compareTo(b.serialCode.toLowerCase()) * dir;
+              case 'type': return a.category.toLowerCase().compareTo(b.category.toLowerCase()) * dir;
+              case 'isOutdoor': return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) * dir;
+              case 'status': return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+              case 'created': return 0;
+              default: return 0;
+            }
+          });
+        }
+
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
-return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              color: AppColors.gold,
-              child: const Row(
-                children: [
-                  Expanded(flex: 1, child: Text("ID", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 3, child: Text("NAAM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
-                  Expanded(flex: 2, child: Text("STATUS", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12))),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
+      ),
+    );
+                  }),
                 ],
               ),
             ),
@@ -310,11 +345,22 @@ return Column(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
         child: Row(
-          children: [
-            Expanded(flex: 1, child: Text("#${asset.id}", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-            Expanded(flex: 3, child: Text(asset.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-            Expanded(flex: 2, child: StatusBadge(status: asset.status, fontSize: 13)),
-          ],
+          children: _colVis.visibleColumns.map((col) {
+            int flex = 2;
+            Widget child;
+            switch (col.key) {
+              case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
+              case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
+              case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+              case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
+              case 'created': child = const Text('-', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)); break;
+              default: child = const Text(''); break;
+            }
+            return Expanded(flex: flex, child: child);
+          }).toList(),
         ),
       ),
     );

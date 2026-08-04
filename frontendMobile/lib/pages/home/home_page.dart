@@ -9,6 +9,7 @@ import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
 import 'calendar_page.dart';
 import 'works_assignments_page.dart';
+import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
 import '../../models/user_session.dart';
 import '../../services/notification_service.dart';
@@ -19,6 +20,7 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
+import '../room_checklist/room_checklist_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -80,52 +82,49 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Paneelbord',
         'icon': Icons.dashboard_outlined,
-        'page': DashboardPage(onTabRequested: (index) {
-          final titles = [
-            "Paneelbord", "Bates", "Voorraad", "Terreine", "Geboue", "Lokale",
-            "Foutkaartjies", "Werksopdragte", "Kalender"
-          ];
-          if (index >= 0 && index < titles.length) {
-            setState(() => _selectedTitle = titles[index]);
+        // Die paneelbord se statistiek-kaarte vra 'n bladsy aan op naam. Vroeër
+        // was dit 'n indeks in 'n hardgekodeerde lys, wat stilweg verkeerd
+        // geloop het sodra 'n gebruiker nie al die regte gehad het nie.
+        'page': DashboardPage(onTabRequested: (title) {
+          if (_getFlatMenu().any((item) => item['title'] == title)) {
+            setState(() => _selectedTitle = title);
           }
         }),
       });
     }
 
-    // Bates & Voorraad
-    final assetsChildren = <Map<String, dynamic>>[];
-    if (can('assets.manage')) {
-      assetsChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
-    }
-    if (can('stock.manage')) {
-      assetsChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
-    }
-    if (assetsChildren.isNotEmpty) {
+    // Lokaal Kontrole — slegs FK/Admin
+    if (UserSession.hasAdminPrivileges) {
       menu.add({
-        'title': 'Bates & Voorraad',
-        'icon': Icons.inventory_2_outlined,
-        'isExpandable': true,
-        'children': assetsChildren,
+        'title': 'Lokaal Kontrole',
+        'icon': Icons.checklist,
+        'page': const RoomChecklistPage(),
       });
     }
 
-    // Lokale & Terreine
-    final locationChildren = <Map<String, dynamic>>[];
+    // Fasiliteite — bates, voorraad en die ligging-hiërargie onder een groep.
+    final facilitiesChildren = <Map<String, dynamic>>[];
+    if (can('assets.manage')) {
+      facilitiesChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
+    }
+    if (can('stock.manage')) {
+      facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
+    }
     if (can('locations.manage')) {
-      locationChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
+      facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
     }
     if (can('buildings.manage')) {
-      locationChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
+      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
     }
     if (can('rooms.manage')) {
-      locationChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
+      facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
     }
-    if (locationChildren.isNotEmpty) {
+    if (facilitiesChildren.isNotEmpty) {
       menu.add({
-        'title': 'Lokale & Terreine',
-        'icon': Icons.map_outlined,
+        'title': 'Fasiliteite',
+        'icon': Icons.business_outlined,
         'isExpandable': true,
-        'children': locationChildren,
+        'children': facilitiesChildren,
       });
     }
 
@@ -146,6 +145,11 @@ class _HomePageState extends State<HomePage> {
     // Kalender — Admin/FK/Kontrakteur (calendar.view).
     if (can('calendar.view')) {
       menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
+    }
+
+    // Gebruikers — Admin slegs (users.manage), laaste item in die navigasie.
+    if (can('users.manage')) {
+      menu.add({'title': 'Gebruikers', 'icon': Icons.group_outlined, 'page': const UsersPage()});
     }
 
     return menu; // Kan leeg wees as geen reg pas nie (gebruiker moet weer aanmeld).
@@ -227,7 +231,6 @@ class _HomePageState extends State<HomePage> {
                     IconButton(
                       icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                       onPressed: () async {
-                        await NotificationService.markAllAsRead();
                         if (context.mounted) {
                           Navigator.push(
                             context,

@@ -5,10 +5,12 @@ import '../../models/user_session.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
-import '../../widgets/cascading_location_filter.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
 import '../asset/asset_page.dart';
-import '../asset/room_checklist_page.dart';
+import '../room_checklist/room_checklist_page.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -23,6 +25,12 @@ class ManageRoomsPage extends StatefulWidget {
 class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Campus? _selectedCampus;
   Building? _selectedBuilding;
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('rooms', [
+    const ColumnDef(key: 'name', label: 'Naam'),
+    const ColumnDef(key: 'type', label: 'Tipe'),
+    const ColumnDef(key: 'capacity', label: 'Kapasiteit'),
+  ]);
 
   @override
   void initState() {
@@ -324,29 +332,25 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CascadingLocationFilter(
-                  campuses: campuses,
-                  campusId: _selectedCampus?.id,
-                  buildingId: _selectedBuilding?.id,
-                  roomId: null,
-                  maxLevel: 2,
-                  onCampusChanged: (id) => setState(() {
-                    _selectedCampus = id != null
-                        ? campuses.where((c) => c.id == id).firstOrNull
-                        : null;
-                    _selectedBuilding = null;
-                  }),
-                  onBuildingChanged: (id) => setState(() {
-                    _selectedBuilding = id != null && _selectedCampus != null
-                        ? _selectedCampus!.buildings.where((b) => b.id == id).firstOrNull
-                        : null;
-                  }),
-                  onRoomChanged: (_) {},
+                LocationCascadePicker(
+                  depth: LocationDepth.building,
+                  initialCampusId: _selectedCampus?.id,
+                  initialBuildingId: _selectedBuilding?.id,
+                  onChanged: (campusId, buildingId, _) {
+                    setState(() {
+                      _selectedCampus = campuses.where((c) => c.id == campusId).firstOrNull;
+                      _selectedBuilding = _selectedCampus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+                    });
+                  },
                 ),
                 const SizedBox(height: 20),
 
                 if (_selectedBuilding == null)
-                  const Expanded(child: Center(child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey))))
+                  const Expanded(
+                    child: Center(
+                      child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey)),
+                    ),
+                  )
                 else ...[
                   if (UserSession.hasAdminPrivileges)
                     Row(
@@ -364,62 +368,76 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       ],
                     ),
                   const SizedBox(height: 30),
-                  const Text(
-                    "BESTAANDE LOKALE (Klik om bates te sien)",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.navy, letterSpacing: 1.1),
-                  ),
-                  const SizedBox(height: 10),
                   Expanded(
-                    child: _availableRooms.isEmpty
-                        ? const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)))
-                        : ListView.builder(
-                            itemCount: _availableRooms.length,
-                            itemBuilder: (context, index) {
-                              final room = _availableRooms[index];
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 10),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                child: ListTile(
-                                  title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                                  subtitle: Text("ID: ${room.id} | ${room.type}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (UserSession.hasAdminPrivileges) ...[
-                                        IconButton(
-                                          icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
-                                          tooltip: "Kontroleer bates",
-                                          onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => RoomChecklistPage(roomId: room.id),
-                                            ),
-                                          ),
+                    child: Builder(builder: (context) {
+                      final filtered = List<Room>.from(_availableRooms);
+                      if (_sortCtrl.isActive) {
+                        filtered.sort((a, b) {
+                          final dir = _sortCtrl.direction;
+                          switch (_sortCtrl.sortKey) {
+                            case 'name':
+                              return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                            case 'type':
+                              return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
+                            case 'capacity':
+                              return (a.capacity ?? 0).compareTo(b.capacity ?? 0) * dir;
+                            default:
+                              return 0;
+                          }
+                        });
+                      }
+                      if (filtered.isEmpty) {
+                        return const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)));
+                      }
+                      return ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final room = filtered[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            child: ListTile(
+                              title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              subtitle: Text("ID: ${room.id} | ${room.type}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (UserSession.hasAdminPrivileges) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
+                                      tooltip: "Kontroleer bates",
+                                      onPressed: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => RoomChecklistPage(roomId: room.id),
                                         ),
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                          onPressed: () => _showEditRoomDialog(context, room),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                          onPressed: () => _deleteRoom(room),
-                                        ),
-                                      ],
-                                      const Icon(Icons.chevron_right, color: AppColors.gold),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
                                       ),
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                      onPressed: () => _showEditRoomDialog(context, room),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                      onPressed: () => _deleteRoom(room),
+                                    ),
+                                  ],
+                                  const Icon(Icons.chevron_right, color: AppColors.gold),
+                                ],
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    }),
                   ),
                 ],
               ],
