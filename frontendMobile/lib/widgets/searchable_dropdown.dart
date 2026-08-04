@@ -1,22 +1,34 @@
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 
+/// Die app se enigste keuselys-widget: 'n veld wat 'n soekdialoog open waar die
+/// lys lewendig filter soos jy tik.
 class SearchableDropdown<T> extends StatefulWidget {
-  final String label;
+  /// Opskrif bo die veld. Laat weg vir inlyn-filters wat reeds 'n konteks het.
+  final String? label;
   final String hint;
   final T? value;
   final List<SearchableDropdownItem<T>> items;
   final ValueChanged<T?> onChanged;
   final String? Function(T?)? validator;
 
+  /// Wanneer vals is die veld dof en open dit nie die soekdialoog nie.
+  final bool enabled;
+
+  /// Opsionele knoppie regs in die veld (die ligging-kieser gebruik dit vir sy
+  /// "terug"-knoppie).
+  final Widget? trailing;
+
   const SearchableDropdown({
     super.key,
-    required this.label,
+    this.label,
     required this.hint,
     this.value,
     required this.items,
     required this.onChanged,
     this.validator,
+    this.enabled = true,
+    this.trailing,
   });
 
   @override
@@ -37,10 +49,12 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-        const SizedBox(height: 6),
+        if (widget.label != null) ...[
+          Text(widget.label!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+          const SizedBox(height: 6),
+        ],
         InkWell(
-          onTap: () => _showSearchDialog(context),
+          onTap: widget.enabled ? () => _showSearchDialog(context) : null,
           child: FormField<T>(
             key: widget.value != null ? ValueKey('${widget.label}_${widget.value}') : null,
             validator: widget.validator,
@@ -52,7 +66,9 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
                     decoration: BoxDecoration(
-                      color: state.hasError ? const Color(0xFFFFEBEE) : Colors.white,
+                      color: state.hasError
+                          ? const Color(0xFFFFEBEE)
+                          : (widget.enabled ? Colors.white : Colors.grey[200]),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: state.hasError ? Colors.red : Colors.grey[300]!),
                     ),
@@ -69,7 +85,11 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          color: widget.enabled ? Colors.grey : Colors.grey[400],
+                        ),
+                        if (widget.trailing != null) widget.trailing!,
                       ],
                     ),
                   ),
@@ -94,7 +114,7 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
     showDialog(
       context: context,
       builder: (context) => _SearchDialog<T>(
-        title: widget.label,
+        title: widget.label ?? widget.hint,
         items: widget.items,
         initialValue: widget.value,
         onSelected: widget.onChanged,
@@ -107,7 +127,28 @@ class SearchableDropdownItem<T> {
   final T value;
   final String label;
 
-  SearchableDropdownItem({required this.value, required this.label});
+  const SearchableDropdownItem({required this.value, required this.label});
+}
+
+/// Open dieselfde soekdialoog as [SearchableDropdown], maar vir kontroles wat
+/// hul eie voorkoms hou — bv. die kompakte filters in 'n blad se kopbalk, waar
+/// 'n volle veld met raam en etiket nie inpas nie.
+Future<void> showSearchableDialog<T>({
+  required BuildContext context,
+  required String title,
+  required List<SearchableDropdownItem<T>> items,
+  required ValueChanged<T?> onSelected,
+  T? initialValue,
+}) {
+  return showDialog(
+    context: context,
+    builder: (context) => _SearchDialog<T>(
+      title: title,
+      items: items,
+      initialValue: initialValue,
+      onSelected: onSelected,
+    ),
+  );
 }
 
 class _SearchDialog<T> extends StatefulWidget {
@@ -135,6 +176,12 @@ class _SearchDialogState<T> extends State<_SearchDialog<T>> {
   void initState() {
     super.initState();
     filteredItems = widget.items;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _filter(String query) {

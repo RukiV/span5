@@ -142,7 +142,7 @@ export const workOrdersAPI = {
   getRecent: (limit = 5) => apiClient.get('/job/recent', { params: { limit } }),
   getById: (id) => apiClient.get(`/job/${id}`),
   getScheduled: () => apiClient.get('/job/scheduled/upcoming'),
-  create: (data) => apiClient.post('/job', data),
+  create: (data, config) => apiClient.post('/job', data, config),
   update: (id, data) => apiClient.patch(`/job/${id}`, data),
   delete: (id) => apiClient.delete(`/job/${id}`),
 };
@@ -268,6 +268,13 @@ export const documentsAPI = {
   delete: (documentId) => apiClient.delete(`/documents/${documentId}`),
 };
 
+// ===== LOKAAL KONTROLE-API =====
+export const roomChecksAPI = {
+  getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
+  getById: (id) => apiClient.get(`/room-checks/${id}`),
+  create: (data) => apiClient.post('/room-checks', data),
+};
+
 // ===== KALENDER EVENTS-API =====
 export const calendarEventsAPI = {
   getRange: (start, end) => apiClient.get('/calendar/events', { params: { start, end } }),
@@ -295,6 +302,7 @@ apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
 apiClient.documents = documentsAPI;
 apiClient.calendarEvents = calendarEventsAPI;
+apiClient.roomChecks = roomChecksAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

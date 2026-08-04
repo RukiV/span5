@@ -1,81 +1,8 @@
-import os
 import json
-from functools import lru_cache
 from sqlmodel import Session, select, func
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
-from ..models.analytics import AnalyticsResponse, Metric, ChartData, ChartDataset, Suggestion, ChatMessage
-
-
-# ─── OpenAI integration (optional) ─────────────────────────────
-try:
-    from openai import OpenAI
-    _openai_available = True
-except ImportError:
-    _openai_available = False
-
-
-def _openai_insights(page: str, context: dict) -> AnalyticsResponse:
-    try:
-        if not _openai_available:
-            return _fallback_insights(page, context)
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        prompt = _build_prompt(page, context)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Jy is 'n fasiliteitbestuur-analis. Gee insigte en aksie-voorstelle in Afrikaans. Antwoord altyd met geldige JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.3,
-        )
-        raw = resp.choices[0].message.content
-        data = json.loads(raw)
-        suggestions = []
-        for s in data.get("suggestions", []):
-            suggestions.append(Suggestion(**s))
-        return AnalyticsResponse(
-            summary=data.get("summary", ""),
-            metrics=[Metric(**m) for m in data.get("metrics", [])],
-            insights=data.get("insights", []),
-            suggestions=suggestions,
-            chart=ChartData(**data["chart"]) if data.get("chart") else None,
-        )
-    except Exception:
-        return _fallback_insights(page, context, session=None)
-
-
-_FEW_SHOT = """
-Voorbeeld van verwagte JSON-formaat (insluitend suggestions):
-{
-  "summary": "Daar is tans 45 bates in die stelsel, waarvan 12 in instandhouding is.",
-  "metrics": [{"label": "Totale Bates", "value": "45"}, {"label": "Instandhouding", "value": "12"}],
-  "insights": ["4 IT-bates is ouer as 5 jaar en benodig aandag.", "Bate 'Dell R740' wag al 45 dae vir instandhouding."],
-  "suggestions": [
-    {"type": "create_work_order", "label": "Skep werksopdrag vir Dell R740", "description": "Hierdie bate is al 45 dae in instandhouding.", "params": {"job_desc": "Instandhouding: Dell R740", "asset_id": 1, "job_priority": "Dringend"}},
-    {"type": "reorder_stock", "label": "Hervul Toiletpapier", "description": "Toiletpapier voorraad is 2, minimum is 10.", "params": {"stock_id": 1, "amount": 15}}
-  ],
-  "chart": {"type": "bar", "labels": ["Elektries", "Meganies", "IT"], "datasets": [{"label": "Bates", "data": [20, 15, 10], "backgroundColor": ["#935e28"]}]}
-}
-"""
-
-
-def _build_prompt(page: str, context: dict) -> str:
-    base = f"Page: {page}\nData: {json.dumps(context, default=str)}\n\n{_FEW_SHOT}\n"
-    prompts = {
-        "assets": base + "Gee dinamiese insigte oor bates. Verwys na spesifieke bates by naam. Sluit 'n staafgrafiek in van bates per tipe. Stel aksies voor soos om werksopdragte te skep vir bates wat lank in instandhouding is.",
-        "stock": base + "Gee dinamiese insigte oor voorraad. Verwys na spesifieke items by naam. Stel aksies voor om lae voorraad te hervul. Staafgrafiek van voorraadvlakke per item.",
-        "rooms": base + "Gee dinamiese insigte oor lokale. Verwys na spesifieke lokale by naam. Stel inspeksies voor vir lokale met foute. Staafgrafiek van lokale per gebou.",
-        "buildings": base + "Gee dinamiese insigte oor geboue, per kampus. Stel voor waar aandag nodig is. Staafgrafiek van geboue per kampus.",
-        "terrains": base + "Gee dinamiese insigte oor terreine/kampuste. Stel voor waar uitbreiding of aandag nodig is. Staafgrafiek.",
-        "fault-tickets": base + "Gee dinamiese insigte oor foutkaartjies. Verwys na spesifieke foute. Stel aksies voor soos om werksopdragte te skep vir hoë-prioriteit foute of ou foute te sluit. Staafgrafiek van foute per prioriteit.",
-        "work-orders": base + "Gee dinamiese insigte oor werksopdragte. Verwys na spesifieke werksopdragte. Stel aksies voor soos om ontoegewysde werksopdragte aan te wys of agterstallige werk te herprioritiseer. Staafgrafiek van werksopdragte per status.",
-        "dashboard": base + "Gee 'n hoëvlak samevatting van die fasiliteit. Stel oorkoepelende aksies voor. Staafgrafiek van maandelikse aktiwiteit.",
-        "users": base + "Gee insigte oor gebruikers: aantal per rol, onlangse aktiwiteit.",
-        "calendar": base + "Gee insigte oor die kalender: komende gebeurtenisse, besige dae.",
-    }
-    return prompts.get(page, base + "Gee 'n dinamiese opsomming van die bladsy se data met insigte en aksie-voorstelle.")
+from ..models.analytics import AnalyticsResponse, Metric, ChartData, ChartDataset, Suggestion
 
 
 # ─── Fallback (rule-based, no AI) ─────────────────────────────
@@ -132,7 +59,7 @@ def _fallback_suggestions(page: str, context: dict) -> list[Suggestion]:
         if j.get("job_status") in ("Oop", "oop", "Pending", "pending") and not j.get("assigned_to"):
             suggestions.append(Suggestion(
                 type="assign_job",
-                label=f"Ken werksopdrag #{j.get('jobcard_id')} toe",
+                label=f"Ken werksopdrag #{j.get('jobcard_id')} aan my toe",
                 description=f"{str(j.get('job_desc', ''))[:80]} het geen toewysing nie",
                 params={"jobcard_id": j.get("jobcard_id")},
             ))
@@ -141,255 +68,272 @@ def _fallback_suggestions(page: str, context: dict) -> list[Suggestion]:
     if len(maintenance_assets) >= 2:
         suggestions.append(Suggestion(
             type="create_work_order",
-            label="Skeduleer instandhouding",
-            description=f"{len(maintenance_assets)} bates wag vir instandhouding",
-            params={},
-        ))
-
-    fault_rooms = [r for r in raw_rooms if r.get("room_status") in ("Fout Aangemeld", "Instandhouding")]
-    if len(fault_rooms) >= 2:
-        suggestions.append(Suggestion(
-            type="create_work_order",
-            label="Inspekteer foutiewe lokale",
-            description=f"{len(fault_rooms)} lokale het foute aangemeld",
-            params={},
+            label=f"Werksopdrag vir {maintenance_assets[0].get('asset_name', 'bate')}",
+            description=f"{maintenance_assets[0].get('asset_name', 'Bate')} is al in instandhouding",
+            params={
+                "asset_id": maintenance_assets[0].get("asset_id"),
+                "job_desc": f"Instandhouding: {maintenance_assets[0].get('asset_name', 'onbekend')}",
+                "room_id": maintenance_assets[0].get("room_id"),
+                "job_priority": "Normaal",
+            },
         ))
 
     return suggestions
 
 
 def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsResponse:
-    raw_assets = context.get("raw_assets", [])
-    raw_stock = context.get("raw_stock", [])
-    raw_faults = context.get("raw_faults", [])
-    raw_jobs = context.get("raw_jobs", [])
-    raw_rooms = context.get("raw_rooms", [])
-    raw_buildings = context.get("raw_buildings", [])
-    raw_users = context.get("raw_users", [])
-    raw_events = context.get("raw_events", [])
-    raw_terrains = context.get("raw_terrains", [])
-
-    if page == "assets":
-        total = len(raw_assets)
-        active = context.get("active", 0)
-        maintenance = context.get("maintenance", 0)
-        insights = []
-        if total:
-            insights.append(f"{total} bates in die stelsel ({active} aktief, {maintenance} in instandhouding).")
-        if maintenance:
-            names = [a.get("asset_name") for a in raw_assets if a.get("asset_status") == "Instandhouding"]
-            if names:
-                insights.append(f"In standhouding: {', '.join(names[:3])}{' en meer' if len(names) > 3 else ''}.")
-        return AnalyticsResponse(
-            summary=f"Daar is tans {total} bates, waarvan {active} aktief en {maintenance} in instandhouding." if total else "Geen bates nie.",
-            metrics=[
-                Metric(label="Totale Bates", value=str(total)),
-                Metric(label="Aktief", value=str(active)),
-                Metric(label="Tipes", value=str(context.get("types", 0))),
-            ],
-            insights=insights,
-            suggestions=_fallback_suggestions(page, context),
-            chart=ChartData(
-                type="bar",
-                labels=list(context.get("type_labels", [])),
-                datasets=[ChartDataset(label="Bates", data=context.get("type_counts", []), backgroundColor=["#935e28"])],
-            ) if context.get("type_labels") else None,
-        )
-
-    elif page == "stock":
-        total = len(raw_stock)
-        low_items = [s for s in raw_stock if s.get("stock_amount", 0) < s.get("stock_minimum", 0)]
-        insights = []
-        if total:
-            insights.append(f"{total} voorraaditems, waarvan {len(low_items)} onder minimum is.")
-        for s in low_items[:3]:
-            insights.append(f"{s.get('stock_name')} — {s.get('stock_amount')}/{s.get('stock_minimum')}")
-        return AnalyticsResponse(
-            summary=f"{len(low_items)} items benodig herbestelling." if low_items else "Voorraadvlakke is normaal.",
-            metrics=[
-                Metric(label="Items", value=str(total)),
-                Metric(label="Onder Minimum", value=str(len(low_items))),
-                Metric(label="Tot. Hoeveelheid", value=str(context.get("total_amount", 0))),
-            ],
-            insights=insights,
-            suggestions=_fallback_suggestions(page, context),
-            chart=ChartData(
-                type="bar",
-                labels=list(context.get("item_labels", [])),
-                datasets=[ChartDataset(label="Voorraad", data=context.get("item_counts", []), backgroundColor=["#935e28"])],
-            ) if context.get("item_labels") else None,
-        )
-
-    elif page == "fault-tickets":
-        open_tickets = context.get("open", 0)
-        closed = context.get("closed", 0)
-        total = open_tickets + closed
-        pct_open = round(open_tickets / total * 100, 1) if total else 0
-        insights = []
-        if total:
-            insights.append(f"{open_tickets} oop foutkaartjies ({pct_open}% van {total}).")
-        high_prio = [f for f in raw_faults if f.get("fault_priority") in ("Hoog", "Dringend")]
-        if high_prio:
-            insights.append(f"{len(high_prio)} hoë-prioriteit foute wag vir aandag.")
-        return AnalyticsResponse(
-            summary=f"{open_tickets} oop foutkaartjies ({pct_open}%).",
-            metrics=[
-                Metric(label="Oop", value=str(open_tickets)),
-                Metric(label="Gesluit", value=str(closed)),
-                Metric(label="Totaal", value=str(total)),
-            ],
-            insights=insights,
-            suggestions=_fallback_suggestions(page, context),
-            chart=ChartData(
-                type="bar",
-                labels=list(context.get("priority_labels", [])),
-                datasets=[ChartDataset(label="Foute", data=context.get("priority_counts", []), backgroundColor=["#935e28"])],
-            ) if context.get("priority_labels") else None,
-        )
-
-    elif page == "work-orders":
-        pending = context.get("pending", 0)
-        completed = context.get("completed", 0)
-        total = pending + completed
-        insights = []
-        if total:
-            insights.append(f"{pending} hangende, {completed} voltooide werksopdragte.")
-        unassigned = [j for j in raw_jobs if j.get("job_status") in ("Oop", "oop", "Pending", "pending") and not j.get("assigned_to")]
-        if unassigned:
-            insights.append(f"{len(unassigned)} werksopdragte het geen toewysing nie.")
-        return AnalyticsResponse(
-            summary=f"{pending} werksopdragte is tans hangend." if pending else "Alle werksopdragte is op skedule.",
-            metrics=[
-                Metric(label="Hangend", value=str(pending)),
-                Metric(label="Voltooi", value=str(completed)),
-                Metric(label="Totaal", value=str(total)),
-            ],
-            insights=insights,
-            suggestions=_fallback_suggestions(page, context),
-            chart=ChartData(
-                type="bar",
-                labels=list(context.get("status_labels", [])),
-                datasets=[ChartDataset(label="Werksopdragte", data=context.get("status_counts", []), backgroundColor=["#935e28"])],
-            ) if context.get("status_labels") else None,
-        )
-
-    elif page == "rooms":
-        total = len(raw_rooms)
-        fault_rooms = [r for r in raw_rooms if r.get("room_status") in ("Fout Aangemeld", "Instandhouding")]
-        insights = []
-        if total:
-            insights.append(f"{total} lokale, waarvan {len(fault_rooms)} foute aangemeld het.")
-            names = [r.get("room_name") for r in fault_rooms[:3]]
-            if names:
-                insights.append(f"Probleem lokale: {', '.join(names)}.")
-        return AnalyticsResponse(
-            summary=f"{total} lokale is geregistreer." if total else "Geen lokale nie.",
-            metrics=[
-                Metric(label="Lokale", value=str(total)),
-                Metric(label="Met Foute", value=str(len(fault_rooms))),
-            ],
-            insights=insights,
-            suggestions=_fallback_suggestions(page, context),
-            chart=ChartData(
-                type="bar",
-                labels=list(context.get("type_labels", [])),
-                datasets=[ChartDataset(label="Lokale", data=context.get("type_counts", []), backgroundColor=["#935e28"])],
-            ) if context.get("type_labels") else None,
-        )
-
-    elif page == "buildings":
-        total = len(raw_buildings)
-        per_location = context.get("per_location", {})
-        return AnalyticsResponse(
-            summary=f"{total} geboue is geregistreer." if total else "Geen geboue nie.",
-            metrics=[
-                Metric(label="Geboue", value=str(total)),
-                Metric(label="Kampusse", value=str(len(per_location))),
-            ],
-            insights=[
-                f"{total} geboue in die stelsel." if total else "",
-                *([f"{k}: {v} geboue." for k, v in per_location.items()]),
-            ],
-            chart=ChartData(
-                type="bar",
-                labels=list(per_location.keys()),
-                datasets=[ChartDataset(label="Geboue", data=list(per_location.values()), backgroundColor=["#935e28"])],
-            ) if per_location else None,
-        )
-
-    elif page == "terrains":
-        total = len(raw_terrains)
-        bpt = context.get("buildings_per_terrain", {})
-        return AnalyticsResponse(
-            summary=f"{total} terreine is geregistreer." if total else "Geen terreine nie.",
-            metrics=[
-                Metric(label="Terreine", value=str(total)),
-                Metric(label="Geboue Totaal", value=str(sum(bpt.values()))),
-            ],
-            insights=[
-                f"{total} kampusse/terreine." if total else "",
-                *([f"{k}: {v} geboue." for k, v in bpt.items()]),
-            ],
-            chart=ChartData(
-                type="bar",
-                labels=list(bpt.keys()),
-                datasets=[ChartDataset(label="Geboue", data=list(bpt.values()), backgroundColor=["#935e28"])],
-            ) if bpt else None,
-        )
-
-    elif page == "dashboard":
-        assets = context.get("assets", 0)
+    if page == "dashboard":
+        total = context.get("assets", 0)
         open_faults = context.get("open_faults", 0)
         work_orders = context.get("work_orders", 0)
         stock_items = context.get("stock_items", 0)
         rooms = context.get("rooms", 0)
         buildings = context.get("buildings", 0)
+
+        suggestions = _fallback_suggestions(page, context)
+        all_insights = [
+            f"Daar is {total} bates, {open_faults} oop foutkaartjies, en {work_orders} werksopdragte.",
+        ]
+        if open_faults > 0:
+            all_insights.append(f"{open_faults} foutkaartjies wag nog vir aandag.")
+        if stock_items > 0:
+            all_insights.append(f"{stock_items} voorraaditems word tans bestuur.")
+        all_insights.append(f"Die fasiliteit het {rooms} lokale oor {buildings} geboue.")
+
         return AnalyticsResponse(
-            summary=f"FBS Paneelbord: {assets} bates, {open_faults} oop foute, {work_orders} werksopdragte.",
+            summary=f"Oorsig van {total} bates, {open_faults} oop foute, {work_orders} werksopdragte.",
             metrics=[
-                Metric(label="Bates", value=str(assets)),
+                Metric(label="Totale Bates", value=str(total)),
                 Metric(label="Oop Foute", value=str(open_faults)),
                 Metric(label="Werksopdragte", value=str(work_orders)),
                 Metric(label="Voorraaditems", value=str(stock_items)),
-                Metric(label="Lokale", value=str(rooms)),
-                Metric(label="Geboue", value=str(buildings)),
             ],
-            insights=[
-                f"{assets} bates, {open_faults} oop foute, {work_orders} werksopdragte.",
-                f"{stock_items} voorraaditems, {rooms} lokale, {buildings} geboue.",
+            insights=all_insights,
+            suggestions=suggestions,
+            chart=ChartData(
+                type="bar",
+                labels=["Bates", "Oop Foute", "Werksopdragte", "Voorraad"],
+                datasets=[ChartDataset(label="Aantal", data=[total, open_faults, work_orders, stock_items], backgroundColor=["#935e28", "#b8863c", "#d4a357", "#e8c49a"])],
+            ),
+        )
+
+    elif page == "assets":
+        total = context.get("total", 0)
+        active = context.get("active", 0)
+        maintenance = context.get("maintenance", 0)
+        type_labels = context.get("type_labels", [])
+        type_counts = context.get("type_counts", [])
+        asset_list = context.get("raw_assets", [])
+
+        insights = [f"{total} bates in die stelsel, waarvan {active} aktief is en {maintenance} in instandhouding."]
+        suggestions = _fallback_suggestions(page, context)
+
+        in_maint = [a for a in asset_list if a.get("asset_status") == "Instandhouding"]
+        if in_maint:
+            names = ", ".join(a.get("asset_name", f"ID {a['asset_id']}") for a in in_maint[:3])
+            insights.append(f"Instandhouding: {names}")
+
+        return AnalyticsResponse(
+            summary=f"{total} bates: {active} aktief, {maintenance} in instandhouding.",
+            metrics=[
+                Metric(label="Totaal", value=str(total)),
+                Metric(label="Aktief", value=str(active)),
+                Metric(label="Instandhouding", value=str(maintenance)),
             ],
+            insights=insights,
+            suggestions=suggestions,
+            chart=ChartData(
+                type="bar",
+                labels=type_labels or ["Bates"],
+                datasets=[ChartDataset(label="Bates per tipe", data=type_counts or [total], backgroundColor=["#935e28", "#b8863c", "#d4a357", "#e8c49a", "#f0dcc8"])],
+            ),
+        )
+
+    elif page == "stock":
+        total = context.get("total", 0)
+        low = context.get("low_stock", 0)
+        total_amount = context.get("total_amount", 0)
+        item_labels = context.get("item_labels", [])
+        item_counts = context.get("item_counts", [])
+        stock_list = context.get("raw_stock", [])
+
+        insights = [f"{total} voorraaditems, waarvan {low} laag is."]
+        suggestions = _fallback_suggestions(page, context)
+
+        low_items = [s for s in stock_list if s.get("stock_amount", 0) < s.get("stock_minimum", 0)]
+        if low_items:
+            low_names = ", ".join(s.get("stock_name", f"ID {s['stock_id']}") for s in low_items[:3])
+            insights.append(f"Lae voorraad: {low_names}")
+
+        return AnalyticsResponse(
+            summary=f"{total} voorraaditems, {low} benodig hervulling.",
+            metrics=[
+                Metric(label="Totaal", value=str(total)),
+                Metric(label="Lae Voorraad", value=str(low)),
+                Metric(label="Totale Hoeveelheid", value=str(total_amount)),
+            ],
+            insights=insights,
+            suggestions=suggestions,
+            chart=ChartData(
+                type="bar",
+                labels=item_labels or ["Voorraad"],
+                datasets=[ChartDataset(label="Voorraadvlak", data=item_counts or [0], backgroundColor=["#935e28"] * len(item_counts))],
+            ),
+        )
+
+    elif page == "fault-tickets":
+        total = context.get("open", 0) + context.get("closed", 0)
+        op = context.get("open", 0)
+        closed = context.get("closed", 0)
+        pri_labels = context.get("priority_labels", [])
+        pri_counts = context.get("priority_counts", [])
+        fault_list = context.get("raw_faults", [])
+
+        insights = [f"{total} foutkaartjies: {op} oop, {closed} gesluit."]
+        suggestions = _fallback_suggestions(page, context)
+
+        high_pri = [f for f in fault_list if f.get("fault_priority") in ("Hoog", "Dringend")]
+        if high_pri:
+            insights.append(f"{len(high_pri)} hoë-prioriteit foute wag vir aandag.")
+
+        return AnalyticsResponse(
+            summary=f"{total} foutkaartjies — {op} nog oop.",
+            metrics=[
+                Metric(label="Totaal", value=str(total)),
+                Metric(label="Oop", value=str(op)),
+                Metric(label="Gesluit", value=str(closed)),
+            ],
+            insights=insights,
+            suggestions=suggestions,
+            chart=ChartData(
+                type="bar",
+                labels=pri_labels or ["Foute"],
+                datasets=[ChartDataset(label="Foute per prioriteit", data=pri_counts or [total], backgroundColor=["#b91c1c", "#c97c3c", "#935e28", "#d4a357"])],
+            ),
+        )
+
+    elif page == "work-orders":
+        total = context.get("pending", 0) + context.get("completed", 0)
+        pend = context.get("pending", 0)
+        comp = context.get("completed", 0)
+        status_labels = context.get("status_labels", [])
+        status_counts = context.get("status_counts", [])
+        job_list = context.get("raw_jobs", [])
+
+        suggestions = _fallback_suggestions(page, context)
+        unassigned = [j for j in job_list if not j.get("assigned_to")]
+        insights = [f"{total} werksopdragte: {pend} hangende, {comp} voltooid."]
+        if unassigned:
+            insights.append(f"{len(unassigned)} werksopdragte het geen toewysing nie.")
+
+        return AnalyticsResponse(
+            summary=f"{total} werksopdragte — {pend} nog aan die gang.",
+            metrics=[
+                Metric(label="Totaal", value=str(total)),
+                Metric(label="Hangend", value=str(pend)),
+                Metric(label="Voltooid", value=str(comp)),
+            ],
+            insights=insights,
+            suggestions=suggestions,
+            chart=ChartData(
+                type="bar",
+                labels=status_labels or ["Werksopdragte"],
+                datasets=[ChartDataset(label="Werksopdragte per status", data=status_counts or [total], backgroundColor=["#935e28", "#10b981", "#d4a357", "#6b7280"])],
+            ),
+        )
+
+    elif page == "rooms":
+        total = context.get("total", 0)
+        type_labels = context.get("type_labels", [])
+        type_counts = context.get("type_counts", [])
+
+        return AnalyticsResponse(
+            summary=f"{total} lokale in die stelsel.",
+            metrics=[Metric(label="Totale Lokale", value=str(total))],
+            insights=[f"{total} lokale in die fasiliteit."],
+            suggestions=[],
+            chart=ChartData(
+                type="bar",
+                labels=type_labels or ["Lokale"],
+                datasets=[ChartDataset(label="Lokale per tipe", data=type_counts or [total], backgroundColor=["#935e28", "#b8863c", "#d4a357"])],
+            ),
+        )
+
+    elif page == "buildings":
+        total = context.get("total", 0)
+        per_location = context.get("per_location", {})
+        loc_name = context.get("location_name", "Kampus")
+
+        count_text = ", ".join(f"{k}: {v}" for k, v in per_location.items())
+        insights = [f"{total} geboue oor {len(per_location)} terreine."]
+        if per_location:
+            insights.append(count_text)
+
+        return AnalyticsResponse(
+            summary=f"{total} geboue in die stelsel.",
+            metrics=[Metric(label="Totale Geboue", value=str(total))],
+            insights=insights,
+            suggestions=[],
+            chart=ChartData(
+                type="bar",
+                labels=list(per_location.keys()) or ["Geboue"],
+                datasets=[ChartDataset(label="Geboue per kampus", data=list(per_location.values()) or [total], backgroundColor=["#935e28", "#b8863c", "#d4a357"])],
+            ),
+        )
+
+    elif page == "terrains":
+        total = context.get("total", 0)
+        buildings_per = context.get("buildings_per_terrain", {})
+
+        insights = [f"{total} terreine in die stelsel."]
+        if buildings_per:
+            top = sorted(buildings_per.items(), key=lambda x: -x[1])[:3]
+            insights.append("Meeste geboue: " + ", ".join(f"{k} ({v})" for k, v in top))
+
+        return AnalyticsResponse(
+            summary=f"{total} terreine in die stelsel.",
+            metrics=[Metric(label="Totale Terreine", value=str(total))],
+            insights=insights,
+            suggestions=[],
+            chart=ChartData(
+                type="bar",
+                labels=list(buildings_per.keys()) or ["Terreine"],
+                datasets=[ChartDataset(label="Geboue per terrein", data=list(buildings_per.values()) or [total], backgroundColor=["#935e28", "#b8863c", "#d4a357"])],
+            ),
         )
 
     elif page == "users":
-        total = len(raw_users)
+        total = context.get("total", 0)
         active = context.get("active_users", 0)
         per_role = context.get("per_role", {})
+
+        role_text = ", ".join(f"{r}: {c}" for r, c in per_role.items())
+        insights = [f"{total} gebruikers ({active} aktief)."]
+        if per_role:
+            insights.append(f"Rolle: {role_text}")
+
         return AnalyticsResponse(
-            summary=f"{total} gebruikers in die stelsel, waarvan {active} aktief." if total else "Geen gebruikers nie.",
+            summary=f"{total} gebruikers: {active} aktief.",
             metrics=[
-                Metric(label="Gebruikers", value=str(total)),
+                Metric(label="Totaal", value=str(total)),
                 Metric(label="Aktief", value=str(active)),
-                Metric(label="Rolle", value=str(len(per_role))),
             ],
-            insights=[
-                f"{total} gebruikers geregistreer." if total else "",
-                *([f"Rol '{r}': {c}" for r, c in per_role.items()]),
-            ],
+            insights=insights,
+            suggestions=[],
         )
 
     elif page == "calendar":
-        total = len(raw_events)
+        total = context.get("total", 0)
         upcoming = context.get("upcoming", 0)
+
         return AnalyticsResponse(
-            summary=f"{total} kalendergebeurtenisse, waarvan {upcoming} in die toekoms is." if total else "Geen gebeurtenisse nie.",
+            summary=f"{total} kalendergebeurtenisse ({upcoming} komende).",
             metrics=[
-                Metric(label="Gebeure", value=str(total)),
+                Metric(label="Totaal", value=str(total)),
                 Metric(label="Komend", value=str(upcoming)),
             ],
-            insights=[
-                f"{total} gebeurtenisse" if total else "",
-                f"{upcoming} komend" if upcoming else "Geen komende gebeurtenisse nie.",
-            ],
+            insights=[f"{total} gebeurtenisse, waarvan {upcoming} nog komende is."],
+            suggestions=[],
         )
 
     return AnalyticsResponse(
@@ -399,118 +343,29 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
     )
 
 
-# ─── Public entry point (cached) ──────────────────────────────
-
-@lru_cache(maxsize=20)
-def _cached_insights(key: str) -> str:
-    return key  # placeholder; actual cache logic in generate_insights
+# ─── Public entry point ──────────────────────────────────────
 
 
-def generate_insights(page: str, session: Session, date_from: datetime = None, date_to: datetime = None) -> AnalyticsResponse:
+def generate_insights(page: str, session, date_from: datetime = None, date_to: datetime = None) -> AnalyticsResponse:
     context = _gather_context(page, session, date_from, date_to)
-
-    if os.getenv("OPENAI_API_KEY"):
-        result = _openai_insights(page, context)
-    else:
-        result = _fallback_insights(page, context, session)
-
-    return result
+    return _fallback_insights(page, context, session)
 
 
-def answer_chat_query(page: str, query: str, history: list[ChatMessage], session: Session) -> str:
-    context = _gather_context(page, session)
-
-    context_block = json.dumps(context, default=str, indent=2)
-
-    messages = [
-        {"role": "system", "content": (
-            "Jy is 'n fasiliteitbestuur-analis vir die FBS stelsel. "
-            "Beantwoord die gebruiker se vraag in Afrikaans, gebaseer op die verskafde data-konteks. "
-            "Wees bondig, spesifiek, en noem name/gettalle waar moontlik. "
-            "As jy nie die antwoord uit die konteks kan gee nie, sê dit eerlik."
-        )},
-        {"role": "user", "content": f"Hier is die huidige data vir die '{page}' bladsy:\n\n{context_block}"},
-    ]
-
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-
-    messages.append({"role": "user", "content": query})
-
-    if os.getenv("OPENAI_API_KEY") and _openai_available:
-        try:
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=messages,
-                temperature=0.3,
-            )
-            return resp.choices[0].message.content
-        except Exception:
-            pass
-
-    total = len(context.get("raw_assets", [])) + len(context.get("raw_stock", []))
-    return f"Ek het data vir {total} items op die '{page}' bladsy. Stel 'n OPENAI_API_KEY om die KI-gesprek te aktiveer."
+# ─── Suggestion execution ────────────────────────────────────
 
 
-def _count_by(session: Session, model, group_field: str, label_field: str = None,
-              date_field: str = None, date_from: datetime = None, date_to: datetime = None) -> dict:
-    query = select(model)
-    if date_from and date_field:
-        query = query.where(getattr(model, date_field) >= date_from)
-    if date_to and date_field:
-        query = query.where(getattr(model, date_field) <= date_to)
-    rows = session.exec(query).all()
-    counts = {}
-    for r in rows:
-        key = str(getattr(r, group_field, "Onbekend") or "Onbekend")
-        counts[key] = counts.get(key, 0) + 1
-    return counts
-
-
-def _enum_val(v):
-    """Return .value if v is an Enum, otherwise v (as string fallback)."""
-    if v is None:
-        return "Onbekend"
-    if hasattr(v, 'value'):
-        return v.value
-    return str(v)
-
-
-def _serialize_records(records, exclude_fields=None, limit=500):
-    """Serialize SQLModel records to plain dicts for AI context."""
-    exclude = set(exclude_fields or [])
-    result = []
-    for r in records:
-        d = {}
-        for col in r.__table__.columns:
-            if col.name in exclude:
-                continue
-            val = getattr(r, col.name)
-            if hasattr(val, 'value'):
-                val = val.value
-            elif isinstance(val, datetime):
-                val = val.isoformat()
-            d[col.name] = val
-        result.append(d)
-    if limit and len(result) > limit:
-        result = result[:limit]
-    return result
-
-
-def _execute_suggestion(suggestion: Suggestion, session: Session, user_id: int) -> dict:
+def _execute_suggestion(suggestion: Suggestion, session, user_id: int) -> dict:
     from ..models.job import Jobcard
-    from ..models.fault import Faultcard
     from ..models.stock import Stock
-    from ..models.asset import Asset, AssetStatus
-    from ..models.job import JobStatus
 
     typ = suggestion.type
     params = suggestion.params
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if typ == "create_work_order":
         job = Jobcard(
             job_desc=params.get("job_desc", ""),
+            job_createddatetime=now,
             room_id=params.get("room_id"),
             building_id=params.get("building_id"),
             location_id=params.get("location_id"),
@@ -522,19 +377,6 @@ def _execute_suggestion(suggestion: Suggestion, session: Session, user_id: int) 
         session.add(job)
         session.commit()
         return {"success": True, "message": "Werksopdrag geskep", "jobcard_id": job.jobcard_id}
-
-    if typ == "close_fault":
-        fault = session.get(Faultcard, params.get("fault_id"))
-        if fault:
-            try:
-                from ..models.fault import FaultStatus
-                fault.fault_status = FaultStatus.CLOSED
-            except Exception:
-                fault.fault_status = "Gesluit"
-            session.add(fault)
-            session.commit()
-            return {"success": True, "message": "Foutkaartjie gesluit"}
-        return {"success": False, "message": "Foutkaartjie nie gevind nie"}
 
     if typ == "reorder_stock":
         stock = session.get(Stock, params.get("stock_id"))
@@ -549,16 +391,19 @@ def _execute_suggestion(suggestion: Suggestion, session: Session, user_id: int) 
     if typ == "assign_job":
         job = session.get(Jobcard, params.get("jobcard_id"))
         if job:
-            job.assigned_to = params.get("assigned_to")
+            job.assigned_to = user_id
             session.add(job)
             session.commit()
-            return {"success": True, "message": "Werksopdrag toegewys"}
+            return {"success": True, "message": "Werksopdrag toegewys aan uitvoerder"}
         return {"success": False, "message": "Werksopdrag nie gevind nie"}
 
     return {"success": False, "message": f"Onbekende suggestion tipe: {typ}"}
 
 
-def _gather_context(page: str, session: Session,
+# ─── Context gathering ───────────────────────────────────────
+
+
+def _gather_context(page: str, session,
                     date_from: datetime = None, date_to: datetime = None) -> dict:
     from ..models.asset import Asset
     from ..models.stock import Stock
@@ -705,3 +550,48 @@ def _gather_context(page: str, session: Session,
         ctx["raw_events"] = _serialize_records(events)
 
     return ctx
+
+
+def _count_by(session, model, group_field: str, label_field: str = None,
+              date_field: str = None, date_from: datetime = None, date_to: datetime = None) -> dict:
+    query = select(model)
+    if date_from and date_field:
+        query = query.where(getattr(model, date_field) >= date_from)
+    if date_to and date_field:
+        query = query.where(getattr(model, date_field) <= date_to)
+    rows = session.exec(query).all()
+    counts = {}
+    for r in rows:
+        key = str(getattr(r, group_field, "Onbekend") or "Onbekend")
+        counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def _enum_val(v):
+    """Return .value if v is an Enum, otherwise v (as string fallback)."""
+    if v is None:
+        return "Onbekend"
+    if hasattr(v, 'value'):
+        return v.value
+    return str(v)
+
+
+def _serialize_records(records, exclude_fields=None, limit=500):
+    """Serialize SQLModel records to plain dicts."""
+    exclude = set(exclude_fields or [])
+    result = []
+    for r in records:
+        d = {}
+        for col in r.__table__.columns:
+            if col.name in exclude:
+                continue
+            val = getattr(r, col.name)
+            if hasattr(val, 'value'):
+                val = val.value
+            elif isinstance(val, datetime):
+                val = val.isoformat()
+            d[col.name] = val
+        result.append(d)
+    if limit and len(result) > limit:
+        result = result[:limit]
+    return result

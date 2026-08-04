@@ -22,8 +22,10 @@ class ApiClient {
   factory ApiClient() => _instance;
 
   ApiClient._internal() {
-    final baseUrl = dotenv.get('API_URL', fallback: 'https://localhost/api/v1');
-
+  // Emulator-friendly default: use local network IP so emulator can reach host machine.
+  // Override with API_URL in .env for production or CI.
+  // Physical device fallback (uncomment if testing on a connected phone): http://127.0.0.1:8000/api/v1
+  final baseUrl = dotenv.get('API_URL', fallback: 'http://192.168.1.95:8000/api/v1');
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,

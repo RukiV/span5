@@ -1,13 +1,19 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
+import useColumnSort from "../hooks/useColumnSort";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Ticket.css";
+import { buildFlatLocationOptions } from './locationSearchUtils';
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 
 function TicketPage() {
@@ -22,8 +28,23 @@ function TicketPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const TICKET_COLUMNS = [
+    { key: 'id', label: 'ID', render: (t) => t.fault_id, sortKey: 'id', defaultVisible: true },
+    { key: 'title', label: 'Titel', render: (t) => extractTitle(t.fault_description), sortKey: 'title', defaultVisible: true },
+    { key: 'category', label: 'Kategorie', render: (t) => t.fault_type || '-', sortKey: 'category', defaultVisible: true },
+    { key: 'priority', label: 'Prioriteit', render: (t) => t.fault_priority || '-', sortKey: 'priority', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (t) => translateStatus(t.fault_status), sortKey: 'status', defaultVisible: true },
+    { key: 'asset_id', label: 'Bate ID', render: (t) => t.asset_id || '-', sortKey: 'asset_id', defaultVisible: false },
+    { key: 'room_id', label: 'Lokaal ID', render: (t) => t.room_id || '-', sortKey: 'room_id', defaultVisible: false },
+    { key: 'building_id', label: 'Gebou ID', render: (t) => t.building_id || '-', sortKey: 'building_id', defaultVisible: false },
+    { key: 'location_id', label: 'Terrein ID', render: (t) => t.location_id || '-', sortKey: 'location_id', defaultVisible: false },
+    { key: 'reported', label: 'Datum', render: (t) => t.fault_reportdatetime ? new Date(t.fault_reportdatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'reported', defaultVisible: false },
+    { key: 'updated', label: 'Opgedateer', render: (t) => t.fault_updatedatetime ? new Date(t.fault_updatedatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'updated', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('ticket-page', TICKET_COLUMNS);
+  const colWidths = useColumnWidths('ticket-page', TICKET_COLUMNS);
+  const colPickerRef = useRef(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
@@ -44,6 +65,7 @@ function TicketPage() {
   const [cascadeToast, setCascadeToast] = useState(null);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   
   // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
@@ -397,11 +419,13 @@ function TicketPage() {
         : String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * direction;
-      if (sortBy === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
+      if (sortKey === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'priority') return String(a.fault_priority || '').localeCompare(String(b.fault_priority || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'category') return String(a.fault_type || '').localeCompare(String(b.fault_type || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
 
@@ -503,18 +527,28 @@ function TicketPage() {
                       isDisabled={cascadeCount >= 3}
                       components={{ Control: CascadeControl }}
                       styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                      options={(() => {
-                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                        return [];
-                      })()}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                        return false;
+                      }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
                         if (!selectedOption) return;
-                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
                     />
                   </div>
@@ -522,16 +556,14 @@ function TicketPage() {
               })()}
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="title">Titel</option>
-                <option value="status">Status</option>
-              </select>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }}>▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }}>▼</button>
-              </div>
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={TICKET_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
             </div>
           </div>
@@ -539,40 +571,37 @@ function TicketPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Titel</th>
-                <th>Bate ID</th>
-                <th>Lokaal ID</th>
-                <th>Gebou ID</th>
-                <th>Terrein ID</th>
-                <th>Kategorie</th>
-                <th>Prioriteit</th>
-                <th>Status</th>
-                <th>Aksies</th>
+                {colVis.visibleColumns.map((col) => (
+                  <ResizableTh
+                    key={col.key}
+                    col={col}
+                    colWidths={colWidths}
+                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                    onClick={() => col.sortKey && handleSort(col.sortKey)}
+                    onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+                  >
+                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                  </ResizableTh>
+                ))}
+                <th style={{ width: '120px' }}>Aksies</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
-                  <td>{ticket.fault_id}</td>
-                  <td>{extractTitle(ticket.fault_description)}</td>
-                  <td>{ticket.asset_id}</td>
-                  <td>{ticket.room_id}</td>
-                  <td>{ticket.building_id}</td>
-                  <td>{ticket.location_id}</td>
-                  <td>{translateCategory(ticket.fault_type)}</td>
-                  <td>{translatePriority(ticket.fault_priority)}</td>
-                  <td>
-                    <span className={`status ${getStatusClass(ticket.fault_status)}`}>
-                      {translateStatus(ticket.fault_status)}
-                    </span>
-                  </td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                    <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
+              {filteredTickets.length === 0 ? (
+                <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen foutkaartjies gevind</td></tr>
+              ) : (
+                filteredTickets.map((ticket) => (
+                  <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
+                    {colVis.visibleColumns.map((col) => (
+                      <td key={col.key}>{col.render(ticket)}</td>
+                    ))}
+                    <td onClick={e => e.stopPropagation()}>
+                      <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
+                      <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -704,31 +733,31 @@ function TicketPage() {
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
                         components={{ Control: CascadeControl }}
-                        options={(() => {
-                          if (cascadeCount === 0)
-                            return (terrains || []).map((t) => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
-                          if (cascadeCount === 1)
-                            return (buildings || []).filter((b) => String(b.location_id) === String(newTicket.location_id)).map((b) => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                          if (cascadeCount === 2)
-                            return (rooms || []).filter((r) => String(r.building_id) === String(newTicket.building_id)).map((r) => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
-                          if (cascadeCount === 3)
-                            return (assets || []).filter((a) => String(a.room_id) === String(newTicket.room_id)).map((a) => ({ value: String(a.asset_id), label: `${a.asset_id} - ${a.asset_name}` }));
-                          return [];
-                        })()}
+                        options={allLocationOptions}
+                        filterOption={(option, rawInput) => {
+                          if (rawInput) {
+                            if (cascadeCount === 0)
+                              return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 1)
+                              return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(newTicket.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 2)
+                              return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(newTicket.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 3)
+                              return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(newTicket.room_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          }
+                          if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                          if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newTicket.location_id);
+                          if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newTicket.building_id);
+                          if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(newTicket.room_id);
+                          return false;
+                        }}
                         value={null}
                         onChange={(selectedOption) => {
                           if (!selectedOption) return;
-                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
-                          if (cascadeCount === 0)
-                            setNewTicket(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 1)
-                            setNewTicket(p => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 2)
-                            setNewTicket(p => ({...p, room_id: selectedOption.value, asset_id: ""}));
-                          else if (cascadeCount === 3)
-                            setNewTicket(p => ({...p, asset_id: selectedOption.value}));
+                          setNewTicket(p => ({...p, ...selectedOption._fields}));
                           setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
-                          const label = labels[cascadeCount] || "";
+                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
+                          const label = labels[selectedOption._cascadeLevel] || "";
                           setCascadeToast(`✓ ${label} suksesvol geselekteer`);
                           setTimeout(() => setCascadeToast(null), 2000);
                         }}

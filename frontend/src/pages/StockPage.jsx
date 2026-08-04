@@ -1,14 +1,19 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
-import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api"; // Bygevoeg buildingsAPI en locationAPI
+import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import "../styles/Asset.css";
 import "../styles/App.css";
-
+import { buildFlatLocationOptions } from './locationSearchUtils';
 
 function StockPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -21,8 +26,23 @@ function StockPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+
+  const STOCK_COLUMNS = [
+    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: true },
+    { key: 'name', label: 'Naam', render: (s) => s.stock_name, sortKey: 'name', defaultVisible: true },
+    { key: 'brand', label: 'Merk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (s) => s.stock_type, sortKey: 'type', defaultVisible: true },
+    { key: 'amount', label: 'Hoeveelheid', render: (s) => s.stock_amount, sortKey: 'amount', defaultVisible: true },
+    { key: 'minimum', label: 'Minimum', render: (s) => s.stock_minimum, sortKey: 'minimum', defaultVisible: true },
+    { key: 'boxTotal', label: 'Boks Totaal', render: (s) => s.stock_boxTotal, sortKey: 'boxTotal', defaultVisible: true },
+    { key: 'room', label: 'Lokaal', render: (s) => getRoomName(s), sortKey: 'room', defaultVisible: true },
+    { key: 'description', label: 'Beskrywing', render: (s) => s.stock_desc || '-', sortKey: 'description', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('stock-page', STOCK_COLUMNS);
+  const colWidths = useColumnWidths('stock-page', STOCK_COLUMNS);
+  const colPickerRef = useRef(null);
+
   const [stockImages, setStockImages] = useState([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState([]);
   const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
@@ -32,6 +52,7 @@ function StockPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -348,13 +369,17 @@ function StockPage({ embedded = false }) {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * direction;
-      if (sortBy === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * direction;
-      if (sortBy === 'minimum') return (Number(a.stock_minimum || 0) - Number(b.stock_minimum || 0)) * direction;
-      if (sortBy === 'boxTotal') return (Number(a.stock_boxTotal || 0) - Number(b.stock_boxTotal || 0)) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * dir;
+      if (sortKey === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'brand') return String(a.stock_brand || '').localeCompare(String(b.stock_brand || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(a.stock_type || '').localeCompare(String(b.stock_type || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * dir;
+      if (sortKey === 'minimum') return (Number(a.stock_minimum || 0) - Number(b.stock_minimum || 0)) * dir;
+      if (sortKey === 'boxTotal') return (Number(a.stock_boxTotal || 0) - Number(b.stock_boxTotal || 0)) * dir;
+      if (sortKey === 'room') return String(getRoomName(a) || '').localeCompare(String(getRoomName(b) || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
 
@@ -429,45 +454,51 @@ function StockPage({ embedded = false }) {
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 {renderBreadcrumb()}
-                <Select
-                  className="react-select-container"
-                  classNamePrefix="react-select"
-                  placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                  isClearable
-                  isDisabled={cascadeCount >= 3}
-                  components={{ Control: CascadeControl }}
-                  styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                  options={(() => {
-                    if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                    if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                    if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                    return [];
-                  })()}
-                  value={currentDisplayValue}
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) return;
-                    if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                    else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                    else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
-                  }}
-                />
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 3}
+                    components={{ Control: CascadeControl }}
+                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    options={allLocationOptions}
+                    filterOption={(option, rawInput) => {
+                      if (rawInput) {
+                        if (cascadeCount === 0)
+                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 1)
+                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 2)
+                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 3)
+                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      }
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                      return false;
+                    }}
+                    value={currentDisplayValue}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const f = selectedOption._fields;
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                    }}
+                  />
               </div>
             );
           })()}
         </div>
         <div className="controls-right">
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="default">Standaard</option>
-            <option value="id">ID</option>
-            <option value="name">Naam</option>
-            <option value="amount">Hoeveelheid</option>
-            <option value="minimum">Minimum</option>
-            <option value="boxTotal">Boks Totaal</option>
-          </select>
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-            <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-          </div>
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={STOCK_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
         </div>
       </div>
@@ -475,30 +506,27 @@ function StockPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
-            <th>ID Voorraad</th>
-            <th>Naam</th>
-            <th>Merk</th>
-            <th>Tipe</th>
-            <th>Hoeveelheid</th>
-            <th>Minimum</th>
-            <th>Boks Totaal</th>
-            <th>Lokaal</th>
-            <th>Beskrywing</th>
-            <th>Aksies</th>
+            {colVis.visibleColumns.map((col) => (
+              <ResizableTh
+                key={col.key}
+                col={col}
+                colWidths={colWidths}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </ResizableTh>
+            ))}
+            <th style={{ width: '120px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredStock.map((item) => (
             <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
-              <td>{item.stock_id}</td>
-              <td>{item.stock_name}</td>
-              <td>{item.stock_brand}</td>
-              <td>{item.stock_type}</td>
-              <td>{item.stock_amount}</td>
-              <td>{item.stock_minimum}</td>
-              <td>{item.stock_boxTotal}</td>
-              <td>{getRoomName(item)}</td>
-              <td>{item.stock_desc || '-'}</td>
+              {colVis.visibleColumns.map((col) => (
+                <td key={col.key}>{col.render(item)}</td>
+              ))}
               <td onClick={e => e.stopPropagation()}>
                 <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
               </td>
@@ -623,32 +651,41 @@ function StockPage({ embedded = false }) {
               return (
                 <>
                   {renderBreadcrumb()}
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    closeMenuOnSelect={false}
-                    components={{ Control: CascadeControl }}
-                    options={(() => {
-                      if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                      if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === String(newStock.location_id)).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                      if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === String(newStock.building_id)).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                      return [];
-                    })()}
-                    value={null}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) return;
-                      if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
-                      const labels = ["Terrein","Gebou","Lokaal"];
-                      if (cascadeCount === 0) setNewStock(p => ({...p, location_id: selectedOption.value, building_id: "", room_id: ""}));
-                      else if (cascadeCount === 1) setNewStock(p => ({...p, building_id: selectedOption.value, room_id: ""}));
-                      else if (cascadeCount === 2) setNewStock(p => ({...p, room_id: selectedOption.value}));
-                      setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
-                      setTimeout(() => setCascadeToast(null), 2000);
-                    }}
-                  />
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      closeMenuOnSelect={false}
+                      components={{ Control: CascadeControl }}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(newStock.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(newStock.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(newStock.room_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newStock.location_id);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newStock.building_id);
+                        return false;
+                      }}
+                      value={null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) return;
+                        if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                        const labels = ["Terrein","Gebou","Lokaal"];
+                        setNewStock(p => ({...p, ...selectedOption._fields}));
+                        setCascadeToast(`✓ ${labels[cascadeCount]} suksesvol geselekteer`);
+                        setTimeout(() => setCascadeToast(null), 2000);
+                      }}
+                    />
                 </>
               );
             })()}
@@ -757,18 +794,14 @@ function StockPage({ embedded = false }) {
               </select>
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="amount">Hoeveelheid</option>
-                <option value="minimum">Minimum</option>
-                <option value="boxTotal">Boks Totaal</option>
-              </select>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={STOCK_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
               <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
             </div>
           </div>
@@ -776,35 +809,36 @@ function StockPage({ embedded = false }) {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID Voorraad</th>
-                <th>Naam</th>
-                <th>Merk</th>
-                <th>Tipe</th>
-                <th>Hoeveelheid</th>
-                <th>Minimum</th>
-                <th>Boks Totaal</th>
-                <th>Lokaal</th>
-                <th>Beskrywing</th>
-                <th>Aksies</th>
+                {colVis.visibleColumns.map((col) => (
+                  <ResizableTh
+                    key={col.key}
+                    col={col}
+                    colWidths={colWidths}
+                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                    onClick={() => col.sortKey && handleSort(col.sortKey)}
+                    onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+                  >
+                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                  </ResizableTh>
+                ))}
+                <th style={{ width: '120px' }}>Aksies</th>
               </tr>
             </thead>
             <tbody>
-              {filteredStock.map((item) => (
-                <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
-                  <td>{item.stock_id}</td>
-                  <td>{item.stock_name}</td>
-                  <td>{item.stock_brand}</td>
-                  <td>{item.stock_type}</td>
-                  <td>{item.stock_amount}</td>
-                  <td>{item.stock_minimum}</td>
-                  <td>{item.stock_boxTotal}</td>
-                  <td>{getRoomName(item)}</td>
-                  <td>{item.stock_desc || '-'}</td>
-                  <td onClick={e => e.stopPropagation()}>
-                    <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
+              {filteredStock.length === 0 ? (
+                <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
+              ) : (
+                filteredStock.map((item) => (
+                  <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
+                    {colVis.visibleColumns.map((col) => (
+                      <td key={col.key}>{col.render(item)}</td>
+                    ))}
+                    <td onClick={e => e.stopPropagation()}>
+                      <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

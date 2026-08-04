@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
@@ -7,10 +7,16 @@ import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, b
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
 import { normalizeWorkOrdersPayload } from './workOrderUtils';
+import { buildFlatLocationOptions } from './locationSearchUtils';
 import { useToast } from '../components/Toast/useToast';
 import '../styles/App.css';
 import "../styles/WorkOrder.css";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -29,13 +35,34 @@ function WorkOrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
+
+  const WORKORDER_COLUMNS = [
+    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: true },
+    { key: 'description', label: 'Beskrywing', render: (o) => o.job_desc || '-', sortKey: 'description', defaultVisible: true },
+    { key: 'type', label: 'Werksoort', render: (o) => o.job_type || '-', sortKey: 'type', defaultVisible: true },
+    { key: 'priority', label: 'Prioriteit', render: (o) => o.job_priority || '-', sortKey: 'priority', defaultVisible: false },
+    { key: 'asset_id', label: 'Bate ID', render: (o) => o.asset_id || '-', sortKey: 'asset_id', defaultVisible: false },
+    { key: 'fault_id', label: 'Fault ID', render: (o) => o.fault_id || '-', sortKey: 'fault_id', defaultVisible: false },
+    { key: 'location_id', label: 'Terrein ID', render: (o) => o.location_id || '-', sortKey: 'location_id', defaultVisible: false },
+    { key: 'building_id', label: 'Gebou ID', render: (o) => o.building_id || '-', sortKey: 'building_id', defaultVisible: false },
+    { key: 'room_id', label: 'Lokaal ID', render: (o) => o.room_id || '-', sortKey: 'room_id', defaultVisible: false },
+    { key: 'date', label: 'Datum', render: (o) => o.job_scheduled_datetime ? new Date(o.job_scheduled_datetime).toLocaleDateString('af-ZA') : (o.job_createddatetime ? new Date(o.job_createddatetime).toLocaleDateString('af-ZA') : '-'), sortKey: 'date', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (o) => <span className={`status-badge ${getStatusClass(o.job_status)}`}>{translateStatus(o.job_status)}</span>, sortKey: 'status', defaultVisible: true },
+    { key: 'assigned', label: 'Toegewys', render: (o) => o.assigned_to || '-', sortKey: 'assigned', defaultVisible: false },
+    { key: 'nature', label: 'Aard', render: (o) => o.nature || '-', sortKey: 'nature', defaultVisible: false },
+    { key: 'created', label: 'Geskep', render: (o) => o.job_createddatetime ? new Date(o.job_createddatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
+    { key: 'finished', label: 'Voltooi', render: (o) => o.job_finisheddatetime ? new Date(o.job_finisheddatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'finished', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('workorder-page', WORKORDER_COLUMNS);
+  const colWidths = useColumnWidths('workorder-page', WORKORDER_COLUMNS);
+  const colPickerRef = useRef(null);
+
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
 
-  
+   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -75,6 +102,11 @@ function WorkOrderPage() {
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
   const [selectedTerrein, setSelectedTerrein] = useState(null);
   const [selectedGebou, setSelectedGebou] = useState(null);
+
+  // Beheer dubbel-submissie: verhoed spam-klikke op "Stoor Kaart" en hou 'n
+  // stabiele idempotensie-sleutel per modaal-oop vir dedup op die backend.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [idempotencyKey, setIdempotencyKey] = useState(null);
   
   // Vorm-data vir werksopdrag (uitgebreide velde)
   const [formData, setFormData] = useState({
@@ -116,6 +148,8 @@ function WorkOrderPage() {
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
 
   const applyTicketSelectionToForm = (ticket) => {
     if (!ticket) return;
@@ -808,6 +842,9 @@ function WorkOrderPage() {
       }
       setInvalidFields({});
 
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+
       const payload = {
         job_desc: `${formData.brief_description}${formData.job_notes ? `: ${formData.job_notes}` : ''}`,
         job_type: formData.job_type || null,
@@ -830,11 +867,27 @@ function WorkOrderPage() {
           : null,
       };
 
-      const savedWorkOrderResponse = isEditing
-        ? await workOrdersAPI.update(editingId, payload)
-        : await workOrdersAPI.create(payload);
-      const savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
-      const workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      let savedWorkOrderResponse;
+      let savedWorkOrder;
+      let workOrderId;
+
+      if (isEditing) {
+        savedWorkOrderResponse = await workOrdersAPI.update(editingId, payload);
+        savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
+        workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      } else {
+        // Stabiliseer die sleutel vir die volle modaal-oop: dieselfde
+        // X-Idempotency-Key word hergebruik vir alle pogings sodat spam-klikke
+        // (met 'n nuwe job_createddatetime per klik) op die backend gededupeer word.
+        const key = idempotencyKey
+          || (typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+        if (!idempotencyKey) setIdempotencyKey(key);
+        savedWorkOrderResponse = await workOrdersAPI.create(payload, { headers: { 'X-Idempotency-Key': key } });
+        savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
+        workOrderId = savedWorkOrder?.jobcard_id || editingId;
+      }
 
       if (quotes.some((quote) => !quote.contractor_id || !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
         showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê." });
@@ -941,6 +994,9 @@ function WorkOrderPage() {
     } catch (error) {
       console.error("Fout by besparing:", error);
       showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });
+    } finally {
+      // Stel die submissie-vlag altyd terug, ook by vroeë returns of foute.
+      setIsSubmitting(false);
     }
   };
 
@@ -1072,6 +1128,8 @@ function WorkOrderPage() {
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
+    setIdempotencyKey(null);
+    setIsSubmitting(false);
     setQuotes([]);
     setSelectedQuoteId(null);
     setQuoteEditId(null);
@@ -1206,13 +1264,23 @@ function WorkOrderPage() {
       return matchesColumn;
     })
     .sort((a, b) => {
-      switch (sortBy) {
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      switch (sortKey) {
         case "date":
-          return new Date(b.job_createddatetime) - new Date(a.job_createddatetime);
+          return (new Date(a.job_createddatetime) - new Date(b.job_createddatetime)) * dir;
         case "status":
-          return (a.job_status || "").localeCompare(b.job_status || "");
+          return String(a.job_status || "").localeCompare(String(b.job_status || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "description":
+          return String(a.job_desc || "").localeCompare(String(b.job_desc || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "type":
+          return String(a.job_type || "").localeCompare(String(b.job_type || ""), 'af', { sensitivity: 'base' }) * dir;
+        case "asset_id":
+          return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * dir;
+        case "fault_id":
+          return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
         default:
-          return (a.jobcard_id || 0) - (b.jobcard_id || 0);
+          return (Number(a.jobcard_id || 0) - Number(b.jobcard_id || 0)) * dir;
       }
     });
 
@@ -1352,18 +1420,28 @@ function WorkOrderPage() {
                       isDisabled={cascadeCount >= 3}
                       components={{ Control: CascadeControl }}
                       styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
-                      options={(() => {
-                        if (cascadeCount === 0) return (terrains || []).map(t => ({ value: String(t.location_id), label: `${t.location_id} - ${t.location_name || "Terrein"}` }));
-                        if (cascadeCount === 1) return (buildings || []).filter(b => String(b.location_id) === terrainFilter).map(b => ({ value: String(b.building_id), label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
-                        if (cascadeCount === 2) return (rooms || []).filter(r => String(r.building_id) === buildingFilter).map(r => ({ value: String(r.room_id), label: `${r.room_id} - ${r.room_name || "Lokaal"}` }));
-                        return [];
-                      })()}
+                       options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                      if (rawInput) {
+                        if (cascadeCount === 0)
+                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 1)
+                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 2)
+                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        if (cascadeCount === 3)
+                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      }
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                      return false;
+                      }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
                         if (!selectedOption) return;
-                        if (cascadeCount === 0) { setTerrainFilter(selectedOption.value); setBuildingFilter(''); setRoomFilter(''); }
-                        else if (cascadeCount === 1) { setBuildingFilter(selectedOption.value); setRoomFilter(''); }
-                        else if (cascadeCount === 2) { setRoomFilter(selectedOption.value); }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
                     />
                   </div>
@@ -1372,22 +1450,14 @@ function WorkOrderPage() {
             </div>
 
             <div className="controls-right">
-              <select 
-                className="sort-select"
-                id="jobSort"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="id">ID</option>
-                <option value="date">Datum</option>
-                <option value="status">Status</option>
-              </select>
-
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={colVis.columnDefs}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
               <button 
                 type="button"
                 className="btn-add" 
@@ -1404,41 +1474,32 @@ function WorkOrderPage() {
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Beskrywing</th>
-                <th>Werksoort</th>
-                <th>Bate ID</th>
-                <th>Lokaal ID</th>
-                <th>Gebou ID</th>
-                <th>Terrein ID</th>
-                <th>Fault ID</th>
-                <th>Datum</th>
-                <th>Status</th>
+                {colVis.visibleColumns.map((col) => (
+                  <ResizableTh
+                    key={col.key}
+                    col={col}
+                    colWidths={colWidths}
+                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                    onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined}
+                    onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}
+                  >
+                    {col.label}{col.sortKey ? getSortIndicator(col.sortKey) : ''}
+                  </ResizableTh>
+                ))}
                 <th>Aksies</th>
               </tr>
             </thead>
             <tbody>
               {filteredWorkOrders.length === 0 ? (
                 <tr>
-                  <td colSpan="7" style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
+                  <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
                 </tr>
               ) : (
                 filteredWorkOrders.map((order) => (
                   <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
-                    <td>{order.jobcard_id}</td>
-                    <td className="description-cell">{order.job_desc || "-"}</td>
-                    <td>{order.job_type || "-"}</td>
-                    <td>{order.asset_id || "-"}</td>
-                    <td>{order.room_id || "-"}</td>
-                    <td>{order.building_id || "-"}</td>
-                    <td>{order.location_id || "-"}</td>
-                    <td>{order.fault_id || "-"}</td>
-                    <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
-                    <td>
-                      <span className={`status-badge ${getStatusClass(order.job_status)}`}>
-                        {translateStatus(order.job_status)}
-                      </span>
-                    </td>
+                    {colVis.visibleColumns.map((col) => (
+                      <td key={col.key}>{col.render(order)}</td>
+                    ))}
                     <td onClick={e => e.stopPropagation()}>
                       <button 
                         type="button"
@@ -1697,30 +1758,30 @@ function WorkOrderPage() {
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
                         components={{ Control: CascadeControl }}
-                        options={(() => {
+                        options={allLocationOptions}
+                        filterOption={(option, rawInput) => {
+                        if (rawInput) {
                           if (cascadeCount === 0)
-                            return (terrains || []).map((t) => ({ value: t.location_id, label: `${t.location_id} - ${t.location_name || t.location_desc || "Terrein"}` }));
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
                           if (cascadeCount === 1)
-                            return (buildings || []).filter((b) => Number(b.location_id) === Number(formData.location_id)).map((b) => ({ value: b.building_id, label: `${b.building_id} - ${b.building_name || "Gebou"}` }));
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(formData.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
                           if (cascadeCount === 2)
-                            return (rooms || []).filter((r) => Number(r.building_id) === Number(formData.building_id)).map((r) => ({ value: r.room_id, label: `${r.room_id} - ${r.room_name || r.room_number || "Lokaal"}` }));
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(formData.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
                           if (cascadeCount === 3)
-                            return (assets || []).filter((a) => Number(a.room_id) === Number(formData.room_id)).map((a) => ({ value: a.asset_id, label: `${a.asset_id} - ${a.asset_name}` }));
-                          return [];
-                        })()}
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(formData.room_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(formData.location_id);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(formData.building_id);
+                        if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(formData.room_id);
+                        return false;
+                        }}
                         value={null}
                         onChange={(selectedOption) => {
                           if (!selectedOption) return;
+                          setFormData((p) => ({...p, ...selectedOption._fields}));
                           const labels = ["Terrein","Gebou","Lokaal","Bate"];
-                          if (cascadeCount === 0)
-                            setFormData((p) => ({...p, location_id: selectedOption.value, building_id: "", room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 1)
-                            setFormData((p) => ({...p, building_id: selectedOption.value, room_id: "", asset_id: ""}));
-                          else if (cascadeCount === 2)
-                            setFormData((p) => ({...p, room_id: selectedOption.value, asset_id: ""}));
-                          else if (cascadeCount === 3)
-                            setFormData((p) => ({...p, asset_id: selectedOption.value}));
-                          const label = labels[cascadeCount] || "";
+                          const label = labels[selectedOption._cascadeLevel] || "";
                           setCascadeToast(`✓ ${label} suksesvol geselekteer`);
                           setTimeout(() => setCascadeToast(null), 2000);
                         }}
@@ -1758,6 +1819,10 @@ function WorkOrderPage() {
                         placeholder="Soek/Kies Foutkaartjie..."
                         isClearable
                         components={{ Control: CascadeControl }}
+                        filterOption={(option, rawInput) => {
+                          if (!rawInput) return true;
+                          return option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }}
                         value={formData.fault_id ? { value: formData.fault_id, label: getTicketOptionLabel((tickets || []).find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))) } : null}
                             onChange={(selectedOption) => {
                               if (!selectedOption) {
@@ -2271,7 +2336,9 @@ function WorkOrderPage() {
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
-              <button type="button" className="btn-add" onClick={handleSaveWorkOrder}>Stoor Kaart</button>
+              <button type="button" className="btn-add" onClick={handleSaveWorkOrder} disabled={isSubmitting}>
+                {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
+              </button>
             </div>
           </div>
         </div>

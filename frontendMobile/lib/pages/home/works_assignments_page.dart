@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../widgets/location_cascade_picker.dart';
 import '../../core/app_colors.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/column_visibility.dart';
+import '../jobcards/create_jobcard_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
@@ -14,6 +18,12 @@ class WorksAssignmentsPage extends StatefulWidget {
 }
 
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
+  final SortController _sortCtrl = SortController();
+  final ColumnVisibilityController _colVis = ColumnVisibilityController('works-assignments', [
+    const ColumnDef(key: 'description', label: 'Beskrywing'),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+  ]);
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
@@ -48,20 +58,25 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.gold,
+        foregroundColor: Colors.white,
         onPressed: () async {
-          final created = await Navigator.push(
+          final created = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (context) => const JobcardFormPage()),
+            MaterialPageRoute(builder: (_) => const CreateJobcardPage()),
           );
-          if (created == true) {
-            await JobcardService.fetchJobs();
+          if (created == true && mounted) {
+            ScaffoldMessenger.of(this.context).showSnackBar(
+              const SnackBar(
+                content: Text("Werksopdrag geskep"),
+                backgroundColor: AppColors.successGreen,
+              ),
+            );
           }
         },
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text("NUWE WERKSOPDRAG", style: TextStyle(fontWeight: FontWeight.bold)),
+        child: const Icon(Icons.add),
+      
       ),
       body: Column(
         children: [
@@ -76,6 +91,22 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   if (_selectedRoomId != null && job.roomId != _selectedRoomId) return false;
                   return true;
                 }).toList();
+
+                if (_sortCtrl.isActive) {
+                  filtered.sort((a, b) {
+                    final dir = _sortCtrl.direction;
+                    switch (_sortCtrl.sortKey) {
+                      case 'description':
+                        return a.description.toLowerCase().compareTo(b.description.toLowerCase()) * dir;
+                      case 'type':
+                        return (a.type ?? '').toLowerCase().compareTo((b.type ?? '').toLowerCase()) * dir;
+                      case 'status':
+                        return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+                      default:
+                        return 0;
+                    }
+                  });
+                }
 
                 if (filtered.isEmpty) {
                   return const Center(
@@ -138,99 +169,35 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   }
 
   Widget _buildCampusFilter() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (campuses.isEmpty) return const SizedBox.shrink();
-
-    final selectedCampus = _selectedCampusId != null
-        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
-        : null;
-    final buildings = selectedCampus?.buildings ?? [];
-    final selectedBuilding = _selectedBuildingId != null
-        ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
-        : null;
-    final rooms = selectedBuilding?.rooms ?? [];
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(15, 12, 15, 0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                value: _selectedCampusId,
-                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
-                items: campuses.map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
-                )).toList(),
-                onChanged: (val) => setState(() {
-                  _selectedCampusId = val;
-                  _selectedBuildingId = null;
-                  _selectedRoomId = null;
-                }),
-              ),
-            ),
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
+          child: LocationCascadePicker(
+            initialCampusId: _selectedCampusId,
+            initialBuildingId: _selectedBuildingId,
+            initialRoomId: _selectedRoomId,
+            onChanged: (campusId, buildingId, roomId) => setState(() {
+              _selectedCampusId = campusId;
+              _selectedBuildingId = buildingId;
+              _selectedRoomId = roomId;
+            }),
           ),
         ),
-        if (_selectedCampusId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedBuildingId,
-                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
-                  items: buildings.map((b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() {
-                    _selectedBuildingId = val;
-                    _selectedRoomId = null;
-                  }),
-                ),
-              ),
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              ColumnVisibilityButton(controller: _colVis),
+            ],
           ),
-        if (_selectedBuildingId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedRoomId,
-                  hint: const Text("Kies Lokaal", style: TextStyle(fontSize: 13)),
-                  items: rooms.map((r) => DropdownMenuItem(
-                    value: r.id,
-                    child: Text(r.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() => _selectedRoomId = val),
-                ),
-              ),
-            ),
-          ),
+        ),
       ],
     );
   }
