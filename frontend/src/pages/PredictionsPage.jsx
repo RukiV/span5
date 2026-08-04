@@ -7,6 +7,8 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import '../styles/App.css';
 import '../styles/Predictions.css';
 
@@ -64,6 +66,7 @@ const PREDICTION_COLUMNS = [
   { key: 'details', label: 'Besonderhede', render: (p) => null, sortKey: null, defaultVisible: true },
 ];
 const colVis = useColumnVisibility('predictions-page', PREDICTION_COLUMNS);
+const colWidths = useColumnWidths('predictions-page', PREDICTION_COLUMNS);
 const colPickerRef = useRef(null);
 
   useEffect(() => {
@@ -255,6 +258,7 @@ const colPickerRef = useRef(null);
                 visibleColumns={colVis.visibleColumns}
                 toggleColumn={colVis.toggleColumn}
                 resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
               />
             </div>
           </div>
@@ -283,14 +287,16 @@ const colPickerRef = useRef(null);
               <thead>
                 <tr>
                   {colVis.visibleColumns.map((col) => (
-                    <th
+                    <ResizableTh
                       key={col.key}
+                      col={col}
+                      colWidths={colWidths}
                       className={col.sortKey ? getSortClass(col.sortKey) : ''}
                       onClick={() => col.sortKey && handleSort(col.sortKey)}
                       onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                     >
                       {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-                    </th>
+                    </ResizableTh>
                   ))}
                 </tr>
               </thead>

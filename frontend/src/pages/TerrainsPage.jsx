@@ -6,6 +6,8 @@ import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
@@ -30,6 +32,7 @@ function TerrainsPage({ embedded = false }) {
     { key: 'country', label: 'Land', render: (t) => t.location_country || '-', sortKey: 'country', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('terrains-page', TERRAIN_COLUMNS);
+  const colWidths = useColumnWidths('terrains-page', TERRAIN_COLUMNS);
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showBuildingsModal, setShowBuildingsModal] = useState(false);
@@ -235,7 +238,7 @@ function TerrainsPage({ embedded = false }) {
           </select>
         </div>
         <div className="controls-right">
-          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} />
+          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
           <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
         </div>
       </div>
@@ -244,9 +247,9 @@ function TerrainsPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th key={col.key} className={getSortClass(col.sortKey)} onClick={() => handleSort(col.sortKey)} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
+              <ResizableTh key={col.key} col={col} colWidths={colWidths} className={getSortClass(col.sortKey)} onClick={() => handleSort(col.sortKey)} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
                 {col.label}{getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th>Aksies</th>
           </tr>

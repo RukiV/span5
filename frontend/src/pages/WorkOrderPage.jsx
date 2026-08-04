@@ -14,6 +14,8 @@ import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -52,6 +54,7 @@ function WorkOrderPage() {
     { key: 'finished', label: 'Voltooi', render: (o) => o.job_finisheddatetime ? new Date(o.job_finisheddatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'finished', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('workorder-page', WORKORDER_COLUMNS);
+  const colWidths = useColumnWidths('workorder-page', WORKORDER_COLUMNS);
   const colPickerRef = useRef(null);
 
   const [terrainFilter, setTerrainFilter] = useState("");
@@ -1448,6 +1451,7 @@ function WorkOrderPage() {
                 visibleColumns={colVis.visibleColumns}
                 toggleColumn={colVis.toggleColumn}
                 resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
               />
               <button 
                 type="button"
@@ -1466,9 +1470,16 @@ function WorkOrderPage() {
             <thead>
               <tr>
                 {colVis.visibleColumns.map((col) => (
-                  <th key={col.key} className={col.sortKey ? getSortClass(col.sortKey) : ''} onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
+                  <ResizableTh
+                    key={col.key}
+                    col={col}
+                    colWidths={colWidths}
+                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                    onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined}
+                    onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}
+                  >
                     {col.label}{col.sortKey ? getSortIndicator(col.sortKey) : ''}
-                  </th>
+                  </ResizableTh>
                 ))}
                 <th>Aksies</th>
               </tr>

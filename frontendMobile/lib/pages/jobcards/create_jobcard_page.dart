@@ -128,6 +128,102 @@ class _CreateJobcardPageState extends State<CreateJobcardPage> {
     }
   }
 
+  /// Vorm outomaties aan uit die gekose foutkaartjie — dieselfde gedrag as die
+  /// web-frontend (applyTicketSelectionToForm): beskrywing, tipe, prioriteit,
+  /// status, ligging-kaskade en bate word ingevul.
+  void _applyFaultSelection(Report report) {
+    final campuses = CampusService.campusesNotifier.value;
+    final assets = AssetService.assetsNotifier.value;
+
+    // Tipe & prioriteit
+    String? mappedType;
+    switch (report.category.toLowerCase()) {
+      case 'instandhouding': mappedType = 'Onderhoud'; break;
+      case 'herstel': mappedType = 'Herstel'; break;
+      case 'opgradering': mappedType = 'Opgradering'; break;
+      case 'algemeen': mappedType = 'Algemeen'; break;
+      default: mappedType = null;
+    }
+    String mappedPriority;
+    switch (report.priority.toLowerCase()) {
+      case 'laag': mappedPriority = 'Laag'; break;
+      case 'medium': mappedPriority = 'Normal'; break;
+      case 'hoog': mappedPriority = 'Hoog'; break;
+      default: mappedPriority = 'Normal';
+    }
+
+    // Bate (as geldig en teenwoordig)
+    String? assetId;
+    final rawAsset = report.assetId;
+    final validAssetId =
+        rawAsset != 'Geen Bate' && rawAsset != '0' && rawAsset != 'Onbekend';
+    if (validAssetId && assets.any((a) => a.id == rawAsset)) {
+      assetId = rawAsset;
+    }
+
+    // Kamer: direk van die foutkaartjie, anders van die bate (soos web)
+    int? roomIdFromFault = int.tryParse(report.location);
+    if (roomIdFromFault == null && assetId != null) {
+      final asset = assets.where((a) => a.id == assetId).firstOrNull;
+      roomIdFromFault = int.tryParse(asset?.location ?? '');
+    }
+
+    // Kaskade: terrein → gebou → lokaal, met afleidings soos die web
+    int? campusId = report.locationId;
+    int? buildingId = report.buildingId;
+
+    // As gebou/terrein ontbreek, lei dit af uit die kamer
+    if (roomIdFromFault != null && (campusId == null || buildingId == null)) {
+      for (final c in campuses) {
+        for (final b in c.buildings) {
+          for (final r in (b.rooms ?? <Room>[])) {
+            if (r.id == roomIdFromFault) {
+              campusId ??= c.id;
+              buildingId ??= b.id;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Valideer teen die gelaai data sodat die dropdowns nie crash nie
+    final campusExists = campusId != null && campuses.any((c) => c.id == campusId);
+    if (!campusExists) campusId = null;
+    int? resolvedBuildingId;
+    if (campusId != null && buildingId != null) {
+      final campus = campuses.firstWhere((c) => c.id == campusId);
+      if (campus.buildings.any((b) => b.id == buildingId)) {
+        resolvedBuildingId = buildingId;
+      }
+    }
+    int? resolvedRoomId;
+    if (campusId != null && resolvedBuildingId != null && roomIdFromFault != null) {
+      final campus = campuses.firstWhere((c) => c.id == campusId);
+      final building = campus.buildings.firstWhere((b) => b.id == resolvedBuildingId);
+      final hasRoom = (building.rooms ?? <Room>[]).any((r) => r.id == roomIdFromFault);
+      if (hasRoom) resolvedRoomId = roomIdFromFault;
+    }
+    // Bate moet by die kamerfilter pas as 'n kamer gekies is
+    if (assetId != null && resolvedRoomId != null) {
+      final asset = assets.where((a) => a.id == assetId).firstOrNull;
+      if (asset == null || asset.location != resolvedRoomId.toString()) assetId = null;
+    }
+
+    _briefController.text = report.title;
+    _notesController.text = report.description;
+    setState(() {
+      _type = mappedType;
+      _priority = mappedPriority;
+      _status = 'Oop';
+      _campusId = campusId;
+      _buildingId = resolvedBuildingId;
+      _roomId = resolvedRoomId;
+      _assetId = assetId;
+      _faultId = report.id;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -231,7 +327,8 @@ class _CreateJobcardPageState extends State<CreateJobcardPage> {
               border: OutlineInputBorder(),
             ),
             hint: const Text("Kies tipe"),
-            items: const ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
+            items: const ["Onderhoud", "Herstel", "Inspeksie", "Installasie",
+                    "Opgradering", "Algemeen"]
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
             onChanged: (v) => setState(() => _type = v),
@@ -406,7 +503,11 @@ class _CreateJobcardPageState extends State<CreateJobcardPage> {
                       child: Text(r.title, overflow: TextOverflow.ellipsis),
                     ))
                 .toList(),
-            onChanged: (v) => setState(() => _faultId = v),
+            onChanged: (v) {
+              if (v == null) return;
+              final report = reports.where((r) => r.id == v).firstOrNull;
+              if (report != null) _applyFaultSelection(report);
+            },
           );
         },
       ),

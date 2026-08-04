@@ -9,6 +9,7 @@ import './ColumnPicker.css';
  *   visibleColumns – [{ key, label }] — currently visible columns
  *   toggleColumn(key)  – toggle one column
  *   resetVisibility()  – restore defaults
+ *   onResetWidths()    – optional; reset column widths too
  *
  * To trigger right-click from a <th>:
  *   <th onContextMenu={(e) => picker.openAt(e)}>
@@ -18,7 +19,7 @@ import './ColumnPicker.css';
  *   <th onContextMenu={(e) => picker.current?.openAt(e)} />
  */
 const ColumnPicker = React.forwardRef(function ColumnPicker(
-  { columns, visibleColumns, toggleColumn, resetVisibility },
+  { columns, visibleColumns, toggleColumn, resetVisibility, onResetWidths },
   ref,
 ) {
   const [open, setOpen] = useState(false);
@@ -109,7 +110,7 @@ const ColumnPicker = React.forwardRef(function ColumnPicker(
             })}
           </div>
           <div className="colpick-footer">
-            <button className="colpick-reset" onClick={() => { resetVisibility(); setOpen(false); }}>
+            <button className="colpick-reset" onClick={() => { resetVisibility(); if (onResetWidths) onResetWidths(); setOpen(false); }}>
               Reset na verstek
             </button>
           </div>

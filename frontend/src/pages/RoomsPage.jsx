@@ -11,6 +11,8 @@ import "../styles/Rooms.css";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -35,6 +37,7 @@ function RoomsPage({ embedded = false }) {
     { key: 'capacity', label: 'Kapasiteit', render: (r) => r.room_capacity ?? '-', sortKey: 'capacity', defaultVisible: true },
   ];
   const colVis = useColumnVisibility('rooms-page', ROOM_COLUMNS);
+  const colWidths = useColumnWidths('rooms-page', ROOM_COLUMNS);
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
@@ -398,6 +401,7 @@ function RoomsPage({ embedded = false }) {
             visibleColumns={colVis.visibleColumns}
             toggleColumn={colVis.toggleColumn}
             resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
         </div>
@@ -407,14 +411,16 @@ function RoomsPage({ embedded = false }) {
         <thead>
           <tr>
             {colVis.visibleColumns.map((col) => (
-              <th
+              <ResizableTh
                 key={col.key}
+                col={col}
+                colWidths={colWidths}
                 className={col.sortKey ? getSortClass(col.sortKey) : ''}
                 onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
-              </th>
+              </ResizableTh>
             ))}
             <th style={{ width: '180px' }}>Aksies</th>
           </tr>
