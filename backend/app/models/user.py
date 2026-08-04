@@ -4,7 +4,11 @@ from uuid import uuid4
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
-from .validators import sanitize_text   # ← Import here
+from .validators import sanitize_text
+
+_MAX_FAILED_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 15
+
 
 class UserBase(SQLModel):
     """Base model for user data."""
@@ -12,16 +16,18 @@ class UserBase(SQLModel):
     user_surname: str = Field(min_length=1, max_length=100)
     user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
     user_number: Optional[str] = Field(default=None, max_length=20)
-    # Password is not part of the public base model; it's stored on the DB model only
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)
     location_id: Optional[int] = None
+    failed_login_attempts: int = Field(default=0)
+    locked_until: Optional[datetime] = None
 
     @field_validator('user_name', 'user_surname', 'user_email', 'user_number', mode='before')
     @classmethod
     def sanitize_input(cls, v: Any, info) -> Any:
         return sanitize_text(v)
+
 
 class User(UserBase, Base, table=True):
     """Model for user data."""
@@ -29,6 +35,12 @@ class User(UserBase, Base, table=True):
     user_uuid: str = Field(default_factory=lambda: str(uuid4()), unique=True, index=True, max_length=36)
     role_id: int = Field(foreign_key="role.role_id")
     user_password: str = Field(max_length=255)
+
+    @property
+    def is_locked(self) -> bool:
+        if self.locked_until is None:
+            return False
+        return datetime.utcnow() < self.locked_until
 
 
 class UserCreate(UserBase):
@@ -49,9 +61,8 @@ class UserRead(UserBase):
     user_lastlogouttime: Optional[datetime] = None
     user_status: str
     role_id: int
-    # Never expose the password (hash) in read responses. Inherited from
-    # UserBase, but excluded from serialization here so /users and /auth/me
-    # cannot leak it.
+    failed_login_attempts: int = 0
+    locked_until: Optional[datetime] = None
     user_password: str = Field(exclude=True)
 
 
@@ -66,3 +77,5 @@ class UserUpdate(SQLModel):
     user_lastlogouttime: Optional[datetime] = None
     user_status: Optional[str] = None
     role_id: Optional[int] = None
+    failed_login_attempts: Optional[int] = None
+    locked_until: Optional[datetime] = None

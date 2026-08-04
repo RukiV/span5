@@ -8,6 +8,7 @@ import '../../models/user_session.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 import '../jobcards/create_jobcard_page.dart';
+import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
   const WorksAssignmentsPage({super.key});
@@ -75,6 +76,7 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
           }
         },
         child: const Icon(Icons.add),
+      
       ),
       body: Column(
         children: [
@@ -143,6 +145,17 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                           ],
                         ),
                         trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                        onTap: () async {
+                          final changed = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => JobcardFormPage(jobcard: job),
+                            ),
+                          );
+                          if (changed == true) {
+                            await JobcardService.fetchJobs();
+                          }
+                        },
                       ),
                     );
                   },
