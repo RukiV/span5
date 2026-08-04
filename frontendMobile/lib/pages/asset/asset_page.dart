@@ -109,26 +109,17 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget build(BuildContext context) {
     final canPop = ModalRoute.of(context)?.canPop ?? false;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: canPop ? AppBar(
-        title: Text(widget.filterRoomId != null ? "Lokaal: ${widget.filterRoomId}" : "Bates"),
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        actions: [
-          if (widget.filterRoomId != null && UserSession.hasAdminPrivileges) ...[
-            IconButton(
-              icon: const Icon(Icons.checklist, color: Colors.white),
-              tooltip: "Kontroleer lokaal",
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RoomChecklistPage(roomId: int.parse(widget.filterRoomId!)),
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.history, color: Colors.white),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
               tooltip: "Geskiedenis",
               onPressed: () => Navigator.push(
                 context,
@@ -152,26 +143,17 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildSearchBarWithFilter() {
-    return Container(
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Soek bates...",
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150/255), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                fillColor: Colors.white.withValues(alpha: 30/255),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
               ),
             ),
           ),
@@ -326,26 +308,19 @@ class _AssetsPageState extends State<AssetsPage> {
 
         if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
 
-return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              color: AppColors.gold,
-              child: Row(
-                children: [
-                  ..._colVis.visibleColumns.map((col) {
-                    int flex = 2;
-                    if (col.key == 'id') flex = 1;
-                    if (col.key == 'name') flex = 3;
-                    if (col.key == 'status') flex = 2;
-                    return SortableHeader(
-                      label: col.label,
-                      sortKey: col.key,
-                      controller: _sortCtrl,
-                      flex: flex,
-                      onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
-                    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
+      ),
+    );
                   }),
                 ],
               ),

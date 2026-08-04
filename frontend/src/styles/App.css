@@ -10,38 +10,48 @@
   flex: 1;
   height: 100vh;
   overflow: hidden;
+  width: 100%;
 }
 
 .app-content {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-rows: auto 1fr;
   flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
-.app-inner {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
+.navbar {
+  grid-column: 1 / -1;
 }
 
-.app-inner:not(.panel-open) .analytics-inline-panel,
-.app-inner:not(.panel-open) .drag-handle {
-  flex: 0 0 0 !important;
-  max-width: 0 !important;
-  overflow: hidden !important;
-  border: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  width: 0 !important;
-  min-width: 0 !important;
+.main {
+  grid-column: 1;
+  grid-row: 2;
 }
 
-.app-inner.panel-open .analytics-inline-panel {
-  flex: 0 0 var(--analytics-width, 33.33%);
+.app-content:not(.panel-open) .drag-handle {
+  display: none;
+}
+
+.app-content:not(.panel-open) .analytics-inline-panel {
+  display: none;
+}
+
+.app-content.panel-open .drag-handle {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.app-content.panel-open .analytics-inline-panel {
+  grid-column: 3;
+  grid-row: 2;
+  width: var(--analytics-width, 33.33%);
   max-width: var(--analytics-width, 33.33%);
   overflow-y: auto;
   border-left: 1px solid #e8d8c4;
+  background: #f4f7fc;
+  height: 100%;
   padding: unset;
   margin: unset;
 }
@@ -50,6 +60,7 @@
   flex: 0 0 6px;
   max-width: 6px;
   display: block;
+}
 }
 
 :root {

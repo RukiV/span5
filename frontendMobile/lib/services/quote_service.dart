@@ -25,6 +25,18 @@ class QuoteService {
     }
   }
 
+  static Future<Quote?> fetchQuoteById(int id) async {
+    try {
+      final response = await ApiClient().client.get('/quotes/$id');
+      if (response.statusCode == 200) {
+        return Quote.fromJson(response.data);
+      }
+    } catch (e) {
+      debugPrint("Error fetching quote $id: $e");
+    }
+    return null;
+  }
+
   static Future<bool> addQuote(Quote quote) async {
     try {
       _pendingKey ??= Idempotency.generate();

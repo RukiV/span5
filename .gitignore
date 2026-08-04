@@ -1,5 +1,11 @@
 .env
 .env.local
+.env.production
+.env.development
+.env.staging
+firebase-service-account.json
+frontend/build/
+frontendMobile/keystore.properties
 node_modules/
 __pycache__/
 *.pyc

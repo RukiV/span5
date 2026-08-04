@@ -3,7 +3,8 @@ from datetime import datetime
 
 from sqlmodel import Session, select
 
-from ..auth.security import hash_password
+from ..auth.security import hash_password, validate_password_strength
+from ..auth.crypto import encrypt_value, decrypt_value
 from ..models.user import User, UserCreate, UserUpdate
 from .base_service import BaseService
 
@@ -16,28 +17,25 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
     """
 
     def create(self, session: Session, data: UserCreate, user_id: Optional[int] = None) -> User:
-        # Never persist a plaintext password.
         if getattr(data, "user_password", None):
+            validate_password_strength(data.user_password)
             data = data.model_copy(update={"user_password": hash_password(data.user_password)})
+        if getattr(data, "user_number", None):
+            data = data.model_copy(update={"user_number": encrypt_value(data.user_number)})
         return super().create(session, data, user_id=user_id)
 
     def update(self, session: Session, id: int, data: UserUpdate, user_id: Optional[int] = None) -> Optional[User]:
-        # Only re-hash when a new password is actually supplied.
         if getattr(data, "user_password", None):
+            validate_password_strength(data.user_password)
             data = data.model_copy(update={"user_password": hash_password(data.user_password)})
+        if getattr(data, "user_number", None):
+            data = data.model_copy(update={"user_number": encrypt_value(data.user_number)})
         return super().update(session, id, data, user_id=user_id)
 
     def get_by_email(self, session: Session, email: str) -> Optional[User]:
         """
         Soek gebruiker op e-posadres.
         Gebruik vir aanmelding en e-pos-duplikaat-kontrole.
-
-        Args:
-            session: Databasis-sessie
-            email: Gebruiker se e-posadres
-
-        Returns:
-            Gebruiker-objek of None as nie gevind
         """
         return session.exec(select(User).where(User.user_email == email)).first()
 

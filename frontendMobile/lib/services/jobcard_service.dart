@@ -74,4 +74,37 @@ class JobcardService {
     }
     return false;
   }
+
+  static Future<Jobcard?> createJob(Map<String, dynamic> payload) async {
+    try {
+      final response = await ApiClient().client.post('/job', data: payload);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final created = Jobcard.fromJson(response.data);
+        _jobcards.insert(0, created);
+        jobcardsNotifier.value = List.from(_jobcards);
+        return created;
+      }
+    } catch (e) {
+      debugPrint("Fout met skep van werksopdrag: $e");
+    }
+    return null;
+  }
+
+  static Future<Jobcard?> updateJob(int jobId, Map<String, dynamic> payload) async {
+    try {
+      final response = await ApiClient().client.patch('/job/$jobId', data: payload);
+      if (response.statusCode == 200) {
+        final updated = Jobcard.fromJson(response.data);
+        final index = _jobcards.indexWhere((j) => j.id == jobId);
+        if (index != -1) {
+          _jobcards[index] = updated;
+          jobcardsNotifier.value = List.from(_jobcards);
+        }
+        return updated;
+      }
+    } catch (e) {
+      debugPrint("Fout met opdatering van werksopdrag: $e");
+    }
+    return null;
+  }
 }

@@ -126,6 +126,7 @@ class _ReportingPageState extends State<ReportingPage> {
     }
 
     return Padding(
+      
       padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
       child: LocationCascadePicker(
         depth: LocationDepth.building,
@@ -204,22 +205,16 @@ class _ReportingPageState extends State<ReportingPage> {
     if (reports.isEmpty) {
       return const Center(child: Text("Geen foutkaartjies gevind nie.", style: TextStyle(color: Colors.grey)));
     }
-    return Column(
-      children: [
-        Container(
-          color: AppColors.gold,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Row(
-            children: _colVis.visibleColumns.map((col) {
-              return SortableHeader(
-                label: col.label,
-                sortKey: col.key,
-                controller: _sortCtrl,
-                flex: _columnFlex(col.key),
-                textAlign: TextAlign.left,
-                onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
-              );
-            }).toList(),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        depth: LocationDepth.building,
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        onChanged: (campusId, buildingId, _) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+        }),
           ),
         ),
         Expanded(

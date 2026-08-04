@@ -13,7 +13,6 @@ from ..models.user import User
 from ..models.audit import Auditlog
 from ..models.quote import Quote
 from ..models.notification import NotificationPreference
-from decimal import Decimal
 
 from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
 from ..auth.security import hash_password, is_hashed
@@ -89,13 +88,11 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
 
 def _get_or_create_test_quote(session: Session) -> Quote:
     """Ensure a test Quote exists for document uploads during development."""
-    quote = session.exec(select(Quote).where(Quote.quote_desc == "Seed: placeholder quote for testing")).first()
+    quote = session.exec(select(Quote)).first()
     if quote:
         return quote
 
     quote = Quote(
-        quote_price=Decimal("100.00"),
-        quote_desc="Seed: placeholder quote for testing",
         quote_date=datetime.utcnow().date(),
         quote_status="draft",
     )
@@ -621,7 +618,7 @@ def seed_data():
             user_name="Elektra",
             user_surname="King",
             user_email="elektra@gmail.com",
-            user_password="123",
+            user_password="Test@1234",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
         )
 
@@ -630,7 +627,7 @@ def seed_data():
             user_name="Guillaume",
             user_surname="Kruger",
             user_email="guillaumekruger214@gmail.com",
-            user_password="123",
+            user_password="Test@1234",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
         )
 

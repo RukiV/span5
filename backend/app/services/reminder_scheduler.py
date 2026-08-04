@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from sqlmodel import Session, select
 
-from ..db.database import engine
+from ..db.database import engine, purge_expired_revoked_tokens
 from ..models.calendar_event import CalendarEvent
 from ..models.user import User
 from .email_service import send_reminder
@@ -20,6 +20,10 @@ async def reminder_loop():
             _check_and_send_reminders()
         except Exception as e:
             logger.error(f"Reminder loop fout: {e}")
+        try:
+            purge_expired_revoked_tokens()
+        except Exception as e:
+            logger.error(f"Token purge fout: {e}")
         await asyncio.sleep(CHECK_INTERVAL)
 
 def _check_and_send_reminders():

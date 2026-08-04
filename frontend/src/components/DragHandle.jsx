@@ -11,7 +11,7 @@ function DragHandle() {
     const startPct = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--analytics-width').trim()) || 33.33;
 
     const onMouseMove = (ev) => {
-      const container = document.querySelector('.app-inner');
+      const container = document.querySelector('.app-content');
       if (!container) return;
       const rect = container.getBoundingClientRect();
       const contentWidth = rect.width;

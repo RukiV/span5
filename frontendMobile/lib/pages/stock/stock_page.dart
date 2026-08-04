@@ -93,26 +93,17 @@ class _StockPageState extends State<StockPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          _buildSearchBar(),
-          _buildCampusFilter(),
-          Expanded(child: _buildStockList()),
-        ],
-      ),
-      floatingActionButton: UserSession.hasAdminPrivileges
-          ? FloatingActionButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewStockPage())),
-              backgroundColor: AppColors.gold,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+      child: LocationCascadePicker(
+        initialCampusId: _selectedCampusId,
+        initialBuildingId: _selectedBuildingId,
+        initialRoomId: _selectedRoomId,
+        onChanged: (campusId, buildingId, roomId) => setState(() {
+          _selectedCampusId = campusId;
+          _selectedBuildingId = buildingId;
+          _selectedRoomId = roomId;
+        }),
     return Container(
       color: AppColors.navy,
       padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
@@ -225,26 +216,19 @@ class _StockPageState extends State<StockPage> {
 
         if (filtered.isEmpty) return const Center(child: Text("Geen voorraad gevind nie."));
 
-        return Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-              color: AppColors.gold,
-              child: Row(
-                children: _colVis.visibleColumns.map((col) {
-                  TextAlign align = TextAlign.left;
-                  if (col.key == 'amount' || col.key == 'minimum' || col.key == 'boxTotal') align = TextAlign.right;
-                  return SortableHeader(
-                    label: col.label,
-                    sortKey: col.key,
-                    controller: _sortCtrl,
-                    flex: _columnFlex(col.key),
-                    textAlign: align,
-                    onPressed: () => setState(() => _sortCtrl.toggle(col.key)),
-                  );
-                }).toList(),
-              ),
-            ),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
+          child: LocationCascadePicker(
+            initialCampusId: _selectedCampusId,
+            initialBuildingId: _selectedBuildingId,
+            initialRoomId: _selectedRoomId,
+            onChanged: (campusId, buildingId, roomId) => setState(() {
+              _selectedCampusId = campusId;
+              _selectedBuildingId = buildingId;
+              _selectedRoomId = roomId;
+            }),
+          ),
+        );
             Expanded(
               child: ListView.separated(
                 itemCount: filtered.length,

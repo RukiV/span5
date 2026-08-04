@@ -12,6 +12,8 @@ import DragHandle from './components/DragHandle';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import WorkOrderPage from './pages/WorkOrderPage';
@@ -85,43 +87,51 @@ function RightProtectedRoute({ requiredRight, children }) {
 function AppContent() {
   const location = useLocation();
   const logout = useLogout();
-  const { isOpen, toggle } = useAnalytics();
+  const { isOpen, toggle, close } = useAnalytics();
+
+  const hideAnalytics = ['/users/roles', '/users/rights', '/reports'].some(
+    p => location.pathname === p || location.pathname === p + '/'
+  );
+
+  useEffect(() => {
+    if (hideAnalytics && isOpen) close();
+  }, [hideAnalytics, isOpen, close, location.pathname]);
 
   return (
     <div className="app-body">
       <Sidebar currentPath={location.pathname} onLogout={logout} />
-      <div className="app-content">
+      <div className={`app-content${isOpen && !hideAnalytics ? ' panel-open' : ''}`}>
         <Navbar />
-        <div className={`app-inner${isOpen ? ' panel-open' : ''}`}>
-          <div className="main">
-            <Routes>
-              <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-              <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
-              <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
-              <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
-              <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
-              <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
-              <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
-              <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
-              <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
-              <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
-              <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
-              <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
-              <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
-              <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-              <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
-              <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </div>
-          <DragHandle />
-          <AnalyticsPanel />
+        <div className="main">
+          <Routes>
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
+            <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
+            <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
+            <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
+            <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
+            <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
+            <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
+            <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
+            <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
+            <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
+            <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
+            <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
+            <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
         </div>
+        {!hideAnalytics && <DragHandle />}
+        {!hideAnalytics && <AnalyticsPanel />}
+        </div>
+        {!hideAnalytics && (
+          <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
+            {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
+          </button>
+        )}
       </div>
-      <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
-        {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
-      </button>
-    </div>
   );
 }
 
@@ -174,6 +184,8 @@ function App() {
       <div className="app">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/*" element={
             <AnalyticsProvider>
               <ToastProvider>

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.user import UserRead, UserCreate, UserUpdate, User
 from ....services.user_service import user_service
@@ -13,6 +13,11 @@ router = APIRouter()
 def readUsers(session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
     #Fetch all users
     return user_service.getAll(session)
+
+@router.get("/assignable", response_model=List[UserRead])
+def readAssignableUsers(session: Session = Depends(getSession), _user: User = Depends(require_any_right("jobs.manage", "quotes.manage"))):
+    #Users that can be assigned to work orders or chosen as quote contractors
+    return session.exec(select(User).order_by(User.user_name, User.user_surname)).all()
 
 @router.get("/{userID}", response_model=UserRead)
 def readUser(userID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
