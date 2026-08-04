@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:aad_oauth/aad_oauth.dart';
 import 'package:aad_oauth/model/config.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
 import '../../core/navigation.dart';
@@ -23,6 +23,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final LocalAuthentication auth = LocalAuthentication();
+  final _secureStorage = const FlutterSecureStorage();
   
   bool _isLoading = false;
   bool _canCheckBiometrics = false;
@@ -55,11 +56,8 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _canCheckBiometrics = canCheck || isSupported);
 
       if (_canCheckBiometrics) {
-        final prefs = await SharedPreferences.getInstance();
-        bool useBio = prefs.getBool('use_biometrics') ?? false;
-
-        if (useBio) {
-          // As biometrie geaktiveer is, probeer outomaties stawing na die eerste frame.
+        final bioPref = await _secureStorage.read(key: 'use_biometrics');
+        if (bioPref == 'true') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _authenticateWithBiometrics();
           });
@@ -163,11 +161,12 @@ class _LoginPageState extends State<LoginPage> {
 
         if (!mounted) return;
 
-        // Kyk of ons biometrie moet voorstel vir toekomstige gebruik.
-        final prefs = await SharedPreferences.getInstance();
-        if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
-          bool? wantBio = await _showBiometricPrompt();
-          await prefs.setBool('use_biometrics', wantBio ?? false);
+        if (_canCheckBiometrics) {
+          final existing = await _secureStorage.read(key: 'use_biometrics');
+          if (existing == null) {
+            bool? wantBio = await _showBiometricPrompt();
+            await _secureStorage.write(key: 'use_biometrics', value: (wantBio ?? false).toString());
+          }
         }
 
         if (mounted) {

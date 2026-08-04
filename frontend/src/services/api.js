@@ -298,3 +298,4 @@ apiClient.calendarEvents = calendarEventsAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };
+export default apiClient;

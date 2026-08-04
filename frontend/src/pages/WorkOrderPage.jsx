@@ -44,7 +44,7 @@ function WorkOrderPage() {
   const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
+  const [newQuote, setNewQuote] = useState({ contractor_id: "" });
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [connectionType, setConnectionType] = useState("");
@@ -747,8 +747,6 @@ function WorkOrderPage() {
               dbId: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
               contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
-              amount: Number(quoteData.quote_price || 0),
-              description: quoteData.quote_desc || "",
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
               selection_reason: quoteData.quote_selection_reason || ""
             };
@@ -838,8 +836,8 @@ function WorkOrderPage() {
       const savedWorkOrder = savedWorkOrderResponse?.data || savedWorkOrderResponse;
       const workOrderId = savedWorkOrder?.jobcard_id || editingId;
 
-      if (quotes.some((quote) => !quote.contractor_id || !String(quote.description || "").trim())) {
-        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n beskrywing hê." });
+      if (quotes.some((quote) => !quote.contractor_id || !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
+        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê." });
         return;
       }
 
@@ -854,8 +852,6 @@ function WorkOrderPage() {
 
       for (const quote of quotes) {
         const quotePayload = {
-          quote_price: Number(quote.amount),
-          quote_desc: quote.description || "Kwotasie",
           quote_date: new Date().toISOString().split('T')[0],
           quote_status: "Pending",
           quote_selection_reason: quoteSelectionReasons[quote.id] || null,
@@ -950,8 +946,8 @@ function WorkOrderPage() {
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
-    if (!newQuote.contractor_id || !newQuote.amount || !String(newQuote.description || "").trim()) {
-      showToast({ type: 'warning', title: "Kies 'n kontrakteur, voer 'n bedrag in en gee 'n beskrywing vir die kwotasie." });
+    if (!newQuote.contractor_id || !quotePdfFiles[quoteEditId || "new"]) {
+      showToast({ type: 'warning', title: "Kies 'n kontrakteur en laai 'n PDF op vir die kwotasie." });
       return;
     }
 
@@ -962,8 +958,6 @@ function WorkOrderPage() {
       dbId: existingQuote?.dbId ?? null,
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
       contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
-      amount: parseFloat(newQuote.amount),
-      description: newQuote.description,
       createdAt: existingQuote?.createdAt || new Date().toLocaleDateString('af-ZA'),
       selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
@@ -1008,7 +1002,7 @@ function WorkOrderPage() {
       });
     }
 
-    setNewQuote({ contractor_id: "", amount: "", description: "" });
+    setNewQuote({ contractor_id: "" });
   };
 
   const handleStartEditQuote = (quoteId) => {
@@ -1016,9 +1010,7 @@ function WorkOrderPage() {
     if (!quoteToEdit) return;
 
     setNewQuote({
-      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : "",
-      amount: quoteToEdit.amount ? String(quoteToEdit.amount) : "",
-      description: quoteToEdit.description || ""
+      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : ""
     });
     setQuoteEditId(quoteId);
   };
@@ -1036,7 +1028,7 @@ function WorkOrderPage() {
       delete next["new"];
       return next;
     });
-    setNewQuote({ contractor_id: "", amount: "", description: "" });
+    setNewQuote({ contractor_id: "" });
   };
 
   const handleDeleteQuote = (quoteId) => {
@@ -1062,7 +1054,7 @@ function WorkOrderPage() {
     }
     if (quoteEditId === quoteId) {
       setQuoteEditId(null);
-      setNewQuote({ contractor_id: "", amount: "", description: "" });
+      setNewQuote({ contractor_id: "" });
     }
   };
 
@@ -1084,7 +1076,7 @@ function WorkOrderPage() {
     setSelectedQuoteId(null);
     setQuoteEditId(null);
     setQuoteSelectionReasons({});
-    setNewQuote({ contractor_id: "", amount: "", description: "" });
+    setNewQuote({ contractor_id: "" });
     setJobImages([]);
     setTicketImages([]);
     setSelectedImageFiles([]);
@@ -2160,16 +2152,6 @@ function WorkOrderPage() {
                         </div>
                       )}
                     </div>
-                    <div className="mri-fld">
-                      <span>Bedrag</span>
-                      <input 
-                        type="number" 
-                        placeholder="Bedrag (R)"
-                        value={newQuote.amount}
-                        onChange={(e) => setNewQuote({...newQuote, amount: e.target.value})}
-                        className="quote-input"
-                      />
-                    </div>
                     <button 
                       type="button"
                       onClick={handleAddQuote}
@@ -2188,15 +2170,6 @@ function WorkOrderPage() {
                       </button>
                     )}
                   </div>
-                  
-                  <div className="mri-cell w-50">
-                    <textarea 
-                      placeholder="Beskrywing van Kwotasie"
-                      value={newQuote.description}
-                      onChange={(e) => setNewQuote({...newQuote, description: e.target.value})}
-                      className="quote-textarea"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -2207,8 +2180,6 @@ function WorkOrderPage() {
                     <thead>
                       <tr>
                         <th>Kontrakteur</th>
-                        <th>Bedrag</th>
-                        <th>Beskrywing</th>
                         <th>PDF</th>
                         <th>Datum</th>
                         <th>Gekies</th>
@@ -2219,8 +2190,6 @@ function WorkOrderPage() {
                       {quotes.map((quote) => (
                         <tr key={quote.id} className={selectedQuoteId === quote.id ? "selected" : ""}>
                           <td>{quote.contractor_name || "-"}</td>
-                          <td style={{ fontWeight: "700"}}>R {quote.amount.toFixed(2)}</td>
-                          <td>{quote.description}</td>
                           <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                             {quoteDocuments[quote.id]?.[0] ? (
                               <>
@@ -2270,7 +2239,7 @@ function WorkOrderPage() {
                   </table>
                   {selectedQuoteId && (
                     <div className="quote-summary">
-                      <div>✓ Gekose Kwotasie: R {quotes.find(q => q.id === selectedQuoteId)?.amount.toFixed(2)} ({quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'})</div>
+                      <div>✓ Gekose Kwotasie: {quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'}</div>
                       <textarea
                         className="quote-reason-textarea"
                         placeholder="Gee 'n rede waarom hierdie kwotasie gekies is"

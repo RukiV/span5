@@ -1,5 +1,6 @@
 import '../../services/campus_service.dart';
 import 'edit_report_page.dart';
+import '../jobcards/jobcard_form_page.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
@@ -196,6 +197,26 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               ),
             ],
           ),
+          if (UserSession.can('jobs.manage')) ...[
+            const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final created = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => JobcardFormPage(report: _currentReport),
+                    ),
+                  );
+                  if (created == true) _refreshData();
+                },
+                icon: const Icon(Icons.assignment_add, color: Colors.white, size: 18),
+                label: const Text("SKEP WERKSOPDRAG", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 12)),
+              ),
+            ),
+          ],
           if (UserSession.hasAdminPrivileges) ...[
             const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             Row(

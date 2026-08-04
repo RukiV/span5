@@ -4,12 +4,13 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
 import asyncio
 from .api.api import api_router
-from .db.database import createDBandTables
+from .db.database import createDBandTables, purge_expired_revoked_tokens
 from .db.seed import seed_data
 from .services.reminder_scheduler import reminder_loop
 
@@ -47,6 +48,11 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://frontend:3000",
+    "https://localhost",
+    "https://localhost:443",
+    "https://127.0.0.1",
+    "http://localhost",
+    "http://127.0.0.1",
 ]
 
 # =============================================================================
@@ -61,6 +67,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 # =============================================================================
+
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 
 app.include_router(api_router, prefix="/api/v1")
 

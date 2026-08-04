@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/cascading_location_filter.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
@@ -100,65 +101,21 @@ class _ReportingPageState extends State<ReportingPage> {
     final campuses = CampusService.campusesNotifier.value;
     if (campuses.isEmpty) return const SizedBox.shrink();
 
-    final selectedCampus = _selectedCampusId != null
-        ? campuses.where((c) => c.id == _selectedCampusId).firstOrNull
-        : null;
-    final buildings = selectedCampus?.buildings ?? [];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                isExpanded: true,
-                value: _selectedCampusId,
-                hint: const Text("Kies Terrein", style: TextStyle(fontSize: 13)),
-                items: campuses.map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, style: const TextStyle(fontSize: 13)),
-                )).toList(),
-                onChanged: (val) => setState(() {
-                  _selectedCampusId = val;
-                  _selectedBuildingId = null;
-                }),
-              ),
-            ),
-          ),
-        ),
-        if (_selectedCampusId != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _selectedBuildingId,
-                  hint: const Text("Kies Gebou", style: TextStyle(fontSize: 13)),
-                  items: buildings.map((b) => DropdownMenuItem(
-                    value: b.id,
-                    child: Text(b.name, style: const TextStyle(fontSize: 13)),
-                  )).toList(),
-                  onChanged: (val) => setState(() => _selectedBuildingId = val),
-                ),
-              ),
-            ),
-          ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: CascadingLocationFilter(
+        campuses: campuses,
+        campusId: _selectedCampusId,
+        buildingId: _selectedBuildingId,
+        roomId: null,
+        maxLevel: 2,
+        onCampusChanged: (id) => setState(() {
+          _selectedCampusId = id;
+          _selectedBuildingId = null;
+        }),
+        onBuildingChanged: (id) => setState(() => _selectedBuildingId = id),
+        onRoomChanged: (_) {},
+      ),
     );
   }
 
