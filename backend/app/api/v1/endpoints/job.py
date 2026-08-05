@@ -119,25 +119,12 @@ def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: U
         job = job_service.getByID(session, job.jobcard_id)
     notif_svc = NotificationService(session)
     summary = _job_summary(session, job)
-    notif_svc.notify_admins(
-        notification_type="job.created",
-        title="Nuwe werksopdrag",
-        message=f"{summary} geskep deur {user.user_name}",
-        actor_id=user.user_id,
-        reference_type="job",
-        reference_id=job.jobcard_id,
-    )
-    if job.location_id:
-        notif_svc.notify_location_users(
-            location_id=job.location_id,
-            notification_type="job.created",
-            title="Nuwe werksopdrag",
-            message=f"{summary} by jou terrein",
-            actor_id=user.user_id,
-            reference_type="job",
-            reference_id=job.jobcard_id,
-        )
+    # Direk geadresseerde ontvangers kry presies EEN kennisgewing. Die admin/FK-
+    # en terrein-uitsaaie slaan hulle oor, sodat bv. 'n FK wat beide die
+    # foutkaartjie-skepper én die verantwoordelike persoon is nie dubbel kry nie.
+    directly_notified: set[int] = set()
     if job.contractor_id:
+        directly_notified.add(job.contractor_id)
         notif_svc.create_notification(
             user_id=job.contractor_id,
             notification_type="job.created",
@@ -160,6 +147,7 @@ def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: U
                     user_id=user.user_id,
                 )
                 job = job_service.getByID(session, job.jobcard_id)
+            directly_notified.add(creator_id)
             notif_svc.create_notification(
                 user_id=creator_id,
                 notification_type="job.created",
@@ -169,6 +157,26 @@ def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: U
                 reference_type="job",
                 reference_id=job.jobcard_id,
             )
+    notif_svc.notify_admins(
+        notification_type="job.created",
+        title="Nuwe werksopdrag",
+        message=f"{summary} geskep deur {user.user_name}",
+        actor_id=user.user_id,
+        reference_type="job",
+        reference_id=job.jobcard_id,
+        exclude_user_ids=directly_notified,
+    )
+    if job.location_id:
+        notif_svc.notify_location_users(
+            location_id=job.location_id,
+            notification_type="job.created",
+            title="Nuwe werksopdrag",
+            message=f"{summary} by jou terrein",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
+            exclude_user_ids=directly_notified,
+        )
     return _read_with_names(session, job)
 
 
@@ -210,7 +218,12 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
     if old_status != result.job_status:
         notif_svc = NotificationService(session)
         summary = _job_summary(session, result)
+        # Direk geadresseerde ontvangers (kontrakteur + CC-gebruikers) kry presies
+        # EEN kennisgewing. Die admin/FK- en terrein-uitsaaie slaan hulle oor,
+        # sodat bv. 'n FK wat CC is én by die terrein is nie dubbel kry nie.
+        directly_notified: set[int] = set()
         if result.contractor_id:
+            directly_notified.add(result.contractor_id)
             notif_svc.create_notification(
                 user_id=result.contractor_id,
                 notification_type="job.status_changed",
@@ -220,18 +233,13 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
                 reference_type="job",
                 reference_id=result.jobcard_id,
             )
-        # Stuur ook aan Admin / FK sodat hulle weet die status het verander
-        notif_svc.notify_admins(
-            notification_type="job.status_changed",
-            title="Werksopdrag status verander",
-            message=f"{summary} status verander na {result.job_status.value}",
-            actor_id=user.user_id,
-            reference_type="job",
-            reference_id=result.jobcard_id,
-        )
-        if result.location_id:
-            notif_svc.notify_location_users(
-                location_id=result.location_id,
+        for raw_id in (result.cc_users or "").split(","):
+            cc_id = raw_id.strip()
+            if not cc_id.isdigit() or int(cc_id) in directly_notified:
+                continue
+            directly_notified.add(int(cc_id))
+            notif_svc.create_notification(
+                user_id=int(cc_id),
                 notification_type="job.status_changed",
                 title="Werksopdrag status verander",
                 message=f"{summary} status verander na {result.job_status.value}",
@@ -239,6 +247,30 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
                 reference_type="job",
                 reference_id=result.jobcard_id,
             )
+        notified = set(directly_notified)
+        # Stuur ook aan Admin / FK sodat hulle weet die status het verander
+        notified |= notif_svc.notify_admins(
+            notification_type="job.status_changed",
+            title="Werksopdrag status verander",
+            message=f"{summary} status verander na {result.job_status.value}",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=result.jobcard_id,
+            exclude_user_ids=notified,
+        )
+        if result.location_id:
+            notified |= notif_svc.notify_location_users(
+                location_id=result.location_id,
+                notification_type="job.status_changed",
+                title="Werksopdrag status verander",
+                message=f"{summary} status verander na {result.job_status.value}",
+                actor_id=user.user_id,
+                reference_type="job",
+                reference_id=result.jobcard_id,
+                exclude_user_ids=notified,
+            )
+    else:
+        notified: set[int] = set()
 
     # Wanneer 'n werksopdrag voltooi word, los die gekoppelde foutkaartjie op
     # sodat die student kan sien sy foutverslag is opgelos.
@@ -256,7 +288,10 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
                 user_id=user.user_id,
             )
             if fault:
-                notify_fault_status_change(session, fault, FaultStatus.IN_PROGRESS, user)
+                notify_fault_status_change(
+                    session, fault, FaultStatus.IN_PROGRESS, user,
+                    exclude_user_ids=notified,
+                )
 
     return _read_with_names(session, result)
 

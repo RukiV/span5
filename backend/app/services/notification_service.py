@@ -238,7 +238,8 @@ class NotificationService:
     # --- Hulp: stuur kennisgewing aan alle aktiewe gebruikers by 'n terrein ---
     def notify_location_users(self, location_id: int, notification_type: str, title: str, message: str,
                                actor_id: Optional[int] = None,
-                               reference_type: Optional[str] = None, reference_id: Optional[int] = None):
+                               reference_type: Optional[str] = None, reference_id: Optional[int] = None,
+                               exclude_user_ids: Optional[set[int]] = None) -> set[int]:
         from ..auth.rights_catalog import ROLE_CONTRACTOR
         from ..models.user import User
         # Kontrakteurs word uitgesluit: hulle mag slegs kennisgewings ontvang wat
@@ -249,7 +250,11 @@ class NotificationService:
             User.user_status == "active",
         )
         users = self.session.exec(stmt).all()
+        notified: set[int] = set()
         for user in users:
+            if exclude_user_ids and user.user_id in exclude_user_ids:
+                continue
+            notified.add(user.user_id)
             self.create_notification(
                 user_id=user.user_id,
                 notification_type=notification_type,
@@ -259,11 +264,13 @@ class NotificationService:
                 reference_type=reference_type,
                 reference_id=reference_id,
             )
+        return notified
 
     # --- Hulp: stuur kennisgewing aan alle aktiewe administratore EN FK-bestuurders ---
     def notify_admins(self, notification_type: str, title: str, message: str,
                       actor_id: Optional[int] = None,
-                      reference_type: Optional[str] = None, reference_id: Optional[int] = None):
+                      reference_type: Optional[str] = None, reference_id: Optional[int] = None,
+                      exclude_user_ids: Optional[set[int]] = None) -> set[int]:
         from ..models.user import User
         from ..auth.rights_catalog import ROLE_ADMIN, ROLE_FK
         stmt = select(User).where(
@@ -271,7 +278,11 @@ class NotificationService:
             User.user_status == "active",
         )
         users = self.session.exec(stmt).all()
+        notified: set[int] = set()
         for user in users:
+            if exclude_user_ids and user.user_id in exclude_user_ids:
+                continue
+            notified.add(user.user_id)
             self.create_notification(
                 user_id=user.user_id,
                 notification_type=notification_type,
@@ -281,3 +292,4 @@ class NotificationService:
                 reference_type=reference_type,
                 reference_id=reference_id,
             )
+        return notified

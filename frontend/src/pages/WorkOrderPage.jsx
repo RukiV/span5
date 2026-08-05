@@ -730,7 +730,10 @@ function WorkOrderPage() {
       fault_id: order.fault_id || "",
       nature: order.nature || "",
       brief_description: briefDesc,
-      job_notes: details,
+      // Kontrakteur-werknotas kom uit die aparte job_notes-veld (sodat notas wat
+      // deur kontrakteurs op die mobiele app gestoor is, hier ook gesien word);
+      // val terug op die ou job_desc-inbedding ("brief: notes") vir ou rekords.
+      job_notes: order.job_notes || details,
       authorized_by: order.authorized_by || "",
       completed_date: formatDateForInput(order.job_finisheddatetime),
       cost_recovery_notes: order.cost_recovery_notes || "",
@@ -860,6 +863,7 @@ function WorkOrderPage() {
         job_status: formData.job_status,
         job_priority: formData.job_priority || "Normal",
         nature: formData.nature || null,
+        job_notes: formData.job_notes || null,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_end_datetime: formatDateTimeForPayload(formData.job_scheduled_end_datetime) || null,
@@ -1589,14 +1593,25 @@ function WorkOrderPage() {
                         value={formData.job_status}
                         onChange={(e) => {
                           const newStatus = e.target.value;
-                          setFormData(prev => ({
-                            ...prev,
-                            job_status: newStatus,
-                            completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
-                              ? new Date().toISOString().split('T')[0]
-                              : prev.completed_date,
-                          }));
-                          setInvalidFields(p => { const n = {...p}; delete n.job_status; return n; });
+                          const applyStatus = () => {
+                            setFormData(prev => ({
+                              ...prev,
+                              job_status: newStatus,
+                              completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
+                                ? new Date().toISOString().split('T')[0]
+                                : prev.completed_date,
+                            }));
+                            setInvalidFields(p => { const n = {...p}; delete n.job_status; return n; });
+                          };
+                          if ((newStatus === "Voltooid" || newStatus === "COMPLETED") && formData.job_status !== newStatus) {
+                            confirm({
+                              message: "Is jy seker jy wil hierdie werksopdrag as voltooi merk?",
+                              confirmLabel: "Ja, voltooi",
+                              cancelLabel: "Kanselleer"
+                            }).then((ok) => { if (ok) applyStatus(); });
+                          } else {
+                            applyStatus();
+                          }
                         }}
                       >
                         <option value="">Kies...</option>
@@ -1896,10 +1911,14 @@ function WorkOrderPage() {
                         ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
                         : null}
                       onChange={(selectedOption) => setFormData({ ...formData, assigned_to: selectedOption ? selectedOption.value : null })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
+                      // Verantwoordelik: slegs FK (2) en Admin (3). Die huidige
+                      // toegewysde gebruiker bly sigbaar selfs as hulle nie FK/Admin is.
+                      options={(users || [])
+                        .filter((u) => u.role_id === 2 || u.role_id === 3 || Number(u.user_id) === Number(formData.assigned_to))
+                        .map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
                     />
                   </div>
                 </div>
@@ -1919,10 +1938,15 @@ function WorkOrderPage() {
                         ...formData,
                         cc_users: (selectedOptions || []).map((opt) => opt.value)
                       })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
+                      // CC-lys: slegs FK (2) en Admin (3) mag gekies word.
+                      // Reeds-gekose gebruikers (bv. die foutkaartjie-skepper,
+                      // selfs 'n student) bly sigbaar en word behou.
+                      options={(users || [])
+                        .filter((u) => u.role_id === 2 || u.role_id === 3 || (formData.cc_users || []).some((id) => Number(id) === Number(u.user_id)))
+                        .map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
                     />
                   </div>
                 </div>
