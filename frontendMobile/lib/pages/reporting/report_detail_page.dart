@@ -81,8 +81,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
             _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
             _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (UserSession.hasAdminPrivileges)
-              _buildDetailRow("Bate ID", _currentReport.assetSerialCode ?? _currentReport.assetId),
             _buildDetailRow("Werksoort", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
             if (_currentReport.description.isNotEmpty)
