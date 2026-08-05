@@ -18,7 +18,7 @@ def read_calendar_events(
     start: str = Query(..., description="ISO start datum"),
     end: str = Query(..., description="ISO end datum"),
     session: Session = Depends(getSession),
-    _user: User = Depends(require_right("calendar.view")),
+    user: User = Depends(require_right("calendar.view")),
 ):
     try:
         start_dt = datetime.fromisoformat(start)
@@ -26,7 +26,7 @@ def read_calendar_events(
     except ValueError:
         raise HTTPException(status_code=400, detail="Ongeldige datum formaat. Gebruik ISO formaat (YYYY-MM-DD)")
 
-    return calendar_service.get_events_in_range(session, start_dt, end_dt)
+    return calendar_service.get_events_in_range(session, start_dt, end_dt, user=user)
 
 @router.get("/events/{event_id}", response_model=CalendarEventRead)
 def read_calendar_event(event_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("calendar.view"))):

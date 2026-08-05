@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.location import LocationRead, LocationCreate, LocationUpdate
 from ....models.user import User
@@ -12,7 +12,7 @@ router = APIRouter()
 
 
 @router.get("", response_model=List[LocationRead])
-def readLocations(session: Session = Depends(getSession), _user: User = Depends(require_right("locations.manage"))):
+def readLocations(session: Session = Depends(getSession), _user: User = Depends(require_any_right("locations.manage", "faults.create_own"))):
     return location_service.getAll(session)
 
 

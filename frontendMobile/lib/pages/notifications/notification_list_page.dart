@@ -106,6 +106,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
         return Colors.brown;
       case 'job.status_changed':
         return Colors.purple;
+      case 'job.completion_requested':
+        return Colors.teal;
       case 'system.announcement':
         return const Color(0xFF0e1e3b);
       default:
@@ -122,6 +124,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
       case 'job.created':
       case 'job.assigned':
       case 'job.status_changed':
+      case 'job.completion_requested':
         return Icons.construction_outlined;
       case 'stock.low':
         return Icons.warning_amber_outlined;
@@ -215,6 +218,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
                           value: 'fault.created', label: 'Fout Aangeteken'),
                       SearchableDropdownItem(
                           value: 'job.created', label: 'Werksopdrag Geskep'),
+                      SearchableDropdownItem(
+                          value: 'job.completion_requested', label: 'Voltooiingsversoek'),
                       SearchableDropdownItem(
                           value: 'stock.low', label: 'Lae Voorraad'),
                       SearchableDropdownItem(

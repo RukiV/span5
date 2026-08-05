@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.location import BuildingRead, BuildingCreate, BuildingUpdate
 from ....models.user import User
@@ -11,7 +11,7 @@ from ....services.building_service import building_service
 router = APIRouter()
 
 @router.get("", response_model=List[BuildingRead])
-def readBuildings(session: Session = Depends(getSession), _user: User = Depends(require_right("buildings.manage"))):
+def readBuildings(session: Session = Depends(getSession), _user: User = Depends(require_any_right("buildings.manage", "faults.create_own"))):
     return building_service.getAll(session)
 
 @router.get("/{buildingID}", response_model=BuildingRead)

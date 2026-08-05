@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../core/app_colors.dart';
+import '../../services/asset_type_service.dart';
 import 'scan_page.dart';
 
 import '../../services/report_service.dart';
@@ -32,6 +33,12 @@ class _NewReportPageState extends State<NewReportPage> {
   String? selectedCampus;
   String? selectedBuilding;
   String? selectedLocation;
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+  int? _selectedRoomId;
+
+  /// Gekandeerde lokaal wat wag op die kampusboom om te laai.
+  int? _pendingRoomId;
   String selectedCategory = "";
   String selectedPriority = "Medium";
   static const int _maxPhotos = 3;
@@ -43,8 +50,10 @@ class _NewReportPageState extends State<NewReportPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+    AssetTypeService.fetchTypes();
     if (UserSession.hasAdminPrivileges) {
-      selectedCategory = "Instandhouding";
+      selectedCategory = "Onderhoud";
     }
     if (widget.prefillSerialCode != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -56,10 +65,19 @@ class _NewReportPageState extends State<NewReportPage> {
 
   @override
   void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     serialController.dispose();
     titleController.dispose();
     descController.dispose();
     super.dispose();
+  }
+
+  /// Sodra die kampusboom laai, vul 'n voorheen-gekandeerde lokaal asnog in.
+  void _onCampusesChanged() {
+    if (!mounted) return;
+    if (_pendingRoomId != null) {
+      setState(() => _resolveRoomPath(_pendingRoomId));
+    }
   }
 
   Future<void> _autoFillFromCode(String serialCode) async {
@@ -74,56 +92,61 @@ class _NewReportPageState extends State<NewReportPage> {
       return;
     }
 
-    final campusName = CampusService.getCampusNameByRoomId(asset.location);
-    final buildingName = CampusService.getBuildingNameByRoomId(asset.location);
-    final roomName = CampusService.getRoomName(asset.location);
-
-    String? formattedRoom;
-    if (asset.location.isNotEmpty) {
-      formattedRoom = "${asset.location}:$roomName";
-    }
-
     setState(() {
-      selectedCampus = campusName;
-      selectedBuilding = buildingName;
-      selectedLocation = formattedRoom;
+      _resolveRoomPath(int.tryParse(asset.location));
       selectedCategory = _mapAssetCategory(asset.category);
       _isAutoFilling = false;
     });
   }
 
+  /// Bepaal die volledige pad (terrein/gebou/lokaal) direk vanaf die
+  /// lokaal-ID van die bate — sonder die onbetroubare naam-omkeer wat
+  /// "Onbekende Kampus" gegee het as die kampusboom nog nie gelaai was nie.
+  void _resolveRoomPath(int? roomId) {
+    if (roomId == null) {
+      _pendingRoomId = null;
+      _selectedCampusId = null;
+      _selectedBuildingId = null;
+      _selectedRoomId = null;
+      selectedCampus = null;
+      selectedBuilding = null;
+      selectedLocation = null;
+      return;
+    }
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        for (final r in b.rooms ?? const <Room>[]) {
+          if (r.id == roomId) {
+            _selectedCampusId = c.id;
+            _selectedBuildingId = b.id;
+            _selectedRoomId = r.id;
+            selectedCampus = c.name;
+            selectedBuilding = b.name;
+            selectedLocation = '${r.id}:${r.name}';
+            _pendingRoomId = null;
+            return;
+          }
+        }
+      }
+    }
+    // Boom nog nie gelaai nie — onthou dit en vul aan sodra Campuses arriveer.
+    _pendingRoomId = roomId;
+    _selectedRoomId = roomId;
+    selectedLocation = '$roomId:${CampusService.getRoomName('$roomId')}';
+  }
+
   String _mapAssetCategory(String assetCategory) {
     switch (assetCategory) {
-      case "Meubels": return "Instandhouding";
-      case "IT Toerusting": return "Herstelwerk";
-      case "Sekuriteit": return "Instandhouding";
-      default: return "Ander";
+      case "Meubels": return "Onderhoud";
+      case "IT Toerusting": return "Herstel";
+      case "Sekuriteit": return "Onderhoud";
+      default: return "Onderhoud";
     }
   }
 
   String? _locationError;
 
-  int? _campusIdForName(String? name) {
-    if (name == null) return null;
-    return CampusService.campusesNotifier.value
-        .where((c) => c.name == name)
-        .firstOrNull
-        ?.id;
-  }
-
-  int? _buildingIdForName(String? campusName, String? buildingName) {
-    if (campusName == null || buildingName == null) return null;
-    final campus = CampusService.getCampusByName(campusName);
-    return campus?.buildings.where((b) => b.name == buildingName).firstOrNull?.id;
-  }
-
-  /// `selectedLocation` word as "lokaalId:lokaalNaam" gestoor.
-  int? _roomIdFromFormatted(String? formatted) {
-    if (formatted == null) return null;
-    return int.tryParse(formatted.split(':').first);
-  }
-
-  /// Vertaal die kieser se ID's na die string-vorm wat die stoor-logika verwag.
+  /// Stoor die ID's én die naam-vorm wat die stoor-logika verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
     final campuses = CampusService.campusesNotifier.value;
     final campus = campuses.where((c) => c.id == campusId).firstOrNull;
@@ -133,6 +156,10 @@ class _NewReportPageState extends State<NewReportPage> {
         (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
 
     setState(() {
+      _selectedCampusId = campusId;
+      _selectedBuildingId = buildingId;
+      _selectedRoomId = roomId;
+      _pendingRoomId = null;
       selectedCampus = campus?.name;
       selectedBuilding = building?.name;
       selectedLocation = room == null ? null : '${room.id}:${room.name}';
@@ -211,14 +238,14 @@ class _NewReportPageState extends State<NewReportPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: SearchableDropdown<String>(
-                          label: "Kategorie *",
-                          hint: "Kies Kategorie",
+                          child: SearchableDropdown<String>(
+                          label: "Werksoort *",
+                          hint: "Kies Werksoort",
                           value: selectedCategory.isNotEmpty ? selectedCategory : null,
-                          items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                          items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
                               .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
                           onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
-                          validator: (v) => v == null ? "Kategorie word vereis" : null,
+                          validator: (v) => v == null ? "Werksoort word vereis" : null,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -227,22 +254,22 @@ class _NewReportPageState extends State<NewReportPage> {
                   )
                 else
                   SearchableDropdown<String>(
-                    label: "Kategorie *",
-                    hint: "Kies Kategorie",
+                    label: "Werksoort *",
+                    hint: "Kies Werksoort",
                     value: selectedCategory.isNotEmpty ? selectedCategory : null,
-                    items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                    items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
                         .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
                     onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
-                    validator: (v) => v == null ? "Kategorie word vereis" : null,
+                    validator: (v) => v == null ? "Werksoort word vereis" : null,
                   ),
 
                 const SizedBox(height: 20),
 
                 LocationCascadePicker(
                   label: "Ligging *",
-                  initialCampusId: _campusIdForName(selectedCampus),
-                  initialBuildingId: _buildingIdForName(selectedCampus, selectedBuilding),
-                  initialRoomId: _roomIdFromFormatted(selectedLocation),
+                  initialCampusId: _selectedCampusId,
+                  initialBuildingId: _selectedBuildingId,
+                  initialRoomId: _selectedRoomId,
                   errorText: _locationError,
                   onChanged: _onLocationChanged,
                 ),

@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, Session, create_engine
+from starlette.middleware.base import BaseHTTPMiddleware
 
 
 # The audit model uses Postgres JSONB columns. Teach SQLite's DDL compiler to
@@ -37,6 +38,7 @@ from app.auth.session import create_session_token  # noqa: E402
 from app.db import seed  # noqa: E402
 from app.db.database import getSession  # noqa: E402
 from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
+from app.middleware.security_headers import add_security_headers  # noqa: E402
 from app.models.fault import Faultcard  # noqa: E402
 from app.models.job import Jobcard  # noqa: E402
 
@@ -109,6 +111,9 @@ def seeded_fixture(engine):
 def client_fixture(engine, seeded):
     app = FastAPI()
     app.include_router(api_router, prefix="/api/v1")
+
+    # Same security headers shipped by the production app (app/main.py).
+    app.add_middleware(BaseHTTPMiddleware, dispatch=add_security_headers)
 
     # Add idempotency middleware with the test engine so it uses SQLite
     app.add_middleware(IdempotencyMiddleware)

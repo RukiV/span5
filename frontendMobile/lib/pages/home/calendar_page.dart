@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/user_session.dart';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
@@ -58,9 +59,17 @@ class _CalendarPageState extends State<CalendarPage> {
 
   List<CalendarEvent> _getEventsForDay(DateTime day) {
     return _events.where((e) {
-      return e.startDatetime.year == day.year &&
-             e.startDatetime.month == day.month &&
-             e.startDatetime.day == day.day;
+      final sameStart = e.startDatetime.year == day.year &&
+          e.startDatetime.month == day.month &&
+          e.startDatetime.day == day.day;
+      if (sameStart) return true;
+      final end = e.endDatetime;
+      if (end == null) return false;
+      // Meerdag-werksopdragte: wys op elke dag wat hulle beslaan.
+      final dayDate = DateTime(day.year, day.month, day.day);
+      final startDate = DateTime(e.startDatetime.year, e.startDatetime.month, e.startDatetime.day);
+      final endDate = DateTime(end.year, end.month, end.day);
+      return !dayDate.isBefore(startDate) && !dayDate.isAfter(endDate);
     }).toList();
   }
 
@@ -229,9 +238,9 @@ class _CalendarPageState extends State<CalendarPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detailRow(Icons.access_time, 
-              "${event.startDatetime.day}/${event.startDatetime.month}/${event.startDatetime.year} "
-              "${event.startDatetime.hour.toString().padLeft(2, '0')}:${event.startDatetime.minute.toString().padLeft(2, '0')}"),
+            _detailRow(Icons.access_time, _detailDateTime(event.startDatetime)),
+            if (event.endDatetime != null && !isSameDay(event.startDatetime, event.endDatetime!))
+              _detailRow(Icons.event_available, "tot ${_detailDateTime(event.endDatetime!)}"),
             if (event.location != null && event.location!.isNotEmpty)
               _detailRow(Icons.location_on, event.location!),
             if (event.description != null && event.description!.isNotEmpty)
@@ -307,6 +316,19 @@ class _CalendarPageState extends State<CalendarPage> {
         ],
       ),
     );
+  }
+
+  String _detailDateTime(DateTime dt) =>
+      "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} "
+      "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+
+  String _eventTimeLabel(CalendarEvent event) {
+    final start = event.startDatetime;
+    final startTime = "${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
+    final end = event.endDatetime;
+    if (end == null || isSameDay(start, end)) return startTime;
+    return "$startTime – ${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')} "
+        "${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -388,11 +410,13 @@ class _CalendarPageState extends State<CalendarPage> {
                 Expanded(child: _buildEventList()),
               ],
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddEventDialog,
-        backgroundColor: AppColors.gold,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: UserSession.can('calendar.manage')
+          ? FloatingActionButton(
+              onPressed: _showAddEventDialog,
+              backgroundColor: AppColors.gold,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 
@@ -455,7 +479,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   const Icon(Icons.access_time, size: 14, color: Colors.black54),
                   const SizedBox(width: 4),
                   Text(
-                    "${event.startDatetime.hour.toString().padLeft(2, '0')}:${event.startDatetime.minute.toString().padLeft(2, '0')}",
+                    _eventTimeLabel(event),
                     style: const TextStyle(color: Colors.black54),
                   ),
                   if (event.location != null && event.location!.isNotEmpty) ...[

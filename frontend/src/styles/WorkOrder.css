@@ -16,6 +16,8 @@
 
 .status-wait { background: #f59e0b; }
 
+.status-scheduled { background: #14b8a6; }
+
 .status-completed { background: #3b82f6; }
 
 .status-default { background: #6b7280; }

@@ -53,8 +53,9 @@ class JobcardBase(SQLModel):
     nature: Optional[str] = Field(default=None, max_length=100)
     assigned_to: Optional[int] = Field(default=None, foreign_key="user.user_id")
     cc_users: Optional[str] = Field(default=None)
+    job_notes: Optional[str] = Field(default=None, max_length=5000)
 
-    @field_validator('job_desc', 'job_type', mode='before')
+    @field_validator('job_desc', 'job_type', 'job_notes', mode='before')
     @classmethod
     def _sanitize_strings(cls, v, info):
         return sanitize_text(v)
@@ -109,6 +110,8 @@ class JobcardRead(JobcardBase):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    assigned_name: Optional[str] = None
+    contractor_name: Optional[str] = None
 
 
 class JobcardUpdate(SQLModel):
@@ -124,6 +127,7 @@ class JobcardUpdate(SQLModel):
     job_schedule_type: Optional[str] = None
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
+    job_notes: Optional[str] = None
     user_id: Optional[int] = None
     contractor_id: Optional[int] = None
     asset_id: Optional[int] = None

@@ -151,10 +151,10 @@ const DashboardPage = () => {
         const totalAssets = assets.length;
 
         // Stat: Aktiewe Herstelwerk
-        const activeRepairs = orders.filter(o => o.job_status === 'Besig').length;
+        const activeRepairs = orders.filter(o => o.job_status === 'Besig' || o.job_status === 'Geskeduleer').length;
         const lastActiveRepairs = orders.filter(o => {
           const d = new Date(o.job_createddatetime);
-          return o.job_status === 'Besig' && d >= lastStart && d < lastEnd;
+          return (o.job_status === 'Besig' || o.job_status === 'Geskeduleer') && d >= lastStart && d < lastEnd;
         }).length;
 
         // Stat: Voltooide Foutkaartjies

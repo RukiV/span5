@@ -45,7 +45,7 @@ def test_admin_lists_builtin_roles_and_rights(client, headers_for):
     assert "right_ids" in admin_role and len(admin_role["right_ids"]) >= 1
 
     rights = client.get(f"{API}/rights", headers=h).json()
-    assert len(rights) == 19
+    assert len(rights) == 23
     assert all(r["is_builtin"] for r in rights)
 
 

@@ -9,6 +9,7 @@ import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../models/user_session.dart';
+import '../reporting/scan_page.dart';
 
 class NewAssetPage extends StatefulWidget {
   const NewAssetPage({super.key});
@@ -22,29 +23,15 @@ class _NewAssetPageState extends State<NewAssetPage> {
 
   // Veranderlikes wat voorheen ontbreek het:
   String name = "";
-  String serialCode = "AK ";
+  String serialCode = "";
   String brand = "";
-  final _serialController = TextEditingController(text: "AK ");
-
-  void _enforceSerialPrefix() {
-    final text = _serialController.text;
-    if (text.isEmpty) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    } else if (!text.startsWith("AK ")) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    }
-    serialCode = _serialController.text;
-  }
+  final _serialController = TextEditingController();
 
   @override
   void dispose() {
-    _serialController.removeListener(_enforceSerialPrefix);
     _serialController.dispose();
     super.dispose();
   }
-  String assetCode = "";
   bool isFixed = false;
   String location = "";
   int? selectedTypeId;
@@ -56,7 +43,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
   @override
   void initState() {
     super.initState();
-    _serialController.addListener(_enforceSerialPrefix);
     AssetTypeService.fetchTypes();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -108,6 +94,20 @@ class _NewAssetPageState extends State<NewAssetPage> {
       selectedBuilding = building?.name;
       selectedLocation = room == null ? null : '${room.id}:${room.name}';
       if (room != null) _locationError = null;
+    });
+  }
+
+  /// Skandeer 'n bestaande strepie-/QR-kode op die item en gebruik dit as die
+  /// bate se serienommer.
+  Future<void> _scanSerial() async {
+    final String? code = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ScanPage()),
+    );
+    if (code == null || code.isEmpty || !mounted) return;
+    setState(() {
+      _serialController.text = code;
+      serialCode = code;
     });
   }
 
@@ -198,14 +198,18 @@ class _NewAssetPageState extends State<NewAssetPage> {
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _serialController,
-                  decoration: _inputDecoration("Serienommer"),
+                  decoration: _inputDecoration("Serienommer").copyWith(
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
+                      tooltip: "Skandeer strepie-/QR-kode",
+                      onPressed: _scanSerial,
+                    ),
+                    helperText: "Tik 'n kode (bv. AK MT123456) of skandeer 'n bestaande een.",
+                  ),
                   onChanged: (v) => serialCode = v,
                   validator: (v) {
-                    if (v == null || v.isEmpty) return "Vereis";
-                    final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
-                    if (!regex.hasMatch(v)) {
-                      return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
-                    }
+                    if (v == null || v.trim().isEmpty) return "Vereis";
+                    if (v.trim().length > 20) return "Maks 20 karakters";
                     return null;
                   },
                 ),
@@ -231,13 +235,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                if (UserSession.hasAdminPrivileges) ...[
-                  TextFormField(
-                    decoration: _inputDecoration("Bate Kode"),
-                    onChanged: (v) => assetCode = v,
-                  ),
-                  const SizedBox(height: 20),
-                ],
                 Row(
                   children: [
                     const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -282,9 +279,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         if (selectedTypeId == null) return;
                         final typeName = AssetTypeService.getTypeName(selectedTypeId!);
                         final newAsset = Asset(
-                          id: assetCode.isNotEmpty && UserSession.hasAdminPrivileges
-                              ? assetCode
-                              : AssetService.generateUniqueId(typeName, selectedCampus ?? "GEN"),
+                          id: AssetService.generateUniqueId(typeName, selectedCampus ?? "GEN"),
                           serialCode: serialCode,
                           name: name,
                           brand: brand,
@@ -296,7 +291,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                         );
                         
                         final success = await AssetService.addAsset(newAsset);
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         if (success) {
                           Navigator.pop(context);
                         }

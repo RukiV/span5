@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.asset import AssettypeRead, AssettypeCreate, AssettypeUpdate
 from ....models.user import User
@@ -11,11 +11,11 @@ from ....services.assettype_service import assettype_service
 router = APIRouter()
 
 @router.get("", response_model=List[AssettypeRead])
-def readAssettypes(session: Session = Depends(getSession), _user: User = Depends(require_right("assets.manage"))):
+def readAssettypes(session: Session = Depends(getSession), _user: User = Depends(require_any_right("assets.manage", "faults.create_own"))):
     return assettype_service.getAll(session)
 
 @router.get("/{assettypeID}", response_model=AssettypeRead)
-def readAssettype(assettypeID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("assets.manage"))):
+def readAssettype(assettypeID: int, session: Session = Depends(getSession), _user: User = Depends(require_any_right("assets.manage", "faults.create_own"))):
     assettype = assettype_service.getByID(session, assettypeID)
     if not assettype:
         raise HTTPException(status_code=404, detail="Asset type not found")

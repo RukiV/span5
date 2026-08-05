@@ -213,6 +213,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
         return Colors.orange;
       case 'Oop':
         return Colors.blue;
+      case 'Geskeduleer':
+        return Colors.teal;
       case 'Besig':
         return Colors.blue;
       case 'Voltooi':

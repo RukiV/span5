@@ -7,10 +7,11 @@ class Priority(Enum):
     HIGH = "Hoog"
 
 class Type(Enum):
-    """Enumeration for type values."""
-    MAINTENANCE = "Instandhouding"
-    REPAIR = "Herstelwerk"
-    UPGRADE = "Opgradering"
+    """Enumeration for type/werksoort values."""
+    MAINTENANCE = "Onderhoud"
+    REPAIR = "Herstel"
+    INSPECTION = "Inspeksie"
+    INSTALLATION = "Installasie"
 
 class FaultStatus(Enum):
     """Enumeration for fault status values."""
@@ -25,6 +26,7 @@ class JobStatus(Enum):
     """Enumeration for job status values."""
     WAIT = "Wag"
     OPEN = "Oop"
+    SCHEDULED = "Geskeduleer"
     IN_PROGRESS = "Besig"
     COMPLETED = "Voltooid"
     CANCELLED = "Gekanselleer"

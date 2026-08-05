@@ -234,7 +234,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       location: _activeRoomId.toString(),
       title: "Bate vermis: ${asset.name}",
       description: description,
-      category: "Instandhouding",
+      category: "Onderhoud",
       priority: "Medium",
       phase: "Ontvang",
       user: UserSession.userId.toString(),
