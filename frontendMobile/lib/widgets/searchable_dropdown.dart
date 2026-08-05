@@ -64,12 +64,12 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                     decoration: BoxDecoration(
                       color: state.hasError
                           ? const Color(0xFFFFEBEE)
                           : (widget.enabled ? Colors.white : Colors.grey[200]),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: state.hasError ? Colors.red : Colors.grey[300]!),
                     ),
                     child: Row(
@@ -209,7 +209,16 @@ class _SearchDialogState<T> extends State<_SearchDialog<T>> {
               decoration: InputDecoration(
                 hintText: "Soek...",
                 prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          _filter('');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
               ),
               onChanged: _filter,

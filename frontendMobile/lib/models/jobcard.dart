@@ -1,5 +1,10 @@
 class Jobcard {
   static const Map<String, String> _statusLabels = {
+    'Wag': 'Wag',
+    'Oop': 'Oop',
+    'Besig': 'Besig',
+    'Voltooid': 'Voltooi',
+    'Gekanselleer': 'Gekanselleer',
     'WAIT': 'Wag',
     'OPEN': 'Oop',
     'IN_PROGRESS': 'Besig',
@@ -8,12 +13,12 @@ class Jobcard {
   };
 
   static const Map<String, String> _statusToBackend = {
-    'Wag': 'WAIT',
-    'Oop': 'OPEN',
-    'Besig': 'IN_PROGRESS',
-    'Voltooi': 'COMPLETED',
-    'Voltooid': 'COMPLETED',
-    'Gekanselleer': 'CANCELLED',
+    'Wag': 'Wag',
+    'Oop': 'Oop',
+    'Besig': 'Besig',
+    'Voltooi': 'Voltooid',
+    'Voltooid': 'Voltooid',
+    'Gekanselleer': 'Gekanselleer',
   };
 
   static String toBackendStatus(String displayStatus) {

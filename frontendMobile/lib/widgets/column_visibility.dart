@@ -56,7 +56,14 @@ class ColumnVisibilityController {
 class ColumnVisibilityButton extends StatefulWidget {
   final ColumnVisibilityController controller;
 
-  const ColumnVisibilityButton({super.key, required this.controller});
+  /// In [FixedPageHeader] word slegs die ikoon gewys om spasie te spaar.
+  final bool iconOnly;
+
+  const ColumnVisibilityButton({
+    super.key,
+    required this.controller,
+    this.iconOnly = false,
+  });
 
   @override
   State<ColumnVisibilityButton> createState() => _ColumnVisibilityButtonState();
@@ -130,6 +137,47 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
   @override
   Widget build(BuildContext context) {
     final hidden = widget.controller.hiddenCount;
+    if (widget.iconOnly) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            key: _buttonKey,
+            tooltip: 'Wys kolomme',
+            icon: const Icon(Icons.view_column, color: Colors.white, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 30 / 255),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: _showPopup,
+          ),
+          if (hidden > 0)
+            Positioned(
+              right: -4,
+              top: -4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF935E28),
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                ),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                child: Text(
+                  '$hidden',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
     return InkWell(
       key: _buttonKey,
       onTap: _showPopup,

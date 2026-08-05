@@ -16,24 +16,6 @@ class AppRole {
         isBuiltin: json['is_builtin'] ?? false,
       );
 }
-import 'package:flutter/material.dart';
-import '../models/user.dart';
-import '../core/api_client.dart';
-
-/// Role information returned by /roles (RoleManageRead).
-class AppRole {
-  final int id;
-  final String name;
-  final bool isBuiltin;
-
-  const AppRole({required this.id, required this.name, this.isBuiltin = false});
-
-  factory AppRole.fromJson(Map<String, dynamic> json) => AppRole(
-        id: json['role_id'],
-        name: json['role_name'] ?? "Rol ${json['role_id']}",
-        isBuiltin: json['is_builtin'] ?? false,
-      );
-}
 
 /// UserService: Load and manage users via the /users endpoints.
 class UserService {
@@ -168,4 +150,3 @@ class UserService {
     return "";
   }
 }
-        _users.addAll(data.map((json) => User.fromJson(json)).toList());

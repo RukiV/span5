@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/searchable_dropdown.dart';
-import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/fixed_page_header.dart';
+import '../../widgets/header_action_button.dart';
+import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
@@ -9,7 +11,6 @@ import '../../models/asset.dart';
 import 'asset_detail_page.dart';
 import 'new_asset_page.dart';
 import 'manage_asset_types_page.dart';
-import '../room_checklist/room_checklist_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_check_history_page.dart';
@@ -26,7 +27,6 @@ class AssetsPage extends StatefulWidget {
 
 class _AssetsPageState extends State<AssetsPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _query = "";
   String _statusFilter = "Almal";
   int? _selectedCampusId;
   int? _selectedBuildingId;
@@ -53,9 +53,7 @@ class _AssetsPageState extends State<AssetsPage> {
     }
     _tryAutoSelectCampus();
     _searchController.addListener(() {
-      setState(() {
-        _query = _searchController.text.toLowerCase();
-      });
+      setState(() {});
     });
   }
 
@@ -107,136 +105,101 @@ class _AssetsPageState extends State<AssetsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = ModalRoute.of(context)?.canPop ?? false;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-              tooltip: "Geskiedenis",
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RoomCheckHistoryPage(roomId: int.parse(widget.filterRoomId!)),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: widget.filterRoomId != null
+          ? AppBar(
+              title: const Text("Bates in Lokaal"),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.history),
+                  tooltip: "Geskiedenis",
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RoomCheckHistoryPage(roomId: int.parse(widget.filterRoomId!)),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        ],
-      ) : null,
+              ],
+            )
+          : null,
       body: Column(
         children: [
-          _buildSearchBarWithFilter(),
-          _buildCampusFilter(),
-          Expanded(child: _buildAssetList()),
-        ],
-      ),
-      floatingActionButton: _buildFab(),
-    );
-  }
-
-  Widget _buildSearchBarWithFilter() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-              ),
-            ),
+          FixedPageHeader(
+            controller: _searchController,
+            hintText: "Soek bates...",
+            onChanged: (v) => setState(() {}),
+            actions: _buildHeaderActions(),
           ),
-          if (UserSession.hasAdminPrivileges) ...[
-            const SizedBox(width: 6),
-            InkWell(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageAssetTypesPage())),
-              borderRadius: BorderRadius.circular(30),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 30/255),
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.settings, color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                    Text("Bate Tipes", style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 6),
-          ColumnVisibilityButton(controller: _colVis),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 30/255),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: InkWell(
-              onTap: () => showSearchableDialog<String>(
-                context: context,
-                title: "Status",
-                initialValue: _statusFilter,
-                items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-                    .map((s) => SearchableDropdownItem(value: s, label: s))
-                    .toList(),
-                onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _statusFilter,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                  const Icon(Icons.filter_list, color: AppColors.gold),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => AssetService.fetchAssets(),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  _buildAssetListSliver(),
+                  const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
                 ],
               ),
             ),
           ),
         ],
       ),
+      floatingActionButton: _buildFab(),
     );
   }
 
-  Widget _buildCampusFilter() {
-    if (CampusService.campusesNotifier.value.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
+  List<Widget> _buildHeaderActions() {
+    final locationActive = _selectedCampusId != null ||
+        _selectedBuildingId != null ||
+        _selectedRoomId != null;
+    return [
+      HeaderIconAction(
+        icon: Icons.place_outlined,
+        tooltip: "Filter op Ligging",
+        activeBadge: locationActive,
+        onTap: () => showLocationFilterSheet(
+          context,
+          depth: LocationDepth.room,
+          campusId: _selectedCampusId,
+          buildingId: _selectedBuildingId,
+          roomId: _selectedRoomId,
+          onChanged: (campusId, buildingId, roomId) => setState(() {
+            _selectedCampusId = campusId;
+            _selectedBuildingId = buildingId;
+            _selectedRoomId = roomId;
+          }),
+        ),
       ),
-    );
+      HeaderIconAction(
+        icon: Icons.filter_alt_outlined,
+        tooltip: "Status",
+        activeBadge: _statusFilter != "Almal",
+        onTap: () => showSearchableDialog<String>(
+          context: context,
+          title: "Status",
+          initialValue: _statusFilter,
+          items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
+              .map((s) => SearchableDropdownItem(value: s, label: s))
+              .toList(),
+          onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+        ),
+      ),
+      if (UserSession.hasAdminPrivileges)
+        HeaderIconAction(
+          icon: Icons.settings_outlined,
+          tooltip: "Bate Tipes",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ManageAssetTypesPage()),
+          ),
+        ),
+      ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+    ];
   }
 
-  Widget _buildAssetList() {
+  Widget _buildAssetListSliver() {
     return ValueListenableBuilder<List<Asset>>(
       valueListenable: AssetService.assetsNotifier,
       builder: (context, allAssets, _) {
@@ -283,9 +246,10 @@ class _AssetsPageState extends State<AssetsPage> {
           }
 
           // Search query
-          return a.name.toLowerCase().contains(_query) || 
-                 a.serialCode.toLowerCase().contains(_query) ||
-                 a.id.toLowerCase().contains(_query);
+          final q = _searchController.text.toLowerCase();
+          return a.name.toLowerCase().contains(q) || 
+                 a.serialCode.toLowerCase().contains(q) ||
+                 a.id.toLowerCase().contains(q);
         }).toList();
 
         // Apply sorting
@@ -306,34 +270,25 @@ class _AssetsPageState extends State<AssetsPage> {
           });
         }
 
-        if (filtered.isEmpty) return const Center(child: Text("Geen bates gevind nie."));
+        if (filtered.isEmpty) {
+          return const SliverFillRemaining(
+            child: Center(child: Text("Geen bates gevind nie.")),
+          );
+        }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-      ),
-    );
-                  }),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
+        return SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final asset = filtered[index];
+              return Column(
                 children: [
-                  ...filtered.map((asset) => _buildAssetRow(asset)),
+                  _buildAssetRow(asset),
                   const Divider(height: 1),
                 ],
-              ),
-            ),
-          ],
+              );
+            },
+            childCount: filtered.length,
+          ),
         );
       },
     );

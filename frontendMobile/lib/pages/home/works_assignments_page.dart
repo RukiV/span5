@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/fixed_page_header.dart';
+import '../../widgets/header_action_button.dart';
+import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
@@ -7,7 +9,6 @@ import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
-import '../jobcards/create_jobcard_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
@@ -18,6 +19,8 @@ class WorksAssignmentsPage extends StatefulWidget {
 }
 
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = "";
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('works-assignments', [
     const ColumnDef(key: 'description', label: 'Beskrywing'),
@@ -36,6 +39,18 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
       CampusService.fetchCampuses();
     }
     _tryAutoSelectCampus();
+    _searchController.addListener(() {
+      setState(() {
+        _query = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _tryAutoSelectCampus() {
@@ -62,25 +77,43 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
         backgroundColor: AppColors.gold,
         foregroundColor: Colors.white,
         onPressed: () async {
-          final created = await Navigator.push<bool>(
+          await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (_) => const CreateJobcardPage()),
+            MaterialPageRoute(builder: (_) => const JobcardFormPage()),
           );
-          if (created == true && mounted) {
-            ScaffoldMessenger.of(this.context).showSnackBar(
-              const SnackBar(
-                content: Text("Werksopdrag geskep"),
-                backgroundColor: AppColors.successGreen,
-              ),
-            );
-          }
         },
         child: const Icon(Icons.add),
       
       ),
       body: Column(
         children: [
-          _buildCampusFilter(),
+          FixedPageHeader(
+            controller: _searchController,
+            hintText: "Soek werksopdragte...",
+            onChanged: (_) => setState(() {}),
+            actions: [
+              HeaderIconAction(
+                icon: Icons.place_outlined,
+                tooltip: "Filter op Ligging",
+                activeBadge: _selectedCampusId != null ||
+                    _selectedBuildingId != null ||
+                    _selectedRoomId != null,
+                onTap: () => showLocationFilterSheet(
+                  context,
+                  depth: LocationDepth.room,
+                  campusId: _selectedCampusId,
+                  buildingId: _selectedBuildingId,
+                  roomId: _selectedRoomId,
+                  onChanged: (campusId, buildingId, roomId) => setState(() {
+                    _selectedCampusId = campusId;
+                    _selectedBuildingId = buildingId;
+                    _selectedRoomId = roomId;
+                  }),
+                ),
+              ),
+              ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+            ],
+          ),
           Expanded(
             child: ValueListenableBuilder<List<Jobcard>>(
               valueListenable: JobcardService.jobcardsNotifier,
@@ -89,6 +122,12 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   if (_selectedCampusId != null && job.locationId != _selectedCampusId) return false;
                   if (_selectedBuildingId != null && job.buildingId != _selectedBuildingId) return false;
                   if (_selectedRoomId != null && job.roomId != _selectedRoomId) return false;
+                  if (_query.isNotEmpty &&
+                      !job.description.toLowerCase().contains(_query) &&
+                      !(job.type?.toLowerCase().contains(_query) ?? false) &&
+                      !job.status.toLowerCase().contains(_query)) {
+                    return false;
+                  }
                   return true;
                 }).toList();
 
@@ -165,40 +204,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCampusFilter() {
-    if (CampusService.campusesNotifier.value.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 8, 15, 0),
-          child: LocationCascadePicker(
-            initialCampusId: _selectedCampusId,
-            initialBuildingId: _selectedBuildingId,
-            initialRoomId: _selectedRoomId,
-            onChanged: (campusId, buildingId, roomId) => setState(() {
-              _selectedCampusId = campusId;
-              _selectedBuildingId = buildingId;
-              _selectedRoomId = roomId;
-            }),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 4, 15, 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              ColumnVisibilityButton(controller: _colVis),
-            ],
-          ),
-        ),
-      ],
     );
   }
 

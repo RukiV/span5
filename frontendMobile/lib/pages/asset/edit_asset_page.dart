@@ -148,219 +148,209 @@ class _EditAssetPageState extends State<EditAssetPage> {
     });
   }
 
-  Widget _buildCustomTextField({
-    required String label,
-    required String hint,
-    required Function(String) onChanged,
-    String? Function(String?)? validator,
-    bool readOnly = false,
-    String? initialValue,
-    TextEditingController? controller,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
-        const SizedBox(height: 6),
-        TextFormField(
-          controller: controller,
-          initialValue: controller != null ? null : initialValue,
-          readOnly: readOnly,
-          onChanged: onChanged,
-          validator: validator,
-          style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration(
-            hintText: "",
-            filled: true,
-            fillColor: readOnly ? Colors.grey[100] : Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
+  Widget _buildBreadcrumbs() {
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.name == selectedCampus).firstOrNull;
+    final building = campus?.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+    final roomName = selectedLocation?.contains(":") == true ? selectedLocation?.split(":").last : null;
+
+    String path = campus?.name ?? "Kies Kampus";
+    if (building != null) path += " > ${building.name}";
+    if (roomName != null) path += " > $roomName";
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.navy.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              path,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.navy, fontSize: 14),
+      filled: true,
+      fillColor: Colors.grey[50],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("Wysig Bate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildCustomTextField(
-                    label: "Naam",
-                    hint: "",
-                    initialValue: name,
-                    onChanged: (v) => name = v,
-                    validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBreadcrumbs(),
+                const SizedBox(height: 25),
+                TextFormField(
+                  initialValue: name,
+                  decoration: _inputDecoration("Naam"),
+                  onChanged: (v) => name = v,
+                  validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _serialController,
+                  decoration: _inputDecoration("Serienommer"),
+                  onChanged: (v) => serialCode = v,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return "Vereis";
+                    final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
+                    if (!regex.hasMatch(v)) {
+                      return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  initialValue: brand,
+                  decoration: _inputDecoration("Merk"),
+                  onChanged: (v) => brand = v,
+                ),
+                const SizedBox(height: 20),
+                ValueListenableBuilder<List<AssetType>>(
+                  valueListenable: AssetTypeService.typesNotifier,
+                  builder: (context, types, _) {
+                    return SearchableDropdown<int>(
+                      label: "Bate Tipe",
+                      hint: "Kies 'n tipe",
+                      value: selectedTypeId,
+                      items: types
+                          .map((t) => SearchableDropdownItem(value: t.id, label: t.name))
+                          .toList(),
+                      onChanged: (v) => setState(() => selectedTypeId = v ?? selectedTypeId),
+                      validator: (v) => v == null ? "Vereis" : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+                if (UserSession.hasAdminPrivileges) ...[
+                  TextFormField(
+                    initialValue: widget.asset.id,
+                    readOnly: true,
+                    decoration: _inputDecoration("Bate Kode"),
                   ),
                   const SizedBox(height: 20),
-
-                  _buildCustomTextField(
-                    label: "Serienommer",
-                    hint: "",
-                    controller: _serialController,
-                    onChanged: (v) {
-                      serialCode = _serialController.text;
-                    },
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return "Vereis";
-                      final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
-                      if (!regex.hasMatch(v)) {
-                        return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildCustomTextField(
-                    label: "Merk",
-                    hint: "",
-                    initialValue: brand,
-                    onChanged: (v) => brand = v,
-                  ),
-                  const SizedBox(height: 20),
-
-                  ValueListenableBuilder<List<AssetType>>(
-                    valueListenable: AssetTypeService.typesNotifier,
-                    builder: (context, types, _) {
-                      return SearchableDropdown<int>(
-                        label: "Bate Tipe",
-                        hint: "Kies 'n tipe",
-                        value: selectedTypeId,
-                        items: types
-                            .map((t) => SearchableDropdownItem(value: t.id, label: t.name))
-                            .toList(),
-                        onChanged: (v) => setState(() => selectedTypeId = v ?? selectedTypeId),
-                        validator: (v) => v == null ? "Vereis" : null,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-
-                  if (UserSession.hasAdminPrivileges)
-                    _buildCustomTextField(
-                      label: "Bate Kode",
-                      hint: "",
-                      initialValue: widget.asset.id,
-                      readOnly: true,
-                      onChanged: (_) {},
-                    ),
-                  if (UserSession.hasAdminPrivileges)
-                    const SizedBox(height: 20),
-
-                  const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  Checkbox(
-                    value: isFixed,
-                    onChanged: (v) => setState(() => isFixed = v!),
-                  ),
-                  const SizedBox(height: 20),
-
-                  LocationCascadePicker(
-                    label: "Ligging *",
-                    initialCampusId: _initialCampusId,
-                    initialBuildingId: _initialBuildingId,
-                    initialRoomId: _initialRoomId,
-                    errorText: _locationError,
-                    onChanged: _onLocationChanged,
-                  ),
-                  const SizedBox(height: 20),
-
-                  SearchableDropdown<String>(
-                    label: "Status",
-                    hint: "Kies 'n status",
-                    value: status,
-                    items: const [
-                      SearchableDropdownItem(value: "active", label: "Aktief"),
-                      SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
-                      SearchableDropdownItem(value: "retired", label: "Afgedank"),
-                      SearchableDropdownItem(value: "inactive", label: "Onaktief"),
-                    ],
-                    onChanged: (v) => setState(() => status = v!),
-                  ),
-
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          // Die ligging-kieser is nie 'n FormField nie, so die
-                          // volledige pad word hier afsonderlik nagegaan.
-                          if (selectedLocation == null) {
-                            setState(() => _locationError = "Kies 'n volledige ligging");
-                            return;
-                          }
-                          if (_formKey.currentState!.validate()) {
-                            final typeName = AssetTypeService.getTypeName(selectedTypeId);
-                            final updated = widget.asset.copyWith(
-                              name: name,
-                              serialCode: serialCode,
-                              brand: brand,
-                              category: typeName,
-                              assetTypeId: selectedTypeId,
-                              location: selectedLocation?.split(":").first ?? "1",
-                              status: status,
-                              isOutdoor: isFixed,
-                              campus: selectedCampus ?? "",
-                            );
-
-                            final success = await AssetService.updateAsset(updated);
-                            if (!mounted) return;
-                            if (success) {
-                              if (context.mounted) {
-                                Navigator.pop(context, true);
-                              }
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5E34),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text("Opdateer"),
-                      ),
-                    ],
-                  ),
                 ],
-              ),
+                Row(
+                  children: [
+                    const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    Checkbox(
+                      value: isFixed,
+                      activeColor: AppColors.navy,
+                      onChanged: (v) => setState(() => isFixed = v!),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                LocationCascadePicker(
+                  label: "Ligging *",
+                  initialCampusId: _initialCampusId,
+                  initialBuildingId: _initialBuildingId,
+                  initialRoomId: _initialRoomId,
+                  errorText: _locationError,
+                  onChanged: _onLocationChanged,
+                ),
+                const SizedBox(height: 20),
+                SearchableDropdown<String>(
+                  label: "Status",
+                  hint: "Kies 'n status",
+                  value: status,
+                  items: const [
+                    SearchableDropdownItem(value: "active", label: "Aktief"),
+                    SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
+                    SearchableDropdownItem(value: "retired", label: "Afgedank"),
+                    SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+                  ],
+                  onChanged: (v) => setState(() => status = v!),
+                ),
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (selectedLocation == null) {
+                        setState(() => _locationError = "Kies 'n volledige ligging");
+                        return;
+                      }
+                      if (_formKey.currentState!.validate()) {
+                        final typeName = AssetTypeService.getTypeName(selectedTypeId);
+                        final updated = widget.asset.copyWith(
+                          name: name,
+                          serialCode: serialCode,
+                          brand: brand,
+                          category: typeName,
+                          assetTypeId: selectedTypeId,
+                          location: selectedLocation?.split(":").first ?? "1",
+                          status: status,
+                          isOutdoor: isFixed,
+                          campus: selectedCampus ?? "",
+                        );
+
+                        final success = await AssetService.updateAsset(updated);
+                        if (!mounted) return;
+                        if (success) {
+                          Navigator.pop(context, true);
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("OPDATEER BATE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
             ),
           ),
         ),
