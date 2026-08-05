@@ -140,237 +140,275 @@ class _NewReportPageState extends State<NewReportPage> {
     });
   }
 
+  Widget _buildBreadcrumbs() {
+    if (selectedCampus == null) return const SizedBox.shrink();
+
+    String path = selectedCampus!;
+    if (selectedBuilding != null) {
+      path += " > $selectedBuilding";
+      if (selectedLocation != null) {
+        final roomName = selectedLocation!.split(':').last;
+        path += " > $roomName";
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.navy.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              path,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: AppColors.navy,
       appBar: AppBar(
         title: const Text("Nuwe Foutkaartjie", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Container(
-            margin: const EdgeInsets.all(20),
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildAssetInput(),
-                  const SizedBox(height: 20),
+      body: SingleChildScrollView(
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBreadcrumbs(),
+                _buildAssetInput(),
+                const SizedBox(height: 20),
 
-                  if (UserSession.hasAdminPrivileges)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SearchableDropdown<String>(
-                            label: "Kategorie *",
-                            hint: "Kies Kategorie",
-                            value: selectedCategory.isNotEmpty ? selectedCategory : null,
-                            items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
-                                .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
-                            onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
-                            validator: (v) => v == null ? "Kategorie word vereis" : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildSimpleDropdown("Prioriteit *", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
-                      ],
-                    )
-                  else
-                    SearchableDropdown<String>(
-                      label: "Kategorie *",
-                      hint: "Kies Kategorie",
-                      value: selectedCategory.isNotEmpty ? selectedCategory : null,
-                      items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
-                          .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
-                      onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
-                      validator: (v) => v == null ? "Kategorie word vereis" : null,
-                    ),
-
-                  const SizedBox(height: 20),
-
-                  LocationCascadePicker(
-                    label: "Ligging *",
-                    initialCampusId: _campusIdForName(selectedCampus),
-                    initialBuildingId: _buildingIdForName(selectedCampus, selectedBuilding),
-                    initialRoomId: _roomIdFromFormatted(selectedLocation),
-                    errorText: _locationError,
-                    onChanged: _onLocationChanged,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  _buildCustomTextField(
-                    label: "Opskrif",
-                    hint: "Onderwerp (bv. Gebreekte Kraan)",
-                    controller: titleController,
-                  ),
-                  const SizedBox(height: 20),
-
-                  _buildCustomTextField(
-                    label: "Beskrywing van Probleem *",
-                    hint: "Beskryf die probleem in detail...",
-                    controller: descController,
-                    maxLines: 3,
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return "Beskrywing word vereis";
-                      if (v.length > 100) return "Beskrywing mag nie meer as 100 karakters wees nie";
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  _buildPhotoSection(),
-
-                  const SizedBox(height: 32),
-
+                if (UserSession.hasAdminPrivileges)
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () async {
-                          // Die ligging-kieser is nie 'n FormField nie, so die
-                          // volledige pad word hier afsonderlik nagegaan.
-                          if (selectedLocation == null) {
-                            setState(() => _locationError = "Kies 'n volledige ligging");
-                            return;
-                          }
-                          if (!_formKey.currentState!.validate()) {
-                            return;
-                          }
-
-                          int? finalAssetIdInt;
-                          String? finalAssetSerialCode;
-                          if (serialController.text.isNotEmpty) {
-                            final asset = await AssetService.getAssetBySerialCode(serialController.text);
-                            if (asset != null) {
-                              finalAssetIdInt = int.tryParse(asset.id);
-                              finalAssetSerialCode = asset.serialCode;
-                            }
-                          }
-
-                          final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
-
-                          String roomId = "1";
-                          if (selectedLocation != null && selectedLocation!.contains(":")) {
-                            roomId = selectedLocation!.split(":").first;
-                          }
-
-                          int? resolvedLocationId;
-                          int? resolvedBuildingId;
-                          if (selectedCampus != null) {
-                            final campus = CampusService.getCampusByName(selectedCampus!);
-                            if (campus != null) {
-                              resolvedLocationId = campus.id;
-                              if (selectedBuilding != null) {
-                                final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-                                resolvedBuildingId = building?.id;
-                              }
-                            }
-                          }
-
-                          final newReport = Report(
-                            id: "0",
-                            assetId: finalAssetId,
-                            assetSerialCode: finalAssetSerialCode,
-                            location: roomId,
-                            title: titleController.text.trim(),
-                            description: descController.text.trim(),
-                            category: selectedCategory,
-                            priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
-                            phase: "Ontvang",
-                            user: UserSession.userId.toString(),
-                            timestamp: DateTime.now(),
-                            locationId: resolvedLocationId,
-                            buildingId: resolvedBuildingId,
-                          );
-
-                          try {
-                            // 1. Skep die kaartjie eers sodat ons sy id het om
-                            //    fotos aan te koppel (parent_type 'ticket').
-                            final created = await ReportService.addReport(newReport);
-                            if (!mounted) return;
-                            if (created == null) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
-                                );
-                              }
-                              return;
-                            }
-
-                            // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
-                            final faultId = int.tryParse(created.id);
-                            int failedUploads = 0;
-                            if (faultId != null) {
-                              for (final photo in _photoFiles) {
-                                final imageId = await ImageService.uploadImage(
-                                  photo,
-                                  parentId: faultId,
-                                  parentType: 'ticket',
-                                );
-                                if (imageId == null) failedUploads++;
-                              }
-                            }
-
-                            if (!mounted || !context.mounted) return;
-                            if (failedUploads > 0) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text("Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
-                                  backgroundColor: AppColors.warningOrange,
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
-                              );
-                            }
-                            Navigator.pop(context, true);
-                          } catch (e) {
-                            if (mounted && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5E34),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      Expanded(
+                        child: SearchableDropdown<String>(
+                          label: "Kategorie *",
+                          hint: "Kies Kategorie",
+                          value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                          items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                              .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                          onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                          validator: (v) => v == null ? "Kategorie word vereis" : null,
                         ),
-                        child: const Text("Stoor"),
                       ),
+                      const SizedBox(width: 12),
+                      Expanded(child: _buildSimpleDropdown("Prioriteit *", selectedPriority, ["Laag", "Medium", "Hoog"], (v) => setState(() => selectedPriority = v))),
                     ],
+                  )
+                else
+                  SearchableDropdown<String>(
+                    label: "Kategorie *",
+                    hint: "Kies Kategorie",
+                    value: selectedCategory.isNotEmpty ? selectedCategory : null,
+                    items: ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"]
+                        .map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+                    onChanged: (v) => setState(() { if (v != null) selectedCategory = v; }),
+                    validator: (v) => v == null ? "Kategorie word vereis" : null,
                   ),
-                ],
-              ),
+
+                const SizedBox(height: 20),
+
+                LocationCascadePicker(
+                  label: "Ligging *",
+                  initialCampusId: _campusIdForName(selectedCampus),
+                  initialBuildingId: _buildingIdForName(selectedCampus, selectedBuilding),
+                  initialRoomId: _roomIdFromFormatted(selectedLocation),
+                  errorText: _locationError,
+                  onChanged: _onLocationChanged,
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildCustomTextField(
+                  label: "Opskrif",
+                  hint: "Onderwerp (bv. Gebreekte Kraan)",
+                  controller: titleController,
+                ),
+                const SizedBox(height: 20),
+
+                _buildCustomTextField(
+                  label: "Beskrywing van Probleem *",
+                  hint: "Beskryf die probleem in detail...",
+                  controller: descController,
+                  maxLines: 3,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return "Beskrywing word vereis";
+                    if (v.length > 100) return "Beskrywing mag nie meer as 100 karakters wees nie";
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+
+                _buildPhotoSection(),
+
+                const SizedBox(height: 32),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      // Die ligging-kieser is nie 'n FormField nie, so die
+                      // volledige pad word hier afsonderlik nagegaan.
+                      if (selectedLocation == null) {
+                        setState(() => _locationError = "Kies 'n volledige ligging");
+                        return;
+                      }
+                      if (!_formKey.currentState!.validate()) {
+                        return;
+                      }
+
+                      int? finalAssetIdInt;
+                      String? finalAssetSerialCode;
+                      if (serialController.text.isNotEmpty) {
+                        final asset = await AssetService.getAssetBySerialCode(serialController.text);
+                        if (asset != null) {
+                          finalAssetIdInt = int.tryParse(asset.id);
+                          finalAssetSerialCode = asset.serialCode;
+                        }
+                      }
+
+                      final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
+
+                      String roomId = "1";
+                      if (selectedLocation != null && selectedLocation!.contains(":")) {
+                        roomId = selectedLocation!.split(":").first;
+                      }
+
+                      int? resolvedLocationId;
+                      int? resolvedBuildingId;
+                      if (selectedCampus != null) {
+                        final campus = CampusService.getCampusByName(selectedCampus!);
+                        if (campus != null) {
+                          resolvedLocationId = campus.id;
+                          if (selectedBuilding != null) {
+                            final building = campus.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
+                            resolvedBuildingId = building?.id;
+                          }
+                        }
+                      }
+
+                      final newReport = Report(
+                        id: "0",
+                        assetId: finalAssetId,
+                        assetSerialCode: finalAssetSerialCode,
+                        location: roomId,
+                        title: titleController.text.trim(),
+                        description: descController.text.trim(),
+                        category: selectedCategory,
+                        priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
+                        phase: "Ontvang",
+                        user: UserSession.userId.toString(),
+                        timestamp: DateTime.now(),
+                        locationId: resolvedLocationId,
+                        buildingId: resolvedBuildingId,
+                      );
+
+                      try {
+                        // 1. Skep die kaartjie eers sodat ons sy id het om
+                        //    fotos aan te koppel (parent_type 'ticket').
+                        final created = await ReportService.addReport(newReport);
+                        if (!mounted) return;
+                        if (created == null) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Fout met stoor. Probeer weer."), backgroundColor: AppColors.errorRed),
+                            );
+                          }
+                          return;
+                        }
+
+                        // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
+                        final faultId = int.tryParse(created.id);
+                        int failedUploads = 0;
+                        if (faultId != null) {
+                          for (final photo in _photoFiles) {
+                            final imageId = await ImageService.uploadImage(
+                              photo,
+                              parentId: faultId,
+                              parentType: 'ticket',
+                            );
+                            if (imageId == null) failedUploads++;
+                          }
+                        }
+
+                        if (!mounted || !context.mounted) return;
+                        if (failedUploads > 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
+                              backgroundColor: AppColors.warningOrange,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Foutkaartjie suksesvol gestuur!"), backgroundColor: AppColors.successGreen),
+                          );
+                        }
+                        Navigator.pop(context, true);
+                      } catch (e) {
+                        if (mounted && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Netwerkfout: $e"), backgroundColor: AppColors.errorRed),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                    child: const Text("STUUR FOUTKAARTJIE", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Kanselleer", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
+
 
   Widget _buildAssetInput() {
     return Column(
@@ -385,19 +423,8 @@ class _NewReportPageState extends State<NewReportPage> {
                 controller: serialController,
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(
+                decoration: _inputDecoration().copyWith(
                   hintText: "Tik Serial Kode of Skandeer...",
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
                   suffixIcon: _isAutoFilling
                       ? const Padding(
                           padding: EdgeInsets.all(12),
@@ -407,7 +434,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             InkWell(
               onTap: () {
                 final code = serialController.text.trim();
@@ -416,12 +443,12 @@ class _NewReportPageState extends State<NewReportPage> {
                 }
               },
               child: Container(
-                height: 48, width: 48,
-                decoration: BoxDecoration(color: Colors.blue, borderRadius: BorderRadius.circular(8)),
+                height: 45, width: 45,
+                decoration: BoxDecoration(color: AppColors.infoBlue, borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.search, color: Colors.white),
               ),
             ),
-            const SizedBox(width: 6),
+            const SizedBox(width: 8),
             InkWell(
               onTap: () async {
                 final String? scannedCode = await Navigator.push(context, MaterialPageRoute(builder: (context) => const ScanPage()));
@@ -431,8 +458,8 @@ class _NewReportPageState extends State<NewReportPage> {
                 }
               },
               child: Container(
-                height: 48, width: 48,
-                decoration: BoxDecoration(color: const Color(0xFF8B5E34), borderRadius: BorderRadius.circular(8)),
+                height: 45, width: 45,
+                decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.qr_code_scanner, color: Colors.white),
               ),
             ),
@@ -470,24 +497,32 @@ class _NewReportPageState extends State<NewReportPage> {
           maxLines: maxLines,
           validator: validator,
           style: const TextStyle(fontSize: 14),
-          decoration: InputDecoration(
-            hintText: hint,
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.grey[300]!),
-            ),
-          ),
+          decoration: _inputDecoration().copyWith(hintText: hint),
         ),
       ],
     );
   }
+
+  InputDecoration _inputDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+    );
+  }
+
 
   Widget _buildPhotoSection() {
     return Column(

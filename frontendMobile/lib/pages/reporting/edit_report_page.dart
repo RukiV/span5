@@ -52,6 +52,7 @@ class _EditReportPageState extends State<EditReportPage> {
     _status = widget.report.phase;
     _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
     _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
+    _selectedLocation = widget.report.location;
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -203,6 +204,47 @@ class _EditReportPageState extends State<EditReportPage> {
     }
   }
 
+  Widget _buildBreadcrumbs() {
+    final campus = _selectedCampus ?? "Onbekende Kampus";
+    final building = _selectedBuilding ?? "Onbekende Gebou";
+    String room = "Onbekende Lokaal";
+
+    if (_selectedLocation != null) {
+      if (_selectedLocation!.contains(':')) {
+        room = _selectedLocation!.split(':').last;
+      } else {
+        room = CampusService.getRoomName(_selectedLocation!);
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.navy.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "$campus > $building > $room",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,6 +262,7 @@ class _EditReportPageState extends State<EditReportPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildBreadcrumbs(),
                     _buildTextField("Titel", _titleController),
                     const SizedBox(height: 20),
                     Row(
@@ -250,7 +293,7 @@ class _EditReportPageState extends State<EditReportPage> {
                       child: ElevatedButton(
                         onPressed: _saveChanges,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.terracotta,
+                          backgroundColor: AppColors.gold,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         child: const Text("OPDATEER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -346,18 +389,36 @@ class _EditReportPageState extends State<EditReportPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
-        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          ),
+          style: const TextStyle(fontSize: 14),
+          decoration: _inputDecoration(),
           validator: (value) => value == null || value.isEmpty ? "Verpligtend" : null,
         ),
       ],
+    );
+  }
+
+  InputDecoration _inputDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 

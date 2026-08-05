@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/user.dart';
+import '../../models/user_session.dart';
 import '../../services/user_service.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/fixed_page_header.dart';
+import '../../widgets/header_action_button.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -147,8 +150,9 @@ class _UsersPageState extends State<UsersPage> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.navy,
+                        foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
@@ -226,23 +230,33 @@ class _UsersPageState extends State<UsersPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 14),
           validator: required
               ? (v) => (v == null || v.isEmpty) ? "Vereis" : null
               : null,
           decoration: InputDecoration(
             isDense: true,
             filled: true,
-            fillColor: AppColors.inputFill,
+            fillColor: Colors.grey[50],
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: Colors.grey),
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
         ),
       ],
@@ -258,36 +272,36 @@ class _UsersPageState extends State<UsersPage> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(15, 12, 15, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: "Soek gebruikers...",
-                    prefixIcon: const Icon(Icons.search),
-                    isDense: true,
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
+        FixedPageHeader(
+          controller: _searchController,
+          hintText: "Soek gebruikers...",
+          onChanged: (_) => setState(() {}),
+          actions: [
+            HeaderIconAction(
+              icon: Icons.refresh,
+              tooltip: "Verfris",
+              onTap: _reload,
+            ),
+          ],
+        ),
+        if (UserSession.hasAdminPrivileges)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _showUserDialog(),
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text("VOEG NUWE GEBRUIKER BY"),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.navy,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton.filled(
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                style: IconButton.styleFrom(backgroundColor: AppColors.navy),
-                tooltip: "Verfris",
-                onPressed: _reload,
-              ),
-            ],
+            ),
           ),
-        ),
         Expanded(
           child: ListenableBuilder(
             listenable: Listenable.merge([

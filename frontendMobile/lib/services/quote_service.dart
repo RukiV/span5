@@ -37,7 +37,7 @@ class QuoteService {
     return null;
   }
 
-  static Future<bool> addQuote(Quote quote) async {
+  static Future<Quote?> addQuote(Quote quote) async {
     try {
       _pendingKey ??= Idempotency.generate();
       final response = await ApiClient().client.post(
@@ -47,26 +47,28 @@ class QuoteService {
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
         _pendingKey = null;
+        final created = Quote.fromJson(response.data);
         await fetchQuotes();
-        return true;
+        return created;
       }
     } catch (e) {
       debugPrint("Error adding quote: $e");
     }
-    return false;
+    return null;
   }
 
-  static Future<bool> updateQuote(Quote quote) async {
+  static Future<Quote?> updateQuote(int id, Quote quote) async {
     try {
-      final response = await ApiClient().client.patch('/quotes/${quote.id}', data: quote.toJson());
+      final response = await ApiClient().client.patch('/quotes/$id', data: quote.toJson());
       if (response.statusCode == 200) {
+        final updated = Quote.fromJson(response.data);
         await fetchQuotes();
-        return true;
+        return updated;
       }
     } catch (e) {
       debugPrint("Error updating quote: $e");
     }
-    return false;
+    return null;
   }
 
   static Future<bool> deleteQuote(int id) async {
@@ -80,9 +82,5 @@ class QuoteService {
       debugPrint("Error deleting quote: $e");
     }
     return false;
-  }
-
-  static List<Quote> getQuotesForJob(int jobId) {
-    return _quotes.where((q) => q.jobId == jobId).toList();
   }
 }

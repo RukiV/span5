@@ -52,24 +52,24 @@ class _EditCampusPageState extends State<EditCampusPage> {
   InputDecoration _inputDecoration() {
     return InputDecoration(
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      fillColor: Colors.grey[50],
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.errorRed),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 
@@ -158,14 +158,16 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Naam"),
                   TextFormField(
                     controller: _nameController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildFieldLabel("Tipe / Kode"),
                   TextFormField(
                     controller: _typeController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
@@ -182,6 +184,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                             _buildFieldLabel("Nr"),
                             TextFormField(
                               controller: _streetNumController,
+                              style: const TextStyle(fontSize: 14),
                               decoration: _inputDecoration(),
                               validator: (v) => v!.isEmpty ? "Vereis" : null,
                             ),
@@ -197,6 +200,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                             _buildFieldLabel("Straatnaam"),
                             TextFormField(
                               controller: _streetNameController,
+                              style: const TextStyle(fontSize: 14),
                               decoration: _inputDecoration(),
                               validator: (v) => v!.isEmpty ? "Vereis" : null,
                             ),
@@ -210,6 +214,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Suburb"),
                   TextFormField(
                     controller: _suburbController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                   ),
                   const SizedBox(height: 16),
@@ -217,6 +222,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Stad"),
                   TextFormField(
                     controller: _cityController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                   ),
                   const SizedBox(height: 16),
@@ -224,6 +230,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Provinsie"),
                   TextFormField(
                     controller: _provinceController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                   ),
                   const SizedBox(height: 16),
@@ -231,6 +238,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Land"),
                   TextFormField(
                     controller: _countryController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                   ),
                   const SizedBox(height: 32),
@@ -249,7 +257,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                           backgroundColor: AppColors.gold,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 0,
                         ),
                         child: _isSaving

@@ -7,6 +7,7 @@ import 'add_campus_page.dart';
 import 'campus_detail_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/fixed_page_header.dart';
 
 class CampusManagementPage extends StatefulWidget {
   const CampusManagementPage({super.key});
@@ -104,104 +105,100 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
             });
           }
 
-          return RefreshIndicator(
-            onRefresh: () => CampusService.fetchCampuses(),
-            child: Column(
-              children: [
-                Container(
-                  color: AppColors.navy,
-                  padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _searchController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            hintText: "Soek terreine...",
-                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-                            prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                            fillColor: Colors.white.withValues(alpha: 30 / 255),
-                            filled: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(30),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ColumnVisibilityButton(controller: _colVis),
-                    ],
-                  ),
-                ),
-                if (UserSession.hasAdminPrivileges)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AddCampusPage()),
-                          );
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text("VOEG NUWE TERREIN BY"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
+          return Column(
+            children: [
+              FixedPageHeader(
+                controller: _searchController,
+                hintText: "Soek terreine...",
+                onChanged: (_) => setState(() {}),
+                actions: [
+                  ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+                ],
+              ),
+              if (UserSession.hasAdminPrivileges)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AddCampusPage()),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text("VOEG NUWE TERREIN BY"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.navy,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
                   ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final campus = filtered[index];
-                      return Card(
-                        elevation: 2,
-                        margin: const EdgeInsets.only(bottom: 15),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(15),
-                          title: Text(
-                            campus.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+                ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => CampusService.fetchCampuses(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (filtered.isEmpty)
+                        const SliverFillRemaining(
+                          child: Center(child: Text("Geen terreine gevind nie.")),
+                        )
+                      else
+                        SliverPadding(
+                          padding: const EdgeInsets.all(15),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) {
+                                final campus = filtered[index];
+                                return Card(
+                                  elevation: 2,
+                                  margin: const EdgeInsets.only(bottom: 15),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  child: ListTile(
+                                    contentPadding: const EdgeInsets.all(15),
+                                    title: Text(
+                                      campus.name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const SizedBox(height: 5),
+                                        Text(campus.address, style: const TextStyle(fontSize: 13)),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          "${campus.buildings.length} Geboue",
+                                          style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                    trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => CampusDetailPage(campus: campus),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                              childCount: filtered.length,
+                            ),
                           ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 5),
-                              Text(campus.address, style: const TextStyle(fontSize: 13)),
-                              const SizedBox(height: 5),
-                              Text(
-                                "${campus.buildings.length} Geboue",
-                                style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CampusDetailPage(campus: campus),
-                              ),
-                            );
-                          },
                         ),
-                      );
-                    },
+                      const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           );
         },
       ),

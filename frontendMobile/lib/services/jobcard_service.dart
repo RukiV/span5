@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../models/jobcard.dart';
+import '../models/user_session.dart';
 import '../core/api_client.dart';
 import '../core/idempotency.dart';
 
@@ -46,7 +47,16 @@ class JobcardService {
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _jobcards.clear();
-        _jobcards.addAll(data.map((json) => Jobcard.fromJson(json)).toList());
+        
+        final List<Jobcard> allJobs = data.map((json) => Jobcard.fromJson(json)).toList();
+        
+        // As die gebruiker 'n kontrakteur is, sien hulle slegs hul eie toegewysde take.
+        if (UserSession.isContractor) {
+          _jobcards.addAll(allJobs.where((j) => j.contractorId == UserSession.userId));
+        } else {
+          _jobcards.addAll(allJobs);
+        }
+
         jobcardsNotifier.value = List.from(_jobcards);
       }
     } catch (e) {

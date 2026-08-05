@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/fixed_page_header.dart';
+import '../../widgets/header_action_button.dart';
+import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../services/stock_service.dart';
 import '../../services/campus_service.dart';
@@ -18,22 +20,10 @@ class StockPage extends StatefulWidget {
 }
 
 class _StockPageState extends State<StockPage> {
-  /// Returns the flex value for a given column key.
-  /// Number columns (amount, minimum, boxTotal) are narrower (flex: 1),
-  /// text columns (name, description) are wider (flex: 3).
-  int _columnFlex(String key) {
-    switch (key) {
-      case 'amount':
-      case 'minimum':
-      case 'boxTotal':
-        return 1;
-      case 'name':
-      case 'description':
-        return 3;
-      default:
-        return 2;
-    }
-  }
+  final TextEditingController _searchController = TextEditingController();
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+  int? _selectedRoomId;
 
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('stock', [
@@ -46,11 +36,6 @@ class _StockPageState extends State<StockPage> {
     const ColumnDef(key: 'description', label: 'Beskrywing', defaultVisible: false),
     const ColumnDef(key: 'room', label: 'Lokaal', defaultVisible: false),
   ]);
-  final TextEditingController _searchController = TextEditingController();
-  String _query = "";
-  int? _selectedCampusId;
-  int? _selectedBuildingId;
-  int? _selectedRoomId;
 
   @override
   void initState() {
@@ -61,11 +46,6 @@ class _StockPageState extends State<StockPage> {
       CampusService.fetchCampuses();
     }
     _tryAutoSelectCampus();
-    _searchController.addListener(() {
-      setState(() {
-        _query = _searchController.text.toLowerCase();
-      });
-    });
   }
 
   void _tryAutoSelectCampus() {
@@ -93,76 +73,12 @@ class _StockPageState extends State<StockPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-    return Container(
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Soek voorraad...",
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                fillColor: Colors.white.withValues(alpha: 30 / 255),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ColumnVisibilityButton(controller: _colVis),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCampusFilter() {
-    if (CampusService.campusesNotifier.value.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-      child: LocationCascadePicker(
-        initialCampusId: _selectedCampusId,
-        initialBuildingId: _selectedBuildingId,
-        initialRoomId: _selectedRoomId,
-        onChanged: (campusId, buildingId, roomId) => setState(() {
-          _selectedCampusId = campusId;
-          _selectedBuildingId = buildingId;
-          _selectedRoomId = roomId;
-        }),
-      ),
-    );
-  }
-
-  Widget _buildStockList() {
     return ValueListenableBuilder<List<Stock>>(
       valueListenable: StockService.stocksNotifier,
       builder: (context, allStocks, _) {
-        // ROL-GEBASEERDE DATA FILTRERING - Bestuurders sien nou alles soos Admin
-        List<Stock> baseStocks = allStocks;
-
+        final query = _searchController.text.toLowerCase();
+        
         final campuses = CampusService.campusesNotifier.value;
-
         final campusRoomIds = _selectedCampusId != null
             ? campuses
                 .where((c) => c.id == _selectedCampusId)
@@ -180,7 +96,7 @@ class _StockPageState extends State<StockPage> {
                 .toSet()
             : null;
 
-        final filtered = baseStocks.where((s) {
+        List<Stock> filtered = allStocks.where((s) {
           // Campus filter
           if (campusRoomIds != null && (s.roomId == null || !campusRoomIds.contains(s.roomId))) return false;
 
@@ -190,10 +106,10 @@ class _StockPageState extends State<StockPage> {
           // Room filter
           if (_selectedRoomId != null && s.roomId != _selectedRoomId) return false;
 
-          return s.name.toLowerCase().contains(_query) ||
-              s.brand.toLowerCase().contains(_query) ||
-              s.type.toLowerCase().contains(_query) ||
-              (s.id?.toString().contains(_query) ?? false);
+          return s.name.toLowerCase().contains(query) ||
+              s.brand.toLowerCase().contains(query) ||
+              s.type.toLowerCase().contains(query) ||
+              (s.id?.toString().contains(query) ?? false);
         }).toList();
 
         // Apply sorting
@@ -214,78 +130,141 @@ class _StockPageState extends State<StockPage> {
           });
         }
 
-        if (filtered.isEmpty) return const Center(child: Text("Geen voorraad gevind nie."));
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(15, 8, 15, 4),
-          child: LocationCascadePicker(
-            initialCampusId: _selectedCampusId,
-            initialBuildingId: _selectedBuildingId,
-            initialRoomId: _selectedRoomId,
-            onChanged: (campusId, buildingId, roomId) => setState(() {
-              _selectedCampusId = campusId;
-              _selectedBuildingId = buildingId;
-              _selectedRoomId = roomId;
-            }),
-          ),
-        );
-            Expanded(
-              child: ListView.separated(
-                itemCount: filtered.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final stock = filtered[index];
-                  return InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => EditStockPage(stock: stock)),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                      child: Row(
-                        children: _colVis.visibleColumns.map((col) {
-                          Widget child;
-                          switch (col.key) {
-                            case 'name':
-                              child = Text(stock.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12));
-                              break;
-                            case 'brand':
-                              child = Text(stock.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
-                              break;
-                            case 'type':
-                              child = Text(stock.type, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
-                              break;
-                            case 'amount':
-                              child = Text("${stock.amount}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 12));
-                              break;
-                            case 'minimum':
-                              child = Text("${stock.minimum}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
-                              break;
-                            case 'boxTotal':
-                              child = Text("${stock.boxTotal}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
-                              break;
-                            case 'description':
-                              child = Text(stock.description ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
-                              break;
-                            case 'room':
-                              child = Text(stock.roomName ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
-                              break;
-                            default:
-                              child = const Text('');
-                          }
-                          return Expanded(flex: _columnFlex(col.key), child: child);
-                        }).toList(),
-                      ),
-                    ),
-                  );
-                },
+        return Scaffold(
+          backgroundColor: Colors.white,
+          body: Column(
+            children: [
+              FixedPageHeader(
+                controller: _searchController,
+                hintText: "Soek voorraad...",
+                onChanged: (v) => setState(() {}),
+                actions: _buildHeaderActions(),
               ),
-            ),
-          ],
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () => StockService.fetchStocks(),
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (filtered.isEmpty)
+                        const SliverFillRemaining(
+                          child: Center(child: Text("Geen voorraad gevind nie.", style: TextStyle(color: Colors.grey))),
+                        )
+                      else
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final stock = filtered[index];
+                              return Column(
+                                children: [
+                                  InkWell(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => EditStockPage(stock: stock)),
+                                      );
+                                    },
+                                    child: Container(
+                                      color: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
+                                      child: Row(
+                                        children: _colVis.visibleColumns.map((col) {
+                                          return Expanded(
+                                            flex: _columnFlex(col.key),
+                                            child: _buildColumnContent(stock, col.key),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ),
+                                  const Divider(height: 1),
+                                ],
+                              );
+                            },
+                            childCount: filtered.length,
+                          ),
+                        ),
+                      const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            backgroundColor: AppColors.gold,
+            elevation: 4,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NewStockPage()),
+              );
+            },
+          ),
         );
       },
     );
   }
+
+  List<Widget> _buildHeaderActions() {
+    final locationActive = _selectedCampusId != null ||
+        _selectedBuildingId != null ||
+        _selectedRoomId != null;
+    return [
+      HeaderIconAction(
+        icon: Icons.place_outlined,
+        tooltip: "Filter op Ligging",
+        activeBadge: locationActive,
+        onTap: () => showLocationFilterSheet(
+          context,
+          depth: LocationDepth.room,
+          campusId: _selectedCampusId,
+          buildingId: _selectedBuildingId,
+          roomId: _selectedRoomId,
+          onChanged: (campusId, buildingId, roomId) => setState(() {
+            _selectedCampusId = campusId;
+            _selectedBuildingId = buildingId;
+            _selectedRoomId = roomId;
+          }),
+        ),
+      ),
+      ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+    ];
+  }
+
+  int _columnFlex(String key) {
+    switch (key) {
+      case 'name': return 3;
+      case 'brand': return 2;
+      case 'type': return 2;
+      case 'amount': return 1;
+      default: return 1;
+    }
+  }
+
+  Widget _buildColumnContent(Stock stock, String key) {
+    switch (key) {
+      case 'name':
+        return Text(stock.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12));
+      case 'brand':
+        return Text(stock.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+      case 'type':
+        return Text(stock.type, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+      case 'amount':
+        return Text("${stock.amount}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 12));
+      case 'minimum':
+        return Text("${stock.minimum}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
+      case 'boxTotal':
+        return Text("${stock.boxTotal}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
+      case 'description':
+        return Text(stock.description ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+      case 'room':
+        return Text(stock.roomName ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
 }

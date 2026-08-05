@@ -4,6 +4,7 @@ import '../../services/jobcard_service.dart';
 import '../../models/jobcard.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/fixed_page_header.dart';
 
 class JobCardsPage extends StatefulWidget {
   const JobCardsPage({super.key});
@@ -44,15 +45,17 @@ class _JobCardsPageState extends State<JobCardsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Colors.white,
       body: ValueListenableBuilder<List<Jobcard>>(
         valueListenable: JobcardService.jobcardsNotifier,
         builder: (context, jobcards, child) {
-          final activeJobs = jobcards.where((j) =>
-              j.status == "Besig" ||
-              j.status == "Voltooi" ||
-              j.status == "Oop" ||
-              j.status == "Wag").toList();
+          final activeJobs = jobcards
+              .where((j) =>
+                  j.status == "Besig" ||
+                  j.status == "Voltooi" ||
+                  j.status == "Oop" ||
+                  j.status == "Wag")
+              .toList();
 
           final filtered = activeJobs.where((j) {
             if (_searchQuery.isEmpty) return true;
@@ -68,13 +71,22 @@ class _JobCardsPageState extends State<JobCardsPage> {
                 case 'id':
                   return a.id.compareTo(b.id) * dir;
                 case 'description':
-                  return a.description.toLowerCase().compareTo(b.description.toLowerCase()) * dir;
+                  return a.description
+                          .toLowerCase()
+                          .compareTo(b.description.toLowerCase()) *
+                      dir;
                 case 'type':
-                  return (a.type ?? '').toLowerCase().compareTo((b.type ?? '').toLowerCase()) * dir;
+                  return (a.type ?? '')
+                          .toLowerCase()
+                          .compareTo((b.type ?? '').toLowerCase()) *
+                      dir;
                 case 'status':
-                  return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+                  return a.status.toLowerCase().compareTo(b.status.toLowerCase()) *
+                      dir;
                 case 'date':
-                  return (a.createdDatetime ?? DateTime(0)).compareTo(b.createdDatetime ?? DateTime(0)) * dir;
+                  return (a.createdDatetime ?? DateTime(0))
+                          .compareTo(b.createdDatetime ?? DateTime(0)) *
+                      dir;
                 default:
                   return 0;
               }
@@ -82,68 +94,44 @@ class _JobCardsPageState extends State<JobCardsPage> {
           }
 
           return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSearchBar(),
+              FixedPageHeader(
+                controller: _searchController,
+                hintText: "Soek werkkaarte...",
+                onChanged: (_) => setState(() {}),
+                actions: [
+                  ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+                ],
+              ),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => JobcardService.fetchJobs(),
                   color: AppColors.gold,
-                  child: filtered.isEmpty
-                      ? ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                            _buildEmptyState(),
-                          ],
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (filtered.isEmpty)
+                        SliverFillRemaining(
+                          child: _buildEmptyState(),
                         )
-                      : ListView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
+                      else
+                        SliverPadding(
                           padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final job = filtered[index];
-                            return _buildJobCard(job);
-                          },
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) => _buildJobCard(filtered[index]),
+                              childCount: filtered.length,
+                            ),
+                          ),
                         ),
+                      const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+                    ],
+                  ),
                 ),
               ),
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildSearchBar() {
-    return Container(
-      color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(15, 15, 15, 10),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Soek werkkaarte...",
-                hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 150 / 255), fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                fillColor: Colors.white.withValues(alpha: 30 / 255),
-                filled: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          ColumnVisibilityButton(controller: _colVis),
-        ],
       ),
     );
   }
@@ -184,7 +172,7 @@ class _JobCardsPageState extends State<JobCardsPage> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       elevation: 2,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -239,9 +227,10 @@ class _JobCardsPageState extends State<JobCardsPage> {
                   ElevatedButton(
                     onPressed: () => _markAsCompleted(job),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.gold,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),

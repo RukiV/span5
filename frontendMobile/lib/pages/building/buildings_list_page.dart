@@ -4,7 +4,9 @@ import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
-import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/fixed_page_header.dart';
+import '../../widgets/header_action_button.dart';
+import '../../widgets/location_filter_sheet.dart';
 import 'add_building_page.dart';
 import 'edit_building_page.dart';
 import '../rooms/manage_rooms_page.dart';
@@ -21,6 +23,8 @@ class BuildingsListPage extends StatefulWidget {
 
 class _BuildingsListPageState extends State<BuildingsListPage> {
   Campus? _selectedCampus;
+  final TextEditingController _searchController = TextEditingController();
+  String _query = "";
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('buildings', [
     const ColumnDef(key: 'name', label: 'Naam'),
@@ -39,6 +43,17 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    _searchController.addListener(() {
+      setState(() {
+        _query = _searchController.text.toLowerCase();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _loadInitialCampus() {
@@ -102,8 +117,14 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           if (_selectedCampus != null) {
             buildings = _selectedCampus!.buildings;
           }
+
+          final filtered = buildings.where((b) =>
+              _query.isEmpty ||
+              b.name.toLowerCase().contains(_query) ||
+              b.address.toLowerCase().contains(_query)).toList();
+
           if (_sortCtrl.isActive) {
-            buildings.sort((a, b) {
+            filtered.sort((a, b) {
               final dir = _sortCtrl.direction;
               switch (_sortCtrl.sortKey) {
                 case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
@@ -115,18 +136,29 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
 
           return Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: LocationCascadePicker(
-                  depth: LocationDepth.campus,
-                  initialCampusId: _selectedCampus?.id,
-                  onChanged: (campusId, _, __) {
-                    setState(() {
-                      _selectedCampus =
-                          campuses.where((c) => c.id == campusId).firstOrNull;
-                    });
-                  },
-                ),
+              FixedPageHeader(
+                controller: _searchController,
+                hintText: "Soek geboue...",
+                onChanged: (_) => setState(() {}),
+                actions: [
+                  HeaderIconAction(
+                    icon: Icons.place_outlined,
+                    tooltip: "Filter op Terrein",
+                    activeBadge: _selectedCampus != null,
+                    onTap: () => showLocationFilterSheet(
+                      context,
+                      depth: LocationDepth.campus,
+                      campusId: _selectedCampus?.id,
+                      onChanged: (campusId, _, __) {
+                        setState(() {
+                          _selectedCampus =
+                              campuses.where((c) => c.id == campusId).firstOrNull;
+                        });
+                      },
+                    ),
+                  ),
+                  ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+                ],
               ),
 
               if (UserSession.hasAdminPrivileges)
@@ -156,26 +188,18 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                   ),
                 ),
 
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ColumnVisibilityButton(controller: _colVis),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-
               Expanded(
-                child: buildings.isEmpty
-                    ? const Center(child: Text("Geen geboue geregistreer nie.", style: TextStyle(color: Colors.grey)))
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        itemCount: buildings.length,
-                        itemBuilder: (context, index) {
-                          final b = buildings[index];
-                          final roomCount = b.rooms?.length ?? 0;
+                child: filtered.isEmpty
+                    ? const Center(child: Text("Geen geboue gevind nie.", style: TextStyle(color: Colors.grey)))
+                    : RefreshIndicator(
+                        onRefresh: () => CampusService.fetchCampuses(),
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final b = filtered[index];
+                            final roomCount = b.rooms?.length ?? 0;
                           return Card(
                             elevation: 2,
                             margin: const EdgeInsets.only(bottom: 15),
@@ -264,12 +288,13 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                   ),
                               ],
                             ),
-                          );
+                            );
                         },
                       ),
-              ),
-            ],
-          );
+                    ),
+                  ),
+                ],
+              );
         },
       ),
     );

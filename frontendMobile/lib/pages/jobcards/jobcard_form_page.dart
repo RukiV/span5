@@ -13,6 +13,7 @@ import '../../models/quote.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../models/user.dart';
+import '../../models/user_session.dart';
 import '../../services/asset_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/campus_service.dart';
@@ -83,6 +84,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   DateTime? _scheduledEndDatetime;
 
   int? _assignedToId;
+  int? _selectedContractorId;
   final List<int> _ccUserIds = [];
 
   final List<_QuoteDraft> _quotes = [];
@@ -129,6 +131,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (UserService.users.isEmpty) {
       await UserService.fetchAssignableUsers();
     }
+    if (ReportService.reportsNotifier.value.isEmpty) {
+      await ReportService.fetchReports();
+    }
     if (widget.isEditing) {
       await _loadJobImages();
     }
@@ -163,6 +168,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       _scheduledDatetime = job.scheduledDatetime;
       _scheduledEndDatetime = job.scheduledEndDatetime;
       _assignedToId = job.assignedTo;
+      _selectedContractorId = job.contractorId;
       final cc = (job.ccUsers ?? '')
           .split(',')
           .map((e) => int.tryParse(e.trim()))
@@ -172,23 +178,29 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       _scheduleType = job.scheduleType ?? "enkel";
       _loadQuotesForJob();
     } else if (report != null) {
-      _briefController.text = report.title;
-      if (report.description.isNotEmpty) {
-        _notesController.text = report.description;
-      }
-      _nature = report.category;
-      _workType = _normalizeWorkTypeValue(report.category);
-      _priority = _normalizePriorityValue(report.priority);
-      _selectedCampusId = report.locationId;
-      _selectedBuildingId = report.buildingId;
-      _selectedRoomId = int.tryParse(report.location);
-      final assetId = int.tryParse(report.assetId);
-      _selectedAssetId = (assetId != null && assetId > 0) ? assetId.toString() : null;
-      _faultId = int.tryParse(report.id);
+      _applyReport(report);
       _scheduledDatetime = DateTime.now();
+      _assignedToId = UserSession.userId;
     } else {
       _scheduledDatetime = DateTime.now();
+      _assignedToId = UserSession.userId;
     }
+  }
+
+  /// Vorm die velde aan uit 'n foutkaartjie — dieselfde outomatiese uitvul wat
+  /// gebruik word wanneer 'n werksopdrag vanuit 'n foutkaartjie geskep word.
+  /// Notas word nie oorgedra nie (soos voorheen versoek).
+  void _applyReport(Report report) {
+    _briefController.text = report.title;
+    _nature = report.category;
+    _workType = _normalizeWorkTypeValue(report.category);
+    _priority = _normalizePriorityValue(report.priority);
+    _selectedCampusId = report.locationId;
+    _selectedBuildingId = report.buildingId;
+    _selectedRoomId = int.tryParse(report.location);
+    final assetId = int.tryParse(report.assetId);
+    _selectedAssetId = (assetId != null && assetId > 0) ? assetId.toString() : null;
+    _faultId = int.tryParse(report.id);
   }
 
   Future<void> _loadQuotesForJob() async {
@@ -386,8 +398,39 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               );
             },
           ),
+          const SizedBox(height: 14),
+          ValueListenableBuilder<List<Report>>(
+            valueListenable: ReportService.reportsNotifier,
+            builder: (context, reports, _) {
+              return SearchableDropdown<String>(
+                label: "Koppel foutkaartjie (opsioneel)",
+                hint: "Soek & kies foutkaartjie",
+                value: _faultId?.toString(),
+                items: reports
+                    .map((r) => SearchableDropdownItem(
+                        value: r.id, label: "#${r.id} - ${r.title}"))
+                    .toList(),
+                trailing: _faultId != null
+                    ? IconButton(
+                        tooltip: "Ontkoppel foutkaartjie",
+                        onPressed: () => setState(() => _faultId = null),
+                        icon: const Icon(Icons.close, size: 18, color: AppColors.errorRed),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      )
+                    : null,
+                onChanged: (v) {
+                  if (v == null) return;
+                  final report = reports.where((r) => r.id == v).firstOrNull;
+                  if (report != null) {
+                    setState(() => _applyReport(report));
+                  }
+                },
+              );
+            },
+          ),
           if (_faultId != null) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Row(
               children: [
                 const Icon(Icons.link, size: 16, color: AppColors.gold),
@@ -489,12 +532,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SearchableDropdown<int>(
+          SearchableDropdown<int?>(
             label: "Kontrakteur",
             hint: "Kies Kontrakteur",
             value: _quoteContractorId,
             items: contractors
-                .map((u) => SearchableDropdownItem(value: u.id, label: u.displayName))
+                .map((u) => SearchableDropdownItem<int?>(value: u.id, label: u.displayName))
                 .toList(),
             onChanged: (v) => setState(() => _quoteContractorId = v),
           ),
@@ -710,25 +753,38 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             if (v == null) return;
             setState(() => _scheduleType = v);
           }),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           _sectionTitle("Toewysing"),
           const SizedBox(height: 12),
           ValueListenableBuilder<List<User>>(
             valueListenable: UserService.usersNotifier,
             builder: (context, users, _) {
+              final staff = users.where((u) => u.roleId != 4).toList();
+              final contractors = users.where((u) => u.roleId == 4).toList();
+
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SearchableDropdown<int>(
-                    label: "Verantwoordelik (assigneer aan)",
-                    hint: "Kies gebruiker",
+                  SearchableDropdown<int?>(
+                    label: "Personeel lid (Assigneer aan)",
+                    hint: "Kies personeel lid",
                     value: _assignedToId,
-                    items: users
-                        .map((u) => SearchableDropdownItem(value: u.id, label: u.displayName))
+                    items: staff
+                        .map((u) => SearchableDropdownItem<int?>(value: u.id, label: u.displayName))
                         .toList(),
                     onChanged: (v) => setState(() => _assignedToId = v),
                   ),
                   const SizedBox(height: 14),
+                  SearchableDropdown<int?>(
+                    label: "Kontrakteur",
+                    hint: "Kies kontrakteur",
+                    value: _selectedContractorId,
+                    items: contractors
+                        .map((u) => SearchableDropdownItem<int?>(value: u.id, label: u.displayName))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedContractorId = v),
+                  ),
+                  const SizedBox(height: 20),
                   const Text("CC Gebruikers",
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
                   const SizedBox(height: 6),
@@ -958,11 +1014,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   // ===== Stoor =====
 
   Future<void> _save() async {
-    if (_briefController.text.trim().isEmpty) {
-      _showSnack("Gee asseblief 'n kort beskrywing.", error: true);
-      _tabController.animateTo(0);
-      return;
-    }
     if (_selectedCampusId == null) {
       _showSnack("Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
       _tabController.animateTo(0);
@@ -971,6 +1022,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (_workType.isEmpty) {
       _showSnack("Kies asseblief 'n werksoort.", error: true);
       _tabController.animateTo(0);
+      return;
+    }
+    if (_assignedToId == null) {
+      _showSnack("Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
+      _tabController.animateTo(2);
+      return;
+    }
+    if (_selectedContractorId == null) {
+      _showSnack("Kies asseblief 'n kontrakteur vir die werksopdrag.", error: true);
+      _tabController.animateTo(2);
       return;
     }
     for (final q in _quotes) {
@@ -991,9 +1052,20 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
     setState(() => _saving = true);
 
+    final brief = _briefController.text.trim();
     final notes = _notesController.text.trim();
+    final String desc;
+    if (brief.isNotEmpty && notes.isNotEmpty) {
+      desc = '$brief: $notes';
+    } else if (brief.isNotEmpty) {
+      desc = brief;
+    } else if (notes.isNotEmpty) {
+      desc = notes;
+    } else {
+      desc = _workType.isEmpty ? 'Werksopdrag' : _workType;
+    }
     final payload = <String, dynamic>{
-      'job_desc': _briefController.text.trim() + (notes.isNotEmpty ? ': $notes' : ''),
+      'job_desc': desc,
       'job_type': _workType,
       'job_status': Jobcard.toBackendStatus(_status),
       'job_priority': _priority,
@@ -1008,6 +1080,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       'location_id': _selectedCampusId,
       'fault_id': _faultId,
       'assigned_to': _assignedToId,
+      'contractor_id': _selectedContractorId,
       'cc_users': _ccUserIds.isEmpty ? null : _ccUserIds.join(','),
     };
 
@@ -1179,10 +1252,10 @@ class _CcUserDialogState extends State<_CcUserDialog> {
               dense: true,
               title: Text(u.displayName),
               subtitle: Text(u.email, style: const TextStyle(fontSize: 11)),
-              value: _selected.contains(u.id),
+              value: u.id != null && _selected.contains(u.id!),
               onChanged: (checked) => setState(() {
                 if (checked == true) {
-                  _selected.add(u.id);
+                  _selected.add(u.id!);
                 } else {
                   _selected.remove(u.id);
                 }
