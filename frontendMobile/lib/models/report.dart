@@ -52,18 +52,22 @@ class Report {
 
   static String? _backendFaultType(String cat) {
     switch (cat.toLowerCase()) {
+      case 'onderhoud':
       case 'instandhouding':
       case 'maintenance':
-        return 'Instandhouding';
+        return 'Onderhoud';
       case 'herstel':
       case 'herstelwerk':
       case 'repair':
-        return 'Herstelwerk';
-      case 'opgradering':
-      case 'upgrade':
-        return 'Opgradering';
+        return 'Herstel';
+      case 'inspeksie':
+      case 'inspection':
+        return 'Inspeksie';
+      case 'installasie':
+      case 'installation':
+        return 'Installasie';
       default:
-        return null;
+        return 'Onderhoud';
     }
   }
 
@@ -158,15 +162,20 @@ class Report {
     switch (t) {
       case 'MAINTENANCE':
       case 'Instandhouding':
-        return 'Instandhouding';
+      case 'Onderhoud':
+        return 'Onderhoud';
       case 'REPAIR':
       case 'Herstelwerk':
+      case 'Herstel':
         return 'Herstel';
-      case 'UPGRADE':
-      case 'Opgradering':
-        return 'Opgradering';
+      case 'INSPECTION':
+      case 'Inspeksie':
+        return 'Inspeksie';
+      case 'INSTALLATION':
+      case 'Installasie':
+        return 'Installasie';
       default:
-        return 'Algemeen';
+        return 'Onderhoud';
     }
   }
 

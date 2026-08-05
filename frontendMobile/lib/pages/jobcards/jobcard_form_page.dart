@@ -6,12 +6,9 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
-import '../../models/building.dart';
-import '../../models/campus.dart';
 import '../../models/jobcard.dart';
 import '../../models/quote.dart';
 import '../../models/report.dart';
-import '../../models/room.dart';
 import '../../models/user.dart';
 import '../../models/user_session.dart';
 import '../../services/asset_service.dart';
@@ -23,6 +20,7 @@ import '../../services/jobcard_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/searchable_dropdown.dart';
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
@@ -65,7 +63,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   final List<String> _statuses = ["Wag", "Oop", "Besig", "Voltooi", "Gekanselleer"];
   final List<String> _priorities = ["Laag", "Normal", "Hoog", "Dringend"];
   final List<String> _workTypes = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
-  final List<String> _natures = ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"];
+  final List<String> _natures = ["Elektries", "Meganies", "Siviel", "Buite", "Algemeen"];
   final List<String> _scheduleTypes = ["enkel", "weekliks", "maandeliks", "jaarliks"];
 
   late String _status;
@@ -94,6 +92,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   final List<int> _existingImageIds = [];
   final Set<int> _removedImageIds = {};
   final List<File> _newJobImages = [];
+  final List<int> _faultImageIds = [];
   bool _imagesLoading = true;
 
   bool _saving = false;
@@ -136,6 +135,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     }
     if (widget.isEditing) {
       await _loadJobImages();
+    } else if (widget.report != null) {
+      final faultId = int.tryParse(widget.report!.id);
+      if (faultId != null) await _loadFaultImages(faultId);
     }
     if (mounted) setState(() {});
   }
@@ -143,10 +145,28 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   Future<void> _loadJobImages() async {
     final jobId = widget.jobcard!.id;
     final ids = await ImageService.getImagesForParent('job', jobId);
+    final faultId = widget.jobcard!.faultId;
+    final fault = faultId != null
+        ? await ImageService.getImagesForParent('ticket', faultId)
+        : <int>[];
     if (mounted) {
       setState(() {
         _existingImageIds.addAll(ids);
+        _faultImageIds
+          ..clear()
+          ..addAll(fault);
         _imagesLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadFaultImages(int faultId) async {
+    final fault = await ImageService.getImagesForParent('ticket', faultId);
+    if (mounted) {
+      setState(() {
+        _faultImageIds
+          ..clear()
+          ..addAll(fault);
       });
     }
   }
@@ -179,10 +199,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       _loadQuotesForJob();
     } else if (report != null) {
       _applyReport(report);
-      _scheduledDatetime = DateTime.now();
       _assignedToId = UserSession.userId;
     } else {
-      _scheduledDatetime = DateTime.now();
       _assignedToId = UserSession.userId;
     }
   }
@@ -192,7 +210,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   /// Notas word nie oorgedra nie (soos voorheen versoek).
   void _applyReport(Report report) {
     _briefController.text = report.title;
-    _nature = report.category;
     _workType = _normalizeWorkTypeValue(report.category);
     _priority = _normalizePriorityValue(report.priority);
     _selectedCampusId = report.locationId;
@@ -201,6 +218,13 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     final assetId = int.tryParse(report.assetId);
     _selectedAssetId = (assetId != null && assetId > 0) ? assetId.toString() : null;
     _faultId = int.tryParse(report.id);
+    final creatorId = int.tryParse(report.user);
+    if (creatorId != null &&
+        creatorId > 0 &&
+        creatorId != UserSession.userId &&
+        !_ccUserIds.contains(creatorId)) {
+      _ccUserIds.add(creatorId);
+    }
   }
 
   Future<void> _loadQuotesForJob() async {
@@ -224,6 +248,18 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   }
 
   int _newTempId() => ++_quoteCounter + DateTime.now().millisecondsSinceEpoch;
+
+  /// Wanneer 'n gekose kwotasie met 'n rede gestoor/gekies is, is die
+  /// kontrakteur vasgesluit — nie veranderbaar in Skedulering & Toewysing nie.
+  int? get _lockedContractorId {
+    final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
+    if (selected != null &&
+        selected.contractorId != null &&
+        (selected.selectionReason ?? '').trim().isNotEmpty) {
+      return selected.contractorId;
+    }
+    return null;
+  }
 
   // ===== Normering =====
 
@@ -346,58 +382,20 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 20),
           _sectionTitle("Ligging & Koppeling"),
           const SizedBox(height: 12),
-          ValueListenableBuilder<List<Campus>>(
-            valueListenable: CampusService.campusesNotifier,
-            builder: (context, campuses, _) {
-              return Column(
-                children: [
-                  SearchableDropdown<int>(
-                    label: "Terrein",
-                    hint: "Kies Terrein",
-                    value: _selectedCampusId,
-                    items: campuses
-                        .map((c) => SearchableDropdownItem(value: c.id, label: c.name))
-                        .toList(),
-                    onChanged: (v) => setState(() {
-                      _selectedCampusId = v;
-                      _selectedBuildingId = null;
-                      _selectedRoomId = null;
-                      _selectedAssetId = null;
-                    }),
-                  ),
-                  const SizedBox(height: 14),
-                  SearchableDropdown<int>(
-                    label: "Gebou",
-                    hint: "Kies Gebou",
-                    value: _selectedBuildingId,
-                    items: _filteredBuildings(campuses)
-                        .map((b) => SearchableDropdownItem(value: b.id, label: b.name))
-                        .toList(),
-                    onChanged: (v) => setState(() {
-                      _selectedBuildingId = v;
-                      _selectedRoomId = null;
-                      _selectedAssetId = null;
-                    }),
-                  ),
-                  const SizedBox(height: 14),
-                  SearchableDropdown<int>(
-                    label: "Lokaal",
-                    hint: "Kies Lokaal",
-                    value: _selectedRoomId,
-                    items: _filteredRooms(campuses)
-                        .map((r) => SearchableDropdownItem(value: r.id, label: r.name))
-                        .toList(),
-                    onChanged: (v) => setState(() {
-                      _selectedRoomId = v;
-                      _selectedAssetId = null;
-                    }),
-                  ),
-                  const SizedBox(height: 14),
-                  _buildAssetDropdown(),
-                ],
-              );
-            },
+          LocationCascadePicker(
+            label: "Ligging",
+            initialCampusId: _selectedCampusId,
+            initialBuildingId: _selectedBuildingId,
+            initialRoomId: _selectedRoomId,
+            onChanged: (campusId, buildingId, roomId) => setState(() {
+              _selectedCampusId = campusId;
+              _selectedBuildingId = buildingId;
+              _selectedRoomId = roomId;
+              _selectedAssetId = null;
+            }),
           ),
+          const SizedBox(height: 14),
+          _buildAssetDropdown(),
           const SizedBox(height: 14),
           ValueListenableBuilder<List<Report>>(
             valueListenable: ReportService.reportsNotifier,
@@ -445,24 +443,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         ],
       ),
     );
-  }
-
-  List<Building> _filteredBuildings(List<Campus> campuses) {
-    if (_selectedCampusId == null) return [];
-    final campus = campuses.where((c) => c.id == _selectedCampusId).firstOrNull;
-    return campus?.buildings ?? [];
-  }
-
-  List<Room> _filteredRooms(List<Campus> campuses) {
-    if (_selectedBuildingId == null) return [];
-    for (final campus in campuses) {
-      for (final building in campus.buildings) {
-        if (building.id == _selectedBuildingId) {
-          return building.rooms ?? [];
-        }
-      }
-    }
-    return [];
   }
 
   Widget _buildAssetDropdown() {
@@ -741,11 +721,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         children: [
           _sectionTitle("Skedulering"),
           const SizedBox(height: 12),
-          _buildDateTimePicker("Beplande Datum & Tyd", _scheduledDatetime, (v) {
+          _buildDateTimePicker("Begin Datum & Tyd", _scheduledDatetime, (v) {
             setState(() => _scheduledDatetime = v);
           }),
           const SizedBox(height: 14),
-          _buildDateTimePicker("Eind Datum & Tyd (opsioneel)", _scheduledEndDatetime, (v) {
+          _buildDateTimePicker("Einddatum & Tyd", _scheduledEndDatetime, (v) {
             setState(() => _scheduledEndDatetime = v);
           }),
           const SizedBox(height: 14),
@@ -776,9 +756,10 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                   ),
                   const SizedBox(height: 14),
                   SearchableDropdown<int?>(
-                    label: "Kontrakteur",
+                    label: "Kontrakteur (opsioneel)",
                     hint: "Kies kontrakteur",
-                    value: _selectedContractorId,
+                    enabled: _lockedContractorId == null,
+                    value: _lockedContractorId ?? _selectedContractorId,
                     items: contractors
                         .map((u) => SearchableDropdownItem<int?>(value: u.id, label: u.displayName))
                         .toList(),
@@ -873,7 +854,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     final date = await showDatePicker(
       context: context,
       initialDate: current ?? now,
-      firstDate: DateTime(now.year - 1),
+      firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 5),
     );
     if (date == null) return;
@@ -896,6 +877,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildFaultPhotos(),
+          const SizedBox(height: 24),
           _sectionTitle("Werknotas"),
           const SizedBox(height: 12),
           TextField(
@@ -912,6 +895,43 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           _buildImageSection(),
         ],
       ),
+    );
+  }
+
+  /// Foutkaartjie se fotos (parent_type 'ticket') — leesbaar vir enigeen wat
+  /// die werksopdrag kan sien, dieselfde as die kontrakteur-detail-aansig.
+  Widget _buildFaultPhotos() {
+    if (_faultImageIds.isEmpty) return const SizedBox.shrink();
+    final baseUrl = ApiClient().client.options.baseUrl;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle("Foto van Fout"),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final id in _faultImageIds)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  '$baseUrl/image/$id/file',
+                  height: 80,
+                  width: 80,
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => Container(
+                    height: 80,
+                    width: 80,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -1029,11 +1049,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       _tabController.animateTo(2);
       return;
     }
-    if (_selectedContractorId == null) {
-      _showSnack("Kies asseblief 'n kontrakteur vir die werksopdrag.", error: true);
-      _tabController.animateTo(2);
-      return;
-    }
     for (final q in _quotes) {
       if (q.contractorId == null || !q.hasPdf) {
         _showSnack("Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê.", error: true);
@@ -1080,7 +1095,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       'location_id': _selectedCampusId,
       'fault_id': _faultId,
       'assigned_to': _assignedToId,
-      'contractor_id': _selectedContractorId,
+      'contractor_id': _lockedContractorId ?? _selectedContractorId,
       'cc_users': _ccUserIds.isEmpty ? null : _ccUserIds.join(','),
     };
 

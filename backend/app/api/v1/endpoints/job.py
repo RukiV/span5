@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from ....auth.permissions import get_current_user, require_right, user_has_right
 from ....db.database import getSession
+from ....models.enums import FaultStatus, JobStatus
+from ....models.fault import Faultcard, FaultcardUpdate
 from ....models.job import Jobcard, JobcardRead, JobcardCreate, JobcardUpdate
 from ....models.asset import Asset
 from ....models.user import User
-from ....services.job_service import job_service
+from ....services.fault_service import fault_service
+from ....services.job_service import derive_job_status, job_service
 from ....services.notification_service import NotificationService
 
 router = APIRouter()
@@ -27,11 +30,32 @@ def _job_summary(session: Session, job: Jobcard, max_desc_len: int = 60) -> str:
             parts.append(f"({asset.asset_name})")
     return " — ".join(parts)
 
+
+def _user_display_name(session: Session, user_id: Optional[int]) -> Optional[str]:
+    if user_id is None:
+        return None
+    user = session.get(User, user_id)
+    if not user:
+        return None
+    return f"{user.user_name} {user.user_surname}".strip()
+
+
+def _read_with_names(session: Session, job: Jobcard) -> JobcardRead:
+    """Serialize a jobcard with the assigned staff member's and contractor's names.
+
+    Names are resolved server-side so that contractors (who have no access to
+    /users/assignable) still see real names instead of raw user ids.
+    """
+    read = JobcardRead.model_validate(job)
+    read.assigned_name = _user_display_name(session, job.assigned_to)
+    read.contractor_name = _user_display_name(session, job.contractor_id)
+    return read
+
 # Authorization is driven by the rights system (see auth/permissions.py):
 #   - jobs.manage            : Admin/FK — create/delete/edit any job.
 #   - jobs.view_own          : Contractor — see only jobs assigned to you.
 #   - jobs.update_own_status : Contractor — patch only job_status /
-#                              job_finisheddatetime on your own jobs.
+#                              job_finisheddatetime / job_notes on your own jobs.
 # The contractor ownership scoping and the PATCH field-allowlist are preserved
 # exactly; only their trigger conditions changed from role_id to rights.
 
@@ -40,11 +64,14 @@ def _job_summary(session: Session, job: Jobcard, max_desc_len: int = 60) -> str:
 def readJobs(session: Session = Depends(getSession), user: User = Depends(get_current_user)):
     """Fetch jobcards. jobs.manage sees all; jobs.view_own sees only assigned."""
     if user_has_right(session, user.role_id, "jobs.manage"):
-        return job_service.getAll(session)
+        return [_read_with_names(session, job) for job in job_service.getAll(session)]
     if user_has_right(session, user.role_id, "jobs.view_own"):
-        return session.exec(
-            select(Jobcard).where(Jobcard.contractor_id == user.user_id)
-        ).all()
+        return [
+            _read_with_names(session, job)
+            for job in session.exec(
+                select(Jobcard).where(Jobcard.contractor_id == user.user_id)
+            ).all()
+        ]
     raise HTTPException(status_code=403, detail="Insufficient permissions")
 
 
@@ -62,7 +89,7 @@ def readScheduledJobs(session: Session = Depends(getSession), user: User = Depen
     )
     if not manage:
         query = query.where(Jobcard.contractor_id == user.user_id)
-    return session.exec(query).all()
+    return [_read_with_names(session, job) for job in session.exec(query).all()]
 
 
 @router.get("/{jobID}", response_model=JobcardRead)
@@ -76,13 +103,20 @@ def readJob(jobID: int, session: Session = Depends(getSession), user: User = Dep
         raise HTTPException(status_code=404, detail="Job not found")
     if not manage and job.contractor_id != user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    return job
+    return _read_with_names(session, job)
 
 
 @router.post("", response_model=JobcardRead, status_code=status.HTTP_201_CREATED)
 def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: User = Depends(require_right("jobs.manage"))):
     """Create new jobcard. Requires jobs.manage (Admin/FK)."""
     job = job_service.create(session, jobIn, user_id=user.user_id)
+    derived = derive_job_status(job)
+    if derived != job.job_status:
+        job = job_service.update(
+            session, job.jobcard_id, JobcardUpdate(job_status=derived),
+            user_id=user.user_id,
+        )
+        job = job_service.getByID(session, job.jobcard_id)
     notif_svc = NotificationService(session)
     summary = _job_summary(session, job)
     notif_svc.notify_admins(
@@ -103,7 +137,39 @@ def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: U
             reference_type="job",
             reference_id=job.jobcard_id,
         )
-    return job
+    if job.contractor_id:
+        notif_svc.create_notification(
+            user_id=job.contractor_id,
+            notification_type="job.created",
+            title="Nuwe werksopdrag",
+            message=f"{summary} aan jou toegewys",
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
+        )
+    if job.fault_id:
+        faultcard = session.get(Faultcard, job.fault_id)
+        if faultcard and faultcard.user_id and faultcard.user_id != user.user_id:
+            creator_id = faultcard.user_id
+            cc_ids = [uid.strip() for uid in (job.cc_users or "").split(",") if uid.strip()]
+            if str(creator_id) not in cc_ids:
+                cc_ids.append(str(creator_id))
+                job = job_service.update(
+                    session, job.jobcard_id,
+                    JobcardUpdate(cc_users=",".join(cc_ids)),
+                    user_id=user.user_id,
+                )
+                job = job_service.getByID(session, job.jobcard_id)
+            notif_svc.create_notification(
+                user_id=creator_id,
+                notification_type="job.created",
+                title="Nuwe werksopdrag",
+                message=f"{summary} geskep vir jou foutkaartjie #{faultcard.fault_id}",
+                actor_id=user.user_id,
+                reference_type="job",
+                reference_id=job.jobcard_id,
+            )
+    return _read_with_names(session, job)
 
 
 @router.patch("/{jobID}", response_model=JobcardRead)
@@ -121,19 +187,27 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
         # Contractor path: own jobs only, and only the allowlisted status fields.
         if job.contractor_id != user.user_id:
             raise HTTPException(status_code=403, detail="Access denied")
-        allowed_fields = {"job_status", "job_finisheddatetime"}
+        allowed_fields = {"job_status", "job_finisheddatetime", "job_notes"}
         update_data = jobIn.model_dump(exclude_unset=True)
         disallowed = set(update_data.keys()) - allowed_fields
         if disallowed:
-            raise HTTPException(status_code=403, detail="Contractors can only update job status")
+            raise HTTPException(status_code=403, detail="Contractors can only update job status, finish time and werknotas")
     old_status = job.job_status if job else None
     result = job_service.update(session, jobID, jobIn, user_id=user.user_id)
     result = job_service.getByID(session, jobID)
 
-    if (
-        jobIn.job_status is not None
-        and old_status != result.job_status
-    ):
+    # Geskeduleer/Besig word afgelei uit die skedule: as 'n skedule gestel is en
+    # die status nie terminaal is nie, kry die werksopdrag die afgeleide status
+    # (toekoms → Geskeduleer, begintyd verbygegaan → Besig).
+    derived = derive_job_status(result)
+    if derived != result.job_status:
+        result = job_service.update(
+            session, result.jobcard_id, JobcardUpdate(job_status=derived),
+            user_id=user.user_id,
+        )
+        result = job_service.getByID(session, result.jobcard_id)
+
+    if old_status != result.job_status:
         notif_svc = NotificationService(session)
         summary = _job_summary(session, result)
         if result.contractor_id:
@@ -166,7 +240,25 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
                 reference_id=result.jobcard_id,
             )
 
-    return result
+    # Wanneer 'n werksopdrag voltooi word, los die gekoppelde foutkaartjie op
+    # sodat die student kan sien sy foutverslag is opgelos.
+    if (
+        result.job_status == JobStatus.COMPLETED
+        and old_status != result.job_status
+        and result.fault_id
+    ):
+        fault = session.get(Faultcard, result.fault_id)
+        if fault and fault.fault_status not in (FaultStatus.RESOLVED, FaultStatus.CLOSED):
+            from ....api.v1.endpoints.fault import notify_fault_status_change
+            fault = fault_service.update(
+                session, fault.fault_id,
+                FaultcardUpdate(fault_status=FaultStatus.RESOLVED),
+                user_id=user.user_id,
+            )
+            if fault:
+                notify_fault_status_change(session, fault, FaultStatus.IN_PROGRESS, user)
+
+    return _read_with_names(session, result)
 
 
 @router.delete("/{jobID}", status_code=status.HTTP_204_NO_CONTENT)
@@ -175,3 +267,45 @@ def removeJob(jobID: int, session: Session = Depends(getSession), user: User = D
     if not job_service.delete(session, jobID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Job not found")
     return None
+
+
+@router.post("/{jobID}/complete-request")
+def requestJobCompletion(
+    jobID: int,
+    session: Session = Depends(getSession),
+    user: User = Depends(get_current_user),
+):
+    """Contractor asks the responsible staff member (assigned_to) to complete the
+    jobcard. The status is NOT changed here — the staff member completes it."""
+    if not user_has_right(session, user.role_id, "jobs.update_own_status"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    job = job_service.getByID(session, jobID)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.contractor_id != user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    notif_svc = NotificationService(session)
+    summary = _job_summary(session, job)
+    title = "Werksopdrag voltooiing versoek"
+    message = f"{summary} — voltooiing versoek deur {user.user_name}"
+    if job.assigned_to:
+        notif_svc.create_notification(
+            user_id=job.assigned_to,
+            notification_type="job.completion_requested",
+            title=title,
+            message=message,
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
+        )
+    else:
+        notif_svc.notify_admins(
+            notification_type="job.completion_requested",
+            title=title,
+            message=message,
+            actor_id=user.user_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
+        )
+    return {"status": "requested", "jobcard_id": job.jobcard_id}

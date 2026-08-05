@@ -46,6 +46,23 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS job_priority VARCHAR(20) DEFAULT 'Normal'"))
             if "nature" not in columns:
                 connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS nature VARCHAR(100)"))
+            if "job_notes" not in columns:
+                connection.execute(text("ALTER TABLE jobcard ADD COLUMN IF NOT EXISTS job_notes TEXT"))
+            # Brei die job_status PostgreSQL-enum uit vir die nuwe status
+            # (Geskeduleer). SQLAlchemy stoor die enum-lidname (WAIT/OPEN/...).
+            try:
+                job_cols = {
+                    col["name"]: col["type"] for col in inspector.get_columns("jobcard")
+                }
+                job_status = job_cols.get("job_status")
+                enum_name = getattr(job_status, "name", None)
+                if enum_name:
+                    connection.execute(
+                        text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS 'SCHEDULED'")
+                    )
+            except Exception:
+                # Nie 'n native enum nie (bv. VARCHAR) of reeds bygevoeg — ignoreer.
+                pass
 
         if "quote" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("quote")}
@@ -76,6 +93,25 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_2 INTEGER"))
             if "image_id_3" not in columns:
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_3 INTEGER"))
+            # Brei die fault_type PostgreSQL-enum uit vir die nuwe werksoort-
+            # waardes (Inspeksie/Installasie). SQLAlchemy stoor die enum-lidname
+            # (MAINTENANCE/REPAIR/...), so bestaande rye word nie geraak nie.
+            try:
+                fault_cols = {
+                    col["name"]: col["type"] for col in inspector.get_columns("faultcard")
+                }
+                fault_type = fault_cols.get("fault_type")
+                enum_name = getattr(fault_type, "name", None)
+                if enum_name:
+                    connection.execute(
+                        text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS 'INSPECTION'")
+                    )
+                    connection.execute(
+                        text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS 'INSTALLATION'")
+                    )
+            except Exception:
+                # Nie 'n native enum nie (bv. VARCHAR) of reeds bygevoeg — ignoreer.
+                pass
 
         if "user" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("user")}

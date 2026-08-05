@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../models/jobcard.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/fixed_page_header.dart';
+import 'jobcard_detail_page.dart';
 
 class JobCardsPage extends StatefulWidget {
   const JobCardsPage({super.key});
@@ -52,6 +54,7 @@ class _JobCardsPageState extends State<JobCardsPage> {
           final activeJobs = jobcards
               .where((j) =>
                   j.status == "Besig" ||
+                  j.status == "Geskeduleer" ||
                   j.status == "Voltooi" ||
                   j.status == "Oop" ||
                   j.status == "Wag")
@@ -167,80 +170,78 @@ class _JobCardsPageState extends State<JobCardsPage> {
   }
 
   Widget _buildJobCard(Jobcard job) {
-    bool isCompleted = job.status == "Voltooi";
     Color statusColor = _getStatusColor(job.status);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "#${job.id}",
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(4),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openJob(job),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "#${job.id}",
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
                   ),
-                  child: Text(
-                    job.status.toUpperCase(),
-                    style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      job.status.toUpperCase(),
+                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                job.description,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy),
+              ),
+              if (job.type != null) ...[
+                const SizedBox(height: 4),
+                Text(job.type!, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+              ],
+              if (job.createdDatetime != null && !UserSession.isContractor) ...[
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text("Geskep: ${_formatDate(job.createdDatetime!)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              job.description,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy),
-            ),
-            if (job.type != null) ...[
-              const SizedBox(height: 4),
-              Text(job.type!, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-            ],
-            if (job.createdDatetime != null) ...[
-              const SizedBox(height: 4),
+              const Divider(height: 24),
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text("Geskep: ${_formatDate(job.createdDatetime!)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  _buildStatusChip(job.status),
+                  const Icon(Icons.chevron_right, color: AppColors.gold),
                 ],
               ),
             ],
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildStatusChip(job.status),
-                if (!isCompleted)
-                  ElevatedButton(
-                    onPressed: () => _markAsCompleted(job),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text("VOLTOOI", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _openJob(Jobcard job) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => JobcardDetailPage(job: job)),
     );
   }
 
@@ -270,6 +271,8 @@ class _JobCardsPageState extends State<JobCardsPage> {
     switch (status) {
       case 'Besig':
         return Colors.blue;
+      case 'Geskeduleer':
+        return Colors.teal;
       case 'Voltooi':
         return Colors.green;
       case 'Oop':
@@ -285,17 +288,5 @@ class _JobCardsPageState extends State<JobCardsPage> {
 
   String _formatDate(DateTime date) {
     return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
-  }
-
-  Future<void> _markAsCompleted(Jobcard job) async {
-    final success = await JobcardService.updateJobStatus(job.id, "Voltooi");
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? "Werkkaart suksesvol opgedateer" : "Kon nie status opdateer nie"),
-          backgroundColor: success ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
-    }
   }
 }

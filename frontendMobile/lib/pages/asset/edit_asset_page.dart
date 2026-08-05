@@ -8,7 +8,7 @@ import '../../models/room.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
-import '../../models/user_session.dart';
+import '../reporting/scan_page.dart';
 
 class EditAssetPage extends StatefulWidget {
   final Asset asset;
@@ -38,7 +38,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
   @override
   void initState() {
     super.initState();
-    _serialController.addListener(_enforceSerialPrefix);
     AssetTypeService.fetchTypes();
     final a = widget.asset;
     name = a.name;
@@ -68,7 +67,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
 
   @override
   void dispose() {
-    _serialController.removeListener(_enforceSerialPrefix);
     CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     _serialController.dispose();
     super.dispose();
@@ -90,16 +88,18 @@ class _EditAssetPageState extends State<EditAssetPage> {
     });
   }
 
-  void _enforceSerialPrefix() {
-    final text = _serialController.text;
-    if (text.isEmpty) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    } else if (!text.startsWith("AK ")) {
-      _serialController.text = "AK ";
-      _serialController.selection = TextSelection.fromPosition(const TextPosition(offset: 3));
-    }
-    serialCode = _serialController.text;
+  /// Skandeer 'n bestaande strepie-/QR-kode op die item en gebruik dit as die
+  /// bate se serienommer.
+  Future<void> _scanSerial() async {
+    final String? code = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ScanPage()),
+    );
+    if (code == null || code.isEmpty || !mounted) return;
+    setState(() {
+      _serialController.text = code;
+      serialCode = code;
+    });
   }
 
   String? _locationError;
@@ -236,14 +236,18 @@ class _EditAssetPageState extends State<EditAssetPage> {
                 const SizedBox(height: 20),
                 TextFormField(
                   controller: _serialController,
-                  decoration: _inputDecoration("Serienommer"),
+                  decoration: _inputDecoration("Serienommer").copyWith(
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
+                      tooltip: "Skandeer strepie-/QR-kode",
+                      onPressed: _scanSerial,
+                    ),
+                    helperText: "Skandeer 'n bestaande een of tik 'n kode.",
+                  ),
                   onChanged: (v) => serialCode = v,
                   validator: (v) {
-                    if (v == null || v.isEmpty) return "Vereis";
-                    final regex = RegExp(r'^AK [A-Za-z]{2}\d{6}$');
-                    if (!regex.hasMatch(v)) {
-                      return "Formaat moet AK XX000000 wees (bv. AK MT123456)";
-                    }
+                    if (v == null || v.trim().isEmpty) return "Vereis";
+                    if (v.trim().length > 20) return "Maks 20 karakters";
                     return null;
                   },
                 ),
@@ -270,14 +274,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   },
                 ),
                 const SizedBox(height: 20),
-                if (UserSession.hasAdminPrivileges) ...[
-                  TextFormField(
-                    initialValue: widget.asset.id,
-                    readOnly: true,
-                    decoration: _inputDecoration("Bate Kode"),
-                  ),
-                  const SizedBox(height: 20),
-                ],
                 Row(
                   children: [
                     const Text("Buite", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
@@ -335,7 +331,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
                         );
 
                         final success = await AssetService.updateAsset(updated);
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         if (success) {
                           Navigator.pop(context, true);
                         }

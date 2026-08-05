@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 import os
 
 import asyncio
@@ -15,6 +16,7 @@ from .db.seed import seed_data
 from .services.reminder_scheduler import reminder_loop
 
 from .middleware.idempotency import IdempotencyMiddleware
+from .middleware.security_headers import add_security_headers
 
 app = FastAPI(
     title="FBS Facility Management API", 
@@ -71,15 +73,7 @@ app.add_middleware(
 # =============================================================================
 
 # Security headers middleware
-@app.middleware("http")
-async def add_security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    response.headers["Cache-Control"] = "no-store"
-    return response
+app.add_middleware(BaseHTTPMiddleware, dispatch=add_security_headers)
 
 # Idempotency middleware — prevents duplicate POST submissions.
 # Must be added AFTER CORS so it runs inside CORS (outermost = first).

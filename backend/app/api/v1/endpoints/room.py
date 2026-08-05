@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.location import RoomRead, RoomCreate, RoomUpdate
 from ....models.user import User
@@ -11,7 +11,7 @@ from ....services.room_service import room_service
 router = APIRouter()
 
 @router.get("", response_model=List[RoomRead])
-def readRooms(session: Session = Depends(getSession), _user: User = Depends(require_right("rooms.manage"))):
+def readRooms(session: Session = Depends(getSession), _user: User = Depends(require_any_right("rooms.manage", "faults.create_own"))):
     #Fetch all rooms
     return room_service.getAll(session)
 

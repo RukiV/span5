@@ -38,7 +38,7 @@ _FIREBASE_INITIALIZED = _init_firebase()
 # --- Alle geldige kennisgewing-tipes wat die stelsel ken ---
 NOTIFICATION_TYPES = [
     "fault.created", "fault.assigned", "fault.resolved", "fault.status_changed",
-    "job.created", "job.assigned", "job.status_changed",
+    "job.created", "job.assigned", "job.status_changed", "job.completion_requested",
     "stock.low",
     "system.announcement",
     "calendar.reminder",
@@ -239,9 +239,13 @@ class NotificationService:
     def notify_location_users(self, location_id: int, notification_type: str, title: str, message: str,
                                actor_id: Optional[int] = None,
                                reference_type: Optional[str] = None, reference_id: Optional[int] = None):
+        from ..auth.rights_catalog import ROLE_CONTRACTOR
         from ..models.user import User
+        # Kontrakteurs word uitgesluit: hulle mag slegs kennisgewings ontvang wat
+        # direk aan hulle gerig is (bv. hul eie werksopdragte), nie terreinwye uitsaai nie.
         stmt = select(User).where(
             User.location_id == location_id,
+            User.role_id != ROLE_CONTRACTOR,
             User.user_status == "active",
         )
         users = self.session.exec(stmt).all()

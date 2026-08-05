@@ -27,6 +27,48 @@ def _fault_summary(session: Session, fault: Faultcard, max_desc_len: int = 60) -
             parts.append(f"({asset.asset_name})")
     return " — ".join(parts)
 
+
+def notify_fault_status_change(session: Session, fault: Faultcard, old_status, actor: User):
+    """Stuur die kennisgewings wat 'n foutkaartjie-statusverandering vergesel.
+
+    Gedeel deur PATCH /fault en die werksopdrag-kaskade (Wanneer 'n werksopdrag
+    voltooi word, word die gekoppelde foutkaartjie opgelos). Doen niks as die
+    status nie eintlik verander het nie.
+    """
+    if old_status == fault.fault_status:
+        return
+    notif_svc = NotificationService(session)
+    summary = _fault_summary(session, fault)
+    if fault.user_id:
+        notif_svc.create_notification(
+            user_id=fault.user_id,
+            notification_type="fault.status_changed",
+            title="Fout status verander",
+            message=f"{summary} status verander na {fault.fault_status.value}",
+            actor_id=actor.user_id,
+            reference_type="fault",
+            reference_id=fault.fault_id,
+        )
+    if fault.location_id:
+        notif_svc.notify_location_users(
+            location_id=fault.location_id,
+            notification_type="fault.status_changed",
+            title="Fout status verander",
+            message=f"{summary} status verander na {fault.fault_status.value}",
+            actor_id=actor.user_id,
+            reference_type="fault",
+            reference_id=fault.fault_id,
+        )
+    if fault.fault_status == FaultStatus.RESOLVED:
+        notif_svc.notify_admins(
+            notification_type="fault.resolved",
+            title="Fout opgelos",
+            message=f"{summary} opgelos deur {actor.user_name}",
+            actor_id=actor.user_id,
+            reference_type="fault",
+            reference_id=fault.fault_id,
+        )
+
 # Authorization is driven entirely by the rights system now (see
 # auth/permissions.py), not by raw role_id comparisons:
 #   - faults.manage_all : Admin/FK — see/edit/delete every fault card. Supersedes
@@ -109,42 +151,8 @@ def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depend
     if not fault:
         raise HTTPException(status_code=404, detail="Fault not found")
 
-    if (
-        faultIn.fault_status is not None
-        and old
-        and old_status != fault.fault_status
-    ):
-        notif_svc = NotificationService(session)
-        summary = _fault_summary(session, fault)
-        if fault.user_id:
-            notif_svc.create_notification(
-                user_id=fault.user_id,
-                notification_type="fault.status_changed",
-                title="Fout status verander",
-                message=f"{summary} status verander na {fault.fault_status.value}",
-                actor_id=user.user_id,
-                reference_type="fault",
-                reference_id=fault.fault_id,
-            )
-        if fault.location_id:
-            notif_svc.notify_location_users(
-                location_id=fault.location_id,
-                notification_type="fault.status_changed",
-                title="Fout status verander",
-                message=f"{summary} status verander na {fault.fault_status.value}",
-                actor_id=user.user_id,
-                reference_type="fault",
-                reference_id=fault.fault_id,
-            )
-        if fault.fault_status == FaultStatus.RESOLVED:
-            notif_svc.notify_admins(
-                notification_type="fault.resolved",
-                title="Fout opgelos",
-                message=f"{summary} opgelos deur {user.user_name}",
-                actor_id=user.user_id,
-                reference_type="fault",
-                reference_id=fault.fault_id,
-            )
+    if faultIn.fault_status is not None and old:
+        notify_fault_status_change(session, fault, old_status, user)
 
     return fault
 

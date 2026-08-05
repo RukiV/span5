@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
 from typing import Optional, Sequence
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
+from ..auth.rights_catalog import ROLE_CONTRACTOR
 from ..models.calendar_event import CalendarEvent, CalendarEventCreate, CalendarEventUpdate
 from ..models.job import Jobcard
+from ..models.user import User
 from .base_service import BaseService
 
 class CalendarService(BaseService[CalendarEvent, CalendarEventCreate, CalendarEventUpdate]):
@@ -29,21 +32,32 @@ class CalendarService(BaseService[CalendarEvent, CalendarEventCreate, CalendarEv
         return obj
 
     def get_events_in_range(
-        self, session: Session, start: datetime, end: datetime
+        self, session: Session, start: datetime, end: datetime, user: Optional[User] = None
     ) -> list[dict]:
-        calendar_events = session.exec(
-            select(CalendarEvent).where(
-                CalendarEvent.start_datetime >= start,
-                CalendarEvent.start_datetime <= end,
-            ).order_by(CalendarEvent.start_datetime.asc())
-        ).all()
+        is_contractor = user is not None and user.role_id == ROLE_CONTRACTOR
+
+        calendar_events: Sequence[CalendarEvent] = []
+        if not is_contractor:
+            calendar_events = session.exec(
+                select(CalendarEvent).where(
+                    CalendarEvent.start_datetime >= start,
+                    CalendarEvent.start_datetime <= end,
+                ).order_by(CalendarEvent.start_datetime.asc())
+            ).all()
+
+        job_query = select(Jobcard).where(
+            Jobcard.job_scheduled_datetime.isnot(None),
+            Jobcard.job_scheduled_datetime <= end,
+            or_(
+                Jobcard.job_scheduled_end_datetime.is_(None),
+                Jobcard.job_scheduled_end_datetime >= start,
+            ),
+        )
+        if is_contractor:
+            job_query = job_query.where(Jobcard.contractor_id == user.user_id)
 
         job_events = session.exec(
-            select(Jobcard).where(
-                Jobcard.job_scheduled_datetime.isnot(None),
-                Jobcard.job_scheduled_datetime >= start,
-                Jobcard.job_scheduled_datetime <= end,
-            ).order_by(Jobcard.job_scheduled_datetime.asc())
+            job_query.order_by(Jobcard.job_scheduled_datetime.asc())
         ).all()
 
         result = []

@@ -2,11 +2,13 @@ class Jobcard {
   static const Map<String, String> _statusLabels = {
     'Wag': 'Wag',
     'Oop': 'Oop',
+    'Geskeduleer': 'Geskeduleer',
     'Besig': 'Besig',
     'Voltooid': 'Voltooi',
     'Gekanselleer': 'Gekanselleer',
     'WAIT': 'Wag',
     'OPEN': 'Oop',
+    'SCHEDULED': 'Geskeduleer',
     'IN_PROGRESS': 'Besig',
     'COMPLETED': 'Voltooi',
     'CANCELLED': 'Gekanselleer',
@@ -15,6 +17,7 @@ class Jobcard {
   static const Map<String, String> _statusToBackend = {
     'Wag': 'Wag',
     'Oop': 'Oop',
+    'Geskeduleer': 'Geskeduleer',
     'Besig': 'Besig',
     'Voltooi': 'Voltooid',
     'Voltooid': 'Voltooid',
@@ -46,8 +49,11 @@ class Jobcard {
   final String? scheduleType;
   final int? assignedTo;
   final String? ccUsers;
+  final String? jobNotes;
   final int? quoteId;
   final List<int> quoteIds;
+  final String? assignedName;
+  final String? contractorName;
 
   Jobcard({
     required this.id,
@@ -71,8 +77,11 @@ class Jobcard {
     this.scheduleType,
     this.assignedTo,
     this.ccUsers,
+    this.jobNotes,
     this.quoteId,
     this.quoteIds = const [],
+    this.assignedName,
+    this.contractorName,
   });
 
   factory Jobcard.fromJson(Map<String, dynamic> json) {
@@ -116,8 +125,11 @@ class Jobcard {
       scheduleType: json['job_schedule_type'],
       assignedTo: json['assigned_to'],
       ccUsers: json['cc_users'],
+      jobNotes: json['job_notes'],
       quoteId: json['quote_id'],
       quoteIds: _parseQuoteIds(json['quote_ids']),
+      assignedName: json['assigned_name'],
+      contractorName: json['contractor_name'],
     );
   }
 
@@ -149,6 +161,7 @@ class Jobcard {
         'job_scheduled_datetime': scheduledDatetime!.toIso8601String(),
       if (finishedDatetime != null)
         'job_finisheddatetime': finishedDatetime!.toIso8601String(),
+      if (jobNotes != null) 'job_notes': jobNotes,
     };
   }
 
@@ -175,8 +188,11 @@ class Jobcard {
     String? scheduleType,
     int? assignedTo,
     String? ccUsers,
+    String? jobNotes,
     int? quoteId,
     List<int>? quoteIds,
+    String? assignedName,
+    String? contractorName,
   }) {
     return Jobcard(
       id: id ?? this.id,
@@ -200,8 +216,11 @@ class Jobcard {
       scheduleType: scheduleType ?? this.scheduleType,
       assignedTo: assignedTo ?? this.assignedTo,
       ccUsers: ccUsers ?? this.ccUsers,
+      jobNotes: jobNotes ?? this.jobNotes,
       quoteId: quoteId ?? this.quoteId,
       quoteIds: quoteIds ?? this.quoteIds,
+      assignedName: assignedName ?? this.assignedName,
+      contractorName: contractorName ?? this.contractorName,
     );
   }
 }

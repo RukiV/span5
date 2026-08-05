@@ -151,6 +151,14 @@ function WorkOrderPage() {
 
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
 
+  // Voeg 'n gebruiker by die CC-lys (sonder duplikate); ongeldige id's word geïgnoreer.
+  const addCcUser = (cc, userId) => {
+    const list = Array.isArray(cc) ? cc : [];
+    const id = Number(userId);
+    if (id && !list.includes(id)) return [...list, id];
+    return list;
+  };
+
   const applyTicketSelectionToForm = (ticket) => {
     if (!ticket) return;
 
@@ -192,12 +200,13 @@ function WorkOrderPage() {
       job_status: "Oop",
       brief_description: briefDesc,
       job_notes: details,
-      nature: ticket.fault_type || "",
+      nature: ticket.nature || "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       location_id: detectedSiteId ? String(detectedSiteId) : "",
       fault_id: ticket.fault_id ? String(ticket.fault_id) : "",
+      cc_users: addCcUser(prev.cc_users, ticket.user_id),
     }));
 
     setConnectionType("fault");
@@ -1292,6 +1301,7 @@ function WorkOrderPage() {
     if (status === "Voltooid") return "status-completed";
     if (status === "Oop") return "status-open";
     if (status === "Wag") return "status-wait";
+    if (status === "Geskeduleer") return "status-scheduled";
     return "status-default";
   };
 
@@ -1849,7 +1859,8 @@ function WorkOrderPage() {
                                 location_id: ticket?.location_id || "",
                                 building_id: ticket?.building_id || "",
                                 room_id: ticket?.room_id || "",
-                                asset_id: ticket?.asset_id || ""
+                                asset_id: ticket?.asset_id || "",
+                                cc_users: addCcUser(formData.cc_users, ticket?.user_id)
                               });
                             }}
                             options={(tickets || []).filter(ticket=>{

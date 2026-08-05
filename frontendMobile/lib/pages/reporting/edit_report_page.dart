@@ -38,7 +38,7 @@ class _EditReportPageState extends State<EditReportPage> {
   final List<File> _newPhotos = [];
   bool _imagesLoading = true;
 
-  final List<String> _categories = ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"];
+  final List<String> _categories = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
   final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
 
@@ -47,7 +47,7 @@ class _EditReportPageState extends State<EditReportPage> {
     super.initState();
     _titleController = TextEditingController(text: widget.report.title);
     _descriptionController = TextEditingController(text: widget.report.description);
-    _category = _categories.contains(widget.report.category) ? widget.report.category : "Ander";
+    _category = _categories.contains(widget.report.category) ? widget.report.category : "Onderhoud";
     _priority = widget.report.priority;
     _status = widget.report.phase;
     _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
@@ -267,7 +267,7 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Expanded(child: _buildDropdown("Kategorie", _category, _categories, (val) => setState(() => _category = val!))),
+                        Expanded(child: _buildDropdown("Werksoort", _category, _categories, (val) => setState(() => _category = val!))),
                         const SizedBox(width: 12),
                         Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities, (val) => setState(() => _priority = val!))),
                       ],

@@ -35,6 +35,7 @@ class _NotificationPreferencesPageState
       _PrefItem('job.created', 'Werksopdrag Geskep'),
       _PrefItem('job.assigned', 'Werksopdrag Toegewys'),
       _PrefItem('job.status_changed', 'Status Verandering'),
+      _PrefItem('job.completion_requested', 'Werksopdrag Voltooiingsversoek'),
     ]),
     _PrefGroup('Voorraad', [
       _PrefItem('stock.low', 'Lae Voorraad'),

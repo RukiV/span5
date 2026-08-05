@@ -37,7 +37,7 @@ class JobcardService {
     return null;
   }
 
-  static int get openCount => _jobcards.where((j) => j.status == 'Oop' || j.status == 'Wag').length;
+  static int get openCount => _jobcards.where((j) => j.status == 'Oop' || j.status == 'Wag' || j.status == 'Geskeduleer').length;
   static int get inProgressCount => _jobcards.where((j) => j.status == 'Besig').length;
   static int get completedCount => _jobcards.where((j) => j.status == 'Voltooi').length;
 
@@ -116,5 +116,45 @@ class JobcardService {
       debugPrint("Fout met opdatering van werksopdrag: $e");
     }
     return null;
+  }
+
+  /// Kontrakteur stoor sy werknotas by die werksopdrag.
+  static Future<bool> updateJobNotes(int jobId, String notes) async {
+    try {
+      final response = await ApiClient().client.patch('/job/$jobId', data: {'job_notes': notes});
+      if (response.statusCode == 200) {
+        final updated = Jobcard.fromJson(response.data);
+        final index = _jobcards.indexWhere((j) => j.id == jobId);
+        if (index != -1) {
+          _jobcards[index] = updated;
+          jobcardsNotifier.value = List.from(_jobcards);
+        }
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Fout met stoor van werknotas: $e");
+    }
+    return false;
+  }
+
+  /// Kontrakteur versoek die verantwoordelike personeellid om die werksopdrag
+  /// te voltooi. 'n Pending X-Idempotency-Key voorkom duplikaat-versoeke.
+  static String? _pendingCompleteKey;
+
+  static Future<bool> requestCompletion(int jobId) async {
+    _pendingCompleteKey ??= Idempotency.generate();
+    try {
+      final response = await ApiClient().client.post(
+        '/job/$jobId/complete-request',
+        options: Options(headers: {'X-Idempotency-Key': _pendingCompleteKey!}),
+      );
+      if (response.statusCode == 200) {
+        _pendingCompleteKey = null;
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Fout met voltooiingsversoek: $e");
+    }
+    return false;
   }
 }

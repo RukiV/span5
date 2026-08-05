@@ -56,7 +56,7 @@ def _fallback_suggestions(page: str, context: dict) -> list[Suggestion]:
             ))
 
     for j in raw_jobs:
-        if j.get("job_status") in ("Oop", "oop", "Pending", "pending") and not j.get("assigned_to"):
+        if j.get("job_status") in ("Oop", "oop", "Pending", "pending", "Geskeduleer", "geskeduleer", "SCHEDULED", "scheduled") and not j.get("assigned_to"):
             suggestions.append(Suggestion(
                 type="assign_job",
                 label=f"Ken werksopdrag #{j.get('jobcard_id')} aan my toe",
@@ -475,7 +475,7 @@ def _gather_context(page: str, session,
         for j in jobs:
             s = _enum_val(j.job_status)
             status_counts[s] = status_counts.get(s, 0) + 1
-            if s in ("Oop", "oop", "Pending", "pending"):
+            if s in ("Oop", "oop", "Pending", "pending", "Geskeduleer", "geskeduleer", "SCHEDULED", "scheduled"):
                 ctx["pending"] += 1
             elif s in ("Voltooid", "Voltooi", "voltooi", "Completed", "completed"):
                 ctx["completed"] += 1

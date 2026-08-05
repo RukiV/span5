@@ -1,5 +1,6 @@
 """Security feature tests — password hashing, lockout, revocation, reset, encryption, headers."""
 
+import hashlib
 import os
 import time
 from datetime import datetime, timedelta
@@ -162,20 +163,29 @@ class TestPasswordReset:
         })
         assert resp.status_code == 200
 
-    def test_reset_password_full_cycle(self, client, seeded, engine):
+    def test_reset_password_full_cycle(self, client, seeded, engine, monkeypatch):
         email = seeded["emails"]["fk"]
+        raw_token = "known-raw-reset-token"
+        # The endpoint never stores the raw token (only its SHA-256 hash), so pin
+        # the RNG to make the full cycle deterministic.
+        monkeypatch.setattr(
+            "app.api.v1.endpoints.auth.secrets.token_urlsafe", lambda n: raw_token
+        )
         client.post("/api/v1/auth/forgot-password", json={"user_email": email})
 
         with Session(engine) as session:
             token_row = session.exec(
                 select(PasswordResetToken).where(
                     PasswordResetToken.user_id == seeded["ids"]["fk"]
-                ).order_by(PasswordResetToken.created_at.desc())
+                ).order_by(PasswordResetToken.reset_id.desc())
             ).first()
             assert token_row is not None
+            assert token_row.token_hash == hashlib.sha256(
+                raw_token.encode("utf-8")
+            ).hexdigest()
 
         resp = client.post("/api/v1/auth/reset-password", json={
-            "token": token_row.token,
+            "token": raw_token,
             "new_password": "NewPass@123",
         })
         assert resp.status_code == 200
@@ -186,22 +196,19 @@ class TestPasswordReset:
         })
         assert login_resp.status_code == 200
 
-    def test_reset_password_used_token_fails(self, client, seeded, engine):
+    def test_reset_password_used_token_fails(self, client, seeded, engine, monkeypatch):
         email = seeded["emails"]["fk"]
+        raw_token = "known-raw-reset-token"
+        monkeypatch.setattr(
+            "app.api.v1.endpoints.auth.secrets.token_urlsafe", lambda n: raw_token
+        )
         client.post("/api/v1/auth/forgot-password", json={"user_email": email})
 
-        with Session(engine) as session:
-            token_row = session.exec(
-                select(PasswordResetToken).where(
-                    PasswordResetToken.user_id == seeded["ids"]["fk"]
-                ).order_by(PasswordResetToken.created_at.desc())
-            ).first()
-
         client.post("/api/v1/auth/reset-password", json={
-            "token": token_row.token, "new_password": "NewPass@123",
+            "token": raw_token, "new_password": "NewPass@123",
         })
         resp2 = client.post("/api/v1/auth/reset-password", json={
-            "token": token_row.token, "new_password": "Another@123",
+            "token": raw_token, "new_password": "Another@123",
         })
         assert resp2.status_code == 400
 

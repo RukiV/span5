@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
 
-from ....auth.permissions import require_right
+from ....auth.permissions import require_right, require_any_right
 from ....db.database import getSession
 from ....models.asset import AssetRead, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ....models.user import User
@@ -20,7 +20,7 @@ def readAssetStatusSummary(session: Session = Depends(getSession), _user: User =
     return assets_service.getStatusSummary(session)
 
 @router.get("/{assetID}", response_model=AssetRead)
-def readAsset(assetID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("assets.manage"))):
+def readAsset(assetID: int, session: Session = Depends(getSession), _user: User = Depends(require_any_right("assets.manage", "faults.create_own"))):
     #Fetch single asset by id
     asset = assets_service.getByID(session, assetID)
     if not asset:
@@ -34,7 +34,7 @@ def readAssetHistory(assetID: int, session: Session = Depends(getSession), _user
     return assets_service.getHistory(session, assetID)
 
 @router.get("/serial/{serial}", response_model=AssetRead)
-def readAssetBySerial(serial: str, session: Session = Depends(getSession), _user: User = Depends(require_right("assets.manage"))):
+def readAssetBySerial(serial: str, session: Session = Depends(getSession), _user: User = Depends(require_any_right("assets.manage", "faults.create_own"))):
     #Fetch asset by serial code
     asset = assets_service.getBySerial(session, serial)
     if not asset:
