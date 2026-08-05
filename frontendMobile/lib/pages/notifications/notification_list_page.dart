@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
+import '../../models/user_session.dart';
+import '../../services/jobcard_service.dart';
 import '../../services/notification_service.dart';
+import '../jobcards/jobcard_detail_page.dart';
+import '../jobcards/jobcard_form_page.dart';
 import 'notification_preferences_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
@@ -149,7 +153,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
     }
   }
 
-  void _handleTap(AppNotification notif) {
+  Future<void> _handleTap(AppNotification notif) async {
     NotificationService.markAsRead(notif.notificationId);
     setState(() {
       final idx = _notifications.indexWhere(
@@ -168,6 +172,27 @@ class _NotificationListPageState extends State<NotificationListPage> {
         );
       }
     });
+
+    // Werksopdrag-kennisgewings skakel deur na die werksopdrag self:
+    // kontrakteurs kry die kontrakteur-aansig, FK/Admin die wysigingsvorm.
+    if (notif.referenceType == 'job' && notif.referenceId != null) {
+      if (JobcardService.jobcardsNotifier.value.isEmpty) {
+        await JobcardService.fetchJobs();
+      }
+      if (!mounted) return;
+      final job = JobcardService.jobcardsNotifier.value
+          .where((j) => j.id == notif.referenceId)
+          .firstOrNull;
+      if (job == null) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserSession.isContractor
+              ? JobcardDetailPage(job: job)
+              : JobcardFormPage(jobcard: job),
+        ),
+      );
+    }
   }
 
   @override
