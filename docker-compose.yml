@@ -19,6 +19,9 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    # Resolve host.docker.internal so OLLAMA_URL can reach the host's Ollama.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-CHANGE_ME_STRONG_PASSWORD}@postgres:5432/facility_db?sslmode=prefer
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-your_client_id_here}

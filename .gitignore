@@ -37,3 +37,4 @@ GIT_101.md
 MICROSOFT_LOGIN_SETUP.md
 WIRELESS_SETUP.md
 fix-rbac-prompt.md
+.pytest_cache
