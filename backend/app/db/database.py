@@ -4,6 +4,7 @@ from sqlmodel import create_engine, Session, SQLModel
 
 # Import models so SQLModel.metadata.create_all() picks them up
 from ..models.idempotency import IdempotencyRecord  # noqa: F401
+from ..models.faultdraft import FaultDraft  # noqa: F401
 
 # Database Configuration
 # Prefer a full DATABASE_URL, otherwise build one from individual env vars.
@@ -93,6 +94,8 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_2 INTEGER"))
             if "image_id_3" not in columns:
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_3 INTEGER"))
+            if "duplicate_of" not in columns:
+                connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS duplicate_of INTEGER"))
             # Brei die fault_type PostgreSQL-enum uit vir die nuwe werksoort-
             # waardes (Inspeksie/Installasie). SQLAlchemy stoor die enum-lidname
             # (MAINTENANCE/REPAIR/...), so bestaande rye word nie geraak nie.

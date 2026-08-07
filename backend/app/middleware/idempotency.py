@@ -89,6 +89,12 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         "/api/v1/users",
         "/api/v1/calendar",
         "/api/v1/room-checks",
+        # /api/v1/ai is deliberately NOT idempotent-protected: the dedup key
+        # hashes (method, path, body) without the user, so two students
+        # submitting identical free text would collide and one would receive
+        # the other's draft. Draft creation is cheap and the FK/Admin review
+        # actions are governed by the draft's own state (409 "already
+        # reviewed"), so the business logic owns double-submit handling here.
     }
 
     @staticmethod
