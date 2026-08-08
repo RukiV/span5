@@ -268,6 +268,15 @@ export const documentsAPI = {
   delete: (documentId) => apiClient.delete(`/documents/${documentId}`),
 };
 
+// ===== AI FOUTDRAFTS-API =====
+export const faultDraftsAPI = {
+  create: (data) => apiClient.post('/ai', data),
+  getAll: (params) => apiClient.get('/ai', { params }),
+  getById: (id) => apiClient.get(`/ai/${id}`),
+  approve: (id, data) => apiClient.post(`/ai/${id}/approve`, data),
+  reject: (id, data) => apiClient.post(`/ai/${id}/reject`, data),
+};
+
 // ===== LOKAAL KONTROLE-API =====
 export const roomChecksAPI = {
   getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
@@ -303,6 +312,7 @@ apiClient.image = imageAPI;
 apiClient.documents = documentsAPI;
 apiClient.calendarEvents = calendarEventsAPI;
 apiClient.roomChecks = roomChecksAPI;
+apiClient.faultDrafts = faultDraftsAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

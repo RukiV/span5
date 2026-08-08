@@ -309,6 +309,8 @@ def approveDraft(
             session, draft_id,
             resolved={"asset_id": final_asset, "room_id": final_room},
             duplicate_of=draft.duplicate_of,
+            title=payload.title,
+            work_instruction=payload.work_instruction,
         )
     except Exception:
         faultdraft_service.revert_claim(session, draft_id)
