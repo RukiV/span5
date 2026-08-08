@@ -76,9 +76,13 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
 
     def finalize_review(self, session: Session, draft_id: int, *,
                         review_note: str = "", resolved: Optional[dict] = None,
-                        duplicate_of: Optional[int] = None) -> FaultDraft:
-        """Write the review details (reason, resolved ids, duplicate link) onto
-        a draft that ``claim_review`` already flipped. No status change."""
+                        duplicate_of: Optional[int] = None,
+                        title: Optional[str] = None,
+                        work_instruction: Optional[str] = None) -> FaultDraft:
+        """Write the review details (reason, resolved ids, duplicate link,
+        reviewer overrides) onto a draft that ``claim_review`` already flipped.
+        No status change. ``title`` / ``work_instruction`` are the reviewer's
+        inline edits — persisted so they are not silently lost."""
         draft = session.get(FaultDraft, draft_id)
         if not draft:
             raise ValueError("Draft not found")
@@ -90,6 +94,10 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
             draft.resolved_room_id = resolved.get("room_id", draft.resolved_room_id)
         if duplicate_of is not None:
             draft.duplicate_of = duplicate_of
+        if title is not None:
+            draft.title = title
+        if work_instruction is not None:
+            draft.work_instruction = work_instruction
         draft.updated_at = datetime.utcnow()
         session.add(draft)
         try:
@@ -98,7 +106,7 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
                 session,
                 "update",
                 {"previous_value": {"status": before["status"]}, "new_value": draft.model_dump(mode="json")},
-                affected_columns=["review_note", "resolved_asset_id", "resolved_room_id", "duplicate_of"],
+                affected_columns=["review_note", "resolved_asset_id", "resolved_room_id", "duplicate_of", "title", "work_instruction"],
                 user_id=draft.reviewer_id,
                 affected_id=draft.draft_id,
                 json_data=draft.model_dump(mode="json"),

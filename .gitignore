@@ -25,7 +25,9 @@ webblad/
 frontendMobile/skills/
 backend/uploads/
 backend/firebase-service-account.json
+backend/data/
 AGENTS.md
+AI_PLAN.md
 .agents/
 .agents
 skills-lock.json

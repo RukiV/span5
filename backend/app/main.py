@@ -11,8 +11,9 @@ import os
 
 import asyncio
 from .api.api import api_router
-from .db.database import createDBandTables, purge_expired_revoked_tokens
+from .db.database import createDBandTables, engine, purge_expired_revoked_tokens
 from .db.seed import seed_data
+from .services import auto_draft_scheduler, survival_service
 from .services.reminder_scheduler import reminder_loop
 
 from .middleware.idempotency import IdempotencyMiddleware
@@ -46,7 +47,18 @@ async def onStartup():
 
     seed_data()
 
+    # Survival layer (Phase 2c): train/load on boot when the data has enough
+    # signal. Guarded off for tests (tests use their own in-memory engine).
+    if os.getenv("ENVIRONMENT", "development") != "test":
+        asyncio.create_task(asyncio.to_thread(survival_service.maybe_train, engine))
+
     asyncio.create_task(reminder_loop())
+
+    if auto_draft_scheduler.AI_AUTO_DRAFT_ENABLED:
+        asyncio.create_task(auto_draft_scheduler.auto_draft_loop())
+
+    if survival_service.is_enabled():
+        asyncio.create_task(survival_service.maybe_retrain_loop())
 
 origins = [
     "http://localhost:3000",
