@@ -34,7 +34,14 @@ export function NotificationProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
   const prevCountRef = useRef(0);  // hou vorige telling om toename te bespeur
+  const latestRef = useRef([]);    // hou vorige lys (sonder om state-deps te verander)
   const { showToast } = useToast();
+  const showToastRef = useRef(showToast);
+
+  // Hou die nuutste showToast in 'n ref sodat fetchUnread stabiel bly
+  useEffect(() => {
+    showToastRef.current = showToast;
+  }, [showToast]);
 
   // --- Haal die ongelees-telling + nuutste 5 van die bediener ---
   const fetchUnread = useCallback(async () => {
@@ -44,16 +51,17 @@ export function NotificationProvider({ children }) {
       const res = await apiClient.get('/notifications/unread');
       const data = res.data;
       setUnreadCount(data.unread_count);
-      setLatestNotifs(data.latest || []);
+      const newLatest = data.latest || [];
+      setLatestNotifs(newLatest);
 
       // --- Wys 'n toast as die telling toegeneem het (nuwe kennisgewing) ---
       // prevCountRef > 0 keer dat die eerste laai nie 'n vloed toasts stuur nie
       if (prevCountRef.current > 0 && data.unread_count > prevCountRef.current) {
-        const newNotifs = (data.latest || []).filter(
-          n => !latestNotifs.find(old => old.notification_id === n.notification_id)
+        const newNotifs = newLatest.filter(
+          n => !latestRef.current.find(old => old.notification_id === n.notification_id)
         );
         newNotifs.forEach(n => {
-          showToast({
+          showToastRef.current({
             type: 'info',
             title: TYPE_LABELS[n.notification_type] || 'Kennisgewing',
             message: n.title,
@@ -62,6 +70,7 @@ export function NotificationProvider({ children }) {
         });
       }
       prevCountRef.current = data.unread_count;
+      latestRef.current = newLatest;
     } catch (err) {
       if (err.response?.status !== 401) {
         console.warn('Polling notifications failed:', err);
@@ -69,7 +78,7 @@ export function NotificationProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [showToast, latestNotifs]);
+  }, []);
 
   // --- Begin / stop polling wanneer die komponent monteer/ontmonteer ---
   useEffect(() => {
