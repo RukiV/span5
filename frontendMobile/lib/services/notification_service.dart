@@ -183,9 +183,10 @@ class NotificationService {
   // --- Registreer 'n FCM-toestel-token ---
   static Future<bool> registerDeviceToken(String token) async {
     try {
+      final platform = defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
       await _api.client.post('/notifications/device-token', data: {
         'fcm_token': token,
-        'platform': 'android',
+        'platform': platform,
       });
       return true;
     } catch (e) {
