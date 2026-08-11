@@ -70,6 +70,26 @@ flutter run -d <device-id>
 
 The S22 Ultra should be listed as a device. `flutter run` builds the app and installs it wirelessly. Rebuilds/hot reload (`r`) also work over the wireless connection.
 
+### Fast path: both devices at once
+
+Backend (postgres + backend, no web frontend) + launch on **all** connected devices:
+
+```bash
+./scripts/dev-mobile.sh
+```
+
+Equivalent manual steps:
+
+```bash
+docker compose up -d postgres backend          # backend up in seconds, no --build
+cd frontendMobile
+flutter run -d all --dart-define=API_URL=http://<mac-ip>:8000/api/v1
+```
+
+- `-d all` launches on the S22 and any other connected device (e.g. iPhone) simultaneously; hot reload (`r`) hits both.
+- `API_URL` via `--dart-define` overrides `.env`, so no file edits when your Mac's IP changes.
+- Rebuild Docker images only when `backend/requirements.txt` changes: `docker compose build backend`.
+
 ## Troubleshooting
 
 **"adb: no devices/emulators found"**

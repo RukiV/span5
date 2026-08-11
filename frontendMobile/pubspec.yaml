@@ -53,6 +53,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  config:
+    enable-lldb-debugging: false
+
   assets:
     - .env
     - assets/images/kampus_kaart.png

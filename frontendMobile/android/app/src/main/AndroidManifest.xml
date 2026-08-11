@@ -39,8 +39,8 @@
 
                 <data
                     android:scheme="msauth"
-                    android:host="com.example.untitled"
-                    android:path="/xc13Rb9XZfaL0EqEJWzx78ijaeM%3D" />
+                    android:host="com.fbs.akademiafbs"
+                    android:pathPrefix="/%2B34jsPvrOFoH3Nt1TvORlteS4Dc%3D" />
             </intent-filter>
         </activity>
         <meta-data

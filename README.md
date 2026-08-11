@@ -25,7 +25,7 @@ of skep die .env leers self en kopieer die inhoud van die .env.example files oor
 
 Maak docker desktop oop.
 
-Run "docker compose up --build" in root van folder.
+Run "docker compose --profile web up --build" in root van folder.
 
 Wag tot Application startup complete wys en alle seed rekords ingelaai is.
 
@@ -33,18 +33,34 @@ Webblad kan opgemaak word op localhost:3000.
 
 (As probleme kry run docker compose down --volumes oor auditlogging probleme kan veroorsaak as jy ou volumes het. )
 
-#### Vir mobile om te werk:
-
-Moet jy 'n foon connected met usb debugging hê.
-
-Hardloop die volgende commands in terminal in die root van die folder:
+#### Vir mobile alleen (vinniger — geen web-frontend nie)
 
 ```shell
-cd frontendMobile
-pip install -r requirements.txt
-flutter pub get
-flutter run
+docker compose up -d postgres backend
 ```
+
+Backend code veranderings word outomaties herlaai (uvicorn --reload + bind mount).
+Moenie `--build` gebruik nie, tensy `backend/requirements.txt` verander het — dan:
+`docker compose build backend`.
+
+#### Vir mobile om te werk:
+
+Hardloop die volgende command in terminal in die root van die folder:
+
+```shell
+./scripts/dev-mobile.sh
+```
+
+Hierdie skrip:
+1. Begin `postgres` + `backend` (geen web-frontend nie).
+2. Wag vir die backend op :8000.
+3. Bepaal die Mac se LAN-IP outomaties.
+4. Hardloop die app op AL die gekoppelde toestelle gelyktydig met
+   `flutter run -d all --dart-define=API_URL=http://<mac-ip>:8000/api/v1`.
+
+Gebruik `r` vir hot reload / `R` vir hot restart in die sessie — die verandering
+word dadelik op albei fone toegepas sonder om die app weer te installeer.
+Gee die IP handmatig deur as `./scripts/dev-mobile.sh <mac-ip>`.
 
 Note: As probleme ervaar met requirements.txt install. Is daar 'n goeie kans jy kan net verder aangaan met die volgende command.
 
@@ -62,7 +78,7 @@ Hierdie opstelling is nodig as jy die stelsel vir 'n nuwe omgewing ontplooi (nie
 ### Stap 2: Registreer die Android-app
 
 1. In die Firebase Console, klik die Android-ikoon om 'n Android-app by te voeg
-2. **Android package name**: `com.example.fbs` (of wat ook al in `frontendMobile/android/app/build.gradle` se `applicationId` staan)
+2. **Android package name**: `com.fbs.akademiafbs` (sien `frontendMobile/android/app/build.gradle` se `applicationId`)
 3. **App nickname**: "FBS Mobile"
 4. **Debug signing certificate SHA-1**: Los oop (opsioneel)
 5. Laai die `google-services.json` af en plaas dit in:
@@ -74,9 +90,16 @@ Hierdie opstelling is nodig as jy die stelsel vir 'n nuwe omgewing ontplooi (nie
 ### Stap 3: (Opsioneel) Registreer die iOS-app
 
 1. In Firebase Console, klik die iOS-ikoon
-2. **iOS bundle ID**: `com.example.fbs` (of wat in Xcode se projektelling staan)
+2. **iOS bundle ID**: `com.span5.app` (sien Xcode se projektelling)
 3. Laai die `GoogleService-Info.plist` af en plaas dit in `frontendMobile/ios/Runner/`
-4. **Pas op**: As jy iOS ondersteun, moet jy ook die APNs-sleutel in Firebase oplaai
+4. **Belangrik**: Voeg die plist by die Xcode-projek — in Xcode, sleep die lêer na
+   die `Runner`-groep en merk die `Runner`-target (Target Membership → Runner) sodat
+   dit saam met die app gebundel word. Sonder hierdie lêer werk die app nog steeds
+   op iOS, maar FCM-stootkennisgewings is af (die app log 'n fout en gaan voort).
+5. **Pas op**: As jy iOS ondersteun, moet jy ook die APNs-sleutel in Firebase oplaai
+   (Project Settings → Cloud Messaging → APNs). Die app stuur `platform: "ios"` op
+   die `POST /notifications/device-token`-oproep, so die backend kan iOS-toestelle
+   korrek rig.
 
 ### Stap 4: Skep 'n Firebase Admin SDK-rekening (vir die backend)
 

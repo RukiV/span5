@@ -37,6 +37,7 @@ class MicrosoftTokenRequest(BaseModel):
 class CurrentUserRead(UserRead):
     rights: list[str] = []
     unread_notifications_count: int = 0
+    location_name: Optional[str] = None
 
 
 def _get_bearer_token(request: Request) -> Optional[str]:
@@ -91,9 +92,16 @@ def _check_system_access(user: User, request: Request):
 def current_user(user: User = Depends(get_current_user), session: Session = Depends(getSession)):
     rights = sorted(get_rights_for_role(session, user.role_id))
     from ....services.notification_service import NotificationService
+    from ....models.location import Location
     notif_svc = NotificationService(session)
     unread_count = notif_svc.get_unread_count(user.user_id)
-    return CurrentUserRead(**user.model_dump(), rights=rights, unread_notifications_count=unread_count)
+    location_name = None
+    if user.location_id is not None:
+        loc = session.get(Location, user.location_id)
+        location_name = loc.location_name if loc else None
+    return CurrentUserRead(**user.model_dump(), rights=rights,
+                           unread_notifications_count=unread_count,
+                           location_name=location_name)
 
 
 @router.post("/logout")
