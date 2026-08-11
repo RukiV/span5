@@ -38,6 +38,14 @@
   display: none;
 }
 
+.app-content.panel-open {
+  /* Size the panel's grid track (not the item) so the percentage resolves
+     against the container, matching DragHandle's calc. A percentage width on
+     the item itself would resolve against the auto track -> cyclic sizing
+     that squishes the panel. */
+  grid-template-columns: 1fr auto var(--analytics-width, 33.33%);
+}
+
 .app-content.panel-open .drag-handle {
   grid-column: 2;
   grid-row: 2;
@@ -46,8 +54,8 @@
 .app-content.panel-open .analytics-inline-panel {
   grid-column: 3;
   grid-row: 2;
-  width: var(--analytics-width, 33.33%);
-  max-width: var(--analytics-width, 33.33%);
+  width: 100%;
+  max-width: 100%;
   overflow-y: auto;
   border-left: 1px solid #e8d8c4;
   background: #f4f7fc;

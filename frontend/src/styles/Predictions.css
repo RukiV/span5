@@ -3,6 +3,7 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .pred-kpi-card {
@@ -53,6 +54,13 @@
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+}
+
+/* Floor the table width so the wrapper scrolls horizontally when the
+   analytics panel shrinks the content area instead of squishing columns. */
+.predictions-table-wrapper .standard-table {
+  min-width: 800px;
 }
 
 .pred-badge {
@@ -112,6 +120,10 @@
 
 .pred-detail-section strong {
   color: #6b3f1d;
+}
+
+.pred-muted {
+  color: #6f6f6f;
 }
 
 .pred-reason {

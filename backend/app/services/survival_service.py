@@ -66,8 +66,9 @@ _model_trained_at: datetime | None = None
 _trained_signature: dict | None = None
 
 #: Minimums before the model may be trained (guards against noise fits).
-_MIN_ASSETS = 50
-_MIN_EVENTS = 10 * len(FEATURE_NAMES)  # 8 features -> 80 events
+#: Env-overridable so dev can lower them to demo on small datasets.
+_min_assets = int(os.getenv("AI_SURVIVAL_MIN_ASSETS", "50"))
+_min_events = int(os.getenv("AI_SURVIVAL_MIN_EVENTS", str(10 * len(FEATURE_NAMES))))  # 8 features -> 80 events
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +190,7 @@ def maybe_train(engine) -> None:
     Signature-gated: when the DB fingerprint is unchanged since the last
     evaluation (whether that ended in a fit or a sparse-data disable) we no-op,
     so a quiet database does not rebuild the training set every interval.
-    Sparse data (fewer than ``_MIN_ASSETS`` assets or ``_MIN_EVENTS`` events)
+    Sparse data (fewer than ``_min_assets`` assets or ``_min_events`` events)
     clears the model and records the signature anyway — the layer stays
     rules-only, but the next pass after real data arrives is cheap.
     """
@@ -214,14 +215,16 @@ def maybe_train(engine) -> None:
         assets = signature["assets"]
         events = int(y["event"].sum())
 
-        if not _SK_SURV_OK or assets < _MIN_ASSETS or events < _MIN_EVENTS:
+        if not _SK_SURV_OK or assets < _min_assets or events < _min_events:
             _clear_model_state()
             _trained_signature = signature
             _write_signature(signature)
             logger.info(
-                "Survival-model: onvoldoende data (%s bates, %s gebeurtenisse) — reëls-only.",
+                "Survival-model: onvoldoende data (%s bates, %s gebeurtenisse; minimum %s/%s) — reëls-only.",
                 assets,
                 events,
+                _min_assets,
+                _min_events,
             )
             return
 
