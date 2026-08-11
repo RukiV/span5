@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../ai/ai_draft_queue_page.dart';
 import '../reporting/reporting_page.dart';
 import '../asset/asset_page.dart';
 import '../stock/stock_page.dart';
@@ -131,6 +132,11 @@ class _HomePageState extends State<HomePage> {
     // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
     if (can('faults.create_own') || can('faults.view_own') || can('faults.manage_all')) {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
+    }
+
+    // AI Konsepte — FK/Admin keur AI-gegenereerde foutkonsepte goed/verwerp.
+    if (can('ai.approve')) {
+      menu.add({'title': 'AI Konsepte', 'icon': Icons.auto_awesome_outlined, 'page': const AIDraftQueuePage()});
     }
 
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
