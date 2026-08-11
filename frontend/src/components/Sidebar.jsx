@@ -5,7 +5,7 @@ import {
   IoGridOutline, IoBusinessOutline, IoCubeOutline, IoConstructOutline,
   IoMapOutline, IoLocationOutline, IoWarningOutline, IoDocumentTextOutline,
   IoCalendarOutline, IoBarChartOutline, IoDocumentsOutline, IoPeopleOutline,
-  IoShieldOutline, IoKeyOutline, IoLogOutOutline, IoSparkles,
+  IoShieldOutline, IoKeyOutline, IoLogOutOutline,
 } from "react-icons/io5";
 
 function Sidebar({ currentPath, onLogout }) {
@@ -51,7 +51,6 @@ function Sidebar({ currentPath, onLogout }) {
         )}
 
         {can('faults.manage_all') && <li><Link to="/fault-tickets" className={isActive('/fault-tickets')}><IoWarningOutline style={ic} />Foutkaartjies</Link></li>}
-        {can('ai.approve') && <li><Link to="/ai-drafts" className={isInGroup(['/ai-drafts'])}><IoSparkles style={ic} />AI Foutkonsepte</Link></li>}
         {can('jobs.manage') && <li><Link to="/work-orders" className={isActive('/work-orders')}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
         {can('calendar.view') && <li><Link to="/calendar" className={isActive('/calendar')}><IoCalendarOutline style={ic} />Kalender</Link></li>}
         {can('predictions.view') && <li><Link to="/predictions" className={isActive('/predictions')}><IoBarChartOutline style={ic} />Voorspellings</Link></li>}
