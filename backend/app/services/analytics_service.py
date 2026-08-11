@@ -336,6 +336,65 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
             suggestions=[],
         )
 
+    elif page == "predictions":
+        total = context.get("total", 0)
+        replacement_suggested = context.get("replacement_suggested", 0)
+        maintenance_overdue = context.get("maintenance_overdue", 0)
+        high_risk = context.get("high_risk", 0)
+        model_available = context.get("model_available", False)
+        top_risk = context.get("top_risk", [])
+
+        if model_available:
+            summary = f"Survival-model aktief: {high_risk} bates met hoë ML-risiko uit {total}."
+        else:
+            summary = f"{total} bates ontleed. Survival-model nie beskikbaar nie (benodig genoeg data) — reëls-gebaseerde voorspellings word gebruik."
+
+        insights = []
+        if model_available:
+            insights.append(f"{high_risk} bates het ≥50% faalkans binne 12 maande per ML-model.")
+            if top_risk:
+                insights.append("Hoogste risiko: " + ", ".join(f"{t['asset_name']} ({t['prob_pct']}%)" for t in top_risk))
+        else:
+            insights.append("Die ML-survival-model verg ≥50 bates en ≥80 foutgebeurtenisse; sodra daar genoeg data is, verskyn ML-risiko hier.")
+
+        return AnalyticsResponse(
+            summary=summary,
+            metrics=[
+                Metric(label="Totale Bates", value=str(total)),
+                Metric(label="Vervanging Voorgestel", value=str(replacement_suggested)),
+                Metric(label="Onderhoud Agterstallig", value=str(maintenance_overdue)),
+                Metric(label="ML Hoë Risiko", value=str(high_risk) if model_available else "—"),
+            ],
+            insights=insights,
+            suggestions=[],
+            chart=None,
+        )
+
+    elif page == "ai-drafts":
+        total = context.get("total", 0)
+        pending = context.get("pending", 0)
+        approved = context.get("approved", 0)
+        rejected = context.get("rejected", 0)
+        auto = context.get("auto", 0)
+
+        insights = []
+        if pending > 0:
+            insights.append(f"{pending} konsepte wag vir FK/Admin-goedkeuring.")
+        insights.append(f"{auto} konsepte is outomaties gegenereer deur die skandeerder.")
+
+        return AnalyticsResponse(
+            summary=f"{pending} AI-foutkonsepte wag op goedkeuring ({approved} goedgekeur, {rejected} verwerp) van {total} totaal.",
+            metrics=[
+                Metric(label="Wag op goedkeuring", value=str(pending)),
+                Metric(label="Goedgekeur", value=str(approved)),
+                Metric(label="Verwerp", value=str(rejected)),
+                Metric(label="Outo-geskep", value=str(auto)),
+            ],
+            insights=insights,
+            suggestions=[],
+            chart=None,
+        )
+
     return AnalyticsResponse(
         summary="Kies 'n bladsy om insigte te sien.",
         metrics=[],
@@ -548,6 +607,57 @@ def _gather_context(page: str, session,
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         ctx["upcoming"] = sum(1 for e in events if e.start_datetime and e.start_datetime > now)
         ctx["raw_events"] = _serialize_records(events)
+
+    elif page == "predictions":
+        from ..services.prediction_service import PredictionService
+
+        preds = PredictionService().getPredictions(session)
+        ctx["total"] = len(preds)
+        ctx["replacement_suggested"] = sum(1 for p in preds if p.replacement_suggested)
+        ctx["maintenance_overdue"] = sum(1 for p in preds if p.maintenance_overdue)
+        ctx["model_available"] = any(p.survival_model_available for p in preds)
+        ctx["high_risk"] = sum(1 for p in preds if p.survival_high_risk)
+        risk_sorted = sorted(
+            (p for p in preds if p.survival_failure_prob_12mo is not None),
+            key=lambda p: p.survival_failure_prob_12mo,
+            reverse=True,
+        )
+        ctx["top_risk"] = [
+            {
+                "asset_name": p.asset_name,
+                "serial": p.asset_serial,
+                "prob_pct": round(p.survival_failure_prob_12mo * 100) if p.survival_failure_prob_12mo is not None else None,
+            }
+            for p in risk_sorted[:3]
+        ]
+        ctx["raw_predictions"] = [
+            {
+                "asset_name": p.asset_name,
+                "asset_serial": p.asset_serial,
+                "survival_high_risk": p.survival_high_risk,
+                "survival_failure_prob_12mo": p.survival_failure_prob_12mo,
+            }
+            for p in risk_sorted[:10]
+        ]
+        # Module-level model stats — identical on every prediction.
+        first_with_events = next((p for p in preds if p.survival_events_count is not None), None)
+        ctx["survival_events"] = first_with_events.survival_events_count if first_with_events else None
+        ctx["survival_assets"] = None
+        if first_with_events is not None:
+            from ..services import survival_service
+
+            ctx["survival_assets"] = survival_service.get_status().get("assets")
+
+    elif page == "ai-drafts":
+        from ..models.faultdraft import FaultDraft
+
+        drafts = session.exec(select(FaultDraft)).all()
+        ctx["total"] = len(drafts)
+        ctx["pending"] = sum(1 for d in drafts if d.status == "draft")
+        ctx["approved"] = sum(1 for d in drafts if d.status == "approved")
+        ctx["rejected"] = sum(1 for d in drafts if d.status == "rejected")
+        ctx["auto"] = sum(1 for d in drafts if d.source == "auto")
+        ctx["raw_drafts"] = _serialize_records(drafts, limit=10)
 
     return ctx
 
