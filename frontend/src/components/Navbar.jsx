@@ -18,7 +18,6 @@ const PATH_TITLES = {
   '/users/rights': 'Bestuur Regte',
   '/predictions': 'Voorspellings',
   '/calendar': 'Kalender',
-  '/notifications': 'Kennisgewings',
   '/reports': 'Verslae',
 };
 

@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { IoNotificationsOutline } from 'react-icons/io5';
 import { useNotificationContext } from './NotificationContext';
 import NotificationItem from './NotificationItem';
+import NotificationHistory from './NotificationHistory';
+import Modal from '../Modal/Modal';
 import './Notifications.css';
 
 function NotificationBell() {
   const { unreadCount, latestNotifs, markAsRead, markAllAsRead } = useNotificationContext();
   const [open, setOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -64,10 +66,18 @@ function NotificationBell() {
             )}
           </div>
           <div className="notif-dropdown-footer">
-            <Link to="/notifications" onClick={() => setOpen(false)}>Sien alle kennisgewings</Link>
+            <a href="#notif-history" onClick={(e) => { e.preventDefault(); setOpen(false); setShowHistory(true); }}>Sien alle kennisgewings</a>
           </div>
         </div>
       )}
+      <Modal
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        title="Kennisgewings"
+        size="lg"
+      >
+        <NotificationHistory onNavigate={(path) => { setShowHistory(false); window.location.href = path; }} />
+      </Modal>
     </div>
   );
 }
