@@ -45,7 +45,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         foregroundColor: Colors.white,
         title: Text(_currentAsset.name.toUpperCase()),
         actions: [
-          if (UserSession.hasAdminPrivileges && _currentAsset.location != '1')
+          if (UserSession.can('assets.manage') && _currentAsset.location != '1')
             IconButton(
               icon: const Icon(Icons.checklist, color: Colors.white),
               tooltip: "Kontroleer lokaal",
@@ -56,25 +56,26 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 ),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
-              );
-              if (result == true && mounted) {
-                setState(() {
-                  final updated = AssetService.assetsNotifier.value.firstWhere(
-                    (a) => a.id == _currentAsset.id,
-                    orElse: () => _currentAsset,
-                  );
-                  _currentAsset = updated;
-                });
-              }
-            },
-          ),
-          if (UserSession.hasAdminPrivileges)
+          if (UserSession.can('assets.manage'))
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
+                );
+                if (result == true && mounted) {
+                  setState(() {
+                    final updated = AssetService.assetsNotifier.value.firstWhere(
+                      (a) => a.id == _currentAsset.id,
+                      orElse: () => _currentAsset,
+                    );
+                    _currentAsset = updated;
+                  });
+                }
+              },
+            ),
+          if (UserSession.can('assets.manage'))
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
               onPressed: () => _confirmDelete(context),

@@ -93,8 +93,8 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    // Lokaal Kontrole — slegs FK/Admin
-    if (UserSession.hasAdminPrivileges) {
+    // Lokaal Kontrole — dieselfde reg as die backend se /room-checks-eindpunt.
+    if (can('assets.manage')) {
       menu.add({
         'title': 'Lokaal Kontrole',
         'icon': Icons.checklist,

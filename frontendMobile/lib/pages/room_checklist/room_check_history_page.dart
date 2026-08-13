@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/campus_service.dart';
-import '../../models/user_session.dart';
 
 class _RoomCheckRecord {
   final int id;
@@ -85,7 +84,7 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final roomName = CampusService.getRoomName(widget.roomId.toString()) ?? "Lokaal ${widget.roomId}";
+    final roomName = CampusService.getRoomName(widget.roomId.toString());
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -124,7 +123,7 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
         title: Row(
           children: [
             Expanded(
-              child: Text("$dateStr", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              child: Text(dateStr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
             if (check.userId != null)
               Text("Gebruiker #${check.userId}",

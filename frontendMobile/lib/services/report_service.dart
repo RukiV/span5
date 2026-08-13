@@ -12,10 +12,6 @@ class ReportService {
   // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
   static String? _pendingKey;
 
-  static int get pendingCount => _reports.where((r) => r.phase == "Ontvang" || r.phase == "Besig").length;
-  static int get highPriorityCount => _reports.where((r) => r.priority == "Hoog").length;
-  static int get completedCount => _reports.where((r) => r.phase == "Voltooi").length;
-
   // Haal alle verslae vanaf die backend
   static Future<void> fetchReports() async {
     try {
@@ -74,91 +70,6 @@ class ReportService {
     return false;
   }
 
-  // Dateer slegs die status op
-  static Future<bool> updateReportStatus(String id, String phase) async {
-    try {
-      String backendStatus = _mapStatusToBackend(phase);
-
-      final response = await ApiClient().client.patch('/fault/$id', data: {'fault_status': backendStatus});
-      if (response.statusCode == 200) {
-        final index = _reports.indexWhere((r) => r.id == id);
-        if (index != -1) {
-          _reports[index] = _reports[index].copyWith(phase: phase);
-          reportsNotifier.value = List.from(_reports);
-        }
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Fout met status opdatering: $e");
-    }
-    return false;
-  }
-
-  // Dateer slegs die prioriteit op
-  static Future<bool> updateReportPriority(String id, String priority) async {
-    try {
-      String backendPriority = _mapPriorityToBackend(priority);
-
-      final response = await ApiClient().client.patch('/fault/$id', data: {'fault_priority': backendPriority});
-      if (response.statusCode == 200) {
-        final index = _reports.indexWhere((r) => r.id == id);
-        if (index != -1) {
-          _reports[index] = _reports[index].copyWith(priority: priority);
-          reportsNotifier.value = List.from(_reports);
-        }
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Fout met prioriteit opdatering: $e");
-    }
-    return false;
-  }
-
-  // Goedkeuring (skuif na 'besig' en stel prioriteit)
-  static Future<bool> approveReport(String id, String priority, String notes) async {
-    try {
-      String backendPriority = _mapPriorityToBackend(priority);
-
-      final response = await ApiClient().client.patch('/fault/$id', data: {
-        'fault_priority': backendPriority,
-        'fault_status': 'Besig'
-      });
-      
-      if (response.statusCode == 200) {
-        final index = _reports.indexWhere((r) => r.id == id);
-        if (index != -1) {
-          _reports[index] = _reports[index].copyWith(
-            priority: priority,
-            phase: "Besig",
-          );
-          reportsNotifier.value = List.from(_reports);
-        }
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Fout met goedkeuring: $e");
-    }
-    return false;
-  }
-
-  // Verwerp (skuif na 'verwerp')
-  static Future<bool> disapproveReport(String id, String notes) async {
-    try {
-      final response = await ApiClient().client.patch('/fault/$id', data: {'fault_status': 'Gesluit'});
-      if (response.statusCode == 200) {
-        final index = _reports.indexWhere((r) => r.id == id);
-        if (index != -1) {
-          _reports[index] = _reports[index].copyWith(phase: "Geweier");
-          reportsNotifier.value = List.from(_reports);
-        }
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Fout met verwerping: $e");
-    }
-    return false;
-  }
-
   // Verwyder 'n verslag
   static Future<bool> deleteReport(String id) async {
     try {
@@ -172,29 +83,5 @@ class ReportService {
       debugPrint("Fout met verwydering van verslag: $e");
     }
     return false;
-  }
-
-  static String _mapStatusToBackend(String phase) {
-    switch (phase) {
-      case "Besig":
-        return "Besig";
-      case "Voltooi":
-        return "Opgelos";
-      case "Geweier":
-        return "Gesluit";
-      default:
-        return "Wag";
-    }
-  }
-
-  static String _mapPriorityToBackend(String priority) {
-    switch (priority) {
-      case "Laag":
-        return "Laag";
-      case "Hoog":
-        return "Hoog";
-      default:
-        return "Medium";
-    }
   }
 }

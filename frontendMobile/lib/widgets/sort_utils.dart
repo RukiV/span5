@@ -25,21 +25,6 @@ class SortController {
     _sortKey = null;
     _ascending = true;
   }
-
-  /// Call this after toggling when using [setState].
-  SortController copy() {
-    final c = SortController();
-    c._sortKey = _sortKey;
-    c._ascending = _ascending;
-    return c;
-  }
-
-  /// Sort arrow indicator for a given key.
-  /// Returns ' ▲' if ascending, ' ▼' if descending, '' if not active.
-  String indicator(String key) {
-    if (_sortKey != key) return '';
-    return _ascending ? ' ▲' : ' ▼';
-  }
 }
 
 /// Tappable column header widget for the "header row" pattern.

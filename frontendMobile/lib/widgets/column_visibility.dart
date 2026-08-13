@@ -31,7 +31,6 @@ class ColumnVisibilityController {
       _allColumns.where((c) => !_hidden.contains(c.key)).toList();
 
   bool isVisible(String key) => !_hidden.contains(key);
-  bool isHidden(String key) => _hidden.contains(key);
 
   void toggle(String key) {
     if (_hidden.contains(key)) {

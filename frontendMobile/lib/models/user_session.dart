@@ -73,7 +73,6 @@ class UserSession {
   // Gerieflike getters vir vinnige toegangsbeheer in die UI.
   static bool get isAdmin => role == UserRole.admin;
   static bool get isManager => role == UserRole.manager;
-  static bool get isStudent => role == UserRole.student;
   static bool get isContractor => role == UserRole.contractor;
   
   /// Bepaal of die gebruiker administratiewe aksies mag uitvoer.
