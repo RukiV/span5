@@ -300,9 +300,15 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
         ],
       ),
     );
-    if (confirm == true) {
-      await CampusService.removeRoom(room.id);
-      if (mounted) setState(() {});
+    if (confirm == true && mounted) {
+      final success = await CampusService.removeRoom(room.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? "Lokaal verwyder." : "Kon nie die lokaal verwyder nie."),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
     }
   }
 
@@ -336,14 +342,28 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (_selectedCampus == null) {
+          // Re-resolve die gekose kampus/gebou teen die vars `campuses`-lys (nie
+          // die ou objekverwysings nie) sodat byvoeg/wysig/verwyder dadelik wys.
+          Campus? selectedCampus = _selectedCampus != null
+              ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
+              : null;
+          if (selectedCampus == null) {
             if (UserSession.isManager && UserSession.locationId != null) {
-              _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
+              selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
             }
-            if (_selectedCampus == null && UserSession.hasAdminPrivileges) {
-              _selectedCampus = campuses.first;
+            if (selectedCampus == null && UserSession.hasAdminPrivileges) {
+              selectedCampus = campuses.isNotEmpty ? campuses.first : null;
             }
           }
+          _selectedCampus = selectedCampus;
+
+          Building? selectedBuilding;
+          if (_selectedBuilding != null && selectedCampus != null) {
+            selectedBuilding = selectedCampus.buildings
+                .where((b) => b.id == _selectedBuilding!.id)
+                .firstOrNull;
+          }
+          _selectedBuilding = selectedBuilding;
 
           return Column(
             children: [
@@ -373,7 +393,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 ],
               ),
 
-              if (_selectedBuilding != null && UserSession.hasAdminPrivileges)
+              if (_selectedBuilding != null && UserSession.can('rooms.manage'))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   child: SizedBox(
@@ -439,7 +459,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        if (UserSession.hasAdminPrivileges) ...[
+                                        if (UserSession.can('rooms.manage')) ...[
                                           IconButton(
                                             icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
                                             tooltip: "Kontroleer bates",

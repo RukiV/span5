@@ -22,9 +22,9 @@ class _CheckItem {
   final Asset asset;
   _CheckStatus status = _CheckStatus.pending;
   int? faultId;
-  bool previouslyMissing;
+  bool previouslyMissing = false;
 
-  _CheckItem({required this.asset, this.status = _CheckStatus.pending, this.faultId, this.previouslyMissing = false});
+  _CheckItem({required this.asset});
 }
 
 class RoomChecklistPage extends StatefulWidget {
@@ -113,15 +113,15 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   int get _activeRoomId => widget.roomId ?? 0;
 
   String get _roomName {
-    return CampusService.getRoomName(_activeRoomId.toString()) ?? "Lokaal $_activeRoomId";
+    return CampusService.getRoomName(_activeRoomId.toString());
   }
 
   String get _buildingName {
-    return CampusService.getBuildingNameByRoomId(_activeRoomId.toString()) ?? "";
+    return CampusService.getBuildingNameByRoomId(_activeRoomId.toString());
   }
 
   String get _campusName {
-    return CampusService.getCampusNameByRoomId(_activeRoomId.toString()) ?? "";
+    return CampusService.getCampusNameByRoomId(_activeRoomId.toString());
   }
 
   int? _buildingIdForRoom() {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/campus_service.dart';
 import '../../services/stock_service.dart';
 import '../../models/stock.dart';
+import '../../models/user_session.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../core/app_colors.dart';
 
@@ -248,7 +249,7 @@ class _EditStockPageState extends State<EditStockPage> {
                         );
 
                         final success = await StockService.updateStock(updated);
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         if (success) {
                           Navigator.pop(context, true);
                         }
@@ -275,12 +276,63 @@ class _EditStockPageState extends State<EditStockPage> {
                         style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                   ),
                 ),
+                const SizedBox(height: 8),
+                if (UserSession.can('stock.manage'))
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => _confirmDelete(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+                      ),
+                      child: const Text("VERWYDER VOORRAAD",
+                          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    ),
+                  ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Verwyder voorraad"),
+        content: Text("Is jy seker jy wil '${widget.stock.name}' verwyder?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text("Kanselleer"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text("Verwyder"),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final id = widget.stock.id;
+    if (id == null) return;
+    final success = await StockService.deleteStock(id);
+    if (!mounted) return;
+    if (success) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie die voorraad verwyder nie."),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildField(String label, Function(String) onSet,

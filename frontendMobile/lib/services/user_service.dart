@@ -27,8 +27,6 @@ class UserService {
 
   static final ValueNotifier<bool> usersLoadingNotifier = ValueNotifier(false);
   static final ValueNotifier<bool> usersLoadFailedNotifier = ValueNotifier(false);
-  static final ValueNotifier<bool> rolesLoadingNotifier = ValueNotifier(false);
-  static final ValueNotifier<bool> rolesLoadFailedNotifier = ValueNotifier(false);
 
   static List<User> get users => List.unmodifiable(_users);
 
@@ -70,7 +68,6 @@ class UserService {
   }
 
   static Future<void> fetchRoles() async {
-    rolesLoadingNotifier.value = true;
     try {
       final response = await ApiClient().client.get('/roles');
       if (response.statusCode == 200) {
@@ -78,15 +75,9 @@ class UserService {
         _roles.clear();
         _roles.addAll(data.map((json) => AppRole.fromJson(json)).toList());
         rolesNotifier.value = List.from(_roles);
-        rolesLoadFailedNotifier.value = false;
-      } else {
-        rolesLoadFailedNotifier.value = true;
       }
     } catch (e) {
       debugPrint("Error loading roles: $e");
-      rolesLoadFailedNotifier.value = true;
-    } finally {
-      rolesLoadingNotifier.value = false;
     }
   }
 
@@ -139,8 +130,6 @@ class UserService {
     }
     return false;
   }
-
-  static List<User> get contractors => _users.where((u) => u.roleId == 4).toList();
 
   static String nameFor(int? userId) {
     if (userId == null) return "";

@@ -220,6 +220,12 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
   }
 
   Widget _buildFooter() {
+    // Slegs die toegewysde kontrakteur (met jobs.update_own_status) kan 'n
+    // voltooiingsversoek stuur — selfde reël as die backend se eindpunt.
+    final canRequest = UserSession.can('jobs.update_own_status') &&
+        widget.job.contractorId == UserSession.userId;
+    if (!canRequest) return const SizedBox.shrink();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
@@ -288,7 +294,7 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
                 if (job.type != null) _infoRow("Tipe", job.type!),
                 _infoRow("Prioriteit", job.priority ?? "-"),
                 if (job.nature != null) _infoRow("Natuur", job.nature!),
-                if (job.createdDatetime != null && !UserSession.isContractor)
+                if (job.createdDatetime != null && UserSession.can('jobs.manage'))
                   _infoRow("Geskep", _formatDateTime(job.createdDatetime!)),
                 if (job.scheduledDatetime != null)
                   _infoRow("Begin datum en tyd", _formatDateTime(job.scheduledDatetime!)),

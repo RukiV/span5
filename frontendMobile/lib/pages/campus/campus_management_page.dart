@@ -57,7 +57,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (UserSession.hasAdminPrivileges)
+                  if (UserSession.can('locations.manage'))
                     Padding(
                       padding: const EdgeInsets.only(bottom: 20),
                       child: ElevatedButton.icon(
@@ -115,7 +115,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
-              if (UserSession.hasAdminPrivileges)
+              if (UserSession.can('locations.manage'))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
                   child: SizedBox(

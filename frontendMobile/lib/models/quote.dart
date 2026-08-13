@@ -29,20 +29,4 @@ class Quote {
     if (contractorId != null) 'contractor_id': contractorId,
     if (selectionReason != null) 'quote_selection_reason': selectionReason,
   };
-
-  Quote copyWith({
-    int? id,
-    int? contractorId,
-    DateTime? date,
-    String? status,
-    String? selectionReason,
-  }) {
-    return Quote(
-      id: id ?? this.id,
-      contractorId: contractorId ?? this.contractorId,
-      date: date ?? this.date,
-      status: status ?? this.status,
-      selectionReason: selectionReason ?? this.selectionReason,
-    );
-  }
 }

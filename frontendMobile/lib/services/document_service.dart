@@ -89,16 +89,4 @@ class DocumentService {
     }
     return null;
   }
-
-  static Future<bool> deleteQuotePdf(int documentId) async {
-    try {
-      final response = await ApiClient().client.delete('/documents/$documentId');
-      return response.statusCode == 204 || response.statusCode == 200;
-    } on DioException catch (e) {
-      debugPrint("❌ PDF delete error: ${e.response?.statusCode} ${e.response?.data}");
-    } catch (e) {
-      debugPrint("❌ PDF delete error: $e");
-    }
-    return false;
-  }
 }

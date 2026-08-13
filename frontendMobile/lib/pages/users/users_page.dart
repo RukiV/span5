@@ -284,7 +284,7 @@ class _UsersPageState extends State<UsersPage> {
             ),
           ],
         ),
-        if (UserSession.hasAdminPrivileges)
+        if (UserSession.can('users.manage'))
           Padding(
             padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
             child: SizedBox(
@@ -401,16 +401,18 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 20),
-            color: AppColors.navy,
-            onPressed: () => _showUserDialog(existing: user),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
-            color: AppColors.errorRed,
-            onPressed: () => _confirmDelete(user),
-          ),
+          if (UserSession.can('users.manage')) ...[
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              color: AppColors.navy,
+              onPressed: () => _showUserDialog(existing: user),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              color: AppColors.errorRed,
+              onPressed: () => _confirmDelete(user),
+            ),
+          ],
         ],
       ),
     );
