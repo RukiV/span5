@@ -36,6 +36,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    profiles: ["web"]
     ports:
       - "443:443"
     volumes:

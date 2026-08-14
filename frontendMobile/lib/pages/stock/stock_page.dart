@@ -191,18 +191,20 @@ class _StockPageState extends State<StockPage> {
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton.extended(
-            backgroundColor: AppColors.gold,
-            elevation: 4,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const NewStockPage()),
-              );
-            },
-          ),
+          floatingActionButton: UserSession.can('stock.manage')
+              ? FloatingActionButton.extended(
+                  backgroundColor: AppColors.gold,
+                  elevation: 4,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const NewStockPage()),
+                    );
+                  },
+                )
+              : null,
         );
       },
     );

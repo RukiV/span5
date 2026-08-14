@@ -1154,11 +1154,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         await ImageService.uploadImage(image, parentId: jobId, parentType: 'job');
       }
 
-      // 5. Skakel die foutkaartjie na 'Besig' wanneer 'n werksopdrag geskep word.
-      final report = widget.report;
-      if (!widget.isEditing && report != null) {
-        await ReportService.updateReportStatus(report.id, "Besig");
-      }
+      // 5. Die backend skakel die foutkaartjie self na 'Besig' wanneer die
+      //    werksopdrag geskep word; verfris hier net die verslaglys.
+      await ReportService.fetchReports();
 
       await JobcardService.fetchJobs();
 

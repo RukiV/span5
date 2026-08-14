@@ -186,7 +186,7 @@ class _AssetsPageState extends State<AssetsPage> {
           onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
         ),
       ),
-      if (UserSession.hasAdminPrivileges)
+      if (UserSession.can('assets.manage'))
         HeaderIconAction(
           icon: Icons.settings_outlined,
           tooltip: "Bate Tipes",
@@ -331,7 +331,7 @@ class _AssetsPageState extends State<AssetsPage> {
           backgroundColor: AppColors.navy,
           child: const Icon(Icons.qr_code_scanner, color: Colors.white),
         ),
-        if (UserSession.hasAdminPrivileges) ...[
+        if (UserSession.can('assets.manage')) ...[
           const SizedBox(height: 12),
           FloatingActionButton(
             heroTag: "addBtn",

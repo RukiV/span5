@@ -1,0 +1,11 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.env
+firebase-service-account.json
+tests
+uploads
+.DS_Store
+*.log

@@ -59,17 +59,6 @@ class CampusService {
 
   // --- Helper methods (adapted from old rooms-based approach) ---
 
-  static List<Room> getRoomsForCampus(String campusName) {
-    try {
-      final campus = _campuses.firstWhere(
-        (c) => c.name == campusName || campusName.contains(c.name),
-      );
-      return campus.buildings.expand<Room>((b) => b.rooms ?? <Room>[]).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
   static String getRoomName(String roomId) {
     for (var campus in _campuses) {
       for (var building in campus.buildings) {
@@ -117,22 +106,6 @@ class CampusService {
     } catch (_) {
       return null;
     }
-  }
-
-  static List<Building> getBuildingsForCampus(String campusName) {
-    final campus = getCampusByName(campusName);
-    return campus?.buildings ?? [];
-  }
-
-  static List<Room> getRoomsForBuilding(int buildingId) {
-    for (var campus in _campuses) {
-      for (var building in campus.buildings) {
-        if (building.id == buildingId) {
-          return building.rooms ?? [];
-        }
-      }
-    }
-    return [];
   }
 
   // --- Campus CRUD ---

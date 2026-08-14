@@ -88,8 +88,15 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
         ],
       ),
     );
-    if (confirm == true) {
-      await CampusService.removeBuilding(building.id);
+    if (confirm == true && mounted) {
+      final success = await CampusService.removeBuilding(building.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? "Gebou verwyder." : "Kon nie die gebou verwyder nie."),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
     }
   }
 
@@ -104,19 +111,22 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (_selectedCampus == null) {
+          // Re-resolve die gekose kampus teen die vars `campuses`-lys (nie die
+          // ou objekverwysing nie) sodat byvoeg/wysig/verwyder dadelik wys.
+          Campus? selectedCampus = _selectedCampus != null
+              ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
+              : null;
+          if (selectedCampus == null) {
             if (UserSession.isManager && UserSession.locationId != null) {
-              _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
+              selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
             }
-            if (_selectedCampus == null && UserSession.hasAdminPrivileges) {
-              _selectedCampus = campuses.first;
+            if (selectedCampus == null && UserSession.hasAdminPrivileges) {
+              selectedCampus = campuses.isNotEmpty ? campuses.first : null;
             }
           }
+          _selectedCampus = selectedCampus;
 
-          List<Building> buildings = [];
-          if (_selectedCampus != null) {
-            buildings = _selectedCampus!.buildings;
-          }
+          final buildings = selectedCampus?.buildings ?? <Building>[];
 
           final filtered = buildings.where((b) =>
               _query.isEmpty ||
@@ -161,7 +171,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 ],
               ),
 
-              if (UserSession.hasAdminPrivileges)
+              if (UserSession.can('buildings.manage'))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: SizedBox(
@@ -229,7 +239,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (UserSession.hasAdminPrivileges) ...[
+                                      if (UserSession.can('buildings.manage')) ...[
                                         IconButton(
                                           icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
                                           onPressed: () async {
@@ -262,7 +272,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                     );
                                   },
                                 ),
-                                if (roomCount > 0 && UserSession.hasAdminPrivileges)
+                                if (roomCount > 0 && UserSession.can('buildings.manage'))
                                   Padding(
                                     padding: const EdgeInsets.fromLTRB(15, 0, 15, 10),
                                     child: SizedBox(
