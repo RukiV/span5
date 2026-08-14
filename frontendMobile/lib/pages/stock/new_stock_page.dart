@@ -225,7 +225,7 @@ class _NewStockPageState extends State<NewStockPage> {
                         );
 
                         final success = await StockService.addStock(newStock);
-                        if (!mounted) return;
+                        if (!context.mounted) return;
                         if (success) {
                           Navigator.pop(context);
                         }

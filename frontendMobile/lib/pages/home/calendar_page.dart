@@ -273,7 +273,7 @@ class _CalendarPageState extends State<CalendarPage> {
           ],
         ),
         actions: [
-          if (event.eventId != null)
+          if (UserSession.can('calendar.manage') && event.eventId != null)
             TextButton(
               onPressed: () async {
                 Navigator.pop(ctx);
@@ -289,10 +289,15 @@ class _CalendarPageState extends State<CalendarPage> {
                   ),
                 );
                 if (confirm == true) {
-                  await CalendarService.deleteEvent(event.eventId!);
+                  final deleted = await CalendarService.deleteEvent(event.eventId!);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Afspraak verwyder"), backgroundColor: Colors.orange),
+                      SnackBar(
+                        content: Text(deleted
+                            ? "Afspraak verwyder"
+                            : "Kon nie die afspraak verwyder nie."),
+                        backgroundColor: deleted ? Colors.orange : Colors.red,
+                      ),
                     );
                   }
                 }

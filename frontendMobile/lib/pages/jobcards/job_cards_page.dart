@@ -213,7 +213,7 @@ class _JobCardsPageState extends State<JobCardsPage> {
                 const SizedBox(height: 4),
                 Text(job.type!, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
               ],
-              if (job.createdDatetime != null && !UserSession.isContractor) ...[
+              if (job.createdDatetime != null && UserSession.can('jobs.manage')) ...[
                 const SizedBox(height: 4),
                 Row(
                   children: [

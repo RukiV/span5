@@ -47,16 +47,12 @@ class AppNotification {
 class NotificationService {
   static final ApiClient _api = ApiClient();
   static int _unreadCount = 0;
-  static List<AppNotification> _latest = [];
   static Timer? _pollTimer;
 
   // --- ValueNotifiers waarna die UI kan luister vir opdaterings ---
   static final ValueNotifier<int> unreadCountNotifier = ValueNotifier(0);
-  static final ValueNotifier<List<AppNotification>> latestNotifier =
-      ValueNotifier([]);
 
   static int get unreadCount => _unreadCount;
-  static List<AppNotification> get latest => _latest;
 
   // --- Begin polling (roep in app-start) ---
   static Future<void> startPolling() async {
@@ -71,17 +67,13 @@ class NotificationService {
     _pollTimer = null;
   }
 
-  // --- Haal ongelees-telling + nuutste 5 vanaf die bediener ---
+  // --- Haal ongelees-telling vanaf die bediener ---
   static Future<void> fetchUnread() async {
     try {
       final response = await _api.client.get('/notifications/unread');
       final data = response.data;
       _unreadCount = data['unread_count'] ?? 0;
-      _latest = (data['latest'] as List? ?? [])
-          .map((j) => AppNotification.fromJson(j))
-          .toList();
       unreadCountNotifier.value = _unreadCount;
-      latestNotifier.value = _latest;
     } catch (e) {
       debugPrint('Notification poll failed: $e');
     }
@@ -138,17 +130,6 @@ class NotificationService {
     }
   }
 
-  // --- Verwyder 'n kennisgewing ---
-  static Future<bool> deleteNotification(int id) async {
-    try {
-      await _api.client.delete('/notifications/$id');
-      return true;
-    } catch (e) {
-      debugPrint('Delete notification failed: $e');
-      return false;
-    }
-  }
-
   // --- Laai voorkeure (sleutel = notification_type) ---
   static Future<Map<String, dynamic>> fetchPreferences() async {
     try {
@@ -183,25 +164,15 @@ class NotificationService {
   // --- Registreer 'n FCM-toestel-token ---
   static Future<bool> registerDeviceToken(String token) async {
     try {
+      final platform = defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
       await _api.client.post('/notifications/device-token', data: {
         'fcm_token': token,
-        'platform': 'android',
+        'platform': platform,
       });
       return true;
     } catch (e) {
       debugPrint('Register device token failed: $e');
       return false;
-    }
-  }
-
-  // --- Ontkoppel 'n FCM-toestel-token ---
-  static Future<void> unregisterDeviceToken(String token) async {
-    try {
-      await _api.client.delete('/notifications/device-token', data: {
-        'fcm_token': token,
-      });
-    } catch (e) {
-      debugPrint('Unregister device token failed: $e');
     }
   }
 }

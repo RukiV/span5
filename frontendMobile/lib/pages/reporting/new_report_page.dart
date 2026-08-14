@@ -52,7 +52,7 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     AssetTypeService.fetchTypes();
-    if (UserSession.hasAdminPrivileges) {
+    if (UserSession.can('faults.manage_all')) {
       selectedCategory = "Onderhoud";
     }
     if (widget.prefillSerialCode != null) {
@@ -234,7 +234,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 _buildAssetInput(),
                 const SizedBox(height: 20),
 
-                if (UserSession.hasAdminPrivileges)
+                if (UserSession.can('faults.manage_all'))
                   Row(
                     children: [
                       Expanded(
@@ -352,7 +352,7 @@ class _NewReportPageState extends State<NewReportPage> {
                         title: titleController.text.trim(),
                         description: descController.text.trim(),
                         category: selectedCategory,
-                        priority: UserSession.hasAdminPrivileges ? selectedPriority : "Medium",
+                        priority: UserSession.can('faults.manage_all') ? selectedPriority : "Medium",
                         phase: "Ontvang",
                         user: UserSession.userId.toString(),
                         timestamp: DateTime.now(),

@@ -81,7 +81,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
             _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
             _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (UserSession.hasAdminPrivileges)
+            if (UserSession.can('faults.manage_all'))
               _buildDetailRow("Bate ID", _currentReport.assetSerialCode ?? _currentReport.assetId),
             _buildDetailRow("Werksoort", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
@@ -217,7 +217,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               ),
             ),
           ],
-          if (UserSession.hasAdminPrivileges) ...[
+          if (UserSession.can('faults.manage_all')) ...[
             const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             Row(
               children: [

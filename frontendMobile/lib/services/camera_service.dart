@@ -25,23 +25,4 @@ class CameraService {
     }
     return null;
   }
-
-  /// Allows the user to select an existing photo from their gallery.
-  static Future<File?> pickFromGallery() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 70,
-      );
-
-      if (image != null) {
-        return File(image.path);
-      }
-    } catch (e) {
-      debugPrint("Gallery Error: $e");
-    }
-    return null;
-  }
 }

@@ -70,17 +70,4 @@ class QuoteService {
     }
     return null;
   }
-
-  static Future<bool> deleteQuote(int id) async {
-    try {
-      final response = await ApiClient().client.delete('/quotes/$id');
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        await fetchQuotes();
-        return true;
-      }
-    } catch (e) {
-      debugPrint("Error deleting quote: $e");
-    }
-    return false;
-  }
 }
