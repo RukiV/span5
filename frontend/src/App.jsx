@@ -104,16 +104,16 @@ function AppContent() {
         <div className="main">
           <Routes>
             <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
-            <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
-            <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
-            <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
-            <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
-            <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
-            <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
-            <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
-            <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
-            <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
+            <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.view"><AssetPage /></RightProtectedRoute>} />
+            <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.view"><StockPage /></RightProtectedRoute>} />
+            <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.view"><RoomsPage /></RightProtectedRoute>} />
+            <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.view"><BuildingsPage /></RightProtectedRoute>} />
+            <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.view"><TerrainsPage /></RightProtectedRoute>} />
+            <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.view"><TicketPage /></RightProtectedRoute>} />
+            <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.view"><WorkOrderPage /></RightProtectedRoute>} />
+            <Route path="/users" element={<RightProtectedRoute requiredRight="users.view"><UsersPage /></RightProtectedRoute>} />
+            <Route path="/users/roles" element={<RightProtectedRoute requiredRight="roles.manage"><RolesPage /></RightProtectedRoute>} />
+            <Route path="/users/rights" element={<RightProtectedRoute requiredRight="rights.manage"><RightsPage /></RightProtectedRoute>} />
             <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
             <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
             <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />

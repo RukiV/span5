@@ -25,6 +25,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
   final _countryController = TextEditingController();
   bool _isLoading = false;
   LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
+  final TextEditingController _radiusController = TextEditingController(text: "110");
 
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
@@ -132,6 +133,20 @@ class _AddCampusPageState extends State<AddCampusPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  const Text("Toegelate Radius (meter)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _radiusController,
+                    style: const TextStyle(fontSize: 14),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: _inputDecoration(""),
+                    validator: (v) {
+                      final val = double.tryParse(v ?? "");
+                      return (v == null || v.isEmpty || val == null || val <= 0) ? "Geldige radius word vereis" : null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
                   const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
                   const SizedBox(height: 6),
                   TextFormField(
@@ -203,6 +218,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
                               province: _provinceController.text,
                               country: _countryController.text,
                               location: _selectedLocation,
+                              radius: double.tryParse(_radiusController.text) ?? 110,
                             );
                             final success = await CampusService.addCampus(campus);
                             if (!mounted) return;

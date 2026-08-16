@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/campus_service.dart';
@@ -10,6 +11,7 @@ import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
+import 'location_page.dart';
 
 class EditReportPage extends StatefulWidget {
   final Report report;
@@ -38,6 +40,8 @@ class _EditReportPageState extends State<EditReportPage> {
   final List<File> _newPhotos = [];
   bool _imagesLoading = true;
 
+  LatLng? _mapPoint;
+
   final List<String> _categories = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
   final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
@@ -58,6 +62,51 @@ class _EditReportPageState extends State<EditReportPage> {
     }
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     _loadImages();
+    _loadMapPoint();
+  }
+
+  // Haal die bestaande kaartligging vir die kaartjie op.
+  Future<void> _loadMapPoint() async {
+    if (widget.report.latitude != null && widget.report.longitude != null) {
+      if (mounted) {
+        setState(() => _mapPoint = LatLng(widget.report.latitude!, widget.report.longitude!));
+      }
+      return;
+    }
+    final mappointId = widget.report.mappointId;
+    if (mappointId == null) return;
+    try {
+      final response = await ApiClient().client.get('/mappoint/$mappointId');
+      if (response.statusCode == 200) {
+        final lat = (response.data['latitude'] as num?)?.toDouble();
+        final lng = (response.data['longitude'] as num?)?.toDouble();
+        if (mounted && lat != null && lng != null) {
+          setState(() => _mapPoint = LatLng(lat, lng));
+        }
+      }
+    } catch (e) {
+      debugPrint("Kon nie kaartligging laai nie: $e");
+    }
+  }
+
+  Future<void> _pickMapLocation() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPage(
+          initialLocation: _mapPoint ?? const LatLng(-25.8480, 28.2366),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final coords = result['coords'] as String?;
+    if (coords == null) return;
+    final parts = coords.split(',');
+    if (parts.length != 2) return;
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null) return;
+    setState(() => _mapPoint = LatLng(lat, lng));
   }
 
   @override
@@ -173,6 +222,8 @@ class _EditReportPageState extends State<EditReportPage> {
       location: roomId,
       locationId: resolvedLocationId,
       buildingId: resolvedBuildingId,
+      latitude: _mapPoint?.latitude,
+      longitude: _mapPoint?.longitude,
     );
 
     final success = await ReportService.updateReport(updatedReport);
@@ -283,6 +334,8 @@ class _EditReportPageState extends State<EditReportPage> {
                       onChanged: _onLocationChanged,
                     ),
                     const SizedBox(height: 20),
+                    _buildMapSection(),
+                    const SizedBox(height: 20),
                     _buildTextField("Beskrywing", _descriptionController, maxLines: 5),
                     const SizedBox(height: 16),
                     _buildPhotoSection(),
@@ -305,6 +358,67 @@ class _EditReportPageState extends State<EditReportPage> {
             ),
     );
   }
+  Widget _buildMapSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Kaartligging (Opsioneel)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+        const SizedBox(height: 8),
+        if (_mapPoint == null)
+          InkWell(
+            onTap: _pickMapLocation,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.map_outlined, color: AppColors.gold),
+                  SizedBox(width: 10),
+                  Expanded(child: Text("Kies 'n presiese ligging op die kaart", style: TextStyle(fontSize: 14))),
+                  Text("KIES OP KAART", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                ],
+              ),
+            ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.successGreen.withValues(alpha: 0.08),
+              border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.4)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on, color: AppColors.successGreen),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "${_mapPoint!.latitude.toStringAsFixed(6)}, ${_mapPoint!.longitude.toStringAsFixed(6)}",
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.navy),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_location_alt, size: 18, color: AppColors.gold),
+                  tooltip: "Verander kaartligging",
+                  onPressed: _pickMapLocation,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: AppColors.errorRed),
+                  tooltip: "Verwyder kaartligging",
+                  onPressed: () => setState(() => _mapPoint = null),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
 //checkmark for room asset scanning and barcode scanning
   Widget _buildPhotoSection() {
     final baseUrl = ApiClient().client.options.baseUrl;

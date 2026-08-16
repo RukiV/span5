@@ -11,12 +11,12 @@ from ....services.contractor_service import contractor_service
 router = APIRouter()
 
 @router.get("", response_model=List[ContractorRead])
-def readContractors(session: Session = Depends(getSession), _user: User = Depends(require_right("contractors.manage"))):
+def readContractors(session: Session = Depends(getSession), _user: User = Depends(require_right("contractors.view"))):
     #Fetch all contractors
     return contractor_service.getAll(session)
 
 @router.get("/{contractorID}", response_model=ContractorRead)
-def readContractor(contractorID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("contractors.manage"))):
+def readContractor(contractorID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("contractors.view"))):
     #Fetch single contractor by id
     contractor = contractor_service.getByID(session, contractorID)
     if not contractor:

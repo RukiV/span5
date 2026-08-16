@@ -4,7 +4,8 @@ import '../models/campus.dart';
 import '../models/building.dart';
 import '../models/room.dart';
 import '../services/campus_service.dart';
-import 'searchable_dropdown.dart';
+import 'inline_searchable_dropdown.dart';
+import 'searchable_dropdown.dart' show SearchableDropdownItem;
 
 /// Hoe diep die kieser mag gaan.
 enum LocationDepth { campus, building, room }
@@ -15,8 +16,13 @@ enum LocationDepth { campus, building, room }
 /// aanbeweeg soos jy kies, plus 'n broodkrummel wat wys waar jy is. Tik op 'n
 /// broodkrummel om na daardie vlak terug te keer.
 ///
-/// Die data kom heeltemal uit [CampusService] se bestaande boom
-/// (Terrein → Geboue → Lokale) — geen nuwe diens of eindpunt nie.
+/// By die terrein-opsies is daar twee ekstra sprong-opsies ("Kies Gebou" en
+/// "Kies Lokaal") en by die gebou-opsies een ("Kies Lokaal"). Die spronge wys
+/// die volledige lys van daardie vlak oor al die terreine, sodat 'n gebou of
+/// lokaal direk gekies kan word — die terrein (en gebou) word dan outomaties
+/// terug herlei vanuit die gekose gebou/lokaal. Die data kom heeltemal uit
+/// [CampusService] se bestaande boom (Terrein → Geboue → Lokale) — geen nuwe
+/// diens of eindpunt nie.
 class LocationCascadePicker extends StatefulWidget {
   final LocationDepth depth;
   final int? initialCampusId;
@@ -29,6 +35,14 @@ class LocationCascadePicker extends StatefulWidget {
   final String? label;
   final String? errorText;
 
+  /// Wys die krummelpad bo die kieser-veld. Skakel af (false) wanneer die
+  /// ouder self 'n opsommingsblok bokant die veld wys.
+  final bool showBreadcrumb;
+
+  /// Wys 'n wysig-inskiet by vlak 0 wanneer 'n geskandeerde/opgesoekte bate
+  /// se bestaande ligging verander word ("Verander ... van ...").
+  final bool editing;
+
   const LocationCascadePicker({
     super.key,
     this.depth = LocationDepth.room,
@@ -38,16 +52,58 @@ class LocationCascadePicker extends StatefulWidget {
     required this.onChanged,
     this.label,
     this.errorText,
+    this.showBreadcrumb = true,
+    this.editing = false,
   });
 
   @override
   State<LocationCascadePicker> createState() => _LocationCascadePickerState();
 }
 
+/// Watter soort opsie 'n [_LocationChoice] is.
+enum _ChoiceType {
+  /// 'n Normale terrein-, gebou- of lokaal-keuse.
+  campus,
+  building,
+  room,
+
+  /// "Kies Gebou"-sprong by die terrein-vlak: wys al die geboue oor al die
+  /// terreine; die terrein word terug herlei wanneer 'n gebou gekies word.
+  jumpGebou,
+
+  /// "Kies Lokaal"-sprong: wys die lokale direk; die gebou en terrein word
+  /// terug herlei wanneer 'n lokaal gekies word.
+  jumpLokaal,
+}
+
+/// 'n Keuse in die kieser: 'n normale vlak-item of een van die spronge.
+class _LocationChoice {
+  final _ChoiceType type;
+  final int? campusId;
+  final int? buildingId;
+  final int? roomId;
+  final String label;
+  const _LocationChoice({
+    required this.type,
+    this.campusId,
+    this.buildingId,
+    this.roomId,
+    required this.label,
+  });
+}
+
 class _LocationCascadePickerState extends State<LocationCascadePicker> {
   int? _campusId;
   int? _buildingId;
   int? _roomId;
+
+  /// Die terrein-vlak is oorgeslaan ("Kies Gebou"/"Kies Lokaal"): die gebou-
+  /// lys wys alle geboue oor alle terreine en die terrein word terug herlei.
+  bool _jumpCampus = false;
+
+  /// Die gebou-vlak is oorgeslaan ("Kies Lokaal"): die lokaal-lys wys die
+  /// lokale direk en die gebou/terrein word terug herlei.
+  bool _jumpBuilding = false;
 
   @override
   void initState() {
@@ -100,37 +156,10 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
       } else if (level == 2) {
         _roomId = null;
       }
+      _jumpCampus = false;
+      _jumpBuilding = false;
     });
     widget.onChanged(_campusId, _buildingId, _roomId);
-  }
-
-  void _select(int level, int id, String labelName) {
-    setState(() {
-      if (level == 0) {
-        _campusId = id;
-        _buildingId = null;
-        _roomId = null;
-      } else if (level == 1) {
-        _buildingId = id;
-        _roomId = null;
-      } else {
-        _roomId = id;
-      }
-    });
-    widget.onChanged(_campusId, _buildingId, _roomId);
-
-    const levelNames = ['Terrein', 'Gebou', 'Lokaal'];
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('✓ ${levelNames[level]} gekies: $labelName'),
-          duration: const Duration(milliseconds: 1200),
-          backgroundColor: AppColors.successGreen,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
   }
 
   Campus? _campusOf(List<Campus> campuses) {
@@ -156,6 +185,207 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
       if (r.id == _roomId) return r;
     }
     return null;
+  }
+
+  /// Vind die terrein waarin gebou [buildingId] woon.
+  int? _campusIdOfBuilding(int buildingId, List<Campus> campuses) {
+    for (final c in campuses) {
+      for (final b in c.buildings) {
+        if (b.id == buildingId) return c.id;
+      }
+    }
+    return null;
+  }
+
+  /// Vind die gebou- en terrein-ID waarin lokaal [roomId] woon.
+  ({int? campusId, int? buildingId}) _pathOfRoom(
+      int roomId, List<Campus> campuses) {
+    for (final c in campuses) {
+      for (final b in c.buildings) {
+        for (final r in b.rooms ?? const <Room>[]) {
+          if (r.id == roomId) {
+            return (campusId: c.id, buildingId: b.id);
+          }
+        }
+      }
+    }
+    return (campusId: null, buildingId: null);
+  }
+
+  /// Kies die keuse. 'n Normale keuse stel die huidige vlak en vorder; die
+  /// spronge ("Kies Gebou"/"Kies Lokaal") slaan vlakke oor, waarna die
+  /// oorgelate terrein/gebou terug herlei word sodra 'n gebou/lokaal gekies is.
+  void _pick(_LocationChoice choice) {
+    final campuses = CampusService.campusesNotifier.value;
+    switch (choice.type) {
+      case _ChoiceType.campus:
+        _campusId = choice.campusId;
+        _buildingId = null;
+        _roomId = null;
+        _jumpCampus = false;
+        _jumpBuilding = false;
+      case _ChoiceType.jumpGebou:
+        _campusId = null;
+        _buildingId = null;
+        _roomId = null;
+        _jumpCampus = true;
+        _jumpBuilding = false;
+      case _ChoiceType.jumpLokaal:
+        if (_campusId != null) {
+          // Gebou-vlak: slaan die gebou oor en wys die terrein se lokale.
+          _buildingId = null;
+          _roomId = null;
+          _jumpBuilding = true;
+        } else {
+          // Terrein-vlak: slaan beide oor en wys alle lokale oor alle terreine.
+          _campusId = null;
+          _buildingId = null;
+          _roomId = null;
+          _jumpCampus = true;
+          _jumpBuilding = true;
+        }
+      case _ChoiceType.building:
+        _buildingId = choice.buildingId;
+        _roomId = null;
+        if (_jumpCampus || _campusId == null) {
+          _campusId =
+              _campusIdOfBuilding(choice.buildingId!, campuses) ?? _campusId;
+        }
+        _jumpCampus = false;
+        _jumpBuilding = false;
+      case _ChoiceType.room:
+        _roomId = choice.roomId;
+        if (_jumpBuilding || _jumpCampus || _campusId == null) {
+          final path = _pathOfRoom(choice.roomId!, campuses);
+          _campusId = path.campusId ?? _campusId;
+          _buildingId = path.buildingId ?? _buildingId;
+        }
+        _jumpCampus = false;
+        _jumpBuilding = false;
+    }
+    widget.onChanged(_campusId, _buildingId, _roomId);
+    setState(() {});
+    // Sodra die ligging voltooi is, sluit die sleutelbord outomaties.
+    if (_isComplete) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+  }
+
+  List<SearchableDropdownItem<_LocationChoice>> _buildOptions(
+      List<Campus> campuses) {
+    final choices = <_LocationChoice>[];
+
+    if (_roomId != null) {
+      // Volledig — geen opsies nie.
+      return const [];
+    }
+
+    if (_buildingId != null) {
+      // Lokaal-vlak: die gebou se lokale.
+      final building = _buildingOf(campuses);
+      for (final r in building?.rooms ?? const <Room>[]) {
+        choices.add(_LocationChoice(
+          type: _ChoiceType.room,
+          campusId: _campusId,
+          buildingId: _buildingId,
+          roomId: r.id,
+          label: '${r.id} - ${r.name}',
+        ));
+      }
+    } else if (_campusId != null) {
+      if (_jumpBuilding) {
+        // "Kies Lokaal" by die gebou-vlak: die terrein se lokale.
+        final campus = _campusOf(campuses);
+        for (final b in campus?.buildings ?? const <Building>[]) {
+          for (final r in b.rooms ?? const <Room>[]) {
+            choices.add(_LocationChoice(
+              type: _ChoiceType.room,
+              campusId: _campusId,
+              buildingId: b.id,
+              roomId: r.id,
+              label: '${r.id} - ${r.name} (${b.name})',
+            ));
+          }
+        }
+      } else {
+        // Gebou-vlak: die terrein se geboue + "Kies Lokaal"-sprong.
+        final campus = _campusOf(campuses);
+        for (final b in campus?.buildings ?? const <Building>[]) {
+          choices.add(_LocationChoice(
+            type: _ChoiceType.building,
+            campusId: _campusId,
+            buildingId: b.id,
+            label: '${b.id} - ${b.name}',
+          ));
+        }
+        if (_targetLevels >= 3) {
+          choices.add(const _LocationChoice(
+            type: _ChoiceType.jumpLokaal,
+            label: 'Kies Lokaal',
+          ));
+        }
+      }
+    } else if (_jumpCampus) {
+      if (_jumpBuilding) {
+        // "Kies Lokaal" by die terrein-vlak: alle lokale oor alle terreine.
+        for (final c in campuses) {
+          for (final b in c.buildings) {
+            for (final r in b.rooms ?? const <Room>[]) {
+              choices.add(_LocationChoice(
+                type: _ChoiceType.room,
+                campusId: c.id,
+                buildingId: b.id,
+                roomId: r.id,
+                label: '${r.id} - ${r.name} (${c.name} › ${b.name})',
+              ));
+            }
+          }
+        }
+      } else {
+        // "Kies Gebou" by die terrein-vlak: alle geboue oor alle terreine.
+        for (final c in campuses) {
+          for (final b in c.buildings) {
+            choices.add(_LocationChoice(
+              type: _ChoiceType.building,
+              campusId: c.id,
+              buildingId: b.id,
+              label: '${b.id} - ${b.name} (${c.name})',
+            ));
+          }
+        }
+        if (_targetLevels >= 3) {
+          choices.add(const _LocationChoice(
+            type: _ChoiceType.jumpLokaal,
+            label: 'Kies Lokaal',
+          ));
+        }
+      }
+    } else {
+      // Terrein-vlak: die terreine + die twee sprong-opsies.
+      for (final c in campuses) {
+        choices.add(_LocationChoice(
+          type: _ChoiceType.campus,
+          campusId: c.id,
+          label: '${c.id} - ${c.name}',
+        ));
+      }
+      if (_targetLevels >= 2) {
+        choices.add(const _LocationChoice(
+          type: _ChoiceType.jumpGebou,
+          label: 'Kies Gebou',
+        ));
+      }
+      if (_targetLevels >= 3) {
+        choices.add(const _LocationChoice(
+          type: _ChoiceType.jumpLokaal,
+          label: 'Kies Lokaal',
+        ));
+      }
+    }
+
+    return [
+      for (final c in choices) SearchableDropdownItem(value: c, label: c.label),
+    ];
   }
 
   Widget _buildBreadcrumb(List<Campus> campuses) {
@@ -208,40 +438,38 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
     );
   }
 
-  List<SearchableDropdownItem<int>> _currentOptions(List<Campus> campuses) {
-    switch (_filledLevels) {
-      case 0:
-        return [
-          for (final c in campuses)
-            SearchableDropdownItem(value: c.id, label: '${c.id} - ${c.name}'),
-        ];
-      case 1:
-        final campus = _campusOf(campuses);
-        return [
-          for (final b in campus?.buildings ?? const <Building>[])
-            SearchableDropdownItem(value: b.id, label: '${b.id} - ${b.name}'),
-        ];
-      case 2:
-        final building = _buildingOf(campuses);
-        return [
-          for (final r in building?.rooms ?? const <Room>[])
-            SearchableDropdownItem(value: r.id, label: '${r.id} - ${r.name}'),
-        ];
-      default:
-        return const [];
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<Campus>>(
       valueListenable: CampusService.campusesNotifier,
       builder: (context, campuses, _) {
-        const hints = ['Kies Terrein...', 'Kies Gebou...', 'Kies Lokaal...'];
-        final level = _filledLevels;
-        final hint = _isComplete ? 'Ligging voltooi' : hints[level];
-        final options =
-            _isComplete ? <SearchableDropdownItem<int>>[] : _currentOptions(campuses);
+        const browseHints = [
+          'Kies Terrein, Gebou en Lokaal',
+          'Kies Gebou...',
+          'Kies Lokaal...',
+        ];
+        final int hintIndex;
+        if (_roomId != null) {
+          hintIndex = 2;
+        } else if (_buildingId != null) {
+          hintIndex = 2;
+        } else if (_campusId != null) {
+          hintIndex = 1;
+        } else if (_jumpCampus && _jumpBuilding) {
+          hintIndex = 2;
+        } else if (_jumpCampus) {
+          hintIndex = 1;
+        } else {
+          hintIndex = 0;
+        }
+        final String hint;
+        if (_isComplete) {
+          hint = 'Ligging voltooi — tik om te verander';
+        } else if (hintIndex == 0 && widget.editing) {
+          hint = 'Verander Terrein, Gebou of Lokaal';
+        } else {
+          hint = browseHints[hintIndex];
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,32 +477,33 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
             if (widget.label != null) ...[
               Text(
                 widget.label!,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: AppColors.navy,
+                ),
               ),
               const SizedBox(height: 6),
             ],
-            _buildBreadcrumb(campuses),
-            const SizedBox(height: 6),
-            SearchableDropdown<int>(
+            if (widget.showBreadcrumb) ...[
+              _buildBreadcrumb(campuses),
+              const SizedBox(height: 6),
+            ],
+            InlineSearchableDropdown<_LocationChoice>(
               hint: hint,
-              items: options,
-              enabled: !_isComplete,
-              // Altyd leeg: die keuse self word in die broodkrummel gewys, en
-              // die veld beweeg aan na die volgende vlak.
+              items: _isComplete ? const [] : _buildOptions(campuses),
               value: null,
-              onChanged: (id) {
-                if (id == null) return;
-                final picked = options.where((o) => o.value == id).firstOrNull;
-                _select(level, id, picked?.label ?? '$id');
+              enabled: true,
+              closeOnSelect: false,
+              restoreOnBlur: false,
+              onFocus: () {
+                // "Tik om te verander": 'n voltooide kaskade spring terug na
+                // vlak 0 sodat die hele pad oor gekies kan word.
+                if (_isComplete) _clearFromLevel(0);
               },
-              trailing: level > 0
-                  ? IconButton(
-                      icon: const Icon(Icons.keyboard_return, size: 20),
-                      color: AppColors.gold,
-                      tooltip: 'Terug na vorige vlak',
-                      onPressed: () => _clearFromLevel(level - 1),
-                    )
-                  : null,
+              onChanged: (v) {
+                if (v != null) _pick(v);
+              },
             ),
             if (widget.errorText != null) ...[
               const SizedBox(height: 6),

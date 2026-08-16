@@ -13,7 +13,7 @@ router = APIRouter()
 def create_room_check(
     data: RoomCheckCreate,
     session: Session = Depends(getSession),
-    user: User = Depends(require_right("assets.manage")),
+    user: User = Depends(require_right("room_checks.manage")),
 ):
     return room_check_service.create(session, data, user_id=user.user_id)
 
@@ -22,7 +22,7 @@ def list_room_checks(
     room_id: int,
     limit: Optional[int] = Query(None),
     session: Session = Depends(getSession),
-    _user: User = Depends(require_right("assets.manage")),
+    _user: User = Depends(require_right("room_checks.manage")),
 ):
     query = select(room_check_service.model).where(
         room_check_service.model.room_id == room_id
@@ -35,7 +35,7 @@ def list_room_checks(
 def get_room_check(
     check_id: int,
     session: Session = Depends(getSession),
-    _user: User = Depends(require_right("assets.manage")),
+    _user: User = Depends(require_right("room_checks.manage")),
 ):
     check = room_check_service.getByID(session, check_id)
     if not check:

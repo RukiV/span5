@@ -1,7 +1,7 @@
 """Authorization layer built on the ``Rights`` / ``RoleRight`` tables.
 
 This is the single source of truth for "who may do what". Endpoints declare the
-right they need with ``Depends(require_right("assets.manage"))`` instead of the
+right they need with ``Depends(require_right("assets.view"))`` instead of the
 old ad-hoc ``role_id == N`` comparisons.
 
 Two design decisions worth calling out (so they are not re-litigated later):
@@ -116,7 +116,7 @@ def user_has_right(session: Session, role_id: int, right_name: str) -> bool:
 def require_right(right_name: str):
     """Dependency factory: 401 if unauthenticated, 403 if the right is missing.
 
-    Usage: ``user: User = Depends(require_right("assets.manage"))``. The returned
+    Usage: ``user: User = Depends(require_right("assets.view"))``. The returned
     ``User`` is available to the endpoint for audit-log attribution / ownership
     checks.
     """
@@ -140,7 +140,7 @@ def require_any_right(*right_names: str):
 
     Used by image upload, which must be reachable both by asset managers
     (``assets.manage``) and by students attaching a photo to their own fault card
-    (``faults.create_own``).
+    (``faults.create``).
     """
 
     def dependency(

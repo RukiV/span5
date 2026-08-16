@@ -9,7 +9,8 @@ import '../../models/campus.dart' as model;
 
 class LocationPage extends StatefulWidget {
   final bool autoConfirm;
-  const LocationPage({super.key, this.autoConfirm = false});
+  final LatLng? initialLocation;
+  const LocationPage({super.key, this.autoConfirm = false, this.initialLocation});
 
   @override
   State<LocationPage> createState() => _LocationPageState();
@@ -31,7 +32,9 @@ class _LocationPageState extends State<LocationPage> {
   void initState() {
     super.initState();
     _activeCampus = null;
-    if (CampusService.campusesNotifier.value.isNotEmpty) {
+    if (widget.initialLocation != null) {
+      _selectedLocation = widget.initialLocation!;
+    } else if (CampusService.campusesNotifier.value.isNotEmpty) {
       final first = CampusService.campusesNotifier.value.first;
       _selectedLocation = LatLng(first.location.latitude, first.location.longitude);
     }
@@ -209,26 +212,27 @@ class _LocationPageState extends State<LocationPage> {
             ),
         ],
       ),
-      floatingActionButton: (isOffCampus || _gpsPermissionDenied || _userLocation == null) 
-        ? null 
-        : Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: FloatingActionButton(
-              mini: true,
-              backgroundColor: Colors.white,
-              onPressed: () {
-                if (_userLocation != null) {
-                  _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
-                  setState(() {
-                    _selectedLocation = _userLocation!;
-                    _isManualMode = false;
-                    _updateActiveCampus(_userLocation!);
-                  });
-                }
-              },
-              child: const Icon(Icons.my_location, color: AppColors.navy),
-            ),
-          ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: FloatingActionButton(
+          mini: true,
+          backgroundColor: Colors.white,
+          tooltip: "Gebruik my ligging",
+          onPressed: () {
+            if (_userLocation != null) {
+              _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
+              setState(() {
+                _selectedLocation = _userLocation!;
+                _isManualMode = false;
+                _updateActiveCampus(_userLocation!);
+              });
+            } else {
+              _initGps();
+            }
+          },
+          child: const Icon(Icons.my_location, color: AppColors.navy),
+        ),
+      ),
       body: Stack(
         children: [
           GoogleMap(

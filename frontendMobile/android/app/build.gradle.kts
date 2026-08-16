@@ -35,6 +35,14 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // AppAuth (via flutter_appauth) se RedirectUriReceiverActivity benodig
+        // die herleiding-skema van ons msauth:// redirect URI.
+        manifestPlaceholders["appAuthRedirectScheme"] = "msauth"
+        // Google Maps API key, gelees uit die nie-gecommitteerde keystore.properties
+        // (of 'n GOOGLE_MAPS_API_KEY env-var) sodat dit nie in version control beland nie.
+        manifestPlaceholders["googleMapsApiKey"] = keystoreProperties["googleMapsApiKey"] as String?
+            ?: System.getenv("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     signingConfigs {

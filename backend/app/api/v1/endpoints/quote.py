@@ -11,12 +11,12 @@ from ....services.quote_service import quote_service
 router = APIRouter()
 
 @router.get("", response_model=List[QuoteRead])
-def readQuotes(session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.manage"))):
+def readQuotes(session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.view"))):
     #Fetch all quotes
     return quote_service.getAll(session)
 
 @router.get("/{quoteID}", response_model=QuoteRead)
-def readQuote(quoteID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.manage"))):
+def readQuote(quoteID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.view"))):
     #Fetch single quote by id
     quote = quote_service.getByID(session, quoteID)
     if not quote:

@@ -35,7 +35,7 @@ class RoleService(BaseService[Role, RoleCreate, RoleUpdate]):
 
         Returns the sorted new right_ids, or None if the role does not exist.
         Raises ValueError for unknown right_ids, PermissionError if it would strip
-        ``users.manage`` from the Admin role (self-lockout guard).
+        the admin-console rights from the Admin role (self-lockout guard).
         """
         role = session.get(Role, role_id)
         if not role:
@@ -50,13 +50,19 @@ class RoleService(BaseService[Role, RoleCreate, RoleUpdate]):
             if unknown:
                 raise ValueError(f"Unknown right_id(s): {sorted(unknown)}")
 
-        # Self-lockout guard: the Admin role must always keep users.manage.
+        # Self-lockout guard: the Admin role must always keep the rights that
+        # unlock the users/roles/rights admin console.
         if role_id == ROLE_ADMIN:
-            users_manage_id = session.exec(
-                select(Rights.right_id).where(Rights.right_name == "users.manage")
-            ).first()
-            if users_manage_id is not None and users_manage_id not in requested:
-                raise PermissionError("The Admin role must keep the 'users.manage' right.")
+            protected_names = {"users.manage", "roles.manage", "rights.manage"}
+            protected_ids = set(session.exec(
+                select(Rights.right_id).where(Rights.right_name.in_(protected_names))
+            ).all())
+            stripped = protected_ids - requested
+            if stripped:
+                raise PermissionError(
+                    "The Admin role must keep the 'users.manage', 'roles.manage' and "
+                    "'rights.manage' rights."
+                )
 
         existing = session.exec(select(RoleRight).where(RoleRight.role_id == role_id)).all()
         before_ids = sorted(rr.right_id for rr in existing)
