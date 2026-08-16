@@ -8,9 +8,15 @@ import '../../services/campus_service.dart';
 import '../../models/campus.dart' as model;
 
 class LocationPage extends StatefulWidget {
+  /// Dev-vlag (--dart-define=ALLOW_OFF_CAMPUS=true) wat van-kampus
+  /// bevestiging en indiening toelaat sonder `n terrein. Prod-bou bly
+  /// kampus-gebonde.
+  static const allowOffCampus = bool.fromEnvironment('ALLOW_OFF_CAMPUS');
+
   final bool autoConfirm;
   final LatLng? initialLocation;
-  const LocationPage({super.key, this.autoConfirm = false, this.initialLocation});
+  const LocationPage(
+      {super.key, this.autoConfirm = false, this.initialLocation});
 
   @override
   State<LocationPage> createState() => _LocationPageState();
@@ -19,9 +25,9 @@ class LocationPage extends StatefulWidget {
 class _LocationPageState extends State<LocationPage> {
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionStream;
-  
+
   LatLng _selectedLocation = const LatLng(-25.850400, 28.179350);
-  LatLng? _userLocation; 
+  LatLng? _userLocation;
   model.Campus? _activeCampus;
   bool _isManualMode = true;
   bool _hasPoint = false;
@@ -36,16 +42,29 @@ class _LocationPageState extends State<LocationPage> {
       _selectedLocation = widget.initialLocation!;
     } else if (CampusService.campusesNotifier.value.isNotEmpty) {
       final first = CampusService.campusesNotifier.value.first;
-      _selectedLocation = LatLng(first.location.latitude, first.location.longitude);
+      _selectedLocation =
+          LatLng(first.location.latitude, first.location.longitude);
     }
-    _hasPoint = true; 
+    _hasPoint = true;
     _isSnapping = false;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initGps());
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initGps();
+      // Haal kampusse op sodat `n nuwe terrein (met sy sirkel) dadelik
+      // opgetel word sonder om die app te herbegin.
+      CampusService.fetchCampuses();
+    });
+  }
+
+  void _onCampusesChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     _positionStream?.cancel();
     super.dispose();
   }
@@ -67,7 +86,8 @@ class _LocationPageState extends State<LocationPage> {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+    if (permission == LocationPermission.whileInUse ||
+        permission == LocationPermission.always) {
       if (mounted) {
         setState(() {
           _isManualMode = false;
@@ -109,10 +129,10 @@ class _LocationPageState extends State<LocationPage> {
   void _handleNewPosition(Position position, {bool moveMap = false}) {
     if (!mounted) return;
     final userPoint = LatLng(position.latitude, position.longitude);
-    
+
     // Check if we were already in manual mode or if this is first fix
     bool wasManual = _isManualMode;
-    
+
     setState(() {
       _userLocation = userPoint;
       if (!_isManualMode) {
@@ -123,7 +143,8 @@ class _LocationPageState extends State<LocationPage> {
     });
 
     if (moveMap || (!_isManualMode && !wasManual)) {
-      _mapController?.animateCamera(CameraUpdate.newLatLngZoom(userPoint, 18.0));
+      _mapController
+          ?.animateCamera(CameraUpdate.newLatLngZoom(userPoint, 18.0));
     }
   }
 
@@ -133,10 +154,8 @@ class _LocationPageState extends State<LocationPage> {
 
     model.Campus? foundCampus;
     for (var campus in CampusService.campusesNotifier.value) {
-      double distance = Geolocator.distanceBetween(
-        point.latitude, point.longitude, 
-        campus.location.latitude, campus.location.longitude
-      );
+      double distance = Geolocator.distanceBetween(point.latitude,
+          point.longitude, campus.location.latitude, campus.location.longitude);
       if (distance <= campus.radius) {
         foundCampus = campus;
         break;
@@ -146,22 +165,25 @@ class _LocationPageState extends State<LocationPage> {
   }
 
   bool _isPointInsideAnyCampus(LatLng point) {
-    if (CampusService.campusesNotifier.value.isEmpty) return false; // Don't allow if not loaded
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      return false; // Don't allow if not loaded
+    }
 
     for (var campus in CampusService.campusesNotifier.value) {
-      double distance = Geolocator.distanceBetween(
-        point.latitude, point.longitude, 
-        campus.location.latitude, campus.location.longitude
-      );
+      double distance = Geolocator.distanceBetween(point.latitude,
+          point.longitude, campus.location.latitude, campus.location.longitude);
       if (distance <= campus.radius) return true;
     }
     return false;
   }
 
   Future<void> _confirmLocation() async {
-    if (!_isPointInsideAnyCampus(_selectedLocation)) {
+    if (!LocationPage.allowOffCampus &&
+        !_isPointInsideAnyCampus(_selectedLocation)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kies 'n punt binne 'n toegelate kampus area."), backgroundColor: AppColors.errorRed),
+        const SnackBar(
+            content: Text("Kies 'n punt binne 'n toegelate kampus area."),
+            backgroundColor: AppColors.errorRed),
       );
       return;
     }
@@ -173,7 +195,8 @@ class _LocationPageState extends State<LocationPage> {
 
       if (mounted) {
         Navigator.pop(context, {
-          'coords': "${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}",
+          'coords':
+              "${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}",
           'screenshot': imageBytes,
         });
       }
@@ -186,9 +209,9 @@ class _LocationPageState extends State<LocationPage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isOffCampus = _userLocation != null && 
-                       _activeCampus == null && 
-                       CampusService.campusesNotifier.value.isNotEmpty;
+    bool isOffCampus = _userLocation != null &&
+        _activeCampus == null &&
+        CampusService.campusesNotifier.value.isNotEmpty;
     bool showPlaceholder = (_gpsPermissionDenied && !_hasPoint);
 
     return Scaffold(
@@ -196,15 +219,25 @@ class _LocationPageState extends State<LocationPage> {
       appBar: AppBar(
         title: const Text("Kies Ligging"),
         actions: [
-          if (_hasPoint && !_isSnapping && !isOffCampus)
-            IconButton(icon: const Icon(Icons.check, color: AppColors.gold), onPressed: _confirmLocation),
-          
+          if (_hasPoint &&
+              !_isSnapping &&
+              !(isOffCampus && !LocationPage.allowOffCampus))
+            IconButton(
+                icon: const Icon(Icons.check, color: AppColors.gold),
+                onPressed: _confirmLocation),
           if (_gpsPermissionDenied || isOffCampus)
-            IconButton(icon: const Icon(Icons.refresh, color: AppColors.gold), onPressed: _initGps)
+            IconButton(
+              icon: const Icon(Icons.refresh, color: AppColors.gold),
+              onPressed: () {
+                _initGps();
+                CampusService.fetchCampuses();
+              },
+            )
           else
             IconButton(
-              icon: Icon(_isManualMode ? Icons.location_disabled : Icons.my_location, 
-                color: _isManualMode ? Colors.grey : AppColors.gold),
+              icon: Icon(
+                  _isManualMode ? Icons.location_disabled : Icons.my_location,
+                  color: _isManualMode ? Colors.grey : AppColors.gold),
               onPressed: () {
                 setState(() => _isManualMode = !_isManualMode);
                 if (!_isManualMode) _initGps();
@@ -220,7 +253,8 @@ class _LocationPageState extends State<LocationPage> {
           tooltip: "Gebruik my ligging",
           onPressed: () {
             if (_userLocation != null) {
-              _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
+              _mapController?.animateCamera(
+                  CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
               setState(() {
                 _selectedLocation = _userLocation!;
                 _isManualMode = false;
@@ -236,7 +270,8 @@ class _LocationPageState extends State<LocationPage> {
       body: Stack(
         children: [
           GoogleMap(
-            initialCameraPosition: CameraPosition(target: _selectedLocation, zoom: 15),
+            initialCameraPosition:
+                CameraPosition(target: _selectedLocation, zoom: 15),
             onMapCreated: (c) => _mapController = c,
             myLocationEnabled: !_gpsPermissionDenied,
             myLocationButtonEnabled: false,
@@ -248,14 +283,16 @@ class _LocationPageState extends State<LocationPage> {
                 position: _selectedLocation,
               )
             },
-            circles: CampusService.campusesNotifier.value.map((c) => Circle(
-              circleId: CircleId(c.id.toString()),
-              center: LatLng(c.location.latitude, c.location.longitude),
-              radius: c.radius,
-              fillColor: AppColors.gold.withValues(alpha: 0.2),
-              strokeColor: AppColors.gold,
-              strokeWidth: 2,
-            )).toSet(),
+            circles: CampusService.campusesNotifier.value
+                .map((c) => Circle(
+                      circleId: CircleId(c.id.toString()),
+                      center: LatLng(c.location.latitude, c.location.longitude),
+                      radius: c.radius,
+                      fillColor: AppColors.gold.withValues(alpha: 0.2),
+                      strokeColor: AppColors.gold,
+                      strokeWidth: 2,
+                    ))
+                .toSet(),
             onTap: (pos) {
               setState(() {
                 _selectedLocation = pos;
@@ -263,16 +300,13 @@ class _LocationPageState extends State<LocationPage> {
               });
             },
           ),
-
-          if (showPlaceholder) 
+          if (showPlaceholder)
             _buildNoGpsPlaceholder(
-              title: isOffCampus ? "Toegang Geweier" : "Geen GPS Toegang",
-              message: isOffCampus 
-                ? "Jy moet fisies op 'n Akademia kampus wees om 'n verslag in te dien."
-                : "Aktiveer jou GPS om voort te gaan.",
-              allowManual: !isOffCampus
-            ),
-          
+                title: isOffCampus ? "Toegang Geweier" : "Geen GPS Toegang",
+                message: isOffCampus
+                    ? "Jy moet fisies op 'n Akademia kampus wees om 'n verslag in te dien."
+                    : "Aktiveer jou GPS om voort te gaan.",
+                allowManual: !isOffCampus),
           if (_isSnapping)
             Container(
               color: Colors.black54,
@@ -282,12 +316,13 @@ class _LocationPageState extends State<LocationPage> {
                   children: [
                     CircularProgressIndicator(color: AppColors.gold),
                     SizedBox(height: 15),
-                    Text("Ligging word vasgelê...", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    Text("Ligging word vasgelê...",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
             ),
-
           _buildStatusOverlay(isOffCampus),
         ],
       ),
@@ -296,76 +331,124 @@ class _LocationPageState extends State<LocationPage> {
 
   Widget _buildStatusOverlay(bool isOffCampus) {
     bool isSelectionInside = _isPointInsideAnyCampus(_selectedLocation);
+    final devOffCampus = isOffCampus && LocationPage.allowOffCampus;
 
     return Positioned(
-      top: 15, left: 15, right: 15,
+      top: 15,
+      left: 15,
+      right: 15,
       child: Column(
         children: [
           if (CampusService.campusesNotifier.value.isEmpty)
-             Container(
-               margin: const EdgeInsets.only(bottom: 10),
-               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-               decoration: BoxDecoration(
-                 color: Colors.white.withValues(alpha: 0.9),
-                 borderRadius: BorderRadius.circular(10),
-               ),
-               child: const Row(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
-                   SizedBox(width: 10),
-                   Text("Laai kampusse...", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                 ],
-               ),
-             ),
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 10),
+                  Text("Laai kampusse...",
+                      style:
+                          TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(15),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))
-              ],
-              border: Border.all(
-                color: isOffCampus ? AppColors.errorRed.withValues(alpha: 0.3) : (isSelectionInside ? AppColors.gold.withValues(alpha: 0.3) : AppColors.warningOrange.withValues(alpha: 0.3)),
-                width: 1
-              )
-            ),
+                color: Colors.white.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4))
+                ],
+                border: Border.all(
+                    color: isOffCampus
+                        ? (devOffCampus
+                                ? AppColors.warningOrange
+                                : AppColors.errorRed)
+                            .withValues(alpha: 0.3)
+                        : (isSelectionInside
+                            ? AppColors.gold.withValues(alpha: 0.3)
+                            : AppColors.warningOrange.withValues(alpha: 0.3)),
+                    width: 1)),
             child: Row(
               children: [
                 Icon(
-                  isOffCampus ? Icons.block : (!isSelectionInside ? Icons.warning_amber_rounded : Icons.check_circle_outline), 
-                  size: 20, 
-                  color: isOffCampus ? AppColors.errorRed : (!isSelectionInside ? AppColors.warningOrange : AppColors.successGreen)
-                ),
+                    isOffCampus
+                        ? (devOffCampus
+                            ? Icons.warning_amber_rounded
+                            : Icons.block)
+                        : (!isSelectionInside
+                            ? Icons.warning_amber_rounded
+                            : Icons.check_circle_outline),
+                    size: 20,
+                    color: isOffCampus
+                        ? (devOffCampus
+                            ? AppColors.warningOrange
+                            : AppColors.errorRed)
+                        : (!isSelectionInside
+                            ? AppColors.warningOrange
+                            : AppColors.successGreen)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isOffCampus ? "BUITE TOEGELATE AREA" : (isSelectionInside ? "LIGGING GEVIND" : "ONGELDIGE LIGGING"), 
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold, 
-                          fontSize: 12, 
-                          color: isOffCampus ? AppColors.errorRed : (isSelectionInside ? AppColors.navy : AppColors.warningOrange),
-                          letterSpacing: 0.5
-                        )
-                      ),
+                          isOffCampus
+                              ? (devOffCampus
+                                  ? "VAN-KAMPUS TOETS"
+                                  : "BUITE TOEGELATE AREA")
+                              : (isSelectionInside
+                                  ? "LIGGING GEVIND"
+                                  : "ONGELDIGE LIGGING"),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: isOffCampus
+                                  ? (devOffCampus
+                                      ? AppColors.warningOrange
+                                      : AppColors.errorRed)
+                                  : (isSelectionInside
+                                      ? AppColors.navy
+                                      : AppColors.warningOrange),
+                              letterSpacing: 0.5)),
                       Text(
-                        isOffCampus 
-                          ? "Beweeg asb. na 'n kampus area." 
-                          : (isSelectionInside ? "Klik op die regmerkie bo om te bevestig." : "Skuif die kaart na 'n goue sirkel."),
-                        style: const TextStyle(fontSize: 10, color: Colors.black54)
-                      ),
+                          isOffCampus
+                              ? (devOffCampus
+                                  ? "Dev-modus: die regmerkie kan gebruik word om te bevestig."
+                                  : "Beweeg asb. na 'n kampus area.")
+                              : (isSelectionInside
+                                  ? "Klik op die regmerkie bo om te bevestig."
+                                  : "Skuif die kaart na 'n goue sirkel."),
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.black54)),
                     ],
                   ),
                 ),
                 if (_isManualMode && !isOffCampus)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(4)),
-                    child: const Text("MANUEEL", style: TextStyle(fontSize: 8, color: Colors.white, fontWeight: FontWeight.bold)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: AppColors.navy,
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Text("MANUEEL",
+                        style: TextStyle(
+                            fontSize: 8,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
                   )
               ],
             ),
@@ -375,24 +458,33 @@ class _LocationPageState extends State<LocationPage> {
     );
   }
 
-  Widget _buildNoGpsPlaceholder({required String title, required String message, bool allowManual = true}) {
+  Widget _buildNoGpsPlaceholder(
+      {required String title,
+      required String message,
+      bool allowManual = true}) {
     return Container(
       color: Colors.white,
       width: double.infinity,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            allowManual ? Icons.location_off_outlined : Icons.block_outlined, 
-            size: 100, 
-            color: allowManual ? AppColors.navy.withValues(alpha: 50/255) : Colors.red.withValues(alpha: 50/255)
-          ),
+          Icon(allowManual ? Icons.location_off_outlined : Icons.block_outlined,
+              size: 100,
+              color: allowManual
+                  ? AppColors.navy.withValues(alpha: 50 / 255)
+                  : Colors.red.withValues(alpha: 50 / 255)),
           const SizedBox(height: 25),
-          Text(title, style: TextStyle(color: allowManual ? AppColors.navy : Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(title,
+              style: TextStyle(
+                  color: allowManual ? AppColors.navy : Colors.red,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(message, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            child: Text(message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.grey, fontSize: 14)),
           ),
         ],
       ),

@@ -599,9 +599,13 @@ class _NewReportPageState extends State<NewReportPage> {
                 // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
                 // buite enige terrein het reeds 'n spesifieke fout van
                 // _resolveCampusFromPoint — moenie dit oorskryf nie.
+                // (Met die ALLOW_OFF_CAMPUS-dev-vlag is 'n terreinvrye
+                // kaartpunt geldig en word dit hier toegelaat.)
                 final hasPath = selectedLocation != null;
                 final hasCoords = _mapLocation != null;
-                if (hasCoords && _selectedCampusId == null) {
+                if (hasCoords &&
+                    _selectedCampusId == null &&
+                    !LocationPage.allowOffCampus) {
                   setState(() => _locationError =
                       "Punt val nie binne 'n terrein nie — kies 'n ander plek");
                   return;
@@ -808,6 +812,16 @@ class _NewReportPageState extends State<NewReportPage> {
       }
     }
     if (nearest == null) {
+      if (LocationPage.allowOffCampus) {
+        // Dev-modus: van-kampus is toegelaat — die terrein bly leeg, maar
+        // die kaartpunt/skermgreep word behou sonder 'n fout.
+        setState(() {
+          _selectedCampusId = null;
+          selectedCampus = null;
+          _locationError = null;
+        });
+        return;
+      }
       setState(() {
         _selectedCampusId = null;
         selectedCampus = null;
@@ -1089,6 +1103,7 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                 focusNode: _titleFocus,
                 maxLines: 1,
                 textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.sentences,
                 onFieldSubmitted: (_) => _descFocus.requestFocus(),
                 validator: widget.titleValidator,
                 style: const TextStyle(fontSize: 14),
@@ -1109,6 +1124,7 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                     focusNode: _descFocus,
                     maxLines: 3,
                     minLines: 3,
+                    textCapitalization: TextCapitalization.sentences,
                     validator: widget.descValidator,
                     style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(
