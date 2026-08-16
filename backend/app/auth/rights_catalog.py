@@ -8,6 +8,12 @@ Built-ins are load-bearing: the 4 role ids are referenced by ``auth.py``'s login
 gate and re-created by name in ``seed.py``; the right names are referenced by
 ``require_right("...")`` all over the endpoints. So the management API refuses to
 rename/delete any of them (see BUILTIN_ROLE_IDS / BUILTIN_RIGHT_NAMES).
+
+Rights follow a ``<resource>.<verb>`` scheme: ``view`` = read-only access, and
+``manage`` = create/update/delete (a ``manage`` role always holds ``view`` too).
+Resources with ownership scoping (faults, jobs) add ``_own`` variants so that a
+low-privilege role can never see/edit other users' records. Special actions that
+do not fit CRUD (notifications.send) keep their own right name.
 """
 
 # Role IDs. Assigned by insertion order in seed_data() and relied on throughout
@@ -18,55 +24,117 @@ ROLE_ADMIN = 3
 ROLE_CONTRACTOR = 4
 
 # --- Rights catalog --------------------------------------------------------
-# right_name -> human description. Kept intentionally small: one right per
-# resource, split into view/manage only where a role genuinely needs
-# read-without-write (calendar, jobs, faults).
+# right_name -> human description. Resources are split into view (read) and
+# manage (create/update/delete). faults/jobs keep _own scope variants so that
+# contractors and students can only reach their own records.
 RIGHTS_CATALOG: dict[str, str] = {
-    "users.manage": "Full CRUD on users (Admin only).",
-    "assets.manage": "Create/read/update/delete assets and asset types.",
-    "stock.manage": "Manage stock items.",
-    "buildings.manage": "Manage buildings.",
-    "rooms.manage": "Manage rooms.",
-    "locations.manage": "Manage campuses / terrains.",
-    "contractors.manage": "Manage contractors.",
-    "quotes.manage": "Manage quotes.",
+    # Assets & Stock
+    "assets.view": "Read assets and asset types.",
+    "assets.manage": "Create/update/delete assets and asset types.",
+    "stock.view": "Read stock items.",
+    "stock.manage": "Create/update/delete stock items.",
+    "room_checks.manage": "Run and view room checklists.",
+    # Campus, Buildings & Rooms
+    "locations.view": "Read campuses / terrains.",
+    "locations.manage": "Create/update/delete campuses / terrains.",
+    "buildings.view": "Read buildings.",
+    "buildings.manage": "Create/update/delete buildings.",
+    "rooms.view": "Read rooms.",
+    "rooms.manage": "Create/update/delete rooms.",
+    # Fault cards
+    "faults.create": "Create a fault card.",
+    "faults.view_own": "See only fault cards you created.",
+    "faults.view": "See every fault card.",
+    "faults.manage": "Update/delete every fault card.",
+    # Job cards
+    "jobs.view_own": "See only jobs assigned to you.",
+    "jobs.view": "See every job.",
+    "jobs.manage": "Create/update/delete every job.",
+    "jobs.update_own_status": "Update status/finish time/werknotas on your own jobs.",
+    # Calendar
+    "calendar.view": "Read-only calendar access.",
+    "calendar.manage": "Create/update/delete calendar events.",
+    # Contractors & Quotes
+    "contractors.view": "Read contractors.",
+    "contractors.manage": "Create/update/delete contractors.",
+    "quotes.view": "Read quotes.",
+    "quotes.manage": "Create/update/delete quotes.",
+    # Users, Roles & Rights (Admin)
+    "users.view": "Read users.",
+    "users.manage": "Create/update/delete users.",
+    "roles.manage": "Manage roles and their rights.",
+    "rights.manage": "Manage the rights catalog.",
+    # Notifications
+    "notifications.view": "View own notifications and history.",
+    "notifications.manage": "Manage own notification preferences.",
+    "notifications.send": "Send system-wide announcements.",
+    # Analytics & Audit
     "predictions.view": "View asset lifespan predictions.",
     "reports.view": "View analytics reports.",
     "analytics.view": "View AI analytics panel.",
     "audit.view": "Read the audit log (read-only, no manage right exists).",
-    "calendar.manage": "Full CRUD on calendar events.",
-    "calendar.view": "Read-only calendar access.",
-    "faults.manage_all": "See/edit/delete every fault card.",
-    "faults.create_own": "Create a fault card.",
-    "faults.view_own": "See only fault cards you created.",
-    "jobs.manage": "Create/delete/edit any job.",
-    "jobs.view_own": "See only jobs assigned to you.",
-    "jobs.update_own_status": "Update only status fields on your own jobs.",
-    "notifications.view": "View own notifications and history.",
-    "notifications.manage": "Manage own notification preferences.",
-    "notifications.send": "Send system-wide announcements.",
 }
 
 # --- RoleRight assignments -------------------------------------------------
-# role_id -> set of right names. Admin == FK plus users.manage; note that Admin
-# does NOT hold the contractor-only jobs.view_own / jobs.update_own_status
-# rights (Admin manages jobs via jobs.manage instead).
+# role_id -> set of right names. Admin == FK plus users/roles/rights management.
+# Neither Admin nor FK holds the contractor-only jobs.view_own /
+# jobs.update_own_status rights (staff manage jobs via jobs.manage instead).
 _FK_RIGHTS = {
-    "assets.manage", "stock.manage", "buildings.manage", "rooms.manage",
-    "locations.manage", "contractors.manage", "quotes.manage",
-    "predictions.view", "reports.view", "analytics.view", "audit.view",
-    "calendar.manage", "calendar.view",
-    "faults.manage_all", "faults.create_own", "faults.view_own",
-    "jobs.manage",
+    "assets.view", "assets.manage",
+    "stock.view", "stock.manage",
+    "room_checks.manage",
+    "locations.view", "locations.manage",
+    "buildings.view", "buildings.manage",
+    "rooms.view", "rooms.manage",
+    "faults.create", "faults.view", "faults.manage",
+    "jobs.view", "jobs.manage",
+    "calendar.view", "calendar.manage",
+    "contractors.view", "contractors.manage",
+    "quotes.view", "quotes.manage",
     "notifications.view", "notifications.manage",
+    "predictions.view", "reports.view", "analytics.view", "audit.view",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
-    ROLE_ADMIN: _FK_RIGHTS | {"users.manage", "notifications.send"},
+    ROLE_ADMIN: _FK_RIGHTS | {
+        "users.view", "users.manage", "roles.manage", "rights.manage",
+        "notifications.send",
+    },
     ROLE_FK: set(_FK_RIGHTS),
-    ROLE_STUDENT: {"faults.create_own", "faults.view_own", "notifications.view", "notifications.manage"},
+    ROLE_STUDENT: {"faults.create", "faults.view_own", "notifications.view", "notifications.manage"},
     ROLE_CONTRACTOR: {"calendar.view", "jobs.view_own", "jobs.update_own_status", "notifications.view", "notifications.manage"},
 }
 
 # The management API protects these from rename/delete.
 BUILTIN_ROLE_IDS: frozenset[int] = frozenset({ROLE_STUDENT, ROLE_FK, ROLE_ADMIN, ROLE_CONTRACTOR})
 BUILTIN_RIGHT_NAMES: frozenset[str] = frozenset(RIGHTS_CATALOG)
+
+# --- Legacy right migration -------------------------------------------------
+# One-time remap of the pre-split right names (old -> replacement set). Applied
+# by seed.py so existing databases keep working without manual intervention:
+# for every role that holds an old name, the mapped rights are granted and the
+# old name is pruned. Keys that are no longer part of the catalog are dropped.
+LEGACY_RIGHT_MIGRATION: dict[str, set[str]] = {
+    "users.manage": {"users.view", "users.manage", "roles.manage", "rights.manage"},
+    "assets.manage": {"assets.view", "assets.manage", "room_checks.manage"},
+    "stock.manage": {"stock.view", "stock.manage"},
+    "buildings.manage": {"buildings.view", "buildings.manage"},
+    "rooms.manage": {"rooms.view", "rooms.manage"},
+    "locations.manage": {"locations.view", "locations.manage"},
+    "contractors.manage": {"contractors.view", "contractors.manage"},
+    "quotes.manage": {"quotes.view", "quotes.manage"},
+    "calendar.manage": {"calendar.view", "calendar.manage"},
+    "calendar.view": {"calendar.view"},
+    "faults.manage_all": {"faults.view", "faults.manage"},
+    "faults.create_own": {"faults.create"},
+    "faults.view_own": {"faults.view_own"},
+    "jobs.manage": {"jobs.view", "jobs.manage"},
+    "jobs.view_own": {"jobs.view_own"},
+    "jobs.update_own_status": {"jobs.update_own_status"},
+    "notifications.view": {"notifications.view"},
+    "notifications.manage": {"notifications.manage"},
+    "notifications.send": {"notifications.send"},
+    "predictions.view": {"predictions.view"},
+    "reports.view": {"reports.view"},
+    "analytics.view": {"analytics.view"},
+    "audit.view": {"audit.view"},
+}

@@ -11,11 +11,11 @@ from ....services.building_service import building_service
 router = APIRouter()
 
 @router.get("", response_model=List[BuildingRead])
-def readBuildings(session: Session = Depends(getSession), _user: User = Depends(require_any_right("buildings.manage", "faults.create_own"))):
+def readBuildings(session: Session = Depends(getSession), _user: User = Depends(require_any_right("buildings.view", "faults.create"))):
     return building_service.getAll(session)
 
 @router.get("/{buildingID}", response_model=BuildingRead)
-def readBuilding(buildingID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("buildings.manage"))):
+def readBuilding(buildingID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("buildings.view"))):
     building = building_service.getByID(session, buildingID)
     if not building:
         raise HTTPException(status_code=404, detail="Building not found")

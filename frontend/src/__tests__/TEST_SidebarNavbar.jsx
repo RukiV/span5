@@ -9,10 +9,11 @@ jest.mock('../services/api', () => ({
   apiClient: { get: jest.fn().mockResolvedValue({ data: {} }), defaults: { baseURL: '' } },
 }));
 
-const fullRights = ['assets.manage', 'stock.manage', 'rooms.manage', 'buildings.manage',
-  'locations.manage', 'faults.manage_all', 'jobs.manage',
-  'calendar.view', 'predictions.view', 'reports.view', 'users.manage',
-  'roles.manage', 'rights.manage'];
+const fullRights = ['assets.view', 'assets.manage', 'stock.view', 'stock.manage',
+  'rooms.view', 'rooms.manage', 'buildings.view', 'buildings.manage',
+  'locations.view', 'locations.manage', 'faults.create', 'faults.view', 'faults.manage', 'jobs.view', 'jobs.manage',
+  'calendar.view', 'predictions.view', 'reports.view',
+  'users.view', 'users.manage', 'roles.manage', 'rights.manage'];
 
 jest.mock('../hooks/useCurrentUser', () => ({
   useCurrentUser: () => ({

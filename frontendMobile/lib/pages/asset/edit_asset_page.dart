@@ -324,7 +324,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
                           brand: brand,
                           category: typeName,
                           assetTypeId: selectedTypeId,
-                          location: selectedLocation?.split(":").first ?? "1",
+                          location: selectedLocation!.split(":").first,
                           status: status,
                           isOutdoor: isFixed,
                           campus: selectedCampus ?? "",

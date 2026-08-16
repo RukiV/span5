@@ -117,17 +117,34 @@ function RolesPage({ embedded = false }) {
           <div className="form-group">
             <label>Regte</label>
             <div style={{ maxHeight: '260px', overflowY: 'auto', border: '1px solid #ddd', borderRadius: '4px', padding: '8px' }}>
-              {rights.map(right => (
-                <label key={right.right_id} style={{ display: 'block', fontWeight: 'normal', marginBottom: '4px' }}>
-                  <input
-                    type="checkbox"
-                    checked={roleForm.rightIds.includes(right.right_id)}
-                    onChange={() => toggleRight(right.right_id)}
-                  />
-                  {' '}{right.right_name}
-                  {right.right_description ? <span style={{ color: '#888', fontSize: '12px' }}> — {right.right_description}</span> : null}
-                </label>
-              ))}
+              {(() => {
+                const grouped = [];
+                const seen = {};
+                rights.forEach((right) => {
+                  const group = (right.right_name || '').split('.')[0] || 'Algemeen';
+                  if (!(group in seen)) {
+                    seen[group] = grouped.length;
+                    grouped.push({ group, items: [] });
+                  }
+                  grouped[seen[group]].items.push(right);
+                });
+                return grouped.map(({ group, items }) => (
+                  <div key={group} style={{ marginBottom: '10px' }}>
+                    <h4 style={{ margin: '4px 0', fontSize: '13px', textTransform: 'capitalize', color: '#555' }}>{group}</h4>
+                    {items.map(right => (
+                      <label key={right.right_id} style={{ display: 'block', fontWeight: 'normal', marginBottom: '4px' }}>
+                        <input
+                          type="checkbox"
+                          checked={roleForm.rightIds.includes(right.right_id)}
+                          onChange={() => toggleRight(right.right_id)}
+                        />
+                        {' '}{right.right_name}
+                        {right.right_description ? <span style={{ color: '#888', fontSize: '12px' }}> — {right.right_description}</span> : null}
+                      </label>
+                    ))}
+                  </div>
+                ));
+              })()}
             </div>
           </div>
           <div className="modal-footer">

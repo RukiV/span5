@@ -44,6 +44,7 @@ export const useCurrentUser = () => {
   const hasRight = (right) => rights.includes(right);
 
   // Behou vir agteruit-verenigbaarheid; verkies hasRight('users.manage')
+  // of hasRight('roles.manage') waar toepaslik.
   const isAdmin = user?.role_id === 3;
 
   return { user, loading, error, rights, hasRight, isAdmin };

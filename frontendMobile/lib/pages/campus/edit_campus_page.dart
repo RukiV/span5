@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
+import '../reporting/select_location_page.dart';
 
 class EditCampusPage extends StatefulWidget {
   final Campus campus;
@@ -21,6 +23,8 @@ class _EditCampusPageState extends State<EditCampusPage> {
   late TextEditingController _cityController;
   late TextEditingController _provinceController;
   late TextEditingController _countryController;
+  late LatLng _selectedLocation;
+  late TextEditingController _radiusController;
   bool _isSaving = false;
 
   @override
@@ -34,6 +38,8 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _cityController = TextEditingController(text: widget.campus.city);
     _provinceController = TextEditingController(text: widget.campus.province);
     _countryController = TextEditingController(text: widget.campus.country);
+    _selectedLocation = widget.campus.location;
+    _radiusController = TextEditingController(text: widget.campus.radius.toStringAsFixed(0));
   }
 
   @override
@@ -46,6 +52,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _cityController.dispose();
     _provinceController.dispose();
     _countryController.dispose();
+    _radiusController.dispose();
     super.dispose();
   }
 
@@ -101,6 +108,8 @@ class _EditCampusPageState extends State<EditCampusPage> {
       city: _cityController.text,
       province: _provinceController.text,
       country: _countryController.text,
+      location: _selectedLocation,
+      radius: double.tryParse(_radiusController.text) ?? widget.campus.radius,
     );
 
     final success = await CampusService.updateCampus(updatedCampus);
@@ -170,6 +179,56 @@ class _EditCampusPageState extends State<EditCampusPage> {
                     style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Ligging op Kaart"),
+                  InkWell(
+                    onTap: () async {
+                      final LatLng? result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SelectLocationPage(initialLocation: _selectedLocation),
+                        ),
+                      );
+                      if (result != null) {
+                        setState(() => _selectedLocation = result);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on, color: AppColors.gold),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}",
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          const Text("VERANDER", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Toegelate Radius (meter)"),
+                  TextFormField(
+                    controller: _radiusController,
+                    style: const TextStyle(fontSize: 14),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: _inputDecoration(),
+                    validator: (v) {
+                      final val = double.tryParse(v ?? "");
+                      return (v == null || v.isEmpty || val == null || val <= 0) ? "Geldige radius word vereis" : null;
+                    },
                   ),
                   const SizedBox(height: 16),
 

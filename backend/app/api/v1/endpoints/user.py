@@ -10,17 +10,17 @@ from ....services.user_service import user_service
 router = APIRouter()
 
 @router.get("", response_model=List[UserRead])
-def readUsers(session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readUsers(session: Session = Depends(getSession), _user: User = Depends(require_right("users.view"))):
     #Fetch all users
     return user_service.getAll(session)
 
 @router.get("/assignable", response_model=List[UserRead])
-def readAssignableUsers(session: Session = Depends(getSession), _user: User = Depends(require_any_right("jobs.manage", "quotes.manage"))):
+def readAssignableUsers(session: Session = Depends(getSession), _user: User = Depends(require_any_right("jobs.view", "quotes.view"))):
     #Users that can be assigned to work orders or chosen as quote contractors
     return session.exec(select(User).order_by(User.user_name, User.user_surname)).all()
 
 @router.get("/{userID}", response_model=UserRead)
-def readUser(userID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readUser(userID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.view"))):
     #Fetch single user by id
     user = user_service.getByID(session, userID)
     if not user:

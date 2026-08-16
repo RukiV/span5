@@ -4,6 +4,8 @@ import '../../widgets/searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
 import '../../services/calendar_service.dart';
+import '../../services/outlook_service.dart';
+import '../../services/outlook_token_manager.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 
@@ -222,6 +224,100 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  /// Sinkroniseer 'n plaaslike afspraak na Outlook (dieselfde as die web se
+  /// "Sinkroniseer na Outlook"-knoppie). Meld eers aan as die gebruiker nie
+  /// 'n Outlook-sessie het nie.
+  Future<void> _syncEventToOutlook(CalendarEvent event, {VoidCallback? onDone}) async {
+    var token = await OutlookTokenManager.instance.getGraphAccessToken();
+    if (token == null) {
+      final signedIn = await OutlookTokenManager.instance.signIn();
+      token = signedIn
+          ? await OutlookTokenManager.instance.getGraphAccessToken()
+          : null;
+      if (token == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Meld asseblief eers aan met Microsoft om te sinkroniseer."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    final start = event.startDatetime;
+    final end = event.endDatetime ?? start.add(const Duration(hours: 1));
+    final graphId = await OutlookService.instance.createEvent(
+      title: event.title,
+      description: event.description,
+      start: start,
+      end: end,
+      location: event.location,
+    );
+
+    if (graphId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Fout tydens sinkronisering na Outlook."),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    final ok = await CalendarService.updateEventSync(
+      event.eventId!,
+      outlookEventId: graphId,
+      outlookSynced: true,
+    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(ok ? "Gesinkroniseer na Outlook!" : "Kon nie sinkronisering stoor nie."),
+          backgroundColor: ok ? Colors.green : Colors.orange,
+        ),
+      );
+    }
+    onDone?.call();
+  }
+
+  /// Verwyder 'n suiver Outlook-afspraak (bron 'outlook') by MS Graph.
+  Future<void> _deleteOutlookEvent(CalendarEvent event, BuildContext ctx) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        title: const Text("Verwyder Outlook-afspraak?"),
+        content: const Text("Dit sal die afspraak van jou Outlook-kalender verwyder."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text("KANSELLEER")),
+          TextButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text("VERWYDER", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || event.outlookEventId == null) return;
+
+    final deleted = await OutlookService.instance.deleteEvent(event.outlookEventId!);
+    if (deleted) {
+      CalendarService.removeOutlookEvent(event.outlookEventId!);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Outlook-afspraak verwyder."), backgroundColor: Colors.green),
+        );
+      }
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Fout tydens verwydering van Outlook-afspraak."), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   Future<void> _showEventDetail(CalendarEvent event) {
     return showDialog(
       context: context,
@@ -303,6 +399,27 @@ class _CalendarPageState extends State<CalendarPage> {
                 }
               },
               child: const Text("Verwyder", style: TextStyle(color: Colors.red)),
+            ),
+          if (UserSession.can('calendar.manage') &&
+              event.source == 'calendar_event' &&
+              !event.outlookSynced &&
+              event.eventId != null)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _syncEventToOutlook(event);
+              },
+              child: const Text("Sinkroniseer na Outlook"),
+            ),
+          if (UserSession.can('calendar.manage') &&
+              event.source == 'outlook' &&
+              event.outlookEventId != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _deleteOutlookEvent(event, context);
+              },
+              child: const Text("Verwyder van Outlook", style: TextStyle(color: Colors.red)),
             ),
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("SLUIT")),
         ],

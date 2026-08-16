@@ -14,6 +14,7 @@ class FaultcardBase(SQLModel):
     fault_priority: Priority = Field(default=Priority.MEDIUM)
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+    is_outdoor: bool = False
 
     @field_validator('fault_description', mode='before')
     @classmethod
@@ -38,6 +39,10 @@ class FaultcardCreate(FaultcardBase):
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
+    # Transient velde: word nie as kolomme gestoor nie — die diens skep/wysig
+    # 'n Mappoint (lat/lng) en koppel mappoint_id aan die foutkaartjie.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class FaultcardRead(FaultcardBase):
@@ -59,9 +64,13 @@ class FaultcardUpdate(SQLModel):
     fault_priority: Optional[Priority] = None
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+    is_outdoor: Optional[bool] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    # Transient velde vir die kaartligging (soos by FaultcardCreate).
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None

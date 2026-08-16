@@ -53,8 +53,8 @@ function UsersPage({ embedded = false }) {
   const fieldRefs = useRef({});
 
   // Toegang tot hierdie bladsy word deur
-  // <RightProtectedRoute requiredRight="users.manage"> in App.jsx afgedwing (en
-  // die backend gate elke /users-roete met require_right("users.manage")). Hier
+  // <RightProtectedRoute requiredRight="users.view"> in App.jsx afgedwing (en
+  // die backend gate elke /users-roete met require_right("users.view")). Hier
   // haal ons die gebruikers EN die rolle (rolle dryf die rol-keuselys en word
   // nou dinamies van die backend gehaal i.p.v. hardgekodeer).
   useEffect(() => {

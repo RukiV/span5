@@ -20,6 +20,7 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
+import '../../services/outlook_token_manager.dart';
 import '../room_checklist/room_checklist_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -94,7 +95,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     // Lokaal Kontrole — dieselfde reg as die backend se /room-checks-eindpunt.
-    if (can('assets.manage')) {
+    if (can('room_checks.manage')) {
       menu.add({
         'title': 'Lokaal Kontrole',
         'icon': Icons.checklist,
@@ -104,19 +105,19 @@ class _HomePageState extends State<HomePage> {
 
     // Fasiliteite — bates, voorraad en die ligging-hiërargie onder een groep.
     final facilitiesChildren = <Map<String, dynamic>>[];
-    if (can('assets.manage')) {
+    if (can('assets.view')) {
       facilitiesChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
     }
-    if (can('stock.manage')) {
+    if (can('stock.view')) {
       facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
     }
-    if (can('locations.manage')) {
+    if (can('locations.view')) {
       facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
     }
-    if (can('buildings.manage')) {
+    if (can('buildings.view')) {
       facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
     }
-    if (can('rooms.manage')) {
+    if (can('rooms.view')) {
       facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
     }
     if (facilitiesChildren.isNotEmpty) {
@@ -129,14 +130,14 @@ class _HomePageState extends State<HomePage> {
     }
 
     // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
-    if (can('faults.create_own') || can('faults.view_own') || can('faults.manage_all')) {
+    if (can('faults.create') || can('faults.view_own') || can('faults.view')) {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
     }
 
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
     // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
-    if (can('jobs.manage')) {
+    if (can('jobs.manage') || can('jobs.view')) {
       menu.add({'title': 'Werksopdragte', 'icon': Icons.assignment_outlined, 'page': const WorksAssignmentsPage()});
     } else if (can('jobs.view_own')) {
       menu.add({'title': 'Werksopdragte', 'icon': Icons.engineering_outlined, 'page': const JobCardsPage()});
@@ -200,7 +201,9 @@ class _HomePageState extends State<HomePage> {
     if (UserSession.isAdmin) {
       roleTitle = "Admin Mode";
     } else if (UserSession.isManager) {
-      roleTitle = "Bestuurder: ${UserSession.userCampus}";
+      roleTitle = UserSession.userCampus.isEmpty
+          ? "Bestuurder"
+          : "Bestuurder: ${UserSession.userCampus}";
     } else if (UserSession.isContractor) {
       roleTitle = "Kontrakteur";
     }
@@ -305,6 +308,7 @@ class _HomePageState extends State<HomePage> {
               title: const Text("Teken Uit", style: TextStyle(color: Colors.redAccent)),
               onTap: () async {
                 await ApiClient().clearToken();
+                await OutlookTokenManager.instance.signOut();
                 UserSession.clear();
                 if (!mounted) return;
                 if (context.mounted) {
