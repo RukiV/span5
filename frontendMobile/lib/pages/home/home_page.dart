@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../ai/ai_draft_queue_page.dart';
+
 import '../reporting/reporting_page.dart';
 import '../asset/asset_page.dart';
 import '../stock/stock_page.dart';
@@ -134,11 +134,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
     }
 
-    // AI Konsepte — FK/Admin keur AI-gegenereerde foutkonsepte goed/verwerp.
-    if (can('ai.approve')) {
-      menu.add({'title': 'AI Konsepte', 'icon': Icons.auto_awesome_outlined, 'page': const AIDraftQueuePage()});
-    }
-
+    // AI Konsepte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
     // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
