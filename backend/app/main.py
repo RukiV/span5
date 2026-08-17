@@ -60,23 +60,37 @@ origins = [
 ]
 
 # =============================================================================
-# DEBUG: Maak CORS oop vir alle bronne sodat die fisiese selfoon nie deur
-# die blaaier se sekuriteitsreëls geblokkeer word tydens toetsing op WiFi nie.
+# MIDDLEWARE STACK (outermost runs first on incoming requests):
+#
+#   1. CORSMiddleware          (OUTERMOST — runs first)
+#   2. security_headers        (middle)
+#   3. IdempotencyMiddleware   (INNERMOST — runs last, closest to route handler)
+#
+# Starlette app.add_middleware() builds a stack: each call WRAPS the previous
+# one, so the LAST call becomes the OUTERMOST layer. CORSMiddleware MUST be
+# outermost so it intercepts OPTIONS preflight requests before any other
+# middleware can touch them. If it sits inside another middleware, the outer
+# layer may reject or transform the OPTIONS request before CORS headers are
+# added, causing mobile/web clients to fail with 400/403.
+#
+# allow_origin_regex=".*" allows any origin during development. The backend
+# still enforces auth via Bearer tokens, so this is safe. For production,
+# replace with an explicit allow_origins list of your domain(s).
 # =============================================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# =============================================================================
 
 # Security headers middleware
 app.add_middleware(BaseHTTPMiddleware, dispatch=add_security_headers)
 
 # Idempotency middleware — prevents duplicate POST submissions.
-# Must be added AFTER CORS so it runs inside CORS (outermost = first).
+# Runs INSIDE CORS (innermost), so OPTIONS preflights are handled by CORS first.
 app.add_middleware(IdempotencyMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")

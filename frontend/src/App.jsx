@@ -23,6 +23,7 @@ import ReportsPage from './pages/ReportsPage';
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
+import RoomCheckSessionsPage from './pages/RoomCheckSessionsPage';
 import BuildingsPage from './pages/BuildingsPage';
 import TerrainsPage from './pages/TerrainsPage';
 import UsersPage from './pages/UsersPage';
@@ -107,6 +108,7 @@ function AppContent() {
             <Route path="/assets" element={<RightProtectedRoute requiredRight="assets.manage"><AssetPage /></RightProtectedRoute>} />
             <Route path="/stock" element={<RightProtectedRoute requiredRight="stock.manage"><StockPage /></RightProtectedRoute>} />
             <Route path="/rooms" element={<RightProtectedRoute requiredRight="rooms.manage"><RoomsPage /></RightProtectedRoute>} />
+            <Route path="/room-checks-schedules" element={<RightProtectedRoute requiredRight="roomchecks.manage"><RoomCheckSessionsPage /></RightProtectedRoute>} />
             <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
             <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
             <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />

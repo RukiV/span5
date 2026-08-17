@@ -4,6 +4,8 @@ from sqlmodel import create_engine, Session, SQLModel
 
 # Import models so SQLModel.metadata.create_all() picks them up
 from ..models.idempotency import IdempotencyRecord  # noqa: F401
+from ..models.room_check import RoomCheck  # noqa: F401
+from ..models.room_check_session import RoomCheckSession  # noqa: F401
 
 # Database Configuration
 # Prefer a full DATABASE_URL, otherwise build one from individual env vars.
@@ -112,6 +114,35 @@ def createDBandTables():
             except Exception:
                 # Nie 'n native enum nie (bv. VARCHAR) of reeds bygevoeg — ignoreer.
                 pass
+
+        if "room_check" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS room_check (
+                    room_check_id SERIAL PRIMARY KEY,
+                    room_id INTEGER NOT NULL REFERENCES room(room_id),
+                    user_id INTEGER REFERENCES "user"(user_id),
+                    summary TEXT NOT NULL,
+                    checked_datetime TIMESTAMP
+                )
+            """))
+
+        if "room_check_session" not in inspector.get_table_names():
+            connection.execute(text("""
+                CREATE TABLE IF NOT EXISTS room_check_session (
+                    session_id SERIAL PRIMARY KEY,
+                    room_id INTEGER NOT NULL REFERENCES room(room_id),
+                    assigned_user_id INTEGER NOT NULL REFERENCES "user"(user_id),
+                    scheduled_datetime TIMESTAMP,
+                    status VARCHAR(20) DEFAULT 'scheduled',
+                    calendar_event_id INTEGER,
+                    room_check_id INTEGER REFERENCES room_check(room_check_id),
+                    notes TEXT,
+                    created_by INTEGER REFERENCES "user"(user_id),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_rcs_room ON room_check_session(room_id)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_rcs_assigned ON room_check_session(assigned_user_id)"))
 
         if "user" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("user")}
