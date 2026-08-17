@@ -21,7 +21,7 @@ function AIDraftQueuePage() {
     setLoading(true);
     try {
       const params = { status_filter: statusFilter }; // '' = Alle (backend treats empty as no filter)
-      const response = await apiClient.faultDrafts.getAll(params);
+      const response = await apiClient.jobDrafts.getAll(params);
       setDrafts(response.data || []);
     } catch (error) {
       console.error("Error fetching AI drafts:", error);

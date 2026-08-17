@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from app.models.asset import Asset, Assettype
 from app.models.enums import FaultStatus
 from app.models.fault import Faultcard
-from app.models.faultdraft import FaultDraft
+from app.models.jobdraft import JobDraft
 from app.models.user import User
 from app.services.auto_draft_scheduler import scan_and_create_auto_drafts
 from app.services.llm_service import LlmUnavailable, llm_service
@@ -64,7 +64,7 @@ def _fk_user_id(engine) -> int:
 
 def _drafts(engine) -> list:
     with Session(engine) as session:
-        return session.exec(select(FaultDraft)).all()
+        return session.exec(select(JobDraft)).all()
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ def test_scan_creates_auto_draft(engine, seeded, monkeypatch):
     assert len(created) == 1
 
     with Session(engine) as session:
-        draft = session.get(FaultDraft, created[0])
+        draft = session.get(JobDraft, created[0])
         assert draft is not None
         assert draft.source == "auto"
         assert draft.status == "draft"

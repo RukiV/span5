@@ -3,20 +3,20 @@ from typing import Any, Optional
 
 from sqlmodel import Session, update
 
-from ..models.faultdraft import FaultDraft
+from ..models.jobdraft import JobDraft
 from .base_service import BaseService
 
 
-class FaultDraftService(BaseService[FaultDraft, Any, Any]):
-    """Persistence + audit for AI fault drafts.
+class JobDraftService(BaseService[JobDraft, Any, Any]):
+    """Persistence + audit for AI job drafts.
 
     ``BaseService``'s generic create/update already write audit logs; we add the
     pipeline-specific helpers here so the endpoint stays thin.
     """
 
-    def create_draft(self, session: Session, *, user_id: int, values: dict) -> FaultDraft:
+    def create_draft(self, session: Session, *, user_id: int, values: dict) -> JobDraft:
         now = datetime.utcnow()
-        obj = FaultDraft(**values, user_id=user_id, created_at=now, updated_at=now)
+        obj = JobDraft(**values, user_id=user_id, created_at=now, updated_at=now)
         session.add(obj)
         try:
             session.flush()
@@ -46,10 +46,10 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
         Returns False when the draft was already reviewed.
         """
         now = datetime.utcnow()
-        before = session.get(FaultDraft, draft_id)
+        before = session.get(JobDraft, draft_id)
         result = session.exec(
-            update(FaultDraft)
-            .where(FaultDraft.draft_id == draft_id, FaultDraft.status == "draft")
+            update(JobDraft)
+            .where(JobDraft.draft_id == draft_id, JobDraft.status == "draft")
             .values(status=status, reviewer_id=reviewer_id, reviewed_at=now, updated_at=now)
         )
         if result.rowcount != 1:
@@ -78,12 +78,12 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
                         review_note: str = "", resolved: Optional[dict] = None,
                         duplicate_of: Optional[int] = None,
                         title: Optional[str] = None,
-                        work_instruction: Optional[str] = None) -> FaultDraft:
+                        work_instruction: Optional[str] = None) -> JobDraft:
         """Write the review details (reason, resolved ids, duplicate link,
         reviewer overrides) onto a draft that ``claim_review`` already flipped.
         No status change. ``title`` / ``work_instruction`` are the reviewer's
         inline edits — persisted so they are not silently lost."""
-        draft = session.get(FaultDraft, draft_id)
+        draft = session.get(JobDraft, draft_id)
         if not draft:
             raise ValueError("Draft not found")
         before = draft.model_dump(mode="json")
@@ -119,14 +119,14 @@ class FaultDraftService(BaseService[FaultDraft, Any, Any]):
         return draft
 
     def revert_claim(self, session: Session, draft_id: int) -> None:
-        """Undo a ``claim_review`` after a failure (e.g. faultcard creation
+        """Undo a ``claim_review`` after a failure (e.g. jobcard creation
         crashed) so the draft can be reviewed again."""
         session.exec(
-            update(FaultDraft)
-            .where(FaultDraft.draft_id == draft_id, FaultDraft.status != "draft")
+            update(JobDraft)
+            .where(JobDraft.draft_id == draft_id, JobDraft.status != "draft")
             .values(status="draft", reviewer_id=None, reviewed_at=None, updated_at=datetime.utcnow())
         )
         session.commit()
 
 
-faultdraft_service = FaultDraftService(FaultDraft)
+jobdraft_service = JobDraftService(JobDraft)

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../core/api_client.dart';
-import '../models/fault_draft.dart';
+import '../models/job_draft.dart';
 
 // AiService: Hanteer alle logika vir die skep, haal en hersiening van
-// AI-foutkonsepte — die goedkeurings-ry voordat 'n konsep 'n kaartjie word.
+// AI-werkskonsepte — die goedkeurings-ry voordat 'n konsep 'n kaartjie word.
 class AiService {
-  static final List<FaultDraft> _drafts = [];
-  static final ValueNotifier<List<FaultDraft>> draftsNotifier = ValueNotifier(_drafts);
+  static final List<JobDraft> _drafts = [];
+  static final ValueNotifier<List<JobDraft>> draftsNotifier = ValueNotifier(_drafts);
   static final ValueNotifier<bool> isLoadingNotifier = ValueNotifier<bool>(false);
   static String? lastError;
 
@@ -24,7 +24,7 @@ class AiService {
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
         _drafts.clear();
-        _drafts.addAll(data.map((json) => FaultDraft.fromJson(json)).toList());
+        _drafts.addAll(data.map((json) => JobDraft.fromJson(json)).toList());
         draftsNotifier.value = List.from(_drafts);
       }
     } catch (e) {
@@ -36,7 +36,7 @@ class AiService {
   }
 
   // Haal konsepte sonder om die notifier te dateer — vir badge-tellings.
-  static Future<List<FaultDraft>> draftsRaw({String? statusFilter}) async {
+  static Future<List<JobDraft>> draftsRaw({String? statusFilter}) async {
     try {
       final response = await ApiClient().client.get(
         '/ai',
@@ -44,7 +44,7 @@ class AiService {
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
-        return data.map((json) => FaultDraft.fromJson(json)).toList();
+        return data.map((json) => JobDraft.fromJson(json)).toList();
       }
     } catch (_) {}
     return [];
@@ -53,14 +53,14 @@ class AiService {
   // Skep 'n nuwe AI-konsep vanaf vrye teks. Gee die geskepte konsep terug;
   // null op mislukking. Word NIE by _drafts gevoeg nie — dit leef in die
   // goedkeurings-ry en word deur die volgende fetchDrafts opgetel.
-  static Future<FaultDraft?> createDraft(String description) async {
+  static Future<JobDraft?> createDraft(String description) async {
     try {
       final response = await ApiClient().client.post(
         '/ai',
         data: {'description': description},
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return FaultDraft.fromJson(response.data);
+        return JobDraft.fromJson(response.data);
       }
     } catch (e) {
       lastError = e.toString();
@@ -70,11 +70,11 @@ class AiService {
   }
 
   // Haal 'n enkele konsep se detail (insluitend bate- en lokaal-kandidate).
-  static Future<FaultDraftDetail?> fetchDraftDetail(int id) async {
+  static Future<JobDraftDetail?> fetchDraftDetail(int id) async {
     try {
       final response = await ApiClient().client.get('/ai/$id');
       if (response.statusCode == 200) {
-        return FaultDraftDetail.fromJson(response.data);
+        return JobDraftDetail.fromJson(response.data);
       }
     } catch (e) {
       lastError = e.toString();

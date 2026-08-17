@@ -34,7 +34,7 @@ function AIDraftDetailPage() {
   const fetchDraft = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.faultDrafts.getById(id);
+      const response = await apiClient.jobDrafts.getById(id);
       const d = response.data;
       setDraft(d);
       setCleanedDescription(d.cleaned_description || "");
@@ -63,7 +63,7 @@ function AIDraftDetailPage() {
         asset_id: selectedAssetId || undefined,
         room_id: selectedRoomId || undefined,
       };
-      await apiClient.faultDrafts.approve(id, payload);
+      await apiClient.jobDrafts.approve(id, payload);
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep goedgekeur' });
       navigate('/ai-drafts');
     } catch (error) {
@@ -90,7 +90,7 @@ function AIDraftDetailPage() {
     }
     setActionLoading(true);
     try {
-      await apiClient.faultDrafts.reject(id, { reason: rejectReason.trim() });
+      await apiClient.jobDrafts.reject(id, { reason: rejectReason.trim() });
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep is afgewys' });
       navigate('/ai-drafts');
     } catch (error) {

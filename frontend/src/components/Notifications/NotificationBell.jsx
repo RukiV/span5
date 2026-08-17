@@ -26,7 +26,7 @@ function NotificationBell() {
     setOpen(false);
     const refMap = {
       fault: '/fault-tickets',
-      faultdraft: '/ai-drafts',
+      jobdraft: '/ai-drafts',
       job: '/work-orders',
       stock: '/stock',
       asset: '/assets',

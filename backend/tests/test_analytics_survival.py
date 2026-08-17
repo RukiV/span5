@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 from app.auth.rights_catalog import ROLE_FK
 from app.models.analytics import AnalyticsResponse
 from app.models.asset import Asset, Assettype
-from app.models.faultdraft import FaultDraft
+from app.models.jobdraft import JobDraft
 from app.models.user import User
 from app.services import survival_service
 from app.services.analytics_service import generate_insights
@@ -71,9 +71,9 @@ def test_predictions_page_insights(engine, seeded, monkeypatch):
 def test_ai_drafts_page_insights(engine, seeded):
     with Session(engine) as session:
         fk_id = session.exec(select(User).where(User.role_id == ROLE_FK)).first().user_id
-        session.add(FaultDraft(description="Projektor flikker", user_id=fk_id, status="draft", source="auto"))
-        session.add(FaultDraft(description="Toilet oorloop", user_id=fk_id, status="approved", source="manual"))
-        session.add(FaultDraft(description="Deur vas", user_id=fk_id, status="rejected", source="manual"))
+        session.add(JobDraft(description="Projektor flikker", user_id=fk_id, status="draft", source="auto"))
+        session.add(JobDraft(description="Toilet oorloop", user_id=fk_id, status="approved", source="manual"))
+        session.add(JobDraft(description="Deur vas", user_id=fk_id, status="rejected", source="manual"))
         session.commit()
 
     with Session(engine) as session:

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../models/fault_draft.dart';
+import '../../models/job_draft.dart';
 import '../../services/ai_service.dart';
 
 /// AiDraftReviewPage: Laat die FK/Admin 'n AI-konsep lees, wysig en goedkeur
@@ -15,7 +15,7 @@ class AiDraftReviewPage extends StatefulWidget {
 }
 
 class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
-  FaultDraftDetail? _detail;
+  JobDraftDetail? _detail;
   String? _loadError;
   bool _submitting = false;
 

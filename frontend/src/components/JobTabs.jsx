@@ -5,14 +5,14 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 
 /**
- * FaultTabs — tab chrome shared by the Foutkaartjies (fault tickets) page and
- * the AI Foutkonsepte (AI draft queue/new/detail) pages.
+ * JobTabs — tab chrome shared by the Werksopdragte (work orders) page and
+ * the AI Konsepte (AI job-draft queue/new/detail) pages.
  *
  * Renders a tab bar above the routed page content. The AI tab is only shown to
  * users holding the `ai.approve` right; its badge shows the number of drafts
  * still waiting for approval. The active tab is derived from the current URL.
  */
-function FaultTabs({ children }) {
+function JobTabs({ children }) {
   const location = useLocation();
   const { hasRight } = useCurrentUser();
   const { showToast } = useToast();
@@ -23,7 +23,7 @@ function FaultTabs({ children }) {
   useEffect(() => {
     if (!canApprove) return;
     let cancelled = false;
-    apiClient.faultDrafts
+    apiClient.jobDrafts
       .getAll({ status_filter: 'draft' })
       .then((res) => {
         if (!cancelled) setPendingCount(Array.isArray(res.data) ? res.data.length : 0);
@@ -42,10 +42,10 @@ function FaultTabs({ children }) {
     <>
       <div className="fault-tabs">
         <Link
-          to="/fault-tickets"
+          to="/work-orders"
           className={`fault-tab${isAi ? '' : ' active'}`}
         >
-          Foutkaartjies
+          Werksopdragte
         </Link>
         <Link
           to="/ai-drafts"
@@ -60,4 +60,4 @@ function FaultTabs({ children }) {
   );
 }
 
-export default FaultTabs;
+export default JobTabs;

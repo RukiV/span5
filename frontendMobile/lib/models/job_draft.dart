@@ -17,9 +17,9 @@ class DraftCandidate {
   }
 }
 
-/// FaultDraft: 'n AI-foutkonsep in die goedkeurings-ry. Die FK/Admin kan die
+/// JobDraft: 'n AI-werkskonsep in die goedkeurings-ry. Die FK/Admin kan die
 /// konsep hersien, wysig en goedkeur of verwerp — eers dan word dit 'n kaartjie.
-class FaultDraft {
+class JobDraft {
   final int draftId;
   final String description;
   final String cleanedDescription;
@@ -42,7 +42,7 @@ class FaultDraft {
   final DateTime? updatedAt;
   final DateTime? reviewedAt;
 
-  FaultDraft({
+  JobDraft({
     required this.draftId,
     required this.description,
     required this.cleanedDescription,
@@ -110,8 +110,8 @@ class FaultDraft {
     }
   }
 
-  factory FaultDraft.fromJson(Map<String, dynamic> json) {
-    return FaultDraft(
+  factory JobDraft.fromJson(Map<String, dynamic> json) {
+    return JobDraft(
       draftId: (json['draft_id'] as num?)?.toInt() ?? 0,
       description: json['description'] ?? '',
       cleanedDescription: json['cleaned_description'] ?? '',
@@ -136,7 +136,7 @@ class FaultDraft {
     );
   }
 
-  FaultDraft copyWith({
+  JobDraft copyWith({
     int? draftId,
     String? description,
     String? cleanedDescription,
@@ -159,7 +159,7 @@ class FaultDraft {
     DateTime? updatedAt,
     DateTime? reviewedAt,
   }) {
-    return FaultDraft(
+    return JobDraft(
       draftId: draftId ?? this.draftId,
       description: description ?? this.description,
       cleanedDescription: cleanedDescription ?? this.cleanedDescription,
@@ -185,15 +185,15 @@ class FaultDraft {
   }
 }
 
-/// FaultDraftDetail: 'n Konsep se detail — die lees-velde plus die kandidaat
+/// JobDraftDetail: 'n Konsep se detail — die lees-velde plus die kandidaat
 /// bates/lokale wat die FK/Admin moet ontknoop tydens goedkeuring.
-class FaultDraftDetail extends FaultDraft {
+class JobDraftDetail extends JobDraft {
   final List<DraftCandidate> assetCandidates;
   final List<DraftCandidate> roomCandidates;
 
   // Privaat: bou die detail uit 'n reeds-ontlede basis-konsep plus kandidate.
-  FaultDraftDetail._({
-    required FaultDraft base,
+  JobDraftDetail._({
+    required JobDraft base,
     required this.assetCandidates,
     required this.roomCandidates,
   }) : super(
@@ -220,9 +220,9 @@ class FaultDraftDetail extends FaultDraft {
           reviewedAt: base.reviewedAt,
         );
 
-  factory FaultDraftDetail.fromJson(Map<String, dynamic> json) {
-    return FaultDraftDetail._(
-      base: FaultDraft.fromJson(json),
+  factory JobDraftDetail.fromJson(Map<String, dynamic> json) {
+    return JobDraftDetail._(
+      base: JobDraft.fromJson(json),
       assetCandidates: (json['asset_candidates'] as List? ?? [])
           .map((e) => DraftCandidate.fromJson(e as Map<String, dynamic>))
           .toList(),

@@ -85,6 +85,7 @@ class Jobcard(JobcardBase, Base, table=True):
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
+    duplicate_of: Optional[int] = Field(default=None, foreign_key="jobcard.jobcard_id")
 
 
 class JobcardCreate(JobcardBase):
@@ -95,6 +96,7 @@ class JobcardCreate(JobcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
+    duplicate_of: Optional[int] = None
 
 
 class JobcardRead(JobcardBase):

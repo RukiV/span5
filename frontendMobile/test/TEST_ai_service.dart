@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fbs/models/fault_draft.dart';
+import 'package:fbs/models/job_draft.dart';
 
 void main() {
-  group('FaultDraft model', () {
+  group('JobDraft model', () {
     test('fromJson parses all read fields', () {
-      final draft = FaultDraft.fromJson({
+      final draft = JobDraft.fromJson({
         'draft_id': 7,
         'description': 'Projektor wys nie beeld nie.',
         'cleaned_description': 'Projektor lewer geen beeld nie.',
@@ -49,7 +49,7 @@ void main() {
     });
 
     test('label getters map to Afrikaans', () {
-      final draft = FaultDraft.fromJson({
+      final draft = JobDraft.fromJson({
         'draft_id': 1,
         'description': 'x',
         'cleaned_description': '',
@@ -81,7 +81,7 @@ void main() {
     });
 
     test('copyWith keeps unchanged fields', () {
-      final draft = FaultDraft.fromJson({
+      final draft = JobDraft.fromJson({
         'draft_id': 3,
         'description': 'd',
         'cleaned_description': '',
@@ -114,8 +114,8 @@ void main() {
       expect(updated.suggestedPriority, 'MEDIUM');
     });
 
-    test('FaultDraftDetail.fromJson parses candidates via super.fromJson', () {
-      final detail = FaultDraftDetail.fromJson({
+    test('JobDraftDetail.fromJson parses candidates via super.fromJson', () {
+      final detail = JobDraftDetail.fromJson({
         'draft_id': 5,
         'description': 'd',
         'cleaned_description': '',
@@ -159,7 +159,7 @@ void main() {
     });
 
     test('fromJson falls back gracefully on missing fields', () {
-      final draft = FaultDraft.fromJson({
+      final draft = JobDraft.fromJson({
         'draft_id': 9,
         'description': 'n',
         'user_id': 4,

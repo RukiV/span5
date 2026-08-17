@@ -4,7 +4,7 @@ from sqlmodel import create_engine, Session, SQLModel
 
 # Import models so SQLModel.metadata.create_all() picks them up
 from ..models.idempotency import IdempotencyRecord  # noqa: F401
-from ..models.faultdraft import FaultDraft  # noqa: F401
+from ..models.jobdraft import JobDraft  # noqa: F401
 
 # Database Configuration
 # Prefer a full DATABASE_URL, otherwise build one from individual env vars.
