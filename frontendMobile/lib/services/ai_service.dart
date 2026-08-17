@@ -35,6 +35,21 @@ class AiService {
     }
   }
 
+  // Haal konsepte sonder om die notifier te dateer — vir badge-tellings.
+  static Future<List<FaultDraft>> draftsRaw({String? statusFilter}) async {
+    try {
+      final response = await ApiClient().client.get(
+        '/ai',
+        queryParameters: statusFilter == null ? null : {'status_filter': statusFilter},
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = response.data;
+        return data.map((json) => FaultDraft.fromJson(json)).toList();
+      }
+    } catch (_) {}
+    return [];
+  }
+
   // Skep 'n nuwe AI-konsep vanaf vrye teks. Gee die geskepte konsep terug;
   // null op mislukking. Word NIE by _drafts gevoeg nie — dit leef in die
   // goedkeurings-ry en word deur die volgende fetchDrafts opgetel.
