@@ -268,8 +268,8 @@ export const documentsAPI = {
   delete: (documentId) => apiClient.delete(`/documents/${documentId}`),
 };
 
-// ===== AI FOUTDRAFTS-API =====
-export const faultDraftsAPI = {
+// ===== AI JOBDRAFTS-API =====
+export const jobDraftsAPI = {
   create: (data) => apiClient.post('/ai', data),
   getAll: (params) => apiClient.get('/ai', { params }),
   getById: (id) => apiClient.get(`/ai/${id}`),
@@ -312,7 +312,7 @@ apiClient.image = imageAPI;
 apiClient.documents = documentsAPI;
 apiClient.calendarEvents = calendarEventsAPI;
 apiClient.roomChecks = roomChecksAPI;
-apiClient.faultDrafts = faultDraftsAPI;
+apiClient.jobDrafts = jobDraftsAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

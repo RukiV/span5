@@ -19,7 +19,7 @@ function AIDraftNewPage() {
 
     setSubmitting(true);
     try {
-      await apiClient.faultDrafts.create({ description: description.trim() });
+      await apiClient.jobDrafts.create({ description: description.trim() });
       showToast({ type: 'success', title: 'Slaag', message: 'AI-konsep suksesvol gegenereer. Die konsep sal deur FK/Admin hersien word.' });
       navigate('/ai-drafts');
     } catch (error) {

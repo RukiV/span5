@@ -140,10 +140,10 @@ class LlmService:
         return data
 
     def disambiguate(self, description: str, asset_candidates: list[dict],
-                     room_candidates: list[dict], open_faults: list[dict]) -> dict:
+                     room_candidates: list[dict], open_jobs: list[dict]) -> dict:
         """Pick the best asset/room among candidates + flag a duplicate.
 
-        ``open_faults`` is a short list of {id, description} of open faultcards.
+        ``open_jobs`` is a short list of {id, description} of open jobcards.
         The model may only reference ids that were provided here.
         """
         if not self._enabled():
@@ -160,11 +160,11 @@ class LlmService:
             "Kies die mees waarskynlike een vir ELK, of gebruik null as die teks "
             "nie genoeg inligting gee om te kies nie. Moenie 'n id kies wat nie in "
             "die lys is nie. Dui ook duplicate_of aan as hierdie beskrywing "
-            "duidelik dieselfde fout is as een van die oop foute (anders null).\n\n"
+            "duidelik dieselfde fout is as een van die oop werkskaartjies (anders null).\n\n"
             f"Beskrywing: {description}\n"
             f"Moontlike bates: {_fmt(asset_candidates)}\n"
             f"Moontlike kamers: {_fmt(room_candidates)}\n"
-            f"Oop foute: {_fmt(open_faults)}\n"
+            f"Oop werkskaartjies: {_fmt(open_jobs)}\n"
             "Antwoord (slegs JSON): "
             '{"asset_id": <int|null>, "room_id": <int|null>, "duplicate_of": <int|null>}'
         )
@@ -175,11 +175,11 @@ class LlmService:
             return {"asset_id": None, "room_id": None, "duplicate_of": None}
         known_asset = {it["id"] for it in asset_candidates}
         known_room = {it["id"] for it in room_candidates}
-        known_fault = {it["id"] for it in open_faults}
+        known_job = {it["id"] for it in open_jobs}
         return {
             "asset_id": data.get("asset_id") if data.get("asset_id") in known_asset else None,
             "room_id": data.get("room_id") if data.get("room_id") in known_room else None,
-            "duplicate_of": data.get("duplicate_of") if data.get("duplicate_of") in known_fault else None,
+            "duplicate_of": data.get("duplicate_of") if data.get("duplicate_of") in known_job else None,
         }
 
     @staticmethod

@@ -649,9 +649,9 @@ def _gather_context(page: str, session,
             ctx["survival_assets"] = survival_service.get_status().get("assets")
 
     elif page == "ai-drafts":
-        from ..models.faultdraft import FaultDraft
+        from ..models.jobdraft import JobDraft
 
-        drafts = session.exec(select(FaultDraft)).all()
+        drafts = session.exec(select(JobDraft)).all()
         ctx["total"] = len(drafts)
         ctx["pending"] = sum(1 for d in drafts if d.status == "draft")
         ctx["approved"] = sum(1 for d in drafts if d.status == "approved")

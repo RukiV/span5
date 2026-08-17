@@ -6,12 +6,12 @@ from .base import Base
 from .validators import sanitize_text
 
 
-class FaultDraftBase(SQLModel):
-    """Base model for AI-generated fault drafts (pre-approval queue).
+class JobDraftBase(SQLModel):
+    """Base model for AI-generated job drafts (pre-approval queue).
 
     A draft is the result of the AI pipeline on a free-text description. It is
-    never a real Faultcard until an FK/Admin approves it (inline edits allowed),
-    so the existing manual fault flow stays untouched.
+    never a real Jobcard until an FK/Admin approves it (inline edits allowed),
+    so the existing manual job flow stays untouched.
     """
     description: str = Field(max_length=2000)
     cleaned_description: str = Field(default="", max_length=2000)
@@ -28,7 +28,7 @@ class FaultDraftBase(SQLModel):
     room_ids: str = Field(default="[]", max_length=1000)
     resolved_asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     resolved_room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
-    duplicate_of: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
+    duplicate_of: Optional[int] = Field(default=None, foreign_key="jobcard.jobcard_id")
     # "ok" when the full LLM pipeline ran, "degraded" when Ollama was unavailable.
     ai_status: str = Field(default="ok", max_length=10)
     # How the draft was triggered: "manual" = FK/Admin fed free text to the AI;
@@ -44,8 +44,8 @@ class FaultDraftBase(SQLModel):
         return sanitize_text(v) if isinstance(v, str) else v
 
 
-class FaultDraft(FaultDraftBase, Base, table=True):
-    """Model for faultdraft data."""
+class JobDraft(JobDraftBase, Base, table=True):
+    """Model for jobdraft data."""
     draft_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="user.user_id")
     reviewer_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
@@ -54,8 +54,8 @@ class FaultDraft(FaultDraftBase, Base, table=True):
     reviewed_at: Optional[datetime] = None
 
 
-class FaultDraftCreate(SQLModel):
-    """Input model for creating a fault draft from free text."""
+class JobDraftCreate(SQLModel):
+    """Input model for creating a job draft from free text."""
     description: str = Field(min_length=3, max_length=2000)
 
     @field_validator("description", mode="before")
@@ -64,8 +64,8 @@ class FaultDraftCreate(SQLModel):
         return sanitize_text(v) if isinstance(v, str) else v
 
 
-class FaultDraftRead(FaultDraftBase):
-    """Output model for reading a fault draft."""
+class JobDraftRead(JobDraftBase):
+    """Output model for reading a job draft."""
     draft_id: int
     user_id: int
     reviewer_id: Optional[int] = None
@@ -74,12 +74,12 @@ class FaultDraftRead(FaultDraftBase):
     reviewed_at: Optional[datetime] = None
 
 
-class FaultDraftApprove(SQLModel):
+class JobDraftApprove(SQLModel):
     """FK/Admin inline-edit + approval payload.
 
     Only the fields the reviewer may change are accepted; anything left out
     falls back to the draft's own AI suggestions. ``fault_type`` /
-    ``fault_priority`` are validated against the real Faultcard enums.
+    ``fault_priority`` are validated against the real Jobcard enums.
     """
     cleaned_description: Optional[str] = Field(default=None, max_length=2000)
     title: Optional[str] = Field(default=None, max_length=255)
@@ -110,7 +110,7 @@ class FaultDraftApprove(SQLModel):
         return sanitize_text(v) if isinstance(v, str) else v
 
 
-class FaultDraftReject(SQLModel):
+class JobDraftReject(SQLModel):
     """Rejection payload — a reason is required so the submitter learns why."""
     reason: str = Field(min_length=2, max_length=2000)
 
@@ -127,7 +127,7 @@ class DraftCandidate(SQLModel):
     detail: str = ""
 
 
-class FaultDraftDetail(FaultDraftRead):
+class JobDraftDetail(JobDraftRead):
     """Draft detail enriched with the resolved candidate lists."""
     asset_candidates: list[DraftCandidate] = []
     room_candidates: list[DraftCandidate] = []

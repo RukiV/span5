@@ -1,18 +1,18 @@
-"""AI fault-draft endpoints.
+"""AI job-draft endpoints.
 
 Two-step workflow, per the Phase-0 hybrid decision. The pipeline is an
-FK/Admin tool — regular fault reports (including students') are created
-immediately via POST /fault and never pass through here:
-  1. An FK/Admin submits free text via POST /ai/draft-fault (right ``ai.use``).
+FK/Admin tool — regular job reports (including students') are created
+immediately via POST /job and never pass through here:
+  1. An FK/Admin submits free text via POST /ai/draft (right ``ai.use``).
      The backend runs the rules classifier (type/priority — always), the local
      LLM (extraction/disambiguation/duplicate detection — degraded gracefully
      when Ollama is unreachable), and backend-side entity resolution. The result
-     is a *draft*, never a real Faultcard.
+     is a *draft*, never a real Jobcard.
   2. FK/Admin (right ``ai.approve``) reviews the queue, inline-edits, then
-     approves (creates the real Faultcard) or rejects with a reason.
+     approves (creates the real Jobcard) or rejects with a reason.
 
 Future trigger: drafts may also be auto-generated from analytical/prediction
-data (``FaultDraft.source="auto"``) — the schema already carries the flag.
+data (``JobDraft.source="auto"``) — the schema already carries the flag.
 """
 
 import json
@@ -25,22 +25,22 @@ from sqlmodel import Session, select
 from ....auth.permissions import require_right
 from ....db.database import getSession
 from ....models.asset import Asset
-from ....models.enums import FaultStatus, Priority, Type
-from ....models.fault import Faultcard, FaultcardCreate
-from ....models.faultdraft import (
+from ....models.enums import JobStatus, Priority, Type
+from ....models.job import Jobcard, JobcardCreate
+from ....models.jobdraft import (
     DraftCandidate,
-    FaultDraft,
-    FaultDraftApprove,
-    FaultDraftCreate,
-    FaultDraftDetail,
-    FaultDraftRead,
-    FaultDraftReject,
+    JobDraft,
+    JobDraftApprove,
+    JobDraftCreate,
+    JobDraftDetail,
+    JobDraftRead,
+    JobDraftReject,
 )
 from ....models.location import Building, Room
 from ....models.user import User
 from ....services import entity_resolver, rules_classifier
-from ....services.fault_service import fault_service
-from ....services.faultdraft_service import faultdraft_service
+from ....services.job_service import job_service
+from ....services.jobdraft_service import jobdraft_service
 from ....services.llm_service import llm_service
 from ....services.notification_service import NotificationService
 
@@ -66,16 +66,16 @@ def _json_ids(raw: str) -> list[int]:
         return []
 
 
-def _open_faults(session: Session, limit: int = 8) -> list[dict]:
-    """Recent open faults, surfaced to the LLM for duplicate detection. The LLM
+def _open_jobs(session: Session, limit: int = 8) -> list[dict]:
+    """Recent open jobs, surfaced to the LLM for duplicate detection. The LLM
     may only reference these ids; the endpoint validates that later."""
     rows = session.exec(
-        select(Faultcard)
-        .where(Faultcard.fault_status.in_([FaultStatus.OPEN, FaultStatus.WAIT, FaultStatus.CONFIRMED]))
-        .order_by(Faultcard.fault_reportdatetime.desc())
+        select(Jobcard)
+        .where(Jobcard.job_status.in_([JobStatus.WAIT, JobStatus.OPEN, JobStatus.SCHEDULED, JobStatus.IN_PROGRESS]))
+        .order_by(Jobcard.job_createddatetime.desc())
         .limit(limit)
     ).all()
-    return [{"id": f.fault_id, "name": (f.fault_description or "")[:80], "detail": ""} for f in rows]
+    return [{"id": j.jobcard_id, "name": (j.job_desc or "")[:80], "detail": ""} for j in rows]
 
 
 def _asset_candidates(session: Session, ids: list[int]) -> list[dict]:
@@ -107,13 +107,13 @@ def _candidate_list(items: list[dict]) -> list[DraftCandidate]:
     return [DraftCandidate(id=it["id"], name=it["name"], detail=it.get("detail", "")) for it in items]
 
 
-@router.post("", response_model=FaultDraftRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=JobDraftRead, status_code=status.HTTP_201_CREATED)
 def createDraft(
-    payload: FaultDraftCreate,
+    payload: JobDraftCreate,
     session: Session = Depends(getSession),
     user: User = Depends(require_right("ai.use")),
 ):
-    """Submit free text; the AI pipeline produces a fault draft for FK review."""
+    """Submit free text; the AI pipeline produces a job draft for FK review."""
     desc = payload.description
 
     # 1. Rules classification — deterministic, always on.
@@ -161,13 +161,13 @@ def createDraft(
     duplicate_of = None
     if ai_status == "ok" and (asset_ids or room_ids):
         try:
-            open_faults = _open_faults(session)
-            open_ids = {f["id"] for f in open_faults}
+            open_jobs = _open_jobs(session)
+            open_ids = {j["id"] for j in open_jobs}
             decision = llm_service.disambiguate(
                 description=desc,
                 asset_candidates=_asset_candidates(session, asset_ids),
                 room_candidates=_room_candidates(session, room_ids),
-                open_faults=open_faults,
+                open_jobs=open_jobs,
             )
             if decision.get("asset_id") in asset_ids:
                 resolved_asset = decision.get("asset_id")
@@ -178,7 +178,7 @@ def createDraft(
         except Exception:
             pass  # candidates stay unresolved; FK decides in the queue
 
-    draft = faultdraft_service.create_draft(
+    draft = jobdraft_service.create_draft(
         session,
         user_id=user.user_id,
         values={
@@ -208,7 +208,7 @@ def createDraft(
             title="Nuwe AI-foutkonsep",
             message=f"{draft.title or draft.description[:60]} — wag op goedkeuring.",
             actor_id=user.user_id,
-            reference_type="faultdraft",
+            reference_type="jobdraft",
             reference_id=draft.draft_id,
         )
     except Exception:
@@ -216,20 +216,20 @@ def createDraft(
     return draft
 
 
-@router.get("", response_model=List[FaultDraftRead])
+@router.get("", response_model=List[JobDraftRead])
 def listDrafts(
     status_filter: Optional[str] = "draft",
     session: Session = Depends(getSession),
     user: User = Depends(require_right("ai.approve")),
 ):
     """FK/Admin approval queue."""
-    stmt = select(FaultDraft).order_by(FaultDraft.created_at.desc())
+    stmt = select(JobDraft).order_by(JobDraft.created_at.desc())
     if status_filter:
-        stmt = stmt.where(FaultDraft.status == status_filter)
+        stmt = stmt.where(JobDraft.status == status_filter)
     return session.exec(stmt).all()
 
 
-@router.get("/{draft_id}", response_model=FaultDraftDetail)
+@router.get("/{draft_id}", response_model=JobDraftDetail)
 def getDraft(
     draft_id: int,
     session: Session = Depends(getSession),
@@ -237,27 +237,27 @@ def getDraft(
 ):
     """Draft detail, enriched with the resolvable candidate lists so the FK UI
     can show what the AI found and let the reviewer pick."""
-    draft = session.get(FaultDraft, draft_id)
+    draft = session.get(JobDraft, draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
-    detail = FaultDraftDetail.model_validate(draft)
+    detail = JobDraftDetail.model_validate(draft)
     detail.asset_candidates = _candidate_list(_asset_candidates(session, _json_ids(draft.asset_ids)))
     detail.room_candidates = _candidate_list(_room_candidates(session, _json_ids(draft.room_ids)))
     return detail
 
 
-@router.post("/{draft_id}/approve", response_model=FaultDraftRead)
+@router.post("/{draft_id}/approve", response_model=JobDraftRead)
 def approveDraft(
     draft_id: int,
-    payload: FaultDraftApprove,
+    payload: JobDraftApprove,
     session: Session = Depends(getSession),
     user: User = Depends(require_right("ai.approve")),
 ):
     """Approve a draft — the reviewer's inline edits override the AI values; a
-    real Faultcard is created (owned by the original submitter) and the
+    real Jobcard is created (owned by the original submitter) and the
     submitter is notified. Concurrency-safe: only one reviewer can win the
     atomic ``draft -> approved`` claim; a second attempt gets 409."""
-    draft = session.get(FaultDraft, draft_id)
+    draft = session.get(JobDraft, draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     if draft.status != "draft":
@@ -288,13 +288,13 @@ def approveDraft(
         location_id = None
 
     # --- Atomic claim: exactly one reviewer wins the draft. ---
-    if not faultdraft_service.claim_review(session, draft_id, reviewer_id=user.user_id, status="approved"):
+    if not jobdraft_service.claim_review(session, draft_id, reviewer_id=user.user_id, status="approved"):
         raise HTTPException(status_code=409, detail="Draft already reviewed")
 
-    fault_in = FaultcardCreate(
-        fault_description=final_desc,
-        fault_type=_enum_by_name(Type, final_type),
-        fault_priority=_enum_by_name(Priority, final_priority),
+    job_in = JobcardCreate(
+        job_desc=final_desc,
+        job_type=final_type,
+        job_priority=final_priority,
         asset_id=final_asset,
         room_id=final_room,
         building_id=building_id,
@@ -302,10 +302,15 @@ def approveDraft(
         duplicate_of=draft.duplicate_of,
     )
     try:
-        # The submitter keeps ownership of the faultcard (view_own scoping);
+        # The submitter keeps ownership of the jobcard (view_own scoping);
         # the reviewer's action is captured in the audit trail.
-        fault = fault_service.create(session, fault_in, user_id=draft.user_id)
-        draft = faultdraft_service.finalize_review(
+        job = job_service.create(session, job_in, user_id=draft.user_id)
+        if job.user_id is None:
+            job.user_id = draft.user_id
+            session.add(job)
+            session.commit()
+            session.refresh(job)
+        draft = jobdraft_service.finalize_review(
             session, draft_id,
             resolved={"asset_id": final_asset, "room_id": final_room},
             duplicate_of=draft.duplicate_of,
@@ -313,52 +318,52 @@ def approveDraft(
             work_instruction=payload.work_instruction,
         )
     except Exception:
-        faultdraft_service.revert_claim(session, draft_id)
+        jobdraft_service.revert_claim(session, draft_id)
         raise
 
     # Notifications must never turn a committed approval into a 500.
     try:
         notif_svc = NotificationService(session)
         notif_svc.notify_admins(
-            notification_type="fault.created",
-            title="Nuwe foutkaartjie",
-            message=f"Fout #{fault.fault_id} goedgekeur uit AI-konsep {draft.description[:60]}.",
+            notification_type="job.created",
+            title="Nuwe werkskaartjie",
+            message=f"Werk #{job.jobcard_id} goedgekeur uit AI-konsep {draft.description[:60]}.",
             actor_id=user.user_id,
-            reference_type="fault",
-            reference_id=fault.fault_id,
+            reference_type="job",
+            reference_id=job.jobcard_id,
         )
         if draft.user_id != user.user_id:
             notif_svc.create_notification(
                 user_id=draft.user_id,
                 notification_type="ai.draft_approved",
-                title="Foutkonsep goedgekeur",
-                message=f"Jou AI-foutkonsep is goedgekeur as foutkaartjie #{fault.fault_id}.",
+                title="Werkskonsep goedgekeur",
+                message=f"Jou AI-werkskonsep is goedgekeur as werkskaartjie #{job.jobcard_id}.",
                 actor_id=user.user_id,
-                reference_type="fault",
-                reference_id=fault.fault_id,
+                reference_type="job",
+                reference_id=job.jobcard_id,
             )
     except Exception:
         logger.exception("Notification fan-out failed after approving AI draft %s", draft_id)
     return draft
 
 
-@router.post("/{draft_id}/reject", response_model=FaultDraftRead)
+@router.post("/{draft_id}/reject", response_model=JobDraftRead)
 def rejectDraft(
     draft_id: int,
-    payload: FaultDraftReject,
+    payload: JobDraftReject,
     session: Session = Depends(getSession),
     user: User = Depends(require_right("ai.approve")),
 ):
     """Reject a draft — the reason is kept on the draft and sent to the submitter."""
-    draft = session.get(FaultDraft, draft_id)
+    draft = session.get(JobDraft, draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     if draft.status != "draft":
         raise HTTPException(status_code=409, detail="Draft already reviewed")
-    if not faultdraft_service.claim_review(session, draft_id, reviewer_id=user.user_id, status="rejected"):
+    if not jobdraft_service.claim_review(session, draft_id, reviewer_id=user.user_id, status="rejected"):
         raise HTTPException(status_code=409, detail="Draft already reviewed")
 
-    draft = faultdraft_service.finalize_review(session, draft_id, review_note=payload.reason)
+    draft = jobdraft_service.finalize_review(session, draft_id, review_note=payload.reason)
 
     if draft.user_id != user.user_id:
         try:
@@ -366,10 +371,10 @@ def rejectDraft(
             notif_svc.create_notification(
                 user_id=draft.user_id,
                 notification_type="ai.draft_rejected",
-                title="Foutkonsep afgekeur",
-                message=f"Jou AI-foutkonsep is afgekeur. Rede: {payload.reason}",
+                title="Werkskonsep afgekeur",
+                message=f"Jou AI-werkskonsep is afgekeur. Rede: {payload.reason}",
                 actor_id=user.user_id,
-                reference_type="faultdraft",
+                reference_type="jobdraft",
                 reference_id=draft.draft_id,
             )
         except Exception:

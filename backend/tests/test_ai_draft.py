@@ -1,4 +1,4 @@
-"""AI fault-draft endpoint tests.
+"""AI job-draft endpoint tests.
 
 The LLM is never called for real here: ``llm_service.extract`` /
 ``llm_service.disambiguate`` are monkeypatched (or made to raise) so we test the
@@ -11,8 +11,8 @@ from sqlmodel import Session, select
 
 from app.models.asset import Asset, Assettype
 from app.models.enums import BuildingType, Priority, RoomStatus, RoomType, Type
-from app.models.fault import Faultcard
-from app.models.faultdraft import FaultDraft
+from app.models.job import Jobcard
+from app.models.jobdraft import JobDraft
 from app.models.location import Building, Location, Room
 from app.services.llm_service import LlmUnavailable, llm_service
 
@@ -54,12 +54,12 @@ def _seed_entities(engine) -> dict:
 
 def _drafts(engine):
     with Session(engine) as session:
-        return session.exec(select(FaultDraft)).all()
+        return session.exec(select(JobDraft)).all()
 
 
-def _faults(engine):
+def _jobs(engine):
     with Session(engine) as session:
-        return session.exec(select(Faultcard)).all()
+        return session.exec(select(Jobcard)).all()
 
 
 # ---------------------------------------------------------------------------
@@ -189,7 +189,7 @@ def test_list_drafts_is_fk_admin_only(client, engine, headers_for, monkeypatch):
         assert len(resp.json()) == 1
 
 
-def test_fk_approve_creates_faultcard(client, engine, headers_for, monkeypatch):
+def test_fk_approve_creates_jobcard(client, engine, headers_for, monkeypatch):
     draft = _make_draft(client, engine, headers_for, monkeypatch, "Toilet oorloop")
     fk = headers_for("fk")
 
@@ -200,11 +200,11 @@ def test_fk_approve_creates_faultcard(client, engine, headers_for, monkeypatch):
     assert data["status"] == "approved"
     assert data["reviewer_id"] == _user_id(engine, "fk")
 
-    faults = _faults(engine)
-    assert len(faults) == 2  # seeded fault + approved one
-    created = [f for f in faults if f.fault_description == "Toilet oorloop"]
+    jobs = _jobs(engine)
+    assert len(jobs) == 2  # seeded job + approved one
+    created = [j for j in jobs if j.job_desc == "Toilet oorloop"]
     assert len(created) == 1
-    # The FK who ran the AI pipeline keeps ownership of the faultcard; their
+    # The FK who ran the AI pipeline keeps ownership of the jobcard; their
     # approval action also lands in the audit trail.
     assert created[0].user_id == _user_id(engine, "fk")
 
@@ -218,10 +218,10 @@ def test_fk_approve_with_inline_edits_overrides_ai(client, engine, headers_for, 
         headers=headers_for("fk"),
     )
     assert resp.status_code == 200
-    created = [f for f in _faults(engine) if f.fault_description == "FK het dit reggemaak"]
+    created = [j for j in _jobs(engine) if j.job_desc == "FK het dit reggemaak"]
     assert len(created) == 1
-    assert created[0].fault_type == Type["MAINTENANCE"]  # inline edit won
-    assert created[0].fault_priority == Priority["LOW"]
+    assert created[0].job_type == "MAINTENANCE"  # inline edit won
+    assert created[0].job_priority == "LOW"
 
 
 def test_approve_requires_ai_approve_right(client, engine, headers_for, monkeypatch):
@@ -242,7 +242,7 @@ def test_fk_reject_with_reason(client, engine, headers_for, monkeypatch):
     assert data["status"] == "rejected"
     assert data["review_note"] == "Reeds deur die skooladministrasie hanteer"
     assert data["reviewer_id"] == _user_id(engine, "admin")
-    assert len(_faults(engine)) == 1  # no faultcard created on reject
+    assert len(_jobs(engine)) == 1  # no jobcard created on reject
 
 
 def test_review_twice_is_conflict(client, engine, headers_for, monkeypatch):
@@ -322,9 +322,9 @@ def test_approve_rejects_nonexistent_or_mismatched_ids(client, engine, headers_f
 
 
 def test_approve_propagates_duplicate_of(client, engine, headers_for, monkeypatch):
-    """The duplicate-detection signal lands on the created faultcard."""
+    """The duplicate-detection signal lands on the created jobcard."""
     _seed_entities(engine)
-    seeded_fault_id = _faults(engine)[0].fault_id  # conftest seeds one fault
+    seeded_job_id = _jobs(engine)[0].jobcard_id  # conftest seeds one job
     canned = {
         "cleaned_description": "Projektor flikker weer.",
         "title": "Projektor flikker",
@@ -338,21 +338,21 @@ def test_approve_propagates_duplicate_of(client, engine, headers_for, monkeypatc
     monkeypatch.setattr(llm_service, "disambiguate",
                         lambda **kw: {"asset_id": kw["asset_candidates"][0]["id"],
                                       "room_id": None,
-                                      "duplicate_of": seeded_fault_id})
+                                      "duplicate_of": seeded_job_id})
 
     resp = client.post(f"{API}", json={"description": "Projektor flikker weer"},
                        headers=headers_for("fk"))
     assert resp.status_code == 201, resp.text
     draft = resp.json()
-    assert draft["duplicate_of"] == seeded_fault_id
+    assert draft["duplicate_of"] == seeded_job_id
 
     appr = client.post(f"{API}/{draft['draft_id']}/approve",
                        json={"fault_type": "REPAIR", "fault_priority": "MEDIUM"},
                        headers=headers_for("fk"))
     assert appr.status_code == 200, appr.text
-    created = [f for f in _faults(engine) if f.fault_id != seeded_fault_id]
+    created = [j for j in _jobs(engine) if j.jobcard_id != seeded_job_id]
     assert len(created) == 1
-    assert created[0].duplicate_of == seeded_fault_id
+    assert created[0].duplicate_of == seeded_job_id
 
 
 def test_long_llm_output_is_clamped_not_500(client, engine, headers_for, monkeypatch):

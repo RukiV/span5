@@ -1,6 +1,6 @@
-"""Auto-draft scheduler for the AI fault-draft pipeline (Phase 2a).
+"""Auto-draft scheduler for the AI job-draft pipeline (Phase 2a).
 
-Second trigger for ``FaultDraft.source="auto"``: drafts are generated from
+Second trigger for ``JobDraft.source="auto"``: drafts are generated from
 analytical / prediction data instead of FK free text. The module mirrors
 ``reminder_scheduler.py`` — a module-level interval env var plus a background
 ``while True`` loop that guards each pass with try/except and logs errors, so a
@@ -25,10 +25,10 @@ from ..auth.rights_catalog import ROLE_ADMIN, ROLE_FK
 from ..db.database import engine as database_engine
 from ..models.enums import FaultStatus
 from ..models.fault import Faultcard
-from ..models.faultdraft import FaultDraft
+from ..models.jobdraft import JobDraft
 from ..models.prediction import AssetPredictionRead
 from ..models.user import User
-from .faultdraft_service import faultdraft_service
+from .jobdraft_service import jobdraft_service
 from .llm_service import llm_service
 from .notification_service import NotificationService
 from .prediction_service import prediction_service
@@ -95,10 +95,10 @@ def _asset_has_draft(session: Session, asset_id: int) -> bool:
     dedups across approvals *and* rejections so a turned-down draft is not
     re-created.
     """
-    resolved_stmt = select(FaultDraft).where(FaultDraft.resolved_asset_id == asset_id)
+    resolved_stmt = select(JobDraft).where(JobDraft.resolved_asset_id == asset_id)
     if session.exec(resolved_stmt).first() is not None:
         return True
-    for draft in session.exec(select(FaultDraft.asset_ids)).all():
+    for draft in session.exec(select(JobDraft.asset_ids)).all():
         try:
             if asset_id in json.loads(draft[0] or "[]"):
                 return True
@@ -111,7 +111,7 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
     """One scan pass: turn prediction signals into auto-drafts.
 
     Returns the ids of the drafts created in this pass (empty list when there
-    is nothing to do or no FK/Admin operator exists). ``faultdraft_service``
+    is nothing to do or no FK/Admin operator exists). ``jobdraft_service``
     commits per draft, so each new draft is durable even if a later one fails.
     """
     if engine is None:
@@ -162,7 +162,7 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
                     work_instruction = ""
                     ai_status = "degraded"
 
-                draft = faultdraft_service.create_draft(
+                draft = jobdraft_service.create_draft(
                     session,
                     user_id=operator.user_id,
                     values={
@@ -200,7 +200,7 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
                     title="Nuwe AI-foutkonsepte",
                     message=f"{len(created)} AI-foutkonsepte gegenereer uit voorspellende data.",
                     actor_id=operator.user_id,
-                    reference_type="faultdraft",
+                    reference_type="jobdraft",
                     reference_id=created[0],
                 )
             except Exception:
