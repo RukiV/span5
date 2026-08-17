@@ -197,8 +197,8 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
                 notif_svc = NotificationService(session)
                 notif_svc.notify_admins(
                     notification_type="ai.draft_created",
-                    title="Nuwe AI-foutkonsepte",
-                    message=f"{len(created)} AI-foutkonsepte gegenereer uit voorspellende data.",
+                    title="Nuwe AI-werkskonsepte",
+                    message=f"{len(created)} AI-werkskonsepte gegenereer uit voorspellende data.",
                     actor_id=operator.user_id,
                     reference_type="jobdraft",
                     reference_id=created[0],

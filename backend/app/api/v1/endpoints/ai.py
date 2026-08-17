@@ -205,7 +205,7 @@ def createDraft(
         notif_svc = NotificationService(session)
         notif_svc.notify_admins(
             notification_type="ai.draft_created",
-            title="Nuwe AI-foutkonsep",
+            title="Nuwe AI-werkskonsep",
             message=f"{draft.title or draft.description[:60]} — wag op goedkeuring.",
             actor_id=user.user_id,
             reference_type="jobdraft",

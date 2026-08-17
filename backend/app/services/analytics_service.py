@@ -383,7 +383,7 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
         insights.append(f"{auto} konsepte is outomaties gegenereer deur die skandeerder.")
 
         return AnalyticsResponse(
-            summary=f"{pending} AI-foutkonsepte wag op goedkeuring ({approved} goedgekeur, {rejected} verwerp) van {total} totaal.",
+            summary=f"{pending} AI-werkskonsepte wag op goedkeuring ({approved} goedgekeur, {rejected} verwerp) van {total} totaal.",
             metrics=[
                 Metric(label="Wag op goedkeuring", value=str(pending)),
                 Metric(label="Goedgekeur", value=str(approved)),
