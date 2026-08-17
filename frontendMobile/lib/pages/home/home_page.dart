@@ -20,7 +20,7 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
-import '../room_checklist/room_checklist_page.dart';
+import '../room_checklist/room_check_session_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -93,12 +93,18 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    // Lokaal Kontrole — dieselfde reg as die backend se /room-checks-eindpunt.
-    if (can('assets.manage')) {
+    // Kontrole Skedules — FK/Admin bestuur skedules; Dosent sien eie.
+    if (can('roomchecks.manage')) {
       menu.add({
-        'title': 'Lokaal Kontrole',
-        'icon': Icons.checklist,
-        'page': const RoomChecklistPage(),
+        'title': 'Kontrole Skedules',
+        'icon': Icons.event_available_outlined,
+        'page': const RoomCheckSessionPage(manageMode: true),
+      });
+    } else if (can('roomchecks.execute')) {
+      menu.add({
+        'title': 'My Kontroles',
+        'icon': Icons.event_available_outlined,
+        'page': const RoomCheckSessionPage(manageMode: false),
       });
     }
 

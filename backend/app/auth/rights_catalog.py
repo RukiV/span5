@@ -16,6 +16,7 @@ ROLE_STUDENT = 1
 ROLE_FK = 2
 ROLE_ADMIN = 3
 ROLE_CONTRACTOR = 4
+ROLE_DOSENT = 5
 
 # --- Rights catalog --------------------------------------------------------
 # right_name -> human description. Kept intentionally small: one right per
@@ -42,6 +43,8 @@ RIGHTS_CATALOG: dict[str, str] = {
     "jobs.manage": "Create/delete/edit any job.",
     "jobs.view_own": "See only jobs assigned to you.",
     "jobs.update_own_status": "Update only status fields on your own jobs.",
+    "roomchecks.manage": "Schedule/manage room checklist sessions.",
+    "roomchecks.execute": "Execute room checklists (Dosent).",
     "notifications.view": "View own notifications and history.",
     "notifications.manage": "Manage own notification preferences.",
     "notifications.send": "Send system-wide announcements.",
@@ -58,6 +61,7 @@ _FK_RIGHTS = {
     "calendar.manage", "calendar.view",
     "faults.manage_all", "faults.create_own", "faults.view_own",
     "jobs.manage",
+    "roomchecks.manage",
     "notifications.view", "notifications.manage",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
@@ -65,8 +69,9 @@ ROLE_RIGHTS: dict[int, set[str]] = {
     ROLE_FK: set(_FK_RIGHTS),
     ROLE_STUDENT: {"faults.create_own", "faults.view_own", "notifications.view", "notifications.manage"},
     ROLE_CONTRACTOR: {"calendar.view", "jobs.view_own", "jobs.update_own_status", "notifications.view", "notifications.manage"},
+    ROLE_DOSENT: {"roomchecks.execute", "notifications.view", "notifications.manage"},
 }
 
 # The management API protects these from rename/delete.
-BUILTIN_ROLE_IDS: frozenset[int] = frozenset({ROLE_STUDENT, ROLE_FK, ROLE_ADMIN, ROLE_CONTRACTOR})
+BUILTIN_ROLE_IDS: frozenset[int] = frozenset({ROLE_STUDENT, ROLE_FK, ROLE_ADMIN, ROLE_CONTRACTOR, ROLE_DOSENT})
 BUILTIN_RIGHT_NAMES: frozenset[str] = frozenset(RIGHTS_CATALOG)

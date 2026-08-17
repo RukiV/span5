@@ -24,6 +24,7 @@ from ..auth.rights_catalog import (  # noqa: F401  (re-exported for existing imp
     ROLE_FK,
     ROLE_ADMIN,
     ROLE_CONTRACTOR,
+    ROLE_DOSENT,
     RIGHTS_CATALOG,
     ROLE_RIGHTS,
 )
@@ -421,6 +422,19 @@ def _get_or_create_contractor_role(session: Session) -> Role:
     return role
 
 
+def _get_or_create_dosent_role(session: Session) -> Role:
+    """Skep Dosent-rol (role_id=5). Voer lokale kontroles uit op mobiele app."""
+    role = session.exec(select(Role).where(Role.role_name == "Dosent")).first()
+    if role:
+        return role
+
+    role = Role(role_name="Dosent")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
     """Helper function to create audit logs for assets."""
     full_record = asset.model_dump(mode="json")
@@ -522,6 +536,7 @@ def seed_data():
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
         contractor_role = _get_or_create_contractor_role(session) # ID 4
+        dosent_role = _get_or_create_dosent_role(session)         # ID 5
 
         # Seed the Rights catalog + RoleRight assignments now that roles exist.
         # This is the source of truth for authorization (see auth/permissions.py).
@@ -610,6 +625,16 @@ def seed_data():
             user_email="lindiwe.mokoena@plumbright.co.za",
             user_password="contractor123",
             role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
+        )
+
+        # Dosent - voer lokale kontroles uit (role_id = 5)
+        _get_or_create_test_user(
+            session,
+            user_name="prof",
+            user_surname="example",
+            user_email="prof@example.com",
+            user_password="prof123",
+            role_id=dosent_role.role_id,  # role_id = 5 (toelaat)
         )
 
         # Ekstra FK-gebruikers

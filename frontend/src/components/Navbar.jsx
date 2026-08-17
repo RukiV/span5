@@ -9,6 +9,7 @@ const PATH_TITLES = {
   '/assets': 'Bestuur Bates',
   '/stock': 'Bestuur Voorraad',
   '/rooms': 'Bestuur Lokale',
+  '/room-checks-schedules': 'Kontrole Skedules',
   '/buildings': 'Bestuur Geboue',
   '/terrains': 'Bestuur Terreine',
   '/fault-tickets': 'Bestuur Foutkaartjies',

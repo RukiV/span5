@@ -15,8 +15,8 @@ def readUsers(session: Session = Depends(getSession), _user: User = Depends(requ
     return user_service.getAll(session)
 
 @router.get("/assignable", response_model=List[UserRead])
-def readAssignableUsers(session: Session = Depends(getSession), _user: User = Depends(require_any_right("jobs.manage", "quotes.manage"))):
-    #Users that can be assigned to work orders or chosen as quote contractors
+def readAssignableUsers(session: Session = Depends(getSession), _user: User = Depends(require_any_right("jobs.manage", "quotes.manage", "roomchecks.manage"))):
+    #Users that can be assigned to work orders, chosen as quote contractors, or assigned room check sessions
     return session.exec(select(User).order_by(User.user_name, User.user_surname)).all()
 
 @router.get("/{userID}", response_model=UserRead)

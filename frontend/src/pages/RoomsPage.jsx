@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
@@ -19,7 +19,9 @@ import ResizableTh from "../components/ResizableTh";
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, rights } = useCurrentUser();
+  const navigate = useNavigate();
+  const canManageSessions = (rights || []).includes("roomchecks.manage");
 
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
@@ -464,6 +466,9 @@ function RoomsPage({ embedded = false }) {
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-view" onClick={() => handleViewAssets(room)}>Bekyk Bates</button>
                   <button className="btn-view" onClick={() => handleViewHistory(room)}>Geskiedenis</button>
+                  {canManageSessions && (
+                    <button className="btn-view" onClick={() => navigate(`/room-checks-schedules?scheduleRoom=${room.room_id}`)}>Skeduleer</button>
+                  )}
                   <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>Verwyder</button>
                 </td>
               </tr>
@@ -664,8 +669,15 @@ function RoomsPage({ embedded = false }) {
                 const dateStr = `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()} ${dt.getHours().toString().padStart(2,'0')}:${dt.getMinutes().toString().padStart(2,'0')}`;
                 return (
                   <details key={check.room_check_id} style={{ marginBottom: "12px", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "8px 12px" }}>
-                    <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-                      {dateStr} {check.user_id ? `(Gebruiker #${check.user_id})` : ''}
+                    <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "14px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      {dateStr} {check.user_name ? `(${check.user_name})` : ''}
+                      <span style={{
+                        fontSize: "12px", padding: "2px 8px", borderRadius: "12px", fontWeight: 600,
+                        backgroundColor: check.check_status === "Voltooi" ? "#dcfce7" : "#fef2f2",
+                        color: check.check_status === "Voltooi" ? "#16a34a" : "#dc2626",
+                      }}>
+                        {check.check_status || "Onvoltooi"}
+                      </span>
                     </summary>
                     <div style={{ marginTop: "8px", fontSize: "13px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <span style={{ color: "#16a34a", fontWeight: 600 }}>Bevestig: {confirmed}</span>

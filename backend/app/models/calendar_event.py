@@ -43,6 +43,7 @@ class CalendarEventUpdate(SQLModel):
     all_day: Optional[bool] = None
     location: Optional[str] = None
     color: Optional[str] = None
+    user_id: Optional[int] = None
     notify_email: Optional[bool] = None
     reminder_minutes: Optional[int] = None
     outlook_event_id: Optional[str] = None
