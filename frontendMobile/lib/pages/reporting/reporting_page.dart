@@ -87,6 +87,7 @@ class _ReportingPageState extends State<ReportingPage>
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging) return;
+    setState(() {}); // Force rebuild so content switches between tabs
     // Refresh data when switching tabs
     if (_tabController.index == 0) {
       ReportService.fetchReports();
@@ -385,16 +386,19 @@ class _ReportingPageState extends State<ReportingPage>
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          _buildAiFilterChip(label: "Alle", value: null),
-          const SizedBox(width: 8),
-          _buildAiFilterChip(label: "Wag", value: 'draft'),
-          const SizedBox(width: 8),
-          _buildAiFilterChip(label: "Goedgekeur", value: 'approved'),
-          const SizedBox(width: 8),
-          _buildAiFilterChip(label: "Verwerp", value: 'rejected'),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildAiFilterChip(label: "Alle", value: null),
+            const SizedBox(width: 8),
+            _buildAiFilterChip(label: "Wag", value: 'draft'),
+            const SizedBox(width: 8),
+            _buildAiFilterChip(label: "Goedgekeur", value: 'approved'),
+            const SizedBox(width: 8),
+            _buildAiFilterChip(label: "Verwerp", value: 'rejected'),
+          ],
+        ),
       ),
     );
   }
