@@ -10,7 +10,7 @@ class UserSession {
   static UserRole role = UserRole.student;
   static String userName = "";
   static String userEmail = "";
-  static String userCampus = "Hoofkampus (Centurion)";
+  static String userCampus = "";
   static int? locationId;
 
   /// Die gebruiker se regte (vanaf /auth/me se `rights`-lys). Dit is die enkele
@@ -28,7 +28,7 @@ class UserSession {
     userId = data['user_id'] ?? 0;
     userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
     userEmail = data['user_email'] ?? "";
-    userCampus = data['location_name'] ?? "Hoofkampus (Centurion)";
+    userCampus = data['location_name'] ?? "";
     locationId = data['location_id'];
 
     // Regte vanaf die backend — bepaal watter menu-items en aksies sigbaar is.
@@ -84,7 +84,7 @@ class UserSession {
     role = UserRole.student;
     userName = "";
     userEmail = "";
-    userCampus = "Hoofkampus (Centurion)";
+    userCampus = "";
     locationId = null;
     rights = <String>[];
   }

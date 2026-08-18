@@ -44,12 +44,12 @@ def _to_manage_read(session: Session, role: Role) -> RoleManageRead:
 
 
 @router.get("", response_model=List[RoleManageRead])
-def readRoles(session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readRoles(session: Session = Depends(getSession), _user: User = Depends(require_right("roles.manage"))):
     return [_to_manage_read(session, role) for role in role_service.getAll(session)]
 
 
 @router.get("/{roleID}", response_model=RoleManageRead)
-def readRole(roleID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readRole(roleID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("roles.manage"))):
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -57,7 +57,7 @@ def readRole(roleID: int, session: Session = Depends(getSession), _user: User = 
 
 
 @router.get("/{roleID}/rights", response_model=List[int])
-def readRoleRights(roleID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readRoleRights(roleID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("roles.manage"))):
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -65,7 +65,7 @@ def readRoleRights(roleID: int, session: Session = Depends(getSession), _user: U
 
 
 @router.post("", response_model=RoleManageRead, status_code=status.HTTP_201_CREATED)
-def addRole(roleIn: RoleManageCreate, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def addRole(roleIn: RoleManageCreate, session: Session = Depends(getSession), current: User = Depends(require_right("roles.manage"))):
     role = role_service.create(session, RoleCreate(role_name=roleIn.role_name), user_id=current.user_id)
     new_id = role.role_id
     if roleIn.right_ids is not None:
@@ -79,7 +79,7 @@ def addRole(roleIn: RoleManageCreate, session: Session = Depends(getSession), cu
 
 
 @router.patch("/{roleID}", response_model=RoleManageRead)
-def patchRole(roleID: int, roleIn: RoleManageUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def patchRole(roleID: int, roleIn: RoleManageUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("roles.manage"))):
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -104,7 +104,7 @@ def patchRole(roleID: int, roleIn: RoleManageUpdate, session: Session = Depends(
 
 
 @router.put("/{roleID}/rights", response_model=List[int])
-def setRoleRights(roleID: int, payload: RoleRightsUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def setRoleRights(roleID: int, payload: RoleRightsUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("roles.manage"))):
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
@@ -117,7 +117,7 @@ def setRoleRights(roleID: int, payload: RoleRightsUpdate, session: Session = Dep
 
 
 @router.delete("/{roleID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeRole(roleID: int, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def removeRole(roleID: int, session: Session = Depends(getSession), current: User = Depends(require_right("roles.manage"))):
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")

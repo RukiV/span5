@@ -3,7 +3,7 @@ import '../../core/app_colors.dart';
 import '../../models/user_session.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
-import '../../widgets/location_cascade_picker.dart';
+import 'new_room_check_session_page.dart';
 import 'room_checklist_page.dart';
 import 'room_check_history_page.dart';
 
@@ -19,7 +19,7 @@ class RoomCheckSessionPage extends StatefulWidget {
 }
 
 class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
-  final bool _canManage = UserSession.can('roomchecks.manage');
+  final bool _canManage = UserSession.can('room_checks.manage');
 
   @override
   void initState() {
@@ -36,128 +36,6 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
         assignedUserId: UserSession.userId,
       );
     }
-  }
-
-  Future<void> _openCreateDialog() async {
-    if (UserService.users.isEmpty) {
-      await UserService.fetchAssignableUsers();
-    }
-    if (!mounted) return;
-
-    int? roomId;
-    int? assignedUserId;
-    DateTime? scheduled;
-    int? campusId;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          final filteredUsers = UserService.users.where((u) {
-            if (u.id == UserSession.userId) return true;
-            if (u.roleId == 1 || u.roleId == 4) return false;
-            if (u.roleId != 5) return false;
-            if (campusId == null) return false;
-            return u.locationId == null || u.locationId == campusId;
-          }).toList();
-          return AlertDialog(
-            title: const Text("Nuwe Kontrole Skedule"),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  LocationCascadePicker(
-                    depth: LocationDepth.room,
-                    onChanged: (newCampusId, buildingId, pickedRoomId) {
-                      setDialogState(() {
-                        campusId = newCampusId;
-                        roomId = pickedRoomId;
-                        assignedUserId = null;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("Toegewys aan", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    initialValue: assignedUserId,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: "Kies gebruiker",
-                    ),
-                    items: [
-                      for (final u in filteredUsers)
-                        DropdownMenuItem(value: u.id, child: Text(u.displayName)),
-                    ],
-                    onChanged: (val) => setDialogState(() => assignedUserId = val),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text("Datum en tyd", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () async {
-                      final now = DateTime.now();
-                      final date = await showDatePicker(
-                        context: dialogContext,
-                        initialDate: scheduled ?? now,
-                        firstDate: DateTime(now.year, now.month, now.day),
-                        lastDate: DateTime(now.year + 5),
-                      );
-                      if (date == null) return;
-                      if (!dialogContext.mounted) return;
-                      final time = await showTimePicker(
-                        context: dialogContext,
-                        initialTime: TimeOfDay.fromDateTime(scheduled ?? now),
-                      );
-                      if (time == null) return;
-                      if (!dialogContext.mounted) return;
-                      setDialogState(() => scheduled = DateTime(
-                        date.year, date.month, date.day, time.hour, time.minute));
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[400]!),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        scheduled == null
-                            ? "Kies datum en tyd"
-                            : scheduled!.toString(),
-                        style: TextStyle(color: scheduled == null ? Colors.grey : Colors.black),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text("Kanselleer"),
-              ),
-              FilledButton(
-                onPressed: roomId == null || assignedUserId == null
-                    ? null
-                    : () async {
-                        await RoomCheckSessionService.createSession(
-                          roomId: roomId!,
-                          assignedUserId: assignedUserId!,
-                          scheduledDatetime: scheduled,
-                        );
-                        if (dialogContext.mounted) Navigator.pop(dialogContext);
-                      },
-                child: const Text("Skeduleer"),
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   Future<void> _openEditDialog(RoomCheckSession session) async {
@@ -338,7 +216,10 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: "Nuwe skedule",
-              onPressed: _openCreateDialog,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NewRoomCheckSessionPage()),
+              ),
             ),
         ],
       ),

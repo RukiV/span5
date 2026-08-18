@@ -11,12 +11,36 @@ class ImageService {
   /// fault/ticket) must already exist. parent_type is e.g. 'ticket', 'asset',
   /// 'stock', 'job'. Returns the new image_id, or null on failure.
   static Future<int?> uploadImage(File file, {required int parentId, required String parentType}) async {
+    return _upload(
+      parentId: parentId,
+      parentType: parentType,
+      prepare: () async => MultipartFile.fromFile(
+        file.path,
+        filename: file.path.split('\\').last.split('/').last,
+      ),
+    );
+  }
+
+  /// Upload raw image bytes (bv. 'n kaart-skermgreep) gekoppel aan 'n parent.
+  static Future<int?> uploadImageBytes(Uint8List bytes, {required int parentId, required String parentType, String? filename}) async {
+    return _upload(
+      parentId: parentId,
+      parentType: parentType,
+      prepare: () async => MultipartFile.fromBytes(
+        bytes,
+        filename: filename ?? 'map_${DateTime.now().millisecondsSinceEpoch}.png',
+      ),
+    );
+  }
+
+  static Future<int?> _upload({
+    required int parentId,
+    required String parentType,
+    required Future<MultipartFile> Function() prepare,
+  }) async {
     try {
       final formData = FormData.fromMap({
-        'file': await MultipartFile.fromFile(
-          file.path,
-          filename: file.path.split('\\').last.split('/').last,
-        ),
+        'file': await prepare(),
       });
       final response = await ApiClient().client.post(
         '/image/',

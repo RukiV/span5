@@ -56,7 +56,7 @@ class Asset {
     'asset_name': name,
     'asset_brand': brand,
     'asset_status': _backendAssetStatus(status),
-    'room_id': int.tryParse(location) ?? 1,
+    'room_id': int.tryParse(location) ?? 0,
     'assettype_id': assetTypeId,
     'asset_serial': serialCode,
     'asset_isoutdoor': isOutdoor,
@@ -86,10 +86,10 @@ class Asset {
   factory Asset.fromJson(Map<String, dynamic> json) {
     final typeId = json['assettype_id'] as int? ?? 1;
     return Asset(
-      campus: 'Loading...',
+      campus: '',
       id: json['asset_id']?.toString() ?? '',
       serialCode: json['asset_serial'] ?? '',
-      name: json['asset_name'] ?? 'Unknown Asset',
+      name: json['asset_name'] ?? 'Onbekende Bate',
       brand: json['asset_brand'] ?? '',
       assetTypeId: typeId,
       category: AssetTypeService.getTypeName(typeId),

@@ -10,10 +10,11 @@ from ....models.document import QuoteDocumentRead, QuoteDocumentUpdate
 from ....models.user import User
 from ....services.document_service import QuoteDocumentService
 
-# Quote documents are managed by whoever manages quotes (Admin/FK), so every
-# route is gated by require_right("quotes.manage"). Without this the whole
-# router was reachable unauthenticated — including DELETE — which is the exact
-# unauthenticated-endpoint class of bug the RBAC layer exists to prevent.
+# Quote documents are managed by whoever manages quotes (Admin/FK): write routes
+# are gated by require_right("quotes.manage"), read routes by quotes.view.
+# Without these the whole router was reachable unauthenticated — including
+# DELETE — which is the exact unauthenticated-endpoint class of bug the RBAC
+# layer exists to prevent.
 router = APIRouter(prefix="", tags=["quote-documents"])
 
 
@@ -29,13 +30,13 @@ def upload_quote_document(
 
 
 @router.get("/quotes/{quote_id}/documents", response_model=List[QuoteDocumentRead])
-def list_quote_documents(quote_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.manage"))):
+def list_quote_documents(quote_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.view"))):
     service = QuoteDocumentService(session)
     return service.get_by_quote(quote_id)
 
 
 @router.get("/documents/{document_id}", response_model=QuoteDocumentRead)
-def get_quote_document_metadata(document_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.manage"))):
+def get_quote_document_metadata(document_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.view"))):
     service = QuoteDocumentService(session)
     document = service.get_by_id(document_id)
     if not document:
@@ -44,7 +45,7 @@ def get_quote_document_metadata(document_id: int, session: Session = Depends(get
 
 
 @router.get("/documents/{document_id}/file")
-def get_quote_document_file(document_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.manage"))):
+def get_quote_document_file(document_id: int, session: Session = Depends(getSession), _user: User = Depends(require_right("quotes.view"))):
     service = QuoteDocumentService(session)
     # Retrieve the document record so we can include filename in headers
     document = service.get_by_id(document_id)

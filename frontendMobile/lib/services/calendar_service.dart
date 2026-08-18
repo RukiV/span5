@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../core/api_client.dart';
 import '../core/idempotency.dart';
+import 'outlook_service.dart';
 
 class CalendarEvent {
   final int? eventId;
@@ -90,8 +91,16 @@ class CalendarService {
       );
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
+        final local = data.map((j) => CalendarEvent.fromJson(j)).toList();
+
+        // Voeg die gebruiker se Outlook-kalender by (dieselfde as die web se
+        // CalendarPage wat die twee lyste saamvoeg).
+        final outlook = await OutlookService.instance
+            .fetchCalendarView(start, end)
+            .then((raw) => raw.map((j) => CalendarEvent.fromJson(j)).toList());
+
         _events.clear();
-        _events.addAll(data.map((j) => CalendarEvent.fromJson(j)));
+        _events.addAll([...local, ...outlook]);
         eventsNotifier.value = List.from(_events);
       }
     } catch (e) {
@@ -121,8 +130,49 @@ class CalendarService {
     return false;
   }
 
+  /// Verwyder 'n suiver Outlook-event (bron 'outlook') uit die plaaslike lys
+  /// nadat hy by MS Graph uitgevee is.
+  static void removeOutlookEvent(String outlookEventId) {
+    _events.removeWhere((e) => e.source == 'outlook' && e.outlookEventId == outlookEventId);
+    eventsNotifier.value = List.from(_events);
+  }
+
+  static Future<bool> updateEventSync(int eventId,
+      {String? outlookEventId, bool outlookSynced = true}) async {
+    try {
+      final response = await ApiClient().client.patch(
+        '/calendar/events/$eventId',
+        data: {
+          'outlook_event_id': outlookEventId,
+          'outlook_synced': outlookSynced,
+        },
+      );
+      if (response.statusCode == 200) {
+        await fetchEvents(
+          DateTime.now().subtract(const Duration(days: 30)),
+          DateTime.now().add(const Duration(days: 60)),
+        );
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Fout met bywerk van event-sinkronisering: $e");
+    }
+    return false;
+  }
+
   static Future<bool> deleteEvent(int eventId) async {
     try {
+      CalendarEvent? event;
+      for (final e in _events) {
+        if (e.eventId == eventId) {
+          event = e;
+          break;
+        }
+      }
+      // As die afspraak na Outlook gesinkroniseer is, verwyder hom ook daar.
+      if (event != null && event.outlookSynced && event.outlookEventId != null) {
+        await OutlookService.instance.deleteEvent(event.outlookEventId!);
+      }
       final response = await ApiClient().client.delete('/calendar/events/$eventId');
       if (response.statusCode == 204 || response.statusCode == 200) {
         _events.removeWhere((e) => e.eventId == eventId);

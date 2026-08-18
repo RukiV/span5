@@ -24,12 +24,12 @@ class ApiClient {
   ApiClient._internal() {
     // Emulator-friendly default: use local network IP so emulator can reach host machine.
     // Override with API_URL in .env for production or CI.
-    // Physical device fallback (uncomment if testing on a connected phone): http://127.0.0.1:8000/api/v1
+    // Campus WiFi fallback (use .env API_URL to point at your personal network).
     // Precedence: --dart-define=API_URL=... > .env API_URL > hardcoded fallback.
     const dartDefineUrl = String.fromEnvironment('API_URL');
     final baseUrl = dartDefineUrl.isNotEmpty
         ? dartDefineUrl
-        : dotenv.get('API_URL', fallback: 'http://:8000/api/v1');
+        : dotenv.get('API_URL', fallback: 'http://10.12.0.128:8000/api/v1');
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,

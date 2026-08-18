@@ -52,7 +52,7 @@ def _build_event(room_name: str, scheduled: Optional[datetime]) -> CalendarEvent
 def create_session(
     data: RoomCheckSessionCreate,
     session: Session = Depends(getSession),
-    user: User = Depends(require_right("roomchecks.manage")),
+    user: User = Depends(require_right("room_checks.manage")),
 ):
     room = session.get(Room, data.room_id)
     if not room:
@@ -89,7 +89,7 @@ def list_sessions(
     room_id: Optional[int] = Query(None),
     status: Optional[str] = Query(None),
     session: Session = Depends(getSession),
-    user: User = Depends(require_any_right("roomchecks.manage", "roomchecks.execute")),
+    user: User = Depends(require_any_right("room_checks.manage", "roomchecks.execute")),
 ):
     query = select(RoomCheckSession).order_by(RoomCheckSession.scheduled_datetime.desc())
     if assigned_user_id is not None:
@@ -98,7 +98,7 @@ def list_sessions(
         query = query.where(RoomCheckSession.room_id == room_id)
     if status is not None:
         query = query.where(RoomCheckSession.status == status)
-    if user_has_right(session, user.role_id, "roomchecks.execute") and not user_has_right(session, user.role_id, "roomchecks.manage"):
+    if user_has_right(session, user.role_id, "roomchecks.execute") and not user_has_right(session, user.role_id, "room_checks.manage"):
         query = query.where(RoomCheckSession.assigned_user_id == user.user_id)
     items = session.exec(query).all()
     return [_to_read(session, obj) for obj in items]
@@ -109,7 +109,7 @@ def update_session(
     session_id: int,
     data: RoomCheckSessionUpdate,
     session: Session = Depends(getSession),
-    user: User = Depends(require_right("roomchecks.manage")),
+    user: User = Depends(require_right("room_checks.manage")),
 ):
     obj = room_check_session_service.getByID(session, session_id)
     if not obj:
@@ -144,7 +144,7 @@ def update_session(
 def delete_session(
     session_id: int,
     session: Session = Depends(getSession),
-    user: User = Depends(require_right("roomchecks.manage")),
+    user: User = Depends(require_right("room_checks.manage")),
 ):
     obj = room_check_session_service.getByID(session, session_id)
     if not obj:
@@ -159,7 +159,7 @@ def delete_session(
 def complete_session(
     session_id: int,
     session: Session = Depends(getSession),
-    user: User = Depends(require_any_right("roomchecks.manage", "roomchecks.execute")),
+    user: User = Depends(require_any_right("room_checks.manage", "roomchecks.execute")),
 ):
     obj = room_check_session_service.getByID(session, session_id)
     if not obj:
