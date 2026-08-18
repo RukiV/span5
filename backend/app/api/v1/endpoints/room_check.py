@@ -2,7 +2,7 @@ import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
-from ....auth.permissions import require_any_right
+from ....auth.permissions import require_right
 from ....db.database import getSession
 from ....models.room_check import RoomCheckRead, RoomCheckCreate
 from ....models.room_check_session import RoomCheckSession
@@ -29,7 +29,7 @@ def _to_read(session: Session, check) -> RoomCheckRead:
 def create_room_check(
     data: RoomCheckCreate,
     session: Session = Depends(getSession),
-    user: User = Depends(require_any_right("assets.manage", "roomchecks.execute")),
+    user: User = Depends(require_right("room_checks.manage")),
 ):
     check = room_check_service.create(session, data, user_id=user.user_id)
 
@@ -53,7 +53,7 @@ def list_room_checks(
     room_id: int,
     limit: Optional[int] = Query(None),
     session: Session = Depends(getSession),
-    _user: User = Depends(require_any_right("assets.manage", "roomchecks.execute")),
+    _user: User = Depends(require_right("room_checks.manage")),
 ):
     query = select(room_check_service.model).where(
         room_check_service.model.room_id == room_id
@@ -67,7 +67,7 @@ def list_room_checks(
 def get_room_check(
     check_id: int,
     session: Session = Depends(getSession),
-    _user: User = Depends(require_any_right("assets.manage", "roomchecks.execute")),
+    _user: User = Depends(require_right("room_checks.manage")),
 ):
     check = room_check_service.getByID(session, check_id)
     if not check:

@@ -95,6 +95,8 @@ def createDBandTables():
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_2 INTEGER"))
             if "image_id_3" not in columns:
                 connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS image_id_3 INTEGER"))
+            if "is_outdoor" not in columns:
+                connection.execute(text("ALTER TABLE faultcard ADD COLUMN IF NOT EXISTS is_outdoor BOOLEAN DEFAULT FALSE"))
             # Brei die fault_type PostgreSQL-enum uit vir die nuwe werksoort-
             # waardes (Inspeksie/Installasie). SQLAlchemy stoor die enum-lidname
             # (MAINTENANCE/REPAIR/...), so bestaande rye word nie geraak nie.
@@ -143,6 +145,15 @@ def createDBandTables():
             """))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_rcs_room ON room_check_session(room_id)"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_rcs_assigned ON room_check_session(assigned_user_id)"))
+
+        if "location" in inspector.get_table_names():
+            columns = {column["name"] for column in inspector.get_columns("location")}
+            if "location_latitude" not in columns:
+                connection.execute(text("ALTER TABLE location ADD COLUMN IF NOT EXISTS location_latitude DOUBLE PRECISION"))
+            if "location_longitude" not in columns:
+                connection.execute(text("ALTER TABLE location ADD COLUMN IF NOT EXISTS location_longitude DOUBLE PRECISION"))
+            if "location_radius" not in columns:
+                connection.execute(text("ALTER TABLE location ADD COLUMN IF NOT EXISTS location_radius DOUBLE PRECISION DEFAULT 110"))
 
         if "user" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("user")}

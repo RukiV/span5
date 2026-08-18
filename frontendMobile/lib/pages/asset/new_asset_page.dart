@@ -285,7 +285,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                           brand: brand,
                           category: typeName,
                           assetTypeId: selectedTypeId!,
-                          location: selectedLocation?.split(":").first ?? "1",
+                          location: selectedLocation!.split(":").first,
                           status: status,
                           campus: selectedCampus ?? "",
                         );

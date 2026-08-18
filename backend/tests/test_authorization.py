@@ -111,7 +111,7 @@ def test_student_can_read_faultcard_lookup_data(client, headers_for):
     """The mobile fault-card flow needs read access to the campus tree, asset
     types, and serial-code lookup so a scanned asset can auto-populate the form
     (same read-only relaxation as the image-upload gate). Writes and the asset
-    *list* stay manage-only; the *single* asset endpoints just lose the 403."""
+    *list* stay view/manage-only; the *single* asset endpoints just lose the 403."""
     h = headers_for("student")
     for path in [f"{API}/location", f"{API}/building", f"{API}/rooms", f"{API}/assettypes"]:
         assert client.get(path, headers=h).status_code == 200, path
@@ -419,18 +419,18 @@ def test_audit_write_routes_removed(client, headers_for):
 
 
 # --------------------------------------------------------------------------
-# Quote-document routes are gated by quotes.manage (post-merge fix)
+# Quote-document routes are gated by quotes.view / quotes.manage (post-merge fix)
 # --------------------------------------------------------------------------
 
-def test_document_routes_require_quotes_manage(client, headers_for):
+def test_document_routes_require_quotes_rights(client, headers_for):
     # Anonymous -> 401 everywhere (was fully unauthenticated before the fix).
     assert client.get(f"{API}/quotes/1/documents").status_code == 401
     assert client.delete(f"{API}/documents/1").status_code == 401
-    # Student lacks quotes.manage -> 403.
+    # Student lacks quotes.view / quotes.manage -> 403.
     s = headers_for("student")
     assert client.get(f"{API}/quotes/1/documents", headers=s).status_code == 403
     assert client.delete(f"{API}/documents/1", headers=s).status_code == 403
-    # Admin/FK hold quotes.manage -> past the auth gate (200/404, not 401/403).
+    # Admin/FK hold quotes rights -> past the auth gate (200/404, not 401/403).
     a = headers_for("admin")
     assert client.get(f"{API}/quotes/1/documents", headers=a).status_code not in (401, 403)
 
@@ -584,6 +584,56 @@ def test_job_created_without_fault_does_not_add_cc(client, headers_for, seeded):
     )
     assert resp.status_code == 201, resp.text
     assert not resp.json().get("cc_users")
+
+
+# --------------------------------------------------------------------------
+# Nuwe werksopdrag → gekoppelde foutkaartjie word IN_PROGRESS (Besig)
+# --------------------------------------------------------------------------
+
+def test_job_created_sets_linked_fault_in_progress(client, headers_for, engine, seeded):
+    from app.models.enums import FaultStatus
+    from app.models.fault import Faultcard
+
+    ah = headers_for("admin")
+    fault_id = seeded["fault_id"]
+    with Session(engine) as session:
+        assert session.get(Faultcard, fault_id).fault_status == FaultStatus.WAIT
+
+    resp = client.post(
+        f"{API}/job",
+        json={"job_desc": "fout uitsorteer", "fault_id": fault_id},
+        headers=ah,
+    )
+    assert resp.status_code == 201, resp.text
+
+    with Session(engine) as session:
+        assert session.get(Faultcard, fault_id).fault_status == FaultStatus.IN_PROGRESS
+
+
+def test_job_created_does_not_reopen_closed_fault(client, headers_for, engine, seeded):
+    from app.models.enums import FaultStatus
+    from app.models.fault import Faultcard
+
+    ah = headers_for("admin")
+    with Session(engine) as session:
+        fault = Faultcard(
+            fault_description="reeds klaar", user_id=seeded["ids"]["student"],
+            fault_status=FaultStatus.RESOLVED,
+        )
+        session.add(fault)
+        session.commit()
+        session.refresh(fault)
+        fault_id = fault.fault_id
+
+    resp = client.post(
+        f"{API}/job",
+        json={"job_desc": "nuwe taak", "fault_id": fault_id},
+        headers=ah,
+    )
+    assert resp.status_code == 201, resp.text
+
+    with Session(engine) as session:
+        assert session.get(Faultcard, fault_id).fault_status == FaultStatus.RESOLVED
 
 
 # --------------------------------------------------------------------------

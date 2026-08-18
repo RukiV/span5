@@ -51,6 +51,9 @@ class LocationBase(SQLModel):
     location_city: str = Field(default="", max_length=100)
     location_province: str = Field(default="", max_length=100)
     location_country: str = Field(default="", max_length=100)
+    location_latitude: Optional[float] = None
+    location_longitude: Optional[float] = None
+    location_radius: Optional[float] = Field(default=110, description="Toegelate radius (meters) rondom die kampus se middelpunt")
 
     @field_validator('location_name', 'location_type', 'location_streetnum', 'location_streetname',
                      'location_suburb', 'location_city', 'location_province', 'location_country', mode='before')

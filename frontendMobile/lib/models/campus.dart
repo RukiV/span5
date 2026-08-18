@@ -82,25 +82,33 @@ class Campus {
     'location_city': city,
     'location_province': province,
     'location_country': country,
+    'location_latitude': location.latitude,
+    'location_longitude': location.longitude,
+    'location_radius': radius,
   };
 
-  factory Campus.fromJson(Map<String, dynamic> json) => Campus(
-    id: json['location_id'] ?? 0,
-    name: json['location_name'] ?? '',
-    code: json['location_type'] ?? 'KAMPUS',
-    streetNum: json['location_streetnum']?.toString() ?? '',
-    streetName: json['location_streetname'] ?? '',
-    suburb: json['location_suburb'] ?? '',
-    city: json['location_city'] ?? '',
-    province: json['location_province'] ?? '',
-    country: json['location_country'] ?? '',
-    location: const LatLng(-25.8480, 28.2366),
-    radius: 110.0,
-    imageAsset: null,
-    buildings: json['buildings'] != null
-        ? (json['buildings'] as List).map((b) => Building.fromJson(b)).toList()
-        : [],
-  );
+  factory Campus.fromJson(Map<String, dynamic> json) {
+    final double lat = (json['location_latitude'] as num?)?.toDouble() ?? -25.8480;
+    final double lng = (json['location_longitude'] as num?)?.toDouble() ?? 28.2366;
+    final double radiusM = (json['location_radius'] as num?)?.toDouble() ?? 110.0;
+    return Campus(
+      id: json['location_id'] ?? 0,
+      name: json['location_name'] ?? '',
+      code: json['location_type'] ?? 'KAMPUS',
+      streetNum: json['location_streetnum']?.toString() ?? '',
+      streetName: json['location_streetname'] ?? '',
+      suburb: json['location_suburb'] ?? '',
+      city: json['location_city'] ?? '',
+      province: json['location_province'] ?? '',
+      country: json['location_country'] ?? '',
+      location: LatLng(lat, lng),
+      radius: radiusM,
+      imageAsset: null,
+      buildings: json['buildings'] != null
+          ? (json['buildings'] as List).map((b) => Building.fromJson(b)).toList()
+          : [],
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

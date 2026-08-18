@@ -11,12 +11,12 @@ from ....services.room_service import room_service
 router = APIRouter()
 
 @router.get("", response_model=List[RoomRead])
-def readRooms(session: Session = Depends(getSession), _user: User = Depends(require_any_right("rooms.manage", "faults.create_own"))):
+def readRooms(session: Session = Depends(getSession), _user: User = Depends(require_any_right("rooms.view", "faults.create"))):
     #Fetch all rooms
     return room_service.getAll(session)
 
 @router.get("/{roomID}", response_model=RoomRead)
-def readRoom(roomID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("rooms.manage"))):
+def readRoom(roomID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("rooms.view"))):
     #Fetch single room by id
     room = room_service.getByID(session, roomID)
     if not room:

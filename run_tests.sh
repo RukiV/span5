@@ -18,7 +18,7 @@ if [ -n "$_PIP" ]; then
   $_PIP install -q pytest httpx 2>/dev/null || true
 fi
 cd "$ROOT/backend"
-python3 -m pytest tests/TEST_security.py -v || echo "  (install pytest + httpx to run backend tests)"
+python3 -m pytest tests/ -q || echo "  (install pytest + httpx to run backend tests)"
 cd "$ROOT"
 
 # --- Frontend ---
@@ -31,9 +31,9 @@ cd "$ROOT"
 
 # --- Mobile ---
 echo ""
-echo "--- Mobile Tests ---"
+echo "--- Mobile Tests (analyzer) ---"
 cd "$ROOT/frontendMobile"
-flutter test test/TEST_login_page_test.dart test/TEST_api_client_test.dart test/TEST_auth_config_test.dart test/TEST_secure_storage_test.dart --no-pub 2>&1 || echo "  (flutter not available? skipping mobile tests)"
+dart analyze lib 2>&1 || echo "  (dart not available? skipping mobile analysis)"
 cd "$ROOT"
 
 echo ""

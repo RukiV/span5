@@ -27,6 +27,7 @@ from ..auth.rights_catalog import (  # noqa: F401  (re-exported for existing imp
     ROLE_DOSENT,
     RIGHTS_CATALOG,
     ROLE_RIGHTS,
+    LEGACY_RIGHT_MIGRATION,
 )
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
@@ -102,7 +103,7 @@ def _get_or_create_test_quote(session: Session) -> Quote:
     session.refresh(quote)
     return quote
 
-def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
+def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "", latitude: Optional[float] = None, longitude: Optional[float] = None, radius: Optional[float] = None) -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
     if location:
         return location
@@ -116,6 +117,9 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
         location_city=city,
         location_province=province,
         location_country=country,
+        location_latitude=latitude,
+        location_longitude=longitude,
+        location_radius=radius,
     )
     session.add(location)
     session.commit()
@@ -344,6 +348,7 @@ def _get_or_create_fault(
     building_id: Optional[int] = None,
     location_id: Optional[int] = None,
     mappoint_id: Optional[int] = None,
+    is_outdoor: bool = False,
 ) -> Faultcard:
     fault = session.exec(
         select(Faultcard)
@@ -363,6 +368,7 @@ def _get_or_create_fault(
         building_id=building_id,
         location_id=location_id,
         mappoint_id=mappoint_id,
+        is_outdoor=is_outdoor,
     )
     session.add(fault)
     session.commit()
@@ -488,12 +494,67 @@ def _get_or_create_role_right(session: Session, role_id: int, right_id: int) -> 
     return role_right
 
 
+def _migrate_legacy_rights(session: Session) -> None:
+    """One-time, idempotent remap of the pre-split right names.
+
+    For every role (built-in or custom) holding a legacy right name, grant the
+    replacement rights and drop the legacy association, then remove the
+    migrated-away Rights rows. Safe to run on every startup: once the legacy
+    names are gone it becomes a no-op.
+    """
+    name_to_id = {r.right_name: r.right_id for r in session.exec(select(Rights)).all()}
+
+    legacy_present = [name for name in LEGACY_RIGHT_MIGRATION if name in name_to_id]
+    if not legacy_present:
+        return
+
+    # Ensure replacement rights exist so associations can be remapped.
+    for name, description in RIGHTS_CATALOG.items():
+        if name not in name_to_id:
+            _get_or_create_right(session, name, description)
+    name_to_id = {r.right_name: r.right_id for r in session.exec(select(Rights)).all()}
+
+    rows = session.exec(
+        select(RoleRight, Rights.right_name)
+        .join(Rights, Rights.right_id == RoleRight.right_id)
+    ).all()
+
+    for role_right, right_name in rows:
+        replacements = LEGACY_RIGHT_MIGRATION.get(right_name)
+        if replacements is None:
+            continue
+        if right_name in replacements:
+            continue  # renamed to itself; leave the association as-is
+        for replacement in replacements:
+            replacement_id = name_to_id.get(replacement)
+            if replacement_id is not None:
+                _get_or_create_role_right(session, role_right.role_id, replacement_id)
+        session.delete(role_right)
+
+    # Drop Rights rows of legacy names that are no longer part of the catalog.
+    retired_names = [
+        name for name in LEGACY_RIGHT_MIGRATION
+        if name not in RIGHTS_CATALOG and name in name_to_id
+    ]
+    if retired_names:
+        retired = session.exec(
+            select(Rights).where(Rights.right_name.in_(retired_names))
+        ).all()
+        for right in retired:
+            session.delete(right)
+
+    session.commit()
+
+
 def seed_rights(session: Session) -> None:
     """Seed the Rights catalog and RoleRight assignments (idempotent).
 
     Both the catalog (RIGHTS_CATALOG) and the assignments (ROLE_RIGHTS) are the
-    single source of truth used by the app and the tests.
+    single source of truth used by the app and the tests. Any legacy pre-split
+    right names are migrated first so existing databases keep working.
     """
+    _migrate_legacy_rights(session)
+
     name_to_id: dict[str, int] = {}
     for right_name, description in RIGHTS_CATALOG.items():
         right = _get_or_create_right(session, right_name, description)
@@ -667,6 +728,9 @@ suburb="Clubview",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.8480,
+            longitude=28.2366,
+            radius=110,
         )
 
         loc2 = _get_or_create_location(
@@ -679,6 +743,9 @@ suburb="Die Hoewes",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.8471,
+            longitude=28.2334,
+            radius=110,
         )
 
         loc3 = _get_or_create_location(
@@ -691,6 +758,9 @@ suburb="Esterville",
             city="Paarl",
             province="Wes Kaap",
             country="Suid Afrika",
+            latitude=-33.7350,
+            longitude=18.9600,
+            radius=110,
         )
 
         loc4 = _get_or_create_location(
@@ -703,6 +773,9 @@ suburb="Villieria",
             city="Pretoria",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.7188,
+            longitude=28.1996,
+            radius=110,
         )
 
         bld1 = _get_or_create_building(
@@ -1172,7 +1245,7 @@ suburb="Villieria",
         _get_or_create_fault(session, "Koffiemasjien lek water", FaultStatus.OPEN, Priority.LOW, Type.REPAIR,
             now - timedelta(days=1), coffee_machine.asset_id if coffee_machine else None, room22.room_id, bld2.building_id, loc1.location_id)
         _get_or_create_fault(session, "Brandblusser druk laag", FaultStatus.OPEN, Priority.HIGH, Type.MAINTENANCE,
-            now - timedelta(days=3), fire_extinguisher.asset_id if fire_extinguisher else None, room11.room_id, bld6.building_id, loc1.location_id)
+            now - timedelta(days=3), fire_extinguisher.asset_id if fire_extinguisher else None, None, None, loc1.location_id, is_outdoor=True)
         _get_or_create_fault(session, "Kraan lek in kombuis", FaultStatus.OPEN, Priority.MEDIUM, Type.REPAIR,
             now - timedelta(days=10), None, room21.room_id, bld2.building_id, loc1.location_id)
         _get_or_create_fault(session, "Toilet oorloop", FaultStatus.OPEN, Priority.HIGH, Type.REPAIR,
@@ -1184,13 +1257,17 @@ suburb="Villieria",
         _get_or_create_fault(session, "Werkstation maak geraas", FaultStatus.RESOLVED, Priority.LOW, Type.MAINTENANCE,
             now - timedelta(days=30), dell_optiplex_005.asset_id if dell_optiplex_005 else None, room9.room_id, bld3.building_id, loc1.location_id)
         _get_or_create_fault(session, "Noodligte werk nie", FaultStatus.CLOSED, Priority.MEDIUM, Type.REPAIR,
-            now - timedelta(days=60), None, room6.room_id, bld5.building_id, loc1.location_id)
+            now - timedelta(days=60), None, None, None, loc1.location_id, is_outdoor=True)
         _get_or_create_fault(session, "Wifi onstabiel op 2de vloer", FaultStatus.OPEN, Priority.MEDIUM, Type.MAINTENANCE,
             now - timedelta(days=3), None, room8.room_id, bld3.building_id, loc1.location_id)
         _get_or_create_fault(session, "Kantoorligte flikker", FaultStatus.IN_PROGRESS, Priority.LOW, Type.REPAIR,
             now - timedelta(days=12), None, room15.room_id, bld9.building_id, loc3.location_id)
         _get_or_create_fault(session, "Kelder oorstroming", FaultStatus.CLOSED, Priority.HIGH, Type.REPAIR,
             now - timedelta(days=90), None, room5.room_id, bld1.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Bankie langs die sportveld is stukkend", FaultStatus.OPEN, Priority.LOW, Type.REPAIR,
+            now - timedelta(days=2), None, None, None, loc2.location_id, is_outdoor=True)
+        _get_or_create_fault(session, "Stoephek spring nie oop nie", FaultStatus.OPEN, Priority.MEDIUM, Type.MAINTENANCE,
+            now - timedelta(days=6), None, None, None, loc3.location_id, is_outdoor=True)
 
         # ── Addisionele werksopdragte ───────────────────────────
         cpu_asset_003 = session.exec(select(Asset).where(Asset.asset_serial == "IT-003")).first()
