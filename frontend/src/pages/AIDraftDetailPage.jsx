@@ -3,8 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import InfoTip, { JOB_TYPE_HELP } from "../components/InfoTip";
-import useAiSuggestions from "../hooks/useAiSuggestions";
-import AiSuggestPanel from "../components/AiSuggestPanel";
 import '../styles/App.css';
 
 function AIDraftDetailPage() {
@@ -22,18 +20,6 @@ function AIDraftDetailPage() {
   const [faultPriority, setFaultPriority] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
-
-  // AI-veldvoorstelle (stil onder 3 ingevulde velde / sonder backend).
-  const { suggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
-    context: 'draft',
-    values: {
-      description: draft?.description || '',
-      title,
-      cleaned_description: cleanedDescription,
-      fault_type: faultType,
-      fault_priority: faultPriority,
-    },
-  });
 
   // Reject modal
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -385,21 +371,6 @@ function AIDraftDetailPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {isDraft && (
-          <AiSuggestPanel
-            suggestions={suggestions}
-            loading={aiLoading}
-            filled={aiFilled}
-            error={aiError}
-            labels={{ title: 'Titel', suggested_type: 'Werksoort', suggested_priority: 'Prioriteit' }}
-            onUse={(key, s) => {
-              if (key === 'title') setTitle(s.value);
-              else if (key === 'suggested_type') setFaultType(s.value);
-              else if (key === 'suggested_priority') setFaultPriority(s.value);
-            }}
-          />
         )}
       </div>
     </div>

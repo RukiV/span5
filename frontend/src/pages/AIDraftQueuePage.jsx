@@ -16,11 +16,12 @@ const DRAFT_COLUMNS = [
     render: (d) => d.title || (d.description ? d.description.substring(0, 80) + (d.description.length > 80 ? '...' : '') : '-'),
     sortKey: 'title', defaultVisible: true,
   },
-  // Ligging by verstek sigbaar — meeste titels is eenders; die plek onderskei.
+  // Bate-kolom by verstek sigbaar — meeste titels is eenders; die bate/kandidaat
+  // onderskei waarheen die konsep verwys (agterkant val terug op eerste kandidaat).
   {
-    key: 'location', label: 'Ligging',
-    render: (d) => [d.resolved_room_name, d.building_name].filter(Boolean).join(' · ') || '-',
-    sortKey: 'location', defaultVisible: true,
+    key: 'asset', label: 'Bate',
+    render: (d) => d.resolved_asset_name || '-',
+    sortKey: 'asset', defaultVisible: true,
   },
   { key: 'type', label: 'Tipe', render: (d) => d.suggested_type || '-', sortKey: 'type', defaultVisible: true },
   { key: 'priority', label: 'Prioriteit', render: (d) => d.suggested_priority || '-', sortKey: 'priority', defaultVisible: true },
@@ -92,11 +93,7 @@ function AIDraftQueuePage() {
         const tb = b.title || b.description || '';
         return String(ta).localeCompare(String(tb), 'af', { sensitivity: 'base' }) * dir;
       }
-      case 'location': {
-        const la = [a.resolved_room_name, a.building_name].filter(Boolean).join(' · ');
-        const lb = [b.resolved_room_name, b.building_name].filter(Boolean).join(' · ');
-        return la.localeCompare(lb, 'af', { sensitivity: 'base' }) * dir;
-      }
+      case 'asset': return String(a.resolved_asset_name || '').localeCompare(String(b.resolved_asset_name || ''), 'af', { sensitivity: 'base' }) * dir;
       case 'type': return String(a.suggested_type || '').localeCompare(String(b.suggested_type || ''), 'af') * dir;
       case 'priority': return String(a.suggested_priority || '').localeCompare(String(b.suggested_priority || ''), 'af') * dir;
       case 'ai': return String(a.ai_status || '').localeCompare(String(b.ai_status || ''), 'af') * dir;
