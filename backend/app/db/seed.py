@@ -1074,141 +1074,146 @@ suburb="Villieria",
         _get_or_create_asset(session, "Drukker LaserJet", "HP", "IT-011", AssetStatus.MAINTENANCE, False, room15.room_id, type_it.assettype_id, now - timedelta(days=500))
         _get_or_create_asset(session, "Naskoot", "Canon", "IT-012", AssetStatus.ACTIVE, False, room15.room_id, type_it.assettype_id, now - timedelta(days=100))
 
-        # ── Survival-geskiedenis: ryk fout-/werk-histories vir die oorlewings-
-        #    model (meer bates + meer geleenthede = sterker opleidingssein).
-        #    Alles idempotent via die _get_or_create_*-helpers.
-        _survival_rows = [
-            # (naam, merk, reeks, status, kamer, tipe, ouderdom_dae)
-            ("Kantoor stoel", "Boss", "MB-201", AssetStatus.ACTIVE, room15, type_meubels, 900),
-            ("Kantoor stoel", "Boss", "MB-202", AssetStatus.ACTIVE, room16, type_meubels, 850),
-            ("Kantoor stoel", "Xpert", "MB-203", AssetStatus.MAINTENANCE, room17, type_meubels, 1100),
-            ("Kantoor tafel", "Boss", "MB-204", AssetStatus.ACTIVE, room15, type_meubels, 1500),
-            ("Projektor Epson", "Epson", "PR-301", AssetStatus.ACTIVE, room8, type_it, 700),
-            ("Projektor Epson", "Epson", "PR-302", AssetStatus.MAINTENANCE, room9, type_it, 950),
-            ("Drukker LaserJet", "HP", "PR-303", AssetStatus.ACTIVE, room11, type_it, 600),
-            ("Rekenaar Dell Optiplex", "Dell", "IT-310", AssetStatus.ACTIVE, room11, type_it, 1200),
-            ("Lugversorging split", "Samsung", "HV-401", AssetStatus.ACTIVE, room8, type_hvac, 1600),
-            ("Lugversorging split", "Samsung", "HV-402", AssetStatus.ACTIVE, room21, type_hvac, 1300),
-            ("Lugversorging split", " Alliance", "HV-403", AssetStatus.INACTIVE, room12, type_hvac, 2000),
-            ("Skoonmaak kar", "Karcher", "KG-501", AssetStatus.ACTIVE, room22, type_alge, 500),
-            ("Stofsuig industrieel", "Karcher", "KG-502", AssetStatus.MAINTENANCE, room22, type_alge, 750),
-            ("Grasmaaier", "Ryobi", "KG-503", AssetStatus.ACTIVE, room10, type_alge, 400),
-            ("Nooduitgang bord", "SafeSys", "VS-601", AssetStatus.ACTIVE, room6, type_veiligheid, 800),
-            ("Brandblusser", "SafeSys", "VS-602", AssetStatus.ACTIVE, room7, type_veiligheid, 650),
-            ("Alarm paneel", "SafeSys", "VS-603", AssetStatus.ACTIVE, room13, type_veiligheid, 1400),
-            ("Yskas kombuis", "Defy", "KB-701", AssetStatus.ACTIVE, room21, type_kombuis, 1250),
-            ("Water verwarmer", "Kwikot", "KB-702", AssetStatus.MAINTENANCE, room18, type_kombuis, 1700),
-            ("Microgolf", "Sunbeam", "KB-703", AssetStatus.ACTIVE, room22, type_kombuis, 550),
-            ("Elektriese paneel", "ACDC", "EL-801", AssetStatus.ACTIVE, room14, type_elek, 1800),
-            ("Generator", "Honda", "EL-802", AssetStatus.ACTIVE, room10, type_elek, 1000),
-            ("Beligting buite", "Radiant", "EL-803", AssetStatus.ACTIVE, room19, type_elek, 1450),
-            ("Krag punt multi", "Ellies", "EL-804", AssetStatus.INACTIVE, room20, type_elek, 1900),
+        # ── Survival-vloot: gesonde meerderheid + min probleemkinders ──────────
+        # Realisme-reëls sodat voorspellings sin maak:
+        #  * Ouderdom bly binne die tipe se gemiddelde lewensduur.
+        #  * Gesonde bates kry 'n ONLANGSE diensbeurt en hooguit een OU fout
+        #    (>12 maande) — ou foute voed die survival-model (events) sonder
+        #    om die 12-maand-fouttellers of lewensduur-reëls te laat loop.
+        #  * Slegs 'n klein eksplisiete minderheid ("probleemkinders") is werklike
+        #    vervangings-kandidate (onlangse herhaalde foute, oorskryde
+        #    lewensduur, agterstallige onderhoud).
+        _fleet_kinds = [
+            # (naam, merk, tipe, serial-prefix, maks_ouderdom_dae)
+            ("Kantoor stoel", "Boss", type_meubels, "MB", 2400),
+            ("Kantoor tafel", "Steelcase", type_meubels, "KT", 2600),
+            ("Rekenaar Dell Optiplex", "Dell", type_it, "IT", 1300),
+            ("Projektor Epson", "Epson", type_it, "PR", 1250),
+            ("Drukker LaserJet", "HP", type_it, "DJ", 1200),
+            ("Lugversorging split", "Samsung", type_hvac, "HV", 2200),
+            ("Yskas kombuis", "Defy", type_kombuis, "KB", 1900),
+            ("Microgolf", "Sunbeam", type_kombuis, "MG", 1800),
+            ("Brandblusser", "SafeSys", type_veiligheid, "BB", 950),
+            ("Nooduitgang bord", "SafeSys", type_veiligheid, "ND", 900),
+            ("Skoonmaak kar", "Karcher", type_alge, "SK", 1000),
+            ("Stofsuig industrieel", "Karcher", type_alge, "ST", 1050),
+            ("Krag punt multi", "Ellies", type_elek, "KP", 1600),
+            ("Beligting buite LED", "Radiant", type_elek, "BL", 1500),
         ]
-        _fault_kinds = [
-            # (beskrywing-agtervoegsel, FaultStatus, Priority, Type)
-            ("werk nie na krag uitval nie", FaultStatus.CLOSED, Priority.HIGH, Type.REPAIR),
-            ("vertoon intermitterende foute", FaultStatus.RESOLVED, Priority.MEDIUM, Type.REPAIR),
-            ("benodig roetine-diens", FaultStatus.CLOSED, Priority.LOW, Type.MAINTENANCE),
-        ]
-        for idx, (s_name, s_brand, s_serial, s_status, s_room, s_type, s_age) in enumerate(_survival_rows):
-            s_created = now - timedelta(days=s_age)
-            asset_s = _get_or_create_asset(
-                session, s_name.strip(), s_brand.strip(), s_serial, s_status,
-                False, getattr(s_room, "room_id", None), s_type.assettype_id, s_created,
-            )
-            building_s = None
-            if getattr(s_room, "room_id", None):
-                room_obj = session.get(Room, s_room.room_id)
-                building_s = room_obj.building_id if room_obj else None
-            # Twee historigiese foute (vroeë + middel-leeftyd) en een werk elk;
-            # die laaste kwart van die bates kry 'n oop fout sonder werk
-            # (gesensureerde waarnemings vir die model).
-            for fi, (f_suffix, f_status, f_prio, f_type) in enumerate(_fault_kinds[:2 if idx % 4 == 3 else 3]):
-                f_days = max(5, int(s_age * (0.25 if fi == 0 else 0.55)))
+        for gi, (f_name, f_brand, f_type, f_prefix, f_max_age) in enumerate(_fleet_kinds):
+            for n in range(6):
+                fi = gi * 6 + n
+                age_days = 520 + (fi * 97) % max(1, f_max_age - 550)
+                status = AssetStatus.ACTIVE if fi % 5 else AssetStatus.MAINTENANCE
+                room = [room6, room7, room8, room9, room10, room11, room12,
+                        room15, room16, room17, room18, room19, room20, room21, room22][fi % 15]
+                asset_f = _get_or_create_asset(
+                    session, f_name, f_brand, f"{f_prefix}-F{100 + fi}", status,
+                    False, room.room_id, f_type.assettype_id, now - timedelta(days=age_days),
+                )
+                room_obj = session.get(Room, room.room_id)
+                building_f = room_obj.building_id if room_obj else None
+                service_days = 25 + (fi * 23) % 210          # onlangse diens: nooit agterstallig
+                _get_or_create_job(
+                    session,
+                    desc=f"{f_name}: roetine-diens uitgevoer",
+                    status=JobStatus.COMPLETED,
+                    job_type="MAINTENANCE",
+                    created_dt=now - timedelta(days=service_days + 2),
+                    finished_dt=now - timedelta(days=service_days),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
+                    building_id=building_f,
+                )
+                # Een OU aanvanklike reparasie (>12 maande gelede) vir ELKE vloot-bate —
+                # survival-event sonder om die 12-maand-reëls te roer.
+                fault_days = 385 + (fi * 31) % 320
+                if fault_days >= age_days - 5:
+                    fault_days = max(370, age_days // 2)
                 _get_or_create_fault(
                     session,
-                    description=f"{s_name.strip()} {f_suffix}",
-                    status=f_status,
-                    priority=f_prio,
-                    fault_type=f_type,
-                    report_dt=now - timedelta(days=f_days),
-                    asset_id=asset_s.asset_id,
-                    room_id=getattr(s_room, "room_id", None),
+                    description=f"{f_name}: aanvanklike aanloopfout",
+                    status=FaultStatus.CLOSED,
+                    priority=Priority.LOW,
+                    fault_type=Type.REPAIR,
+                    report_dt=now - timedelta(days=fault_days),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
                 )
                 _get_or_create_job(
                     session,
-                    desc=f"{s_name.strip()}: hanteer '{f_suffix}'",
+                    desc=f"{f_name}: hanteer 'aanvanklike aanloopfout'",
                     status=JobStatus.COMPLETED,
-                    job_type="REPAIR" if f_type == Type.REPAIR else "MAINTENANCE",
-                    created_dt=now - timedelta(days=max(4, f_days - 1)),
-                    finished_dt=now - timedelta(days=max(2, f_days - 3)),
-                    asset_id=asset_s.asset_id,
-                    room_id=getattr(s_room, "room_id", None),
-                    building_id=building_s,
-                )
-            if idx % 4 == 3:
-                _get_or_create_fault(
-                    session,
-                    description=f"{s_name.strip()} toon nuwe tekens van slyt",
-                    status=FaultStatus.WAIT,
-                    priority=Priority.MEDIUM,
-                    fault_type=Type.REPAIR,
-                    report_dt=now - timedelta(days=6),
-                    asset_id=asset_s.asset_id,
-                    room_id=getattr(s_room, "room_id", None),
+                    job_type="REPAIR",
+                    created_dt=now - timedelta(days=fault_days - 2),
+                    finished_dt=now - timedelta(days=max(1, fault_days - 4)),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
+                    building_id=building_f,
                 )
 
-        # ── Gegenereerde survival-variantes ────────────────────────────────
-        # Die model se "events" = AANTAL VERSKILLENDENDE bates wat al gefout
-        # het (nie totaal foute nie). Hierdie blok skep genoemde variantes om
-        # daardie drempel (≥ AI_SURVIVAL_MIN_EVENTS) betrouwbaar te haal.
-        _gen_kinds = [
-            ("Kantoor stoel", "Boss", type_meubels, "MB"),
-            ("Rekenaar Dell Optiplex", "Dell", type_it, "IT"),
-            ("Projektor Epson", "Epson", type_it, "PR"),
-            ("Lugversorging split", "Samsung", type_hvac, "HV"),
-            ("Yskas kombuis", "Defy", type_kombuis, "KB"),
-            ("Brandblusser", "SafeSys", type_veiligheid, "VS"),
-            ("Skoonmaak kar", "Karcher", type_alge, "KG"),
-            ("Krag punt multi", "Ellies", type_elek, "EL"),
+        # ── Probleemkinders: die werklike vervangings-kandidate ────────────
+        _problem_specs = [
+            # (naam, merk, tipe, reeks, kamer, ouderdom, rede)
+            ("Kantoor stoel", "Xpert", type_meubels, "MB-900", room15, 1300, "faults"),
+            ("Rekenaar HP EliteDesk", "HP", type_it, "IT-940", room11, 1550, "lifespan"),
+            ("Projektor Epson", "Epson", type_it, "PR-941", room9, 1500, "faults"),
+            ("Lugversorging split", "Alliance", type_hvac, "HV-942", room12, 2600, "lifespan"),
+            ("Yskas kombuis", "KIC", type_kombuis, "KB-943", room21, 2300, "faults"),
+            ("Brandblusser", "SafeSys", type_veiligheid, "BB-944", room10, 1250, "lifespan"),
+            ("Grasmaaier", "Ryobi", type_alge, "SK-945", room10, 1150, "faults"),
+            ("Generator", "Honda", type_elek, "EL-946", room10, 1750, "overdue"),
+            ("Water verwarmer", "Kwikot", type_kombuis, "KB-947", room18, 1400, "overdue"),
+            ("Alarm paneel", "SafeSys", type_veiligheid, "ND-948", room13, 800, "faults"),
+            ("Drukker LaserJet", "HP", type_it, "DJ-949", room16, 1350, "faults"),
+            ("Krag punt multi", "Ellies", type_elek, "KP-950", room20, 1900, "faults"),
         ]
-        _rooms_pool = [room6, room7, room8, room9, room10, room11, room12, room15,
-                       room16, room17, room18, room19, room20, room21, room22]
-        _g_idx = 0
-        for g_name, g_brand, g_type, g_prefix in _gen_kinds:
-            for g_n in range(1, 9):
-                _g_idx += 1
-                g_room = _rooms_pool[_g_idx % len(_rooms_pool)]
-                g_age = 320 + ((_g_idx * 73) % 1600)
-                g_status = AssetStatus.ACTIVE if _g_idx % 5 else AssetStatus.MAINTENANCE
-                g_serial = f"{g_prefix}-G{1000 + _g_idx}"
-                g_asset = _get_or_create_asset(
-                    session, g_name, g_brand, g_serial, g_status, False,
-                    g_room.room_id, g_type.assettype_id, now - timedelta(days=g_age),
-                )
-                g_fault_days = max(10, int(g_age * 0.4))
-                g_fault = _get_or_create_fault(
-                    session,
-                    description=f"{g_name} werk nie na krag uitval nie",
-                    status=FaultStatus.CLOSED,
-                    priority=Priority.MEDIUM if _g_idx % 2 else Priority.HIGH,
-                    fault_type=Type.REPAIR,
-                    report_dt=now - timedelta(days=g_fault_days),
-                    asset_id=g_asset.asset_id,
-                    room_id=g_room.room_id,
-                )
-                if g_fault:
-                    _get_or_create_job(
+        for p_name, p_brand, p_type, p_serial, p_room, p_age, p_reason in _problem_specs:
+            p_asset = _get_or_create_asset(
+                session, p_name, p_brand, p_serial, AssetStatus.MAINTENANCE, False,
+                p_room.room_id, p_type.assettype_id, now - timedelta(days=p_age),
+            )
+            p_room_obj = session.get(Room, p_room.room_id)
+            p_building = p_room_obj.building_id if p_room_obj else None
+            if p_reason == "faults":
+                # Drie onlangse foute binne 12 maande → bo drempel.
+                for k, (prio, d_back) in enumerate([
+                    (Priority.MEDIUM, 300), (Priority.HIGH, 120), (Priority.HIGH, 30),
+                ]):
+                    _get_or_create_fault(
                         session,
-                        desc=f"{g_name}: hanteer 'werk nie na krag uitval nie'",
-                        status=JobStatus.COMPLETED,
-                        job_type="REPAIR",
-                        created_dt=now - timedelta(days=max(5, g_fault_days - 1)),
-                        finished_dt=now - timedelta(days=max(3, g_fault_days - 3)),
-                        asset_id=g_asset.asset_id,
-                        room_id=g_room.room_id,
-                        building_id=g_room.building_id,
+                        description=f"{p_name} herhaalfout {k + 1}",
+                        status=FaultStatus.IN_PROGRESS if k == 2 else FaultStatus.CLOSED,
+                        priority=prio,
+                        fault_type=Type.REPAIR,
+                        report_dt=now - timedelta(days=d_back),
+                        asset_id=p_asset.asset_id,
+                        room_id=p_room.room_id,
                     )
+                _get_or_create_job(
+                    session,
+                    desc=f"{p_name} herhaalfout-hantering",
+                    status=JobStatus.OPEN,
+                    job_type="REPAIR",
+                    created_dt=now - timedelta(days=28),
+                    asset_id=p_asset.asset_id,
+                    room_id=p_room.room_id,
+                    building_id=p_building,
+                )
+            elif p_reason == "overdue":
+                # Laaste diens ver verby interval + 180 dae.
+                _get_or_create_fault(
+                    session,
+                    description=f"{p_name} benodig dringende diens",
+                    status=FaultStatus.WAIT,
+                    priority=Priority.HIGH,
+                    fault_type=Type.MAINTENANCE,
+                    report_dt=now - timedelta(days=200),
+                    asset_id=p_asset.asset_id,
+                    room_id=p_room.room_id,
+                )
+            # "lifespan"-gevalle: geen ekstra foute nodig nie — ouderdom alleen
+            # laat Lewensduur-oorskry toeslaan.
         _get_or_create_asset(session, "Wifi-roeterg", "MikroTik", "IT-020", AssetStatus.ACTIVE, False, room6.room_id, type_it.assettype_id, now - timedelta(days=250))
         _get_or_create_asset(session, "Wifi-roeterg AP", "Ubiquiti", "IT-021", AssetStatus.ACTIVE, False, room8.room_id, type_it.assettype_id, now - timedelta(days=150))
         _get_or_create_asset(session, "Lugversorger", "Samsung", "HVAC-001", AssetStatus.ACTIVE, True, room8.room_id, type_hvac.assettype_id, now - timedelta(days=800))
