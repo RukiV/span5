@@ -17,6 +17,8 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -119,7 +121,7 @@ function WorkOrderPage() {
     job_scheduled_datetime: "",     // Geskeduleerde datum
     job_scheduled_end_datetime: "", // Geskeduleerde einddatum
     job_schedule_type: "enkel",     // Herhalingstipe
-    
+
     // Aanspreekpunt-inligting
     contact_name: "",               // Naam van persoon
     contact_email: "",              // E-pos
@@ -146,6 +148,22 @@ function WorkOrderPage() {
     assigned_to: null,              // Verantwoordelike gebruiker (user_id)
     cc_users: [],                   // CC gebruikers (array van user_id's)
   });
+
+  // AI-veldvoorstelle: werksoort/prioriteit uit die beskrywing (reëls-klassifiseerder).
+  // Die vorm gebruik Afrikaanse vertoonwaardes — map die enjin se EN-enum hier.
+  const JOB_TYPE_EN_AF = { REPAIR: 'Herstel', MAINTENANCE: 'Onderhoud', INSPECTION: 'Inspeksie', INSTALLATION: 'Installasie' };
+  const JOB_PRIO_EN_AF = { LOW: 'Laag', MEDIUM: 'Normal', HIGH: 'Hoog' };
+  const aiSuggestions = useAiSuggestions({
+    context: 'job',
+    values: {
+      job_desc: formData.job_desc,
+      job_type: formData.job_type,
+      job_priority: formData.job_priority,
+      nature: formData.nature,
+      job_status: formData.job_status,
+    },
+  });
+  const { suggestions: jobSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -2375,6 +2393,24 @@ function WorkOrderPage() {
                 {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
               </button>
             </div>
+            <AiSuggestPanel
+              suggestions={jobSuggestions}
+              loading={aiLoading}
+              filled={aiFilled}
+              error={aiError}
+              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit' }}
+              onUse={(key, s) => {
+                if (key === 'job_type') {
+                  const af = JOB_TYPE_EN_AF[s.value] || s.value;
+                  setFormData(p => ({ ...p, job_type: af }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.job_type; return n; });
+                } else if (key === 'job_priority') {
+                  const af = JOB_PRIO_EN_AF[s.value] || s.value;
+                  setFormData(p => ({ ...p, job_priority: af }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.job_priority; return n; });
+                }
+              }}
+            />
           </div>
         </div>
       )}

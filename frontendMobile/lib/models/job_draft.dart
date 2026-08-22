@@ -35,6 +35,11 @@ class JobDraft {
   final String reviewNote;
   final int? resolvedAssetId;
   final int? resolvedRoomId;
+  // Onttassel name (agterkant sluit dit nou in) — sodat die Ligging-kolom
+  // onmiddellik leesbaar is.
+  final String? resolvedAssetName;
+  final String? resolvedRoomName;
+  final String? buildingName;
   final int? duplicateOf;
   final int userId;
   final int? reviewerId;
@@ -58,6 +63,9 @@ class JobDraft {
     required this.reviewNote,
     this.resolvedAssetId,
     this.resolvedRoomId,
+    this.resolvedAssetName,
+    this.resolvedRoomName,
+    this.buildingName,
     this.duplicateOf,
     required this.userId,
     this.reviewerId,
@@ -127,6 +135,9 @@ class JobDraft {
       reviewNote: json['review_note'] ?? '',
       resolvedAssetId: (json['resolved_asset_id'] as num?)?.toInt(),
       resolvedRoomId: (json['resolved_room_id'] as num?)?.toInt(),
+      resolvedAssetName: json['resolved_asset_name'] as String?,
+      resolvedRoomName: json['resolved_room_name'] as String?,
+      buildingName: json['building_name'] as String?,
       duplicateOf: (json['duplicate_of'] as num?)?.toInt(),
       userId: (json['user_id'] as num?)?.toInt() ?? 0,
       reviewerId: (json['reviewer_id'] as num?)?.toInt(),
@@ -152,6 +163,9 @@ class JobDraft {
     String? reviewNote,
     int? resolvedAssetId,
     int? resolvedRoomId,
+    String? resolvedAssetName,
+    String? resolvedRoomName,
+    String? buildingName,
     int? duplicateOf,
     int? userId,
     int? reviewerId,
@@ -175,6 +189,9 @@ class JobDraft {
       reviewNote: reviewNote ?? this.reviewNote,
       resolvedAssetId: resolvedAssetId ?? this.resolvedAssetId,
       resolvedRoomId: resolvedRoomId ?? this.resolvedRoomId,
+      resolvedAssetName: resolvedAssetName ?? this.resolvedAssetName,
+      resolvedRoomName: resolvedRoomName ?? this.resolvedRoomName,
+      buildingName: buildingName ?? this.buildingName,
       duplicateOf: duplicateOf ?? this.duplicateOf,
       userId: userId ?? this.userId,
       reviewerId: reviewerId ?? this.reviewerId,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/job_draft.dart';
 import '../../services/ai_service.dart';
+import '../../widgets/ai_suggestions_panel.dart';
 
 /// AiDraftReviewPage: Laat die FK/Admin 'n AI-konsep lees, wysig en goedkeur
 /// of verwerp. Net hier word 'n konsep 'n werklike foutkaartjie.
@@ -21,12 +22,21 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
 
   final _titleController = TextEditingController();
   final _cleanedController = TextEditingController();
-  final _workInstructionController = TextEditingController();
 
   String? _selectedType;
   String? _selectedPriority;
   int? _selectedAssetId;
   int? _selectedRoomId;
+
+  // Afrikaanse verduidelikings per werksoort (spieël web se JOB_TYPE_HELP).
+  static const _typeHelp = {
+    'REPAIR': "Herstelwerk: daar is 'n fout — vind die probleem en maak dit reg sodat alles weer werk.",
+    'MAINTENANCE': 'Onderhoud: roetinewerk om afbreek te voorkom — dienseer, skoonmaak of vervang van verbruiksonderdele.',
+    'INSPECTION': 'Kyk of alles met die bate werk en ondersoek die bate fisies vir enige probleme.',
+    'INSTALLATION': "Installasie: 'n nuwe toestel of onderdeel word opgesit en in werking gestel.",
+  };
+  static const _typeFallbackHelp =
+      'Kies die soort werk: Herstel (iets is gebreek), Onderhoud (roetine-diens), Inspeksie (kyk of alles werk) of Installasie (nuwe toestel opsit).';
 
   // (backend-enum, Afrikaanse etiket)
   static const _types = [
@@ -52,7 +62,6 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
   void dispose() {
     _titleController.dispose();
     _cleanedController.dispose();
-    _workInstructionController.dispose();
     super.dispose();
   }
 
@@ -68,7 +77,6 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       _detail = detail;
       _titleController.text = detail.title;
       _cleanedController.text = detail.cleanedDescription;
-      _workInstructionController.text = detail.workInstruction;
       // Val terug na die eerste geldige opsie as die AI 'n vreemde waarde gee.
       _selectedType = _types.any((t) => t.$1 == detail.suggestedType)
           ? detail.suggestedType
@@ -94,9 +102,6 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
           ? null
           : _cleanedController.text.trim(),
       title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
-      workInstruction: _workInstructionController.text.trim().isEmpty
-          ? null
-          : _workInstructionController.text.trim(),
       faultType: _selectedType,
       faultPriority: _selectedPriority,
       assetId: _selectedAssetId,
@@ -278,18 +283,26 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                 TextFormField(
                   controller: _cleanedController,
                   maxLines: 3,
-                  decoration: _inputDecoration("Geskande beskrywing"),
+                  decoration: _inputDecoration("Geskande beskrywing").copyWith(
+                    suffixIcon: Tooltip(
+                      message:
+                          "Die oorspronklike foutbeskrywing, netjies herskryf: spelfoute en herhaling reggemaak en die kernprobleem duidelik gestate — sonder om inligting by te voeg of te versin. Dit word die werkkaart se beskrywing by goedkeuring.",
+                      triggerMode: TooltipTriggerMode.tap,
+                      showDuration: const Duration(seconds: 6),
+                      child: const Icon(Icons.help_outline, size: 20, color: AppColors.gold),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 15),
-                TextFormField(
-                  controller: _workInstructionController,
-                  maxLines: 3,
-                  decoration: _inputDecoration("Werksinstruksie"),
-                ),
-                const SizedBox(height: 15),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedType,
-                  decoration: _inputDecoration("Werksoort"),
+                  decoration: _inputDecoration("Werksoort").copyWith(
+                    suffixIcon: Tooltip(
+                      message: _typeHelp[_selectedType] ?? _typeFallbackHelp,
+                      triggerMode: TooltipTriggerMode.tap,
+                      showDuration: const Duration(seconds: 6),
+                      child: const Icon(Icons.help_outline, size: 20, color: AppColors.gold),
+                    ),
+                  ),
                   items: _types
                       .map((t) => DropdownMenuItem<String>(value: t.$1, child: Text(t.$2)))
                       .toList(),
@@ -306,6 +319,36 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                 ),
               ],
             ),
+          ),
+          AiSuggestionsPanel(
+            context: 'draft',
+            fields: {
+              'description': detail.description,
+              'title': _titleController.text,
+              'cleaned_description': _cleanedController.text,
+              'fault_type': _selectedType,
+              'fault_priority': _selectedPriority,
+            },
+            labels: const {
+              'title': 'Titel',
+              'suggested_type': 'Werksoort',
+              'suggested_priority': 'Prioriteit',
+            },
+            onUse: (key, s) {
+              setState(() {
+                switch (key) {
+                  case 'title':
+                    _titleController.text = s.value;
+                    break;
+                  case 'suggested_type':
+                    if (_types.any((t) => t.$1 == s.value)) _selectedType = s.value;
+                    break;
+                  case 'suggested_priority':
+                    if (_priorities.any((p) => p.$1 == s.value)) _selectedPriority = s.value;
+                    break;
+                }
+              });
+            },
           ),
           _buildSectionCard(
             title: "ONTLOPING",

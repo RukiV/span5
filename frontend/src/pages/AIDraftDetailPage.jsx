@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
+import InfoTip, { JOB_TYPE_HELP } from "../components/InfoTip";
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 import '../styles/App.css';
 
 function AIDraftDetailPage() {
@@ -15,11 +18,22 @@ function AIDraftDetailPage() {
   // Editable fields (pre-filled from draft)
   const [cleanedDescription, setCleanedDescription] = useState("");
   const [title, setTitle] = useState("");
-  const [workInstruction, setWorkInstruction] = useState("");
   const [faultType, setFaultType] = useState("");
   const [faultPriority, setFaultPriority] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+
+  // AI-veldvoorstelle (stil onder 3 ingevulde velde / sonder backend).
+  const { suggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
+    context: 'draft',
+    values: {
+      description: draft?.description || '',
+      title,
+      cleaned_description: cleanedDescription,
+      fault_type: faultType,
+      fault_priority: faultPriority,
+    },
+  });
 
   // Reject modal
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -57,7 +71,6 @@ function AIDraftDetailPage() {
       const payload = {
         cleaned_description: cleanedDescription,
         title,
-        work_instruction: workInstruction || undefined,
         fault_type: faultType || undefined,
         fault_priority: faultPriority || undefined,
         asset_id: selectedAssetId || undefined,
@@ -196,7 +209,13 @@ function AIDraftDetailPage() {
                 />
               </div>
               <div className="input-group" style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Tipe</label>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                  Tipe
+                  <InfoTip
+                    ariaLabel="Verduideliking van werksoorte"
+                    text={JOB_TYPE_HELP[faultType] || 'Kies die soort werk: Herstelwerk (iets is gebreek), Onderhoud (roetine-diens), Inspeksie (kyk of alles werk) of Installasie (nuwe toestel opsit).'}
+                  />
+                </label>
                 <select
                   value={faultType}
                   onChange={(e) => setFaultType(e.target.value)}
@@ -227,23 +246,17 @@ function AIDraftDetailPage() {
             </div>
 
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Skoon beskrywing</label>
+              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>
+                Skoon beskrywing
+                <InfoTip
+                  ariaLabel="Wat is 'n skoon beskrywing?"
+                  text="Die oorspronklike foutbeskrywing, netjies herskryf: spelfoute en herhaling reggemaak en die kernprobleem duidelik gestate — sonder om inligting by te voeg of te versin. Dit word die werkkaart se beskrywing by goedkeuring."
+                />
+              </label>
               <textarea
                 value={cleanedDescription}
                 onChange={(e) => setCleanedDescription(e.target.value)}
                 rows={4}
-                disabled={actionLoading}
-                style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '5px', resize: 'vertical', fontFamily: 'inherit' }}
-              />
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Werkinstrukte</label>
-              <textarea
-                value={workInstruction}
-                onChange={(e) => setWorkInstruction(e.target.value)}
-                rows={3}
-                placeholder="Opsionele werkinstrukte..."
                 disabled={actionLoading}
                 style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '5px', resize: 'vertical', fontFamily: 'inherit' }}
               />
@@ -372,6 +385,21 @@ function AIDraftDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {isDraft && (
+          <AiSuggestPanel
+            suggestions={suggestions}
+            loading={aiLoading}
+            filled={aiFilled}
+            error={aiError}
+            labels={{ title: 'Titel', suggested_type: 'Werksoort', suggested_priority: 'Prioriteit' }}
+            onUse={(key, s) => {
+              if (key === 'title') setTitle(s.value);
+              else if (key === 'suggested_type') setFaultType(s.value);
+              else if (key === 'suggested_priority') setFaultPriority(s.value);
+            }}
+          />
         )}
       </div>
     </div>

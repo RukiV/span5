@@ -277,6 +277,11 @@ export const jobDraftsAPI = {
   reject: (id, data) => apiClient.post(`/ai/${id}/reject`, data),
 };
 
+// ===== AI VELDVOORSTELLE-API =====
+export const suggestAPI = {
+  suggest: (context, fields, config) => apiClient.post('/ai/suggest', { context, fields }, config),
+};
+
 // ===== LOKAAL KONTROLE-API =====
 export const roomChecksAPI = {
   getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
@@ -313,6 +318,7 @@ apiClient.documents = documentsAPI;
 apiClient.calendarEvents = calendarEventsAPI;
 apiClient.roomChecks = roomChecksAPI;
 apiClient.jobDrafts = jobDraftsAPI;
+apiClient.suggest = suggestAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

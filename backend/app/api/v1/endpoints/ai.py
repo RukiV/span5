@@ -17,10 +17,10 @@ data (``JobDraft.source="auto"``) — the schema already carries the flag.
 
 import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, select, SQLModel
 
 from ....auth.permissions import require_right
 from ....db.database import getSession
@@ -38,7 +38,7 @@ from ....models.jobdraft import (
 )
 from ....models.location import Building, Room
 from ....models.user import User
-from ....services import entity_resolver, rules_classifier
+from ....services import entity_resolver, rules_classifier, suggest_service
 from ....services.job_service import job_service
 from ....services.jobdraft_service import jobdraft_service
 from ....services.llm_service import llm_service
@@ -105,6 +105,62 @@ def _room_candidates(session: Session, ids: list[int]) -> list[dict]:
 
 def _candidate_list(items: list[dict]) -> list[DraftCandidate]:
     return [DraftCandidate(id=it["id"], name=it["name"], detail=it.get("detail", "")) for it in items]
+
+
+def _name_map(session: Session, drafts: Sequence[JobDraft]) -> dict[int, dict[str, Optional[str]]]:
+    """Bulk-laai bate/lokaal/gebou-name vir 'n lys konsepte (een vrae per tabel,
+    nie een per ry nie). Val terug op die eerste kandidaat wanneer die LLM geen
+    enkele oordeel gemaak het nie — sodat die Ligging-kolom tog leesbaar is."""
+    def _resolved_or_first(d: JobDraft, resolved_id: Optional[int], json_key_ids: str) -> Optional[int]:
+        if resolved_id is not None:
+            return resolved_id
+        ids = _json_ids(getattr(d, json_key_ids))
+        return ids[0] if ids else None
+
+    effective: dict[int, tuple[Optional[int], Optional[int]]] = {}
+    for d in drafts:
+        eff_asset = _resolved_or_first(d, d.resolved_asset_id, "asset_ids")
+        eff_room = _resolved_or_first(d, d.resolved_room_id, "room_ids")
+        effective[d.draft_id] = (eff_asset, eff_room)
+
+    asset_ids = {a for a, _ in effective.values() if a}
+    room_ids = {r for _, r in effective.values() if r}
+    assets = {a.asset_id: a.asset_name for a in session.exec(select(Asset).where(Asset.asset_id.in_(asset_ids))).all()} if asset_ids else {}
+    rooms = {r.room_id: r.room_name for r in session.exec(select(Room).where(Room.room_id.in_(room_ids))).all()} if room_ids else {}
+
+    building_by_room: dict[int, Optional[str]] = {}
+    if room_ids:
+        for r in session.exec(select(Room).where(Room.room_id.in_(room_ids))).all():
+            building_by_room[r.room_id] = session.get(Building, r.building_id).building_name if (r.building_id and session.get(Building, r.building_id)) else None
+
+    out: dict[int, dict[str, Optional[str]]] = {}
+    for d in drafts:
+        eff_asset, eff_room = effective[d.draft_id]
+        out[d.draft_id] = {
+            "resolved_asset_name": assets.get(eff_asset),
+            "resolved_room_name": rooms.get(eff_room),
+            "building_name": building_by_room.get(eff_room),
+        }
+    return out
+
+
+class AiSuggestRequest(SQLModel):
+    """Vorm-state vir veldvoorstelle: context = watter tipe vorm, fields = die
+    huidige waardes. Die enjin voorsel slegs leë velde en net wanneer minstens
+    3 velde reeds ingevul is."""
+    context: str
+    fields: dict[str, Any] = {}
+
+
+@router.post("/suggest")
+def suggestFields(
+    payload: AiSuggestRequest,
+    session: Session = Depends(getSession),
+    user: User = Depends(require_right("ai.use")),
+):
+    """DB-similariteit veldvoorstelle (bv. assettype uit soortgelyke bates se
+    name, tipe/prioriteit uit die reëls-klassifiseerder). Stil leeg by twyfel."""
+    return {"suggestions": suggest_service.suggest(payload.context, session, payload.fields)}
 
 
 @router.post("", response_model=JobDraftRead, status_code=status.HTTP_201_CREATED)
@@ -226,7 +282,15 @@ def listDrafts(
     stmt = select(JobDraft).order_by(JobDraft.created_at.desc())
     if status_filter:
         stmt = stmt.where(JobDraft.status == status_filter)
-    return session.exec(stmt).all()
+    drafts = session.exec(stmt).all()
+    names = _name_map(session, drafts)
+    out: List[JobDraftRead] = []
+    for d in drafts:
+        rd = JobDraftRead.model_validate(d)
+        for key, val in names.get(d.draft_id, {}).items():
+            setattr(rd, key, val)
+        out.append(rd)
+    return out
 
 
 @router.get("/{draft_id}", response_model=JobDraftDetail)
@@ -241,6 +305,8 @@ def getDraft(
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     detail = JobDraftDetail.model_validate(draft)
+    for key, val in _name_map(session, [draft]).get(draft.draft_id, {}).items():
+        setattr(detail, key, val)
     detail.asset_candidates = _candidate_list(_asset_candidates(session, _json_ids(draft.asset_ids)))
     detail.room_candidates = _candidate_list(_room_candidates(session, _json_ids(draft.room_ids)))
     return detail
