@@ -1157,6 +1157,58 @@ suburb="Villieria",
                     asset_id=asset_s.asset_id,
                     room_id=getattr(s_room, "room_id", None),
                 )
+
+        # ── Gegenereerde survival-variantes ────────────────────────────────
+        # Die model se "events" = AANTAL VERSKILLENDENDE bates wat al gefout
+        # het (nie totaal foute nie). Hierdie blok skep genoemde variantes om
+        # daardie drempel (≥ AI_SURVIVAL_MIN_EVENTS) betrouwbaar te haal.
+        _gen_kinds = [
+            ("Kantoor stoel", "Boss", type_meubels, "MB"),
+            ("Rekenaar Dell Optiplex", "Dell", type_it, "IT"),
+            ("Projektor Epson", "Epson", type_it, "PR"),
+            ("Lugversorging split", "Samsung", type_hvac, "HV"),
+            ("Yskas kombuis", "Defy", type_kombuis, "KB"),
+            ("Brandblusser", "SafeSys", type_veiligheid, "VS"),
+            ("Skoonmaak kar", "Karcher", type_alge, "KG"),
+            ("Krag punt multi", "Ellies", type_elek, "EL"),
+        ]
+        _rooms_pool = [room6, room7, room8, room9, room10, room11, room12, room15,
+                       room16, room17, room18, room19, room20, room21, room22]
+        _g_idx = 0
+        for g_name, g_brand, g_type, g_prefix in _gen_kinds:
+            for g_n in range(1, 9):
+                _g_idx += 1
+                g_room = _rooms_pool[_g_idx % len(_rooms_pool)]
+                g_age = 320 + ((_g_idx * 73) % 1600)
+                g_status = AssetStatus.ACTIVE if _g_idx % 5 else AssetStatus.MAINTENANCE
+                g_serial = f"{g_prefix}-G{1000 + _g_idx}"
+                g_asset = _get_or_create_asset(
+                    session, g_name, g_brand, g_serial, g_status, False,
+                    g_room.room_id, g_type.assettype_id, now - timedelta(days=g_age),
+                )
+                g_fault_days = max(10, int(g_age * 0.4))
+                g_fault = _get_or_create_fault(
+                    session,
+                    description=f"{g_name} werk nie na krag uitval nie",
+                    status=FaultStatus.CLOSED,
+                    priority=Priority.MEDIUM if _g_idx % 2 else Priority.HIGH,
+                    fault_type=Type.REPAIR,
+                    report_dt=now - timedelta(days=g_fault_days),
+                    asset_id=g_asset.asset_id,
+                    room_id=g_room.room_id,
+                )
+                if g_fault:
+                    _get_or_create_job(
+                        session,
+                        desc=f"{g_name}: hanteer 'werk nie na krag uitval nie'",
+                        status=JobStatus.COMPLETED,
+                        job_type="REPAIR",
+                        created_dt=now - timedelta(days=max(5, g_fault_days - 1)),
+                        finished_dt=now - timedelta(days=max(3, g_fault_days - 3)),
+                        asset_id=g_asset.asset_id,
+                        room_id=g_room.room_id,
+                        building_id=g_room.building_id,
+                    )
         _get_or_create_asset(session, "Wifi-roeterg", "MikroTik", "IT-020", AssetStatus.ACTIVE, False, room6.room_id, type_it.assettype_id, now - timedelta(days=250))
         _get_or_create_asset(session, "Wifi-roeterg AP", "Ubiquiti", "IT-021", AssetStatus.ACTIVE, False, room8.room_id, type_it.assettype_id, now - timedelta(days=150))
         _get_or_create_asset(session, "Lugversorger", "Samsung", "HVAC-001", AssetStatus.ACTIVE, True, room8.room_id, type_hvac.assettype_id, now - timedelta(days=800))
