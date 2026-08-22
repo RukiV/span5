@@ -11,6 +11,8 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 import "../styles/Asset.css";
 import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -71,6 +73,19 @@ function StockPage({ embedded = false }) {
     room_id: "",
     location_id: "", // Bygevoeg vir cascading logika
     building_id: ""  // Bygevoeg vir cascading logika
+  });
+
+  // AI-veldvoorstel: stock_type uit soortgelyke voorraadname.
+  const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
+    context: 'stock',
+    values: {
+      stock_name: newStock.stock_name,
+      stock_brand: newStock.stock_brand,
+      stock_amount: newStock.stock_amount || undefined,
+      stock_minimum: newStock.stock_minimum || undefined,
+      stock_boxTotal: newStock.stock_boxTotal || undefined,
+      stock_type: newStock.stock_type,
+    },
   });
 
   useEffect(() => {
@@ -742,6 +757,16 @@ function StockPage({ embedded = false }) {
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        <AiSuggestPanel
+          suggestions={aiSuggestions}
+          loading={aiLoading}
+          filled={aiFilled}
+          error={aiError}
+          labels={{ stock_type: 'Tipe' }}
+          onUse={(key, s) => {
+            if (key === 'stock_type') setNewStock(p => ({ ...p, stock_type: String(s.value) }));
+          }}
+        />
       </div>
     </div>
   );

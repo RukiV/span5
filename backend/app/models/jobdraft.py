@@ -72,6 +72,10 @@ class JobDraftRead(JobDraftBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     reviewed_at: Optional[datetime] = None
+    # Onttessel name sodat lyste onmiddellik leesbaar is (Ligging-kolom).
+    resolved_asset_name: Optional[str] = None
+    resolved_room_name: Optional[str] = None
+    building_name: Optional[str] = None
 
 
 class JobDraftApprove(SQLModel):
