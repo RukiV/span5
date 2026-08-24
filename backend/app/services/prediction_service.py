@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Sequence
 from sqlmodel import Session, select, func
@@ -6,6 +7,10 @@ from ..models.asset import Asset, Assettype
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard
 from ..models.prediction import AssetPredictionRead
+from . import survival_service
+from .survival_features import extract_asset_features
+
+logger = logging.getLogger(__name__)
 
 
 def _add_months(source: datetime, months: int) -> datetime:
@@ -80,6 +85,35 @@ class PredictionService:
             if days_overdue > 180:
                 reasons.append(f"Onderhoud {days_overdue} dae agterstallig")
 
+        # --- ML survival layer (Phase 2c) ---
+        # The survival model is optional: sparse data or a missing sksurv leaves
+        # _model_available False and every survival field at its default, so the
+        # rules-only pipeline above is unaffected. Feature extraction only runs
+        # when a model is actually loaded (avoids per-asset queries otherwise).
+        survival_fields = {}
+        try:
+            if survival_service.is_available():
+                features = extract_asset_features(session, asset, datetime.utcnow())
+                survival = survival_service.predict_for_asset(features)
+                if survival:
+                    survival_fields = survival
+                    # predict_for_asset omits this flag; surface it explicitly.
+                    survival_fields["survival_model_available"] = True
+        except Exception:
+            logger.exception(
+                "Survival-voorspelling misluk vir bate %s — reëls-only.", asset.asset_id
+            )
+
+        if survival_fields.get("survival_high_risk") and survival_fields.get(
+            "survival_failure_prob_12mo"
+        ) is not None:
+            ml_reason = (
+                f"ML: {survival_fields['survival_failure_prob_12mo'] * 100:.0f}% "
+                f"faalkans binne 12 maande"
+            )
+            if ml_reason not in reasons:
+                reasons.append(ml_reason)
+
         if reasons:
             replacement_suggested = True
             replacement_reason = "; ".join(reasons)
@@ -99,8 +133,10 @@ class PredictionService:
             lifespan_pct_used=lifespan_pct_used,
             lifespan_exceeded=lifespan_exceeded,
             fault_count_12months=fault_count,
+            replacement_threshold=replacement_threshold,
             replacement_suggested=replacement_suggested,
             replacement_reason=replacement_reason,
+            **survival_fields,
         )
 
     def _last_maintenance(self, session: Session, asset_id: int) -> datetime | None:

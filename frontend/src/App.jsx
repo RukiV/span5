@@ -16,6 +16,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
+import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
@@ -28,6 +29,9 @@ import TerrainsPage from './pages/TerrainsPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import RightsPage from './pages/RightsPage';
+import AIDraftQueuePage from './pages/AIDraftQueuePage';
+import AIDraftNewPage from './pages/AIDraftNewPage';
+import AIDraftDetailPage from './pages/AIDraftDetailPage';
 import { ToastProvider } from './components/Toast/ToastContext';
 import { NotificationProvider } from './components/Notifications/NotificationContext';
 
@@ -110,12 +114,15 @@ function AppContent() {
             <Route path="/buildings" element={<RightProtectedRoute requiredRight="buildings.manage"><BuildingsPage /></RightProtectedRoute>} />
             <Route path="/terrains" element={<RightProtectedRoute requiredRight="locations.manage"><TerrainsPage /></RightProtectedRoute>} />
             <Route path="/fault-tickets" element={<RightProtectedRoute requiredRight="faults.manage_all"><TicketPage /></RightProtectedRoute>} />
-            <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><WorkOrderPage /></RightProtectedRoute>} />
+            <Route path="/work-orders" element={<RightProtectedRoute requiredRight="jobs.manage"><JobTabs><WorkOrderPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
             <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
             <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
             <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
             <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
+            <Route path="/ai-drafts" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftQueuePage /></JobTabs></RightProtectedRoute>} />
+            <Route path="/ai-drafts/new" element={<RightProtectedRoute requiredRight="ai.use"><JobTabs><AIDraftNewPage /></JobTabs></RightProtectedRoute>} />
+            <Route path="/ai-drafts/:id" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftDetailPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/login" replace />} />

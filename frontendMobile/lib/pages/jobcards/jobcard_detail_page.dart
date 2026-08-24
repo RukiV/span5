@@ -151,27 +151,6 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     if (jaNee != true) return;
     if (!mounted) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Bevestig"),
-        content: const Text("Is jy seker jy wil die voltooiingsversoek stuur?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("KANSELLEER"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("STUUR", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    if (!mounted) return;
-
     setState(() => _requesting = true);
     final ok = await JobcardService.requestCompletion(widget.job.id);
     if (!mounted) return;
@@ -288,9 +267,6 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
                 ),
                 const Divider(height: 20),
                 _infoRow("Beskrywing", job.description),
-                if (job.fullDescription.isNotEmpty &&
-                    job.fullDescription != job.description)
-                  _infoRow("Volle beskrywing", job.fullDescription),
                 if (job.type != null) _infoRow("Tipe", job.type!),
                 _infoRow("Prioriteit", job.priority ?? "-"),
                 if (job.nature != null) _infoRow("Natuur", job.nature!),

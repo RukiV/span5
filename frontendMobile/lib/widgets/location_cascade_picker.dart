@@ -29,6 +29,12 @@ class LocationCascadePicker extends StatefulWidget {
   final String? label;
   final String? errorText;
 
+  /// Wanneer waar kry die etiket 'n * en 'n rooi kleur as [error] waar is.
+  final bool required;
+
+  /// Maak die etiket rooi — gebruik vir vereiste velde wat nog leeg is.
+  final bool error;
+
   const LocationCascadePicker({
     super.key,
     this.depth = LocationDepth.room,
@@ -38,6 +44,8 @@ class LocationCascadePicker extends StatefulWidget {
     required this.onChanged,
     this.label,
     this.errorText,
+    this.required = false,
+    this.error = false,
   });
 
   @override
@@ -248,8 +256,12 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
           children: [
             if (widget.label != null) ...[
               Text(
-                widget.label!,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                widget.required ? '${widget.label} *' : widget.label!,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: widget.error ? AppColors.errorRed : Colors.black87,
+                ),
               ),
               const SizedBox(height: 6),
             ],

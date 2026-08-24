@@ -30,6 +30,7 @@ class Faultcard(FaultcardBase, Base, table=True):
     building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
     location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
+    duplicate_of: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
 
 
 class FaultcardCreate(FaultcardBase):
@@ -38,6 +39,7 @@ class FaultcardCreate(FaultcardBase):
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
+    duplicate_of: Optional[int] = None
 
 
 class FaultcardRead(FaultcardBase):
@@ -49,6 +51,7 @@ class FaultcardRead(FaultcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    duplicate_of: Optional[int] = None
 
 
 class FaultcardUpdate(SQLModel):
@@ -65,3 +68,4 @@ class FaultcardUpdate(SQLModel):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    duplicate_of: Optional[int] = None

@@ -14,6 +14,8 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 
 
 function TicketPage() {
@@ -79,6 +81,21 @@ function TicketPage() {
     room_id: "",
     asset_id: "",
   });
+
+  // AI-veldvoorstelle: kategorie/prioriteit uit titel+beskrywing (reëls).
+  // Die vorm se vertoonwaardes is Afrikaans — map die enjin se EN-enum hier.
+  const FAULT_TYPE_EN_AF = { REPAIR: 'Herstelwerk', MAINTENANCE: 'Instandhouding', INSTALLATION: 'Opgradering' };
+  const FAULT_PRIO_EN_AF = { LOW: 'Laag', MEDIUM: 'Medium', HIGH: 'Hoog' };
+  const aiSuggestions = useAiSuggestions({
+    context: 'fault',
+    values: {
+      title: newTicket.title,
+      description: newTicket.description,
+      fault_type: newTicket.category,
+      fault_priority: newTicket.priority,
+    },
+  });
+  const { suggestions: faultSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
 
   // Haal foutkaartjies wanneer blad laai
   useEffect(() => {
@@ -860,6 +877,22 @@ function TicketPage() {
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
+            <AiSuggestPanel
+              suggestions={faultSuggestions}
+              loading={aiLoading}
+              filled={aiFilled}
+              error={aiError}
+              labels={{ fault_type: 'Kategorie', fault_priority: 'Prioriteit' }}
+              onUse={(key, s) => {
+                if (key === 'fault_type') {
+                  const af = FAULT_TYPE_EN_AF[s.value] || s.value;
+                  setNewTicket(p => ({ ...p, category: af }));
+                  setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; });
+                } else if (key === 'fault_priority') {
+                  setNewTicket(p => ({ ...p, priority: FAULT_PRIO_EN_AF[s.value] || s.value }));
+                }
+              }}
+            />
           </div>
         </div>
       )}

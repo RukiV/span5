@@ -11,6 +11,8 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
@@ -89,6 +91,32 @@ function AssetPage({ embedded = false }) {
 
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
+
+  // AI-veldvoorstelle: tipe/kamer uit soortgelyke bestaande bates se name.
+  const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
+    context: 'asset',
+    values: {
+      asset_name: newAsset.asset_name,
+      asset_brand: newAsset.asset_brand,
+      asset_serial: newAsset.asset_serial,
+      asset_type: newAsset.assettype_id,
+      room: newAsset.room_id,
+    },
+  });
+
+  const applyAiRoom = (s) => {
+    if (s.id == null) return;
+    const room = rooms.find(r => Number(r.room_id) === Number(s.id));
+    if (!room) return;
+    const bld = buildings.find(b => String(b.building_id) === String(room.building_id));
+    setNewAsset(p => ({
+      ...p,
+      room_id: room.room_id,
+      building_id: room.building_id ?? "",
+      location_id: bld ? bld.location_id : p.location_id,
+    }));
+    if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -964,6 +992,20 @@ function AssetPage({ embedded = false }) {
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        <AiSuggestPanel
+          suggestions={aiSuggestions}
+          loading={aiLoading}
+          filled={aiFilled}
+          error={aiError}
+          labels={{ asset_type: 'Bate Tipe', room: 'Ligging (kamer)' }}
+          onUse={(key, s) => {
+            if (key === 'asset_type') {
+              if (s.id != null) setNewAsset(p => ({ ...p, assettype_id: Number(s.id) }));
+            } else if (key === 'room') {
+              applyAiRoom(s);
+            }
+          }}
+        />
       </div>
     </div>
   );

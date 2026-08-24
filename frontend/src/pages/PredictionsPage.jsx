@@ -37,6 +37,12 @@ const getReplacementBadge = (suggested) => {
   return { class: 'badge-ok', label: 'Nee' };
 };
 
+const getSurvivalRiskBadge = (highRisk, available) => {
+  if (!available) return { class: 'badge-muted', label: '—' };
+  if (highRisk) return { class: 'badge-danger', label: 'HOOG' };
+  return { class: 'badge-ok', label: 'LAAG' };
+};
+
 function PredictionsPage() {
   const { user } = useCurrentUser();
   const [predictions, setPredictions] = useState([]);
@@ -65,6 +71,8 @@ const PREDICTION_COLUMNS = [
   { key: 'maintenance', label: 'Onderhoud', render: (p) => { const b = getMaintenanceBadge(p.maintenance_overdue); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'maintenance', defaultVisible: true },
   { key: 'lifespan', label: 'Lewensduur', render: (p) => { const b = getLifespanBadge(p.lifespan_pct_used); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'lifespan', defaultVisible: true },
   { key: 'replacement', label: 'Vervang', render: (p) => { const b = getReplacementBadge(p.replacement_suggested); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: 'replacement', defaultVisible: true },
+  { key: 'ml_risk', label: 'ML Risiko', render: (p) => { const b = getSurvivalRiskBadge(p.survival_high_risk, p.survival_model_available); return <span className={`pred-badge ${b.class}`}>{b.label}</span>; }, sortKey: null, defaultVisible: false },
+  { key: 'ml_prob', label: 'Faalkans 12md', render: (p) => (p.survival_model_available && p.survival_failure_prob_12mo != null ? `${Math.round(p.survival_failure_prob_12mo * 100)}%` : '—'), sortKey: null, defaultVisible: false },
   { key: 'details', label: 'Besonderhede', render: (p) => null, sortKey: null, defaultVisible: true },
 ];
 const colVis = useColumnVisibility('predictions-page', PREDICTION_COLUMNS);
@@ -169,7 +177,8 @@ const colPickerRef = useRef(null);
     (p) => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested
   ).length;
 
-
+  const mlModelAvailable = filteredPredictions.some((p) => p.survival_model_available);
+  const mlRiskCount = mlModelAvailable ? filteredPredictions.filter((p) => p.survival_high_risk).length : '—';
 
   if (loading) {
     return (
@@ -292,6 +301,11 @@ const colPickerRef = useRef(null);
               <h4>Onderhoud Agterstallig</h4>
               <p className="pred-kpi-value pred-kpi-danger">{filteredPredictions.filter(p => p.maintenance_overdue).length}</p>
             </div>
+            <div className="pred-kpi-card">
+              <h4>ML Hoë Risiko</h4>
+              <p className={`pred-kpi-value ${mlRiskCount > 0 ? 'pred-kpi-danger' : ''}`}>{mlRiskCount}</p>
+              <span className="pred-kpi-caption">{mlModelAvailable ? 'ML-faalkans ≥50% binne 12 maande' : 'Survival-model nie beskikbaar nie'}</span>
+            </div>
           </div>
 
           <div className="predictions-table-wrapper">
@@ -354,6 +368,19 @@ const colPickerRef = useRef(null);
                                   </>
                                 ) : (
                                   <p>Geen skeppingsdatum</p>
+                                )}
+                              </div>
+                              <div className="pred-detail-section">
+                                <h5>ML-Voorspelling</h5>
+                                {pred.survival_model_available ? (
+                                  <>
+                                    <p><strong>Faalkans 12 md:</strong> {pred.survival_failure_prob_12mo != null ? `${Math.round(pred.survival_failure_prob_12mo * 100)}%` : 'N/A'}</p>
+                                    <p><strong>Risiko:</strong> {pred.survival_high_risk ? 'Hoog' : 'Laag'}</p>
+                                    <p><strong>Mediaan:</strong> {pred.survival_median_days != null ? `${pred.survival_median_days} dae` : 'N/A'}</p>
+                                    <p><strong>Model:</strong> {pred.survival_events_count != null ? `${pred.survival_events_count} gebeure, getraind ` : 'Getraind '}{formatDate(pred.survival_trained_at)}</p>
+                                  </>
+                                ) : (
+                                  <p className="pred-muted">Survival-model nie beskikbaar (benodig ≥50 bates / ≥80 gebeure).</p>
                                 )}
                               </div>
                               <div className="pred-detail-section">

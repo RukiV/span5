@@ -51,7 +51,7 @@ function Sidebar({ currentPath, onLogout }) {
         )}
 
         {can('faults.manage_all') && <li><Link to="/fault-tickets" className={isActive('/fault-tickets')}><IoWarningOutline style={ic} />Foutkaartjies</Link></li>}
-        {can('jobs.manage') && <li><Link to="/work-orders" className={isActive('/work-orders')}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
+        {can('jobs.manage') && <li><Link to="/work-orders" className={isInGroup(['/work-orders', '/ai-drafts'])}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
         {can('calendar.view') && <li><Link to="/calendar" className={isActive('/calendar')}><IoCalendarOutline style={ic} />Kalender</Link></li>}
         {can('predictions.view') && <li><Link to="/predictions" className={isActive('/predictions')}><IoBarChartOutline style={ic} />Voorspellings</Link></li>}
         {can('reports.view') && <li><Link to="/reports" className={isActive('/reports')}><IoDocumentsOutline style={ic} />Verslae</Link></li>}

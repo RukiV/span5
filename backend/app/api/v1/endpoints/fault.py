@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
-from typing import List
+from typing import List, Optional
 
 from ....auth.permissions import get_current_user, require_right, user_has_right
 from ....db.database import getSession
@@ -28,18 +28,23 @@ def _fault_summary(session: Session, fault: Faultcard, max_desc_len: int = 60) -
     return " — ".join(parts)
 
 
-def notify_fault_status_change(session: Session, fault: Faultcard, old_status, actor: User):
+def notify_fault_status_change(session: Session, fault: Faultcard, old_status, actor: User,
+                               exclude_user_ids: Optional[set[int]] = None):
     """Stuur die kennisgewings wat 'n foutkaartjie-statusverandering vergesel.
 
     Gedeel deur PATCH /fault en die werksopdrag-kaskade (Wanneer 'n werksopdrag
     voltooi word, word die gekoppelde foutkaartjie opgelos). Doen niks as die
-    status nie eintlik verander het nie.
+    status nie eintlik verander het nie. `exclude_user_ids` laat die kaskade toe
+    om gebruikers oor te slaan wat reeds 'n kennisgewing vir dieselfde gebeurtenis
+    ontvang het (bv. die werksopdrag se statusverandering).
     """
     if old_status == fault.fault_status:
         return
     notif_svc = NotificationService(session)
     summary = _fault_summary(session, fault)
-    if fault.user_id:
+    notified = set(exclude_user_ids or ())
+    if fault.user_id and fault.user_id not in notified:
+        notified.add(fault.user_id)
         notif_svc.create_notification(
             user_id=fault.user_id,
             notification_type="fault.status_changed",
@@ -50,7 +55,7 @@ def notify_fault_status_change(session: Session, fault: Faultcard, old_status, a
             reference_id=fault.fault_id,
         )
     if fault.location_id:
-        notif_svc.notify_location_users(
+        notified |= notif_svc.notify_location_users(
             location_id=fault.location_id,
             notification_type="fault.status_changed",
             title="Fout status verander",
@@ -58,15 +63,17 @@ def notify_fault_status_change(session: Session, fault: Faultcard, old_status, a
             actor_id=actor.user_id,
             reference_type="fault",
             reference_id=fault.fault_id,
+            exclude_user_ids=notified,
         )
     if fault.fault_status == FaultStatus.RESOLVED:
-        notif_svc.notify_admins(
+        notified |= notif_svc.notify_admins(
             notification_type="fault.resolved",
             title="Fout opgelos",
             message=f"{summary} opgelos deur {actor.user_name}",
             actor_id=actor.user_id,
             reference_type="fault",
             reference_id=fault.fault_id,
+            exclude_user_ids=notified,
         )
 
 # Authorization is driven entirely by the rights system now (see
