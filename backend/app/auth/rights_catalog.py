@@ -45,6 +45,8 @@ RIGHTS_CATALOG: dict[str, str] = {
     "notifications.view": "View own notifications and history.",
     "notifications.manage": "Manage own notification preferences.",
     "notifications.send": "Send system-wide announcements.",
+    "ai.use": "Submit a fault description for AI drafting.",
+    "ai.approve": "Review, approve or reject AI fault drafts.",
 }
 
 # --- RoleRight assignments -------------------------------------------------
@@ -59,6 +61,7 @@ _FK_RIGHTS = {
     "faults.manage_all", "faults.create_own", "faults.view_own",
     "jobs.manage",
     "notifications.view", "notifications.manage",
+    "ai.use", "ai.approve",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
     ROLE_ADMIN: _FK_RIGHTS | {"users.manage", "notifications.send"},

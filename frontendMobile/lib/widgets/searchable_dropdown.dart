@@ -19,6 +19,12 @@ class SearchableDropdown<T> extends StatefulWidget {
   /// "terug"-knoppie).
   final Widget? trailing;
 
+  /// Wanneer waar kry die etiket 'n * en 'n rooi kleur as [error] waar is.
+  final bool required;
+
+  /// Maak die etiket (en veldraam) rooi — gebruik vir vereiste velde wat nog leeg is.
+  final bool error;
+
   const SearchableDropdown({
     super.key,
     this.label,
@@ -29,6 +35,8 @@ class SearchableDropdown<T> extends StatefulWidget {
     this.validator,
     this.enabled = true,
     this.trailing,
+    this.required = false,
+    this.error = false,
   });
 
   @override
@@ -50,7 +58,14 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.label != null) ...[
-          Text(widget.label!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+          Text(
+            widget.required ? '${widget.label} *' : widget.label!,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              color: widget.error ? AppColors.errorRed : AppColors.navy,
+            ),
+          ),
           const SizedBox(height: 6),
         ],
         InkWell(
@@ -66,11 +81,14 @@ class _SearchableDropdownState<T> extends State<SearchableDropdown<T>> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                     decoration: BoxDecoration(
-                      color: state.hasError
+                      color: (state.hasError || widget.error)
                           ? const Color(0xFFFFEBEE)
                           : (widget.enabled ? Colors.white : Colors.grey[200]),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: state.hasError ? Colors.red : Colors.grey[300]!),
+                      border: Border.all(
+                          color: (state.hasError || widget.error)
+                              ? Colors.red
+                              : Colors.grey[300]!),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,

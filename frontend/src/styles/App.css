@@ -38,6 +38,14 @@
   display: none;
 }
 
+.app-content.panel-open {
+  /* Size the panel's grid track (not the item) so the percentage resolves
+     against the container, matching DragHandle's calc. A percentage width on
+     the item itself would resolve against the auto track -> cyclic sizing
+     that squishes the panel. */
+  grid-template-columns: 1fr auto var(--analytics-width, 33.33%);
+}
+
 .app-content.panel-open .drag-handle {
   grid-column: 2;
   grid-row: 2;
@@ -46,8 +54,8 @@
 .app-content.panel-open .analytics-inline-panel {
   grid-column: 3;
   grid-row: 2;
-  width: var(--analytics-width, 33.33%);
-  max-width: var(--analytics-width, 33.33%);
+  width: 100%;
+  max-width: 100%;
   overflow-y: auto;
   border-left: 1px solid #e8d8c4;
   background: #f4f7fc;
@@ -199,6 +207,62 @@
   overflow-y: auto;
   min-width: 0;
 }
+
+/* --- Foutkaartjies / AI Konsepte tab-strook --- */
+.fault-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  padding: 10px 20px 0;
+  background: var(--grys-agtergrond);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.fault-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b3f1d;
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fault-tab:hover {
+  background: #fff7eb;
+  color: var(--bruin);
+}
+
+.fault-tab.active {
+  background: var(--wit);
+  border-color: var(--border);
+  color: var(--bruin);
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.fault-tab-badge {
+  background: var(--bruin);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 9px;
+  padding: 0 5px;
+  text-align: center;
+}
+
 
 /* --- Algemene Inhoud --- */
 .content {

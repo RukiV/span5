@@ -127,6 +127,7 @@
   border-radius: 10px;
   padding: 12px 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  container-type: inline-size;
 }
 
 .ap-date-icon {
@@ -148,8 +149,18 @@
   gap: 10px;
 }
 
+/* Wanneer die kaart te smal raak (klein skerms / smal paneel), stapel die
+   twee datums bo-op mekaar eerder as om te oorloop. */
+@container (max-width: 280px) {
+  .ap-date-fields {
+    flex-direction: column;
+    width: 100%;
+  }
+}
+
 .ap-date-fields label {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -164,6 +175,8 @@
 }
 
 .ap-date-fields input {
+  width: 100%;
+  min-width: 0;
   padding: 7px 9px;
   border: 1px solid #e8d8c4;
   border-radius: 6px;
@@ -211,6 +224,14 @@
   border-radius: 10px;
   padding: 14px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  container-type: inline-size;
+}
+
+/* Baie smal paneel: stapel die metriekkaarte eerder as om hulle te verdruk. */
+@container (max-width: 260px) {
+  .ap-metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* =============================================================================
@@ -237,7 +258,7 @@
    ============================================================================= */
 .ap-metrics-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 

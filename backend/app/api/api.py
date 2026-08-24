@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, contractor, quote, audit, predictions, image, calendar, role, rights, document, room_check, analytics, notifications
+from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, contractor, quote, audit, predictions, image, calendar, role, rights, document, room_check, analytics, notifications, ai
 
 api_router = APIRouter()
 
@@ -25,3 +25,4 @@ api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"]
 api_router.include_router(room_check.router, prefix="/room-checks", tags=["room-checks"])
 api_router.include_router(analytics.router, prefix="", tags=["analytics"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])

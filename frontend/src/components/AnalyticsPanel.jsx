@@ -28,6 +28,15 @@ const PAGE_MAP = {
   '/work-orders': 'work-orders',
   '/users': 'users',
   '/calendar': 'calendar',
+  '/predictions': 'predictions',
+};
+
+// Resolve the analytics page key for a pathname: exact match first,
+// then prefix match for the /ai-drafts detail/new routes.
+const resolvePageKey = (pathname) => {
+  if (PAGE_MAP[pathname]) return PAGE_MAP[pathname];
+  if (pathname === '/ai-drafts' || pathname.startsWith('/ai-drafts/')) return 'ai-drafts';
+  return null;
 };
 
 const defaultChartOpts = {
@@ -73,7 +82,7 @@ function AnalyticsPanel() {
   const [executeMsg, setExecuteMsg] = useState(null);
   const abortControllerRef = useRef(null);
 
-  const page = PAGE_MAP[location.pathname] || null;
+  const page = resolvePageKey(location.pathname);
 
   const fetchInsights = useCallback(async (signal) => {
     if (!page) return;

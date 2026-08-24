@@ -9,6 +9,7 @@ import '../../services/asset_type_service.dart';
 import 'scan_page.dart';
 
 import '../../services/report_service.dart';
+import '../../services/ai_service.dart';
 import '../../services/image_service.dart';
 import '../../services/camera_service.dart';
 import '../../models/report.dart';
@@ -44,6 +45,7 @@ class _NewReportPageState extends State<NewReportPage> {
   static const int _maxPhotos = 3;
   final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
+  bool _isAiCreating = false;
   @override
   void initState() {
     super.initState();
@@ -165,6 +167,40 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedLocation = room == null ? null : '${room.id}:${room.name}';
       if (room != null) _locationError = null;
     });
+  }
+
+  /// Skep 'n AI-konsep vanaf die huidige beskrywingstek. Die gebruiker bly op
+  /// die vorm — die konsep wag daarna in die AI Konsepte-goedkeuringsry.
+  Future<void> _handleAiDraft() async {
+    final desc = descController.text.trim();
+    if (desc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tik eers 'n beskrywing in om 'n AI-konsep te skep."),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+    setState(() => _isAiCreating = true);
+    final draft = await AiService.createDraft(desc);
+    if (!mounted) return;
+    setState(() => _isAiCreating = false);
+    if (draft == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie AI-konsep skep nie. Probeer weer."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("AI-konsep geskep — wag op goedkeuring in AI Konsepte."),
+        backgroundColor: AppColors.successGreen,
+      ),
+    );
   }
 
   Widget _buildBreadcrumbs() {
@@ -295,6 +331,28 @@ class _NewReportPageState extends State<NewReportPage> {
                   },
                 ),
                 const SizedBox(height: 12),
+
+                if (UserSession.can('ai.use'))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: OutlinedButton.icon(
+                      onPressed: _isAiCreating ? null : _handleAiDraft,
+                      icon: _isAiCreating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome, size: 18),
+                      label: const Text("Skep AI-konsep"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.gold,
+                        side: const BorderSide(color: AppColors.gold),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
 
                 _buildPhotoSection(),
 

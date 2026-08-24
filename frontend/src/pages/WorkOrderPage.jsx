@@ -17,6 +17,8 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -119,7 +121,7 @@ function WorkOrderPage() {
     job_scheduled_datetime: "",     // Geskeduleerde datum
     job_scheduled_end_datetime: "", // Geskeduleerde einddatum
     job_schedule_type: "enkel",     // Herhalingstipe
-    
+
     // Aanspreekpunt-inligting
     contact_name: "",               // Naam van persoon
     contact_email: "",              // E-pos
@@ -146,6 +148,22 @@ function WorkOrderPage() {
     assigned_to: null,              // Verantwoordelike gebruiker (user_id)
     cc_users: [],                   // CC gebruikers (array van user_id's)
   });
+
+  // AI-veldvoorstelle: werksoort/prioriteit uit die beskrywing (reëls-klassifiseerder).
+  // Die vorm gebruik Afrikaanse vertoonwaardes — map die enjin se EN-enum hier.
+  const JOB_TYPE_EN_AF = { REPAIR: 'Herstel', MAINTENANCE: 'Onderhoud', INSPECTION: 'Inspeksie', INSTALLATION: 'Installasie' };
+  const JOB_PRIO_EN_AF = { LOW: 'Laag', MEDIUM: 'Normal', HIGH: 'Hoog' };
+  const aiSuggestions = useAiSuggestions({
+    context: 'job',
+    values: {
+      job_desc: formData.job_desc,
+      job_type: formData.job_type,
+      job_priority: formData.job_priority,
+      nature: formData.nature,
+      job_status: formData.job_status,
+    },
+  });
+  const { suggestions: jobSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -730,7 +748,10 @@ function WorkOrderPage() {
       fault_id: order.fault_id || "",
       nature: order.nature || "",
       brief_description: briefDesc,
-      job_notes: details,
+      // Kontrakteur-werknotas kom uit die aparte job_notes-veld (sodat notas wat
+      // deur kontrakteurs op die mobiele app gestoor is, hier ook gesien word);
+      // val terug op die ou job_desc-inbedding ("brief: notes") vir ou rekords.
+      job_notes: order.job_notes || details,
       authorized_by: order.authorized_by || "",
       completed_date: formatDateForInput(order.job_finisheddatetime),
       cost_recovery_notes: order.cost_recovery_notes || "",
@@ -860,6 +881,7 @@ function WorkOrderPage() {
         job_status: formData.job_status,
         job_priority: formData.job_priority || "Normal",
         nature: formData.nature || null,
+        job_notes: formData.job_notes || null,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_end_datetime: formatDateTimeForPayload(formData.job_scheduled_end_datetime) || null,
@@ -1589,14 +1611,25 @@ function WorkOrderPage() {
                         value={formData.job_status}
                         onChange={(e) => {
                           const newStatus = e.target.value;
-                          setFormData(prev => ({
-                            ...prev,
-                            job_status: newStatus,
-                            completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
-                              ? new Date().toISOString().split('T')[0]
-                              : prev.completed_date,
-                          }));
-                          setInvalidFields(p => { const n = {...p}; delete n.job_status; return n; });
+                          const applyStatus = () => {
+                            setFormData(prev => ({
+                              ...prev,
+                              job_status: newStatus,
+                              completed_date: (newStatus === "Voltooid" || newStatus === "COMPLETED") && !prev.completed_date
+                                ? new Date().toISOString().split('T')[0]
+                                : prev.completed_date,
+                            }));
+                            setInvalidFields(p => { const n = {...p}; delete n.job_status; return n; });
+                          };
+                          if ((newStatus === "Voltooid" || newStatus === "COMPLETED") && formData.job_status !== newStatus) {
+                            confirm({
+                              message: "Is jy seker jy wil hierdie werksopdrag as voltooi merk?",
+                              confirmLabel: "Ja, voltooi",
+                              cancelLabel: "Kanselleer"
+                            }).then((ok) => { if (ok) applyStatus(); });
+                          } else {
+                            applyStatus();
+                          }
                         }}
                       >
                         <option value="">Kies...</option>
@@ -1896,10 +1929,14 @@ function WorkOrderPage() {
                         ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
                         : null}
                       onChange={(selectedOption) => setFormData({ ...formData, assigned_to: selectedOption ? selectedOption.value : null })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
+                      // Verantwoordelik: slegs FK (2) en Admin (3). Die huidige
+                      // toegewysde gebruiker bly sigbaar selfs as hulle nie FK/Admin is.
+                      options={(users || [])
+                        .filter((u) => u.role_id === 2 || u.role_id === 3 || Number(u.user_id) === Number(formData.assigned_to))
+                        .map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
                     />
                   </div>
                 </div>
@@ -1919,10 +1956,15 @@ function WorkOrderPage() {
                         ...formData,
                         cc_users: (selectedOptions || []).map((opt) => opt.value)
                       })}
-                      options={(users || []).map((u) => ({
-                        value: u.user_id,
-                        label: `${u.user_name} ${u.user_surname} (${u.user_email})`
-                      }))}
+                      // CC-lys: slegs FK (2) en Admin (3) mag gekies word.
+                      // Reeds-gekose gebruikers (bv. die foutkaartjie-skepper,
+                      // selfs 'n student) bly sigbaar en word behou.
+                      options={(users || [])
+                        .filter((u) => u.role_id === 2 || u.role_id === 3 || (formData.cc_users || []).some((id) => Number(id) === Number(u.user_id)))
+                        .map((u) => ({
+                          value: u.user_id,
+                          label: `${u.user_name} ${u.user_surname} (${u.user_email})`
+                        }))}
                     />
                   </div>
                 </div>
@@ -2351,6 +2393,24 @@ function WorkOrderPage() {
                 {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
               </button>
             </div>
+            <AiSuggestPanel
+              suggestions={jobSuggestions}
+              loading={aiLoading}
+              filled={aiFilled}
+              error={aiError}
+              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit' }}
+              onUse={(key, s) => {
+                if (key === 'job_type') {
+                  const af = JOB_TYPE_EN_AF[s.value] || s.value;
+                  setFormData(p => ({ ...p, job_type: af }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.job_type; return n; });
+                } else if (key === 'job_priority') {
+                  const af = JOB_PRIO_EN_AF[s.value] || s.value;
+                  setFormData(p => ({ ...p, job_priority: af }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.job_priority; return n; });
+                }
+              }}
+            />
           </div>
         </div>
       )}
