@@ -19,13 +19,15 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
   const { showToast } = useToast();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
   const { instance } = useMsal();
   const location = useLocation();
+  const [showImportWizard, setShowImportWizard] = useState(false);
   
   // State vir werksopdragte-lys
   const [workOrders, setWorkOrders] = useState([]);
@@ -1490,15 +1492,33 @@ function WorkOrderPage() {
                 resetVisibility={colVis.resetVisibility}
                 onResetWidths={colWidths.resetWidths}
               />
-              <button 
+              <button
                 type="button"
-                className="btn-add" 
+                className="btn-add"
                 id="addJobBtn"
                 title="Voeg Nuwe Werksopdrag By"
                 onClick={handleNewWorkOrder}
               >
                 + Nuwe Werksopdrag
               </button>
+              {hasRight('jobs.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
+              {hasRight('jobs.manage') && (
+                <ImportExportModal
+                  isOpen={showImportWizard}
+                  onClose={() => setShowImportWizard(false)}
+                  defaultEntity="job"
+                  onImported={fetchWorkOrders}
+                />
+              )}
             </div>
           </div>
 

@@ -12,6 +12,7 @@ from ....models.asset import Asset
 from ....models.user import User
 from ....services.fault_service import fault_service
 from ....services.job_service import derive_job_status, job_service
+from ....services.prediction_service import prediction_service
 from ....services.notification_service import NotificationService
 
 router = APIRouter()
@@ -216,6 +217,10 @@ def patchJob(jobID: int, jobIn: JobcardUpdate, session: Session = Depends(getSes
         result = job_service.getByID(session, result.jobcard_id)
 
     if old_status != result.job_status:
+        # Invalidate predictions cache if a maintenance job was completed
+        if result.job_type == "maintenance" and result.job_status == JobStatus.COMPLETED:
+            prediction_service.invalidateCache()
+        
         notif_svc = NotificationService(session)
         summary = _job_summary(session, result)
         # Direk geadresseerde ontvangers (kontrakteur + CC-gebruikers) kry presies

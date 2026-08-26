@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, contractor, quote, audit, predictions, image, calendar, role, rights, document, room_check, analytics, notifications, ai
+from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, quote, audit, predictions, image, calendar, role, rights, document, room_check, analytics, notifications, ai, import_data
 
 api_router = APIRouter()
 
@@ -15,7 +15,6 @@ api_router.include_router(stock.router, prefix="/stock", tags=["stock"])
 api_router.include_router(user.router, prefix="/users", tags=["users"])
 api_router.include_router(role.router, prefix="/roles", tags=["roles"])
 api_router.include_router(rights.router, prefix="/rights", tags=["rights"])
-api_router.include_router(contractor.router, prefix="/contractors", tags=["contractors"])
 api_router.include_router(quote.router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
@@ -26,3 +25,4 @@ api_router.include_router(room_check.router, prefix="/room-checks", tags=["room-
 api_router.include_router(analytics.router, prefix="", tags=["analytics"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+api_router.include_router(import_data.router, prefix="/import", tags=["import"])

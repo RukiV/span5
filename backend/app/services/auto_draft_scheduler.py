@@ -11,12 +11,18 @@ Every ``AI_AUTO_DRAFT_INTERVAL`` seconds the loop scans the live predictions
 analytical signal (>=3 faults in 12 months, lifespan exceeded, maintenance >180
 days overdue), has no open faultcard, and has no draft yet (any status — so a
 rejected draft is not re-created) gets a new draft in the FK/Admin review queue.
+
+Optimizations:
+- Minimum interval clamp (60s) prevents runaway loops from env misconfiguration
+- Pagination: process assets in batches to avoid long DB locks
+- Staggered startup: random delay prevents thundering herd on multi-worker deployments
 """
 
 import asyncio
 import json
 import logging
 import os
+import random
 from datetime import datetime, timedelta
 
 from sqlmodel import Session, select
@@ -36,8 +42,25 @@ from .rules_classifier import classify_priority, classify_type
 
 logger = logging.getLogger(__name__)
 
+# Minimum interval to prevent runaway loops (e.g., env var set to 1 second)
+MIN_AUTO_DRAFT_INTERVAL = 60
+
+# Batch size for paginated processing
+AUTO_DRAFT_BATCH_SIZE = 50
+
+# Delay between batches (seconds) to yield DB
+AUTO_DRAFT_BATCH_DELAY = 0.1
+
 AI_AUTO_DRAFT_ENABLED = os.getenv("AI_AUTO_DRAFT_ENABLED", "true").lower() not in ("false", "0", "no")
-AI_AUTO_DRAFT_INTERVAL = int(os.getenv("AI_AUTO_DRAFT_INTERVAL", "300"))
+_raw_interval = int(os.getenv("AI_AUTO_DRAFT_INTERVAL", "300"))
+AI_AUTO_DRAFT_INTERVAL = max(_raw_interval, MIN_AUTO_DRAFT_INTERVAL)
+
+if _raw_interval < MIN_AUTO_DRAFT_INTERVAL:
+    logger.warning(
+        f"AI_AUTO_DRAFT_INTERVAL={_raw_interval}s is below minimum {MIN_AUTO_DRAFT_INTERVAL}s; clamping to {AI_AUTO_DRAFT_INTERVAL}s"
+    )
+
+logger.info(f"Auto-draft scheduler configured: enabled={AI_AUTO_DRAFT_ENABLED}, interval={AI_AUTO_DRAFT_INTERVAL}s")
 
 _OPEN_FAULT_STATUSES = (FaultStatus.OPEN, FaultStatus.WAIT, FaultStatus.CONFIRMED)
 
@@ -113,6 +136,10 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
     Returns the ids of the drafts created in this pass (empty list when there
     is nothing to do or no FK/Admin operator exists). ``jobdraft_service``
     commits per draft, so each new draft is durable even if a later one fails.
+
+    Optimizations:
+    - Pagination: process assets in batches of AUTO_DRAFT_BATCH_SIZE
+    - Batch delay: small sleep between batches to yield DB
     """
     if engine is None:
         engine = database_engine
@@ -127,69 +154,81 @@ def scan_and_create_auto_drafts(engine=None) -> list[int]:
             logger.warning("Auto-draft skandeerder: geen FK/Admin gebruiker gevind — oorslaan.")
             return []
 
+        # Get all predictions
         preds = prediction_service.getPredictions(session)
-        for pred in preds:
-            # One bad asset (e.g. deleted between prediction and insert) must
-            # not abort the whole pass — log and move on to the next asset.
-            try:
-                signals = _draft_signals(pred)
-                if not signals:
-                    continue
-                if _asset_has_open_fault(session, pred.asset_id):
-                    continue
-                if _asset_has_draft(session, pred.asset_id):
-                    continue
+        logger.debug(f"Auto-draft scan: processing {len(preds)} assets")
 
-                description = (
-                    f"Voorspellende instandhouding: {pred.asset_name} ({pred.asset_serial})"
-                    f" — {', '.join(signals)}."
-                )
-                suggested_type = classify_type(description)
-                suggested_priority = classify_priority(description)
-
-                # LLM enrichment is optional — any failure degrades to rules-only.
+        # Paginate processing
+        for i in range(0, len(preds), AUTO_DRAFT_BATCH_SIZE):
+            batch = preds[i:i + AUTO_DRAFT_BATCH_SIZE]
+            
+            for pred in batch:
+                # One bad asset (e.g. deleted between prediction and insert) must
+                # not abort the whole pass — log and move on to the next asset.
                 try:
-                    llm = llm_service.extract(description)
-                    cleaned = (llm.get("cleaned_description") or description)[:2000]
-                    title = (
-                        llm.get("title") or f"{pred.asset_name} — voorspellende instandhouding"
-                    )[:255]
-                    work_instruction = (llm.get("work_instruction") or "")[:2000]
-                    ai_status = "ok"
-                except Exception:
-                    cleaned = description
-                    title = f"{pred.asset_name} — voorspellende instandhouding"
-                    work_instruction = ""
-                    ai_status = "degraded"
+                    signals = _draft_signals(pred)
+                    if not signals:
+                        continue
+                    if _asset_has_open_fault(session, pred.asset_id):
+                        continue
+                    if _asset_has_draft(session, pred.asset_id):
+                        continue
 
-                draft = jobdraft_service.create_draft(
-                    session,
-                    user_id=operator.user_id,
-                    values={
-                        "description": description,
-                        "cleaned_description": cleaned,
-                        "title": title,
-                        "work_instruction": work_instruction,
-                        "suggested_type": suggested_type,
-                        "suggested_priority": suggested_priority,
-                        "failure_category": "predictive",
-                        "language": "af",
-                        "asset_ids": json.dumps([pred.asset_id]),
-                        "room_ids": "[]",
-                        "resolved_asset_id": pred.asset_id,
-                        "resolved_room_id": None,
-                        "duplicate_of": None,
-                        "ai_status": ai_status,
-                        "source": "auto",
-                        "status": "draft",
-                    },
-                )
-                created.append(draft.draft_id)
-            except Exception:
-                logger.exception(
-                    "Auto-draft misluk vir bate %s — oorslaan.",
-                    getattr(pred, "asset_id", "?"),
-                )
+                    description = (
+                        f"Voorspellende instandhouding: {pred.asset_name} ({pred.asset_serial})"
+                        f" — {', '.join(signals)}."
+                    )
+                    suggested_type = classify_type(description)
+                    suggested_priority = classify_priority(description)
+
+                    # LLM enrichment is optional — any failure degrades to rules-only.
+                    try:
+                        llm = llm_service.extract(description)
+                        cleaned = (llm.get("cleaned_description") or description)[:2000]
+                        title = (
+                            llm.get("title") or f"{pred.asset_name} — voorspellende instandhouding"
+                        )[:255]
+                        work_instruction = (llm.get("work_instruction") or "")[:2000]
+                        ai_status = "ok"
+                    except Exception:
+                        cleaned = description
+                        title = f"{pred.asset_name} — voorspellende instandhouding"
+                        work_instruction = ""
+                        ai_status = "degraded"
+
+                    draft = jobdraft_service.create_draft(
+                        session,
+                        user_id=operator.user_id,
+                        values={
+                            "description": description,
+                            "cleaned_description": cleaned,
+                            "title": title,
+                            "work_instruction": work_instruction,
+                            "suggested_type": suggested_type,
+                            "suggested_priority": suggested_priority,
+                            "failure_category": "predictive",
+                            "language": "af",
+                            "asset_ids": json.dumps([pred.asset_id]),
+                            "room_ids": "[]",
+                            "resolved_asset_id": pred.asset_id,
+                            "resolved_room_id": None,
+                            "duplicate_of": None,
+                            "ai_status": ai_status,
+                            "source": "auto",
+                            "status": "draft",
+                        },
+                    )
+                    created.append(draft.draft_id)
+                except Exception:
+                    logger.exception(
+                        "Auto-draft misluk vir bate %s — oorslaan.",
+                        getattr(pred, "asset_id", "?"),
+                    )
+
+            # Yield to DB between batches
+            if i + AUTO_DRAFT_BATCH_SIZE < len(preds):
+                import time
+                time.sleep(AUTO_DRAFT_BATCH_DELAY)
 
         # Fan out one notification for the whole batch — never let it fail the scan.
         if created:
@@ -216,6 +255,11 @@ async def auto_draft_loop():
     Check-then-create dedup assumes a single scheduler worker — running
     multiple uvicorn workers would need a unique constraint on resolved_asset_id.
     """
+    # Staggered startup: random delay to prevent thundering herd on multi-worker deployments
+    startup_delay = random.uniform(0, 30)
+    logger.info(f"Auto-draft scheduler starting in {startup_delay:.1f}s (staggered)")
+    await asyncio.sleep(startup_delay)
+    
     while True:
         try:
             await asyncio.to_thread(scan_and_create_auto_drafts)

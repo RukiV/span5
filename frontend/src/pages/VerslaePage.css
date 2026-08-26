@@ -1,0 +1,19 @@
+.verslae-page {
+  padding: 0;
+  height: 100%;
+}
+
+.verslae-container {
+  height: 100%;
+}
+
+.verslae-reopen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  text-align: center;
+  color: #6b7280;
+}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useMsal } from "@azure/msal-react";
 import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
@@ -141,7 +141,6 @@ function LoginPage() {
               required
               disabled={loading}
             />
-            <Link to="/forgot-password" className="forgot-password-link">Vergeet wagwoord?</Link>
           </div>
           <button type="submit" className="btn-login" disabled={loading}>
             {loading ? 'Besig...' : 'Teken In'}

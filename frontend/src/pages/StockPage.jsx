@@ -16,12 +16,14 @@ import AiSuggestPanel from "../components/AiSuggestPanel";
 import "../styles/Asset.css";
 import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 
 function StockPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
   const [stock, setStock] = useState([]);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]); // Bygevoeg
   const [terrains, setTerrains] = useState([]); // Bygevoeg
@@ -515,6 +517,24 @@ function StockPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+          {hasRight('stock.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('stock.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="stock"
+              onImported={fetchStock}
+            />
+          )}
         </div>
       </div>
 
@@ -827,7 +847,25 @@ function StockPage({ embedded = false }) {
                 resetVisibility={colVis.resetVisibility}
                 onResetWidths={colWidths.resetWidths}
               />
-              <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+          <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
+          {hasRight('stock.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('stock.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="stock"
+              onImported={fetchStock}
+            />
+          )}
             </div>
           </div>
 

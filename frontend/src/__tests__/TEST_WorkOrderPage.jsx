@@ -19,7 +19,7 @@ jest.mock('../services/api', () => ({
     documents: { getByQuote: jest.fn().mockResolvedValue({ data: [] }), create: jest.fn(), delete: jest.fn() },
   },
 }));
-jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1, role_id: 3 } }) }));
+jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1, role_id: 3 }, hasRight: (r) => ["jobs.manage"].includes(r) }) }));
 jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('../components/Modal/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: jest.fn(), dialog: null }) }));
 jest.mock('@azure/msal-react', () => ({ useMsal: () => ({ instance: { acquireTokenSilent: jest.fn() } }) }));

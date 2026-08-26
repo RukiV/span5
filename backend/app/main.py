@@ -47,6 +47,22 @@ async def onStartup():
 
     seed_data()
 
+    # Log scheduler configuration for debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("=" * 60)
+    logger.info("BACKGROUND SCHEDULER CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info(f"Reminder scheduler:       interval={os.getenv('REMINDER_CHECK_INTERVAL', '60')}s")
+    logger.info(f"Auto-draft scheduler:     enabled={auto_draft_scheduler.AI_AUTO_DRAFT_ENABLED}, "
+                f"interval={auto_draft_scheduler.AI_AUTO_DRAFT_INTERVAL}s "
+                f"(min={auto_draft_scheduler.MIN_AUTO_DRAFT_INTERVAL}s)")
+    logger.info(f"Survival retrain loop:    enabled={survival_service.is_enabled()}, "
+                f"interval={os.getenv('SURVIVAL_RETRAIN_INTERVAL', '900')}s")
+    logger.info(f"Survival min assets:      {os.getenv('AI_SURVIVAL_MIN_ASSETS', '50')}")
+    logger.info(f"Survival min events:      {os.getenv('AI_SURVIVAL_MIN_EVENTS', '80')}")
+    logger.info("=" * 60)
+
     # Survival layer (Phase 2c): train/load on boot when the data has enough
     # signal. Guarded off for tests (tests use their own in-memory engine).
     if os.getenv("ENVIRONMENT", "development") != "test":

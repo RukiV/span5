@@ -4,8 +4,8 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
   IoGridOutline, IoBusinessOutline, IoCubeOutline, IoConstructOutline,
   IoMapOutline, IoLocationOutline, IoWarningOutline, IoDocumentTextOutline,
-  IoCalendarOutline, IoBarChartOutline, IoDocumentsOutline, IoPeopleOutline,
-  IoShieldOutline, IoKeyOutline, IoLogOutOutline,
+  IoCalendarOutline, IoBarChartOutline, IoPeopleOutline,
+  IoShieldOutline, IoKeyOutline, IoLogOutOutline, IoSwapHorizontalOutline,
 } from "react-icons/io5";
 
 function Sidebar({ currentPath, onLogout }) {
@@ -53,8 +53,8 @@ function Sidebar({ currentPath, onLogout }) {
         {can('faults.manage_all') && <li><Link to="/fault-tickets" className={isActive('/fault-tickets')}><IoWarningOutline style={ic} />Foutkaartjies</Link></li>}
         {can('jobs.manage') && <li><Link to="/work-orders" className={isInGroup(['/work-orders', '/ai-drafts'])}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
         {can('calendar.view') && <li><Link to="/calendar" className={isActive('/calendar')}><IoCalendarOutline style={ic} />Kalender</Link></li>}
+        {can('reports.view') && <li><Link to="/verslae" className={isActive('/verslae')}><IoSwapHorizontalOutline style={ic} />Verslae</Link></li>}
         {can('predictions.view') && <li><Link to="/predictions" className={isActive('/predictions')}><IoBarChartOutline style={ic} />Voorspellings</Link></li>}
-        {can('reports.view') && <li><Link to="/reports" className={isActive('/reports')}><IoDocumentsOutline style={ic} />Verslae</Link></li>}
         {can('users.manage') && (
           <li className="dropdown">
             <Link to="/users" className={`dropdown-trigger ${isInGroup(['/users', '/users/roles', '/users/rights'])}`}>

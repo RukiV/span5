@@ -52,6 +52,7 @@ class BuildingType(Enum):
     LABORATORY = "Laboratorium"
     WAREHOUSE = "warehouse"
     KAFERERIA = "Kafeteria"
+    RESIDENTIAL = "Koshuis"
     OTHER = "Ander"
 
 class RoomType(Enum):

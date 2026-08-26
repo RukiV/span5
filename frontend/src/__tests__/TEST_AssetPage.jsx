@@ -14,7 +14,7 @@ jest.mock('../services/api', () => ({
   authAPI: { me: jest.fn() },
   apiClient: { get: jest.fn(), post: jest.fn(), defaults: { baseURL: '' }, image: { getByParent: jest.fn(), getFileUrl: jest.fn(), delete: jest.fn(), uploadForParent: jest.fn() } },
 }));
-jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1 } }) }));
+jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1 }, hasRight: (r) => ["locations.manage","buildings.manage","rooms.manage","assets.manage","stock.manage","faults.manage_all","jobs.manage"].includes(r) }) }));
 jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('../components/Modal/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: jest.fn(), dialog: null }) }));
 

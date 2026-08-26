@@ -28,7 +28,6 @@ RIGHTS_CATALOG: dict[str, str] = {
     "buildings.manage": "Manage buildings.",
     "rooms.manage": "Manage rooms.",
     "locations.manage": "Manage campuses / terrains.",
-    "contractors.manage": "Manage contractors.",
     "quotes.manage": "Manage quotes.",
     "predictions.view": "View asset lifespan predictions.",
     "reports.view": "View analytics reports.",
@@ -55,7 +54,7 @@ RIGHTS_CATALOG: dict[str, str] = {
 # rights (Admin manages jobs via jobs.manage instead).
 _FK_RIGHTS = {
     "assets.manage", "stock.manage", "buildings.manage", "rooms.manage",
-    "locations.manage", "contractors.manage", "quotes.manage",
+    "locations.manage", "quotes.manage",
     "predictions.view", "reports.view", "analytics.view", "audit.view",
     "calendar.manage", "calendar.view",
     "faults.manage_all", "faults.create_own", "faults.view_own",

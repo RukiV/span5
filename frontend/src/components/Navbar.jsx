@@ -18,8 +18,8 @@ const PATH_TITLES = {
   '/users/rights': 'Bestuur Regte',
   '/predictions': 'Voorspellings',
   '/calendar': 'Kalender',
+  '/verslae': 'Data In/Uitvoer',
   '/ai-drafts': 'AI-Foutkonsepte',
-  '/reports': 'Verslae',
 };
 
 function Navbar() {

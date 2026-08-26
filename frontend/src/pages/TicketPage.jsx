@@ -16,14 +16,16 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 
 
 function TicketPage() {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
   const navigate = useNavigate();
   const MAX_TICKET_IMAGES = 3;
+  const [showImportWizard, setShowImportWizard] = useState(false);
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
@@ -582,6 +584,24 @@ function TicketPage() {
                 onResetWidths={colWidths.resetWidths}
               />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
+              {hasRight('faults.manage_all') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
+              {hasRight('faults.manage_all') && (
+                <ImportExportModal
+                  isOpen={showImportWizard}
+                  onClose={() => setShowImportWizard(false)}
+                  defaultEntity="fault"
+                  onImported={fetchTickets}
+                />
+              )}
             </div>
           </div>
 
