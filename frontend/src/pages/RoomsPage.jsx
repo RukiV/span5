@@ -14,14 +14,16 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
 
   const [rooms, setRooms] = useState([]);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [assets, setAssets] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
@@ -431,6 +433,24 @@ function RoomsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
+          {hasRight('rooms.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('rooms.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="room"
+              onImported={fetchRooms}
+            />
+          )}
         </div>
       </div>
 

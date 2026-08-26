@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Sequence
 from sqlmodel import Session, select, func
@@ -11,6 +12,11 @@ from . import survival_service
 from .survival_features import extract_asset_features
 
 logger = logging.getLogger(__name__)
+
+# In-memory cache for predictions with TTL
+_PREDICTIONS_CACHE = None
+_PREDICTIONS_CACHE_TIME = 0
+_PREDICTIONS_CACHE_TTL = 600  # 10 minutes in seconds
 
 
 def _add_months(source: datetime, months: int) -> datetime:
@@ -25,8 +31,38 @@ def _add_months(source: datetime, months: int) -> datetime:
 class PredictionService:
 
     def getPredictions(self, session: Session) -> Sequence[AssetPredictionRead]:
+        global _PREDICTIONS_CACHE, _PREDICTIONS_CACHE_TIME
+        now = time.time()
+        
+        # Quick check: if asset count changed, invalidate cache
+        asset_count = session.exec(select(func.count(Asset.asset_id))).one()
+        
+        # Return cached predictions if still valid and asset count matches
+        if (_PREDICTIONS_CACHE is not None and 
+            (now - _PREDICTIONS_CACHE_TIME) < _PREDICTIONS_CACHE_TTL and
+            len(_PREDICTIONS_CACHE) == asset_count):
+            logger.debug("Returning cached predictions (age: %.1fs, count: %d)", 
+                         now - _PREDICTIONS_CACHE_TIME, asset_count)
+            return _PREDICTIONS_CACHE
+        
+        # Compute fresh predictions
+        logger.info("Computing fresh predictions for all assets (count: %d)...", asset_count)
         assets = session.exec(select(Asset)).all()
-        return [self._predict(session, asset) for asset in assets]
+        predictions = [self._predict(session, asset) for asset in assets]
+        
+        # Update cache
+        _PREDICTIONS_CACHE = predictions
+        _PREDICTIONS_CACHE_TIME = now
+        logger.info("Cached %d predictions", len(predictions))
+        
+        return predictions
+
+    def invalidateCache(self):
+        """Manually invalidate the predictions cache (e.g., after maintenance/fault changes)"""
+        global _PREDICTIONS_CACHE, _PREDICTIONS_CACHE_TIME
+        _PREDICTIONS_CACHE = None
+        _PREDICTIONS_CACHE_TIME = 0
+        logger.info("Predictions cache invalidated")
 
     def getAssetPrediction(self, session: Session, asset_id: int) -> AssetPredictionRead | None:
         asset = session.get(Asset, asset_id)

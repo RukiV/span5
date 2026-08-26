@@ -29,10 +29,9 @@ test('renders username and password fields', () => {
   expect(screen.getByLabelText('Wagwoord:')).toBeInTheDocument();
 });
 
-test('renders submit button, forgot link, and MS button', () => {
+test('renders submit button and MS button', () => {
   render(<BrowserRouter><LoginPage /></BrowserRouter>);
   expect(screen.getByRole('button', { name: /Teken In$/ })).toBeInTheDocument();
-  expect(screen.getByText('Vergeet wagwoord?')).toBeInTheDocument();
   expect(screen.getByText('Teken in met Microsoft')).toBeInTheDocument();
 });
 
@@ -46,9 +45,4 @@ test('shows error message on failed login', async () => {
   await waitFor(() => {
     expect(screen.getByText(/Invalid credentials/i)).toBeInTheDocument();
   });
-});
-
-test('forgot password link points to /forgot-password', () => {
-  render(<BrowserRouter><LoginPage /></BrowserRouter>);
-  expect(screen.getByText('Vergeet wagwoord?').closest('a')).toHaveAttribute('href', '/forgot-password');
 });

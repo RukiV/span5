@@ -9,6 +9,7 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import { cachedFetch } from '../utils/cache';
 import '../styles/App.css';
 import '../styles/Predictions.css';
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -84,8 +85,9 @@ const colPickerRef = useRef(null);
     (async () => {
       try {
         await authAPI.me();
-        const [predRes, assetsRes, terrainsRes, buildingsRes, roomsRes] = await Promise.all([
-          apiClient.get('/predictions'),
+        // Cache predictions for 10 minutes to avoid repeated backend scans
+        const predRes = await cachedFetch('predictions-all', () => apiClient.get('/predictions'));
+        const [assetsRes, terrainsRes, buildingsRes, roomsRes] = await Promise.all([
           assetsAPI.getAll(),
           locationAPI.getAll(),
           buildingsAPI.getAll(),

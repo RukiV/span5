@@ -277,6 +277,26 @@ export const jobDraftsAPI = {
   reject: (id, data) => apiClient.post(`/ai/${id}/reject`, data),
 };
 
+// ===== DATA-INVOER-API (CSV/XLSX) =====
+export const importAPI = {
+  schema: () => apiClient.get('/import/schema'),
+  preview: (file, hints) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (hints && Object.keys(hints).length > 0) {
+      formData.append('hints', JSON.stringify(hints));
+    }
+    return apiClient.post('/import/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
+  commit: (payload) => apiClient.post('/import/commit', payload, { timeout: 120000 }),
+  exportData: (payload) =>
+    apiClient.post('/import/export', payload, { responseType: 'blob', timeout: 120000 }),
+};
+
+
 // ===== AI VELDVOORSTELLE-API =====
 export const suggestAPI = {
   suggest: (context, fields, config) => apiClient.post('/ai/suggest', { context, fields }, config),

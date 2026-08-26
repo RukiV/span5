@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from ..models.fault import Faultcard, FaultcardCreate, FaultcardUpdate
 from .base_service import BaseService
+from .prediction_service import prediction_service
 
 
 class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
@@ -33,6 +34,9 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
             session.rollback()
             raise
 
+        # Invalidate predictions cache since new fault affects predictions
+        prediction_service.invalidateCache()
+        
         return obj
 
     def update(self, session, id, data, user_id=None):
@@ -67,6 +71,9 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
             session.rollback()
             raise
 
+        # Invalidate predictions cache since fault update affects predictions
+        prediction_service.invalidateCache()
+        
         return obj
 
 

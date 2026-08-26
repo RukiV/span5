@@ -84,7 +84,6 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         "/api/v1/rooms",
         "/api/v1/building",
         "/api/v1/location",
-        "/api/v1/contractors",
         "/api/v1/quotes",
         "/api/v1/users",
         "/api/v1/calendar",

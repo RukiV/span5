@@ -8,12 +8,15 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import { useCurrentUser } from "../hooks/useCurrentUser";
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { hasRight } = useCurrentUser();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,7 @@ function TerrainsPage({ embedded = false }) {
   const colWidths = useColumnWidths('terrains-page', TERRAIN_COLUMNS);
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [showBuildingsModal, setShowBuildingsModal] = useState(false);
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -240,6 +244,24 @@ function TerrainsPage({ embedded = false }) {
         <div className="controls-right">
           <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
           <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
+          {hasRight('locations.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('locations.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="location"
+              onImported={() => { fetchTerrains(); fetchBuildings(); }}
+            />
+          )}
         </div>
       </div>
 

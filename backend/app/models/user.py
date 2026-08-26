@@ -15,7 +15,7 @@ class UserBase(SQLModel):
     user_name: str = Field(min_length=1, max_length=100)
     user_surname: str = Field(min_length=1, max_length=100)
     user_email: str = Field(max_length=150, regex=r'^[\w\.-]+@[\w\.-]+\.\w+$')
-    user_number: Optional[str] = Field(default=None, max_length=20)
+    user_number: Optional[str] = Field(default=None, max_length=255)
     user_lastlogintime: Optional[datetime] = None
     user_lastlogouttime: Optional[datetime] = None
     user_status: str = Field(max_length=50)

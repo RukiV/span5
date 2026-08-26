@@ -11,6 +11,7 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -18,7 +19,7 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 function BuildingsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -39,6 +40,7 @@ function BuildingsPage({ embedded = false }) {
   const [buildingFilter, setBuildingFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
   const [showModal, setShowModal] = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -351,6 +353,24 @@ function BuildingsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
+          {hasRight('buildings.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('buildings.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="building"
+              onImported={fetchBuildings}
+            />
+          )}
         </div>
       </div>
 

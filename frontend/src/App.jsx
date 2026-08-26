@@ -12,15 +12,12 @@ import DragHandle from './components/DragHandle';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
 import LoginPage from './pages/LoginPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
 import PredictionsPage from './pages/PredictionsPage';
 import CalendarPage from './pages/CalendarPage';
-import ReportsPage from './pages/ReportsPage';
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
@@ -32,6 +29,7 @@ import RightsPage from './pages/RightsPage';
 import AIDraftQueuePage from './pages/AIDraftQueuePage';
 import AIDraftNewPage from './pages/AIDraftNewPage';
 import AIDraftDetailPage from './pages/AIDraftDetailPage';
+import VerslaePage from './pages/VerslaePage';
 import { ToastProvider } from './components/Toast/ToastContext';
 import { NotificationProvider } from './components/Notifications/NotificationContext';
 
@@ -92,7 +90,7 @@ function AppContent() {
   const logout = useLogout();
   const { isOpen, toggle, close } = useAnalytics();
 
-  const hideAnalytics = ['/users/roles', '/users/rights', '/reports'].some(
+  const hideAnalytics = ['/users/roles', '/users/rights'].some(
     p => location.pathname === p || location.pathname === p + '/'
   );
 
@@ -119,11 +117,11 @@ function AppContent() {
             <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
             <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
             <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
+            <Route path="/verslae" element={<RightProtectedRoute requiredRight="reports.view"><VerslaePage /></RightProtectedRoute>} />
             <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
             <Route path="/ai-drafts" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftQueuePage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/new" element={<RightProtectedRoute requiredRight="ai.use"><JobTabs><AIDraftNewPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/:id" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftDetailPage /></JobTabs></RightProtectedRoute>} />
-            <Route path="/reports" element={<RightProtectedRoute requiredRight="reports.view"><ReportsPage /></RightProtectedRoute>} />
             <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
@@ -189,8 +187,6 @@ function App() {
       <div className="app">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/*" element={
             <AnalyticsProvider>
               <ToastProvider>

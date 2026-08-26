@@ -7,11 +7,10 @@ from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
-from ..models.contractor import Contractor
+from ..models.quote import Quote
 from ..models.role import Role, Rights, RoleRight
 from ..models.user import User
 from ..models.audit import Auditlog
-from ..models.quote import Quote
 from ..models.notification import NotificationPreference
 
 from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
@@ -267,26 +266,6 @@ def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, m
     session.commit()
     session.refresh(stock)
     return stock
-
-
-def _get_or_create_contractor(session: Session, businessName: str, name: str, surname: str, email: str, number: Optional[str], contractor_type: Optional[str]) -> Contractor:
-    contractor = session.exec(select(Contractor).where(Contractor.contractor_email == email)
-    ).first()
-    if contractor:
-        return contractor
-
-    contractor = Contractor(
-        contractor_businessName=businessName,
-        contractor_name=name,
-        contractor_surname=surname,
-        contractor_email=email,
-        contractor_number=number,
-        contractor_type=contractor_type,
-    )
-    session.add(contractor)
-    session.commit()
-    session.refresh(contractor)
-    return contractor
 
 
 def _get_or_create_job(
@@ -756,26 +735,6 @@ suburb="Villieria",
             room_type=RoomType.WAREHOUSE,
             room_status=RoomStatus.OPERATIONAL,
             building_id=bld1.building_id,
-        )
-
-        contractor1 = _get_or_create_contractor(
-            session,
-            businessName="Jan's Woodworking",
-            name="Jan",
-            surname="Botha",
-            email="jan.botha@workfix.co.za",
-            number="+27 21 555 1234",
-            contractor_type="Electrical",
-        )
-
-        contractor2 = _get_or_create_contractor(
-            session,
-            businessName="Bethesda Plumbing",
-            name="Lindy",
-            surname="Bethesda",
-            email="lindiwe.mokoena@plumbright.co.za",
-            number="+27 11 555 6789",
-            contractor_type="Plumbing",
         )
 
         type_elek = _get_or_create_assettype(session, "Elektriese Toerusting", avg=60, min_=36, max_=84, interval=6, threshold=3)
@@ -1252,13 +1211,7 @@ suburb="Villieria",
         _get_or_create_stock(session, "Lugversorger filter", "LG", 4, 2, 8, "Onderdele", "LG lugversorger filter pas HVAC-002/003.", room5.room_id)
         _get_or_create_stock(session, "Linte", "3M", 10, 5, 20, "Verbruiksgoedere", "Skilderslint 48mm x 50m.", room5.room_id)
 
-        # ── Addisionele kontrakteurs ────────────────────────────
-        _get_or_create_contractor(session, "CoolAir HVAC", "Thabo", "Mokoena", "thabo@coolair.co.za", "+27 82 555 2233", "HVAC")
-        _get_or_create_contractor(session, "SafeSys Fire", "Mpho", "Nkosi", "mpho@safesys.co.za", "+27 72 555 4455", "Fire Safety")
-        _get_or_create_contractor(session, "IT Solutions", "David", "Smith", "david@itsolutions.co.za", "+27 11 555 6677", "IT")
-        _get_or_create_contractor(session, "Kombuis Werke", "Susan", "Venter", "susan@kombuiswerke.co.za", "+27 81 555 8899", "Kitchen Equipment")
-
-        # Skep User-rekeninge vir nuwe kontrakteurs (jobcard FK verwys na user.user_id)
+        # ── Addisionele kontrakteurs (gebruikers met rol "Kontrakteur") ─
         _get_or_create_test_user(session, "Thabo", "Mokoena", "thabo@coolair.co.za", "contractor123", contractor_role.role_id)
         _get_or_create_test_user(session, "Mpho", "Nkosi", "mpho@safesys.co.za", "contractor123", contractor_role.role_id)
         _get_or_create_test_user(session, "David", "Smith", "david@itsolutions.co.za", "contractor123", contractor_role.role_id)

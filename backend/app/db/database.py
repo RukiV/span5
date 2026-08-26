@@ -76,10 +76,17 @@ def createDBandTables():
             connection.execute(text("SELECT setval('quote_quote_id_seq', COALESCE(MAX(quote_id), 1)) FROM quote"))
 
         
-        if "contractor" in inspector.get_table_names():
-            columns = {column["name"] for column in inspector.get_columns("contractor")}
-            if "contractor_businessName" not in columns:
-                connection.execute(text("ALTER TABLE contractor ADD COLUMN IF NOT EXISTS contractor_businessName VARCHAR(100)"))
+        # Kontrakteurstabel is afgekeur — kontrakteurs is gewone gebruikers.
+        connection.execute(text("DROP TABLE IF EXISTS contractor CASCADE"))
+
+        # user_number moes vergroot word weens versleuteling (Fernet >20 chars).
+        if "user" in inspector.get_table_names():
+            cols = {c["name"] for c in inspector.get_columns("user")}
+            if "user_number" in cols:
+                try:
+                    connection.execute(text("ALTER TABLE \"user\" ALTER COLUMN user_number TYPE VARCHAR(255)"))
+                except Exception:
+                    pass  # reeds reg of verskillende DB-dialek
 
         if "quote_document" in inspector.get_table_names():
             columns = {column["name"] for column in inspector.get_columns("quote_document")}
@@ -129,6 +136,12 @@ def createDBandTables():
             columns = {column["name"] for column in inspector.get_columns("notification")}
             if "is_seen" not in columns:
                 connection.execute(text("ALTER TABLE notification ADD COLUMN IF NOT EXISTS is_seen BOOLEAN DEFAULT FALSE"))
+            # Add performance indexes for notification queries
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("notification")}
+            if "ix_notification_user_read_created" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_user_read_created ON notification (user_id, is_read, created_at DESC)"))
+            if "ix_notification_user_type" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_user_type ON notification (user_id, notification_type)"))
         else:
             connection.execute(text("""
                 CREATE TABLE IF NOT EXISTS notification (
@@ -145,8 +158,8 @@ def createDBandTables():
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """))
-            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_user_read ON notification(user_id, is_read)"))
-            connection.execute(text("CREATE INDEX IF NOT EXISTS idx_notif_created ON notification(created_at DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_user_read_created ON notification (user_id, is_read, created_at DESC)"))
+            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_user_type ON notification (user_id, notification_type)"))
 
         if "revoked_tokens" not in inspector.get_table_names():
             connection.execute(text("""
@@ -160,6 +173,28 @@ def createDBandTables():
             """))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_revoked_hash ON revoked_tokens(token_hash)"))
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_revoked_expires ON revoked_tokens(expires_at)"))
+
+        # Add performance indexes for jobcard queries (auto-draft scan)
+        if "jobcard" in inspector.get_table_names():
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("jobcard")}
+            if "ix_jobcard_asset_type_status_finished" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_jobcard_asset_type_status_finished ON jobcard (asset_id, job_type, job_status, job_finisheddatetime DESC)"))
+            if "ix_jobcard_scheduled_status" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_jobcard_scheduled_status ON jobcard (job_scheduled_datetime, job_status)"))
+
+        # Add performance indexes for faultcard queries (auto-draft scan)
+        if "faultcard" in inspector.get_table_names():
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("faultcard")}
+            if "ix_faultcard_asset_reportdatetime" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_faultcard_asset_reportdatetime ON faultcard (asset_id, fault_reportdatetime)"))
+            if "ix_faultcard_asset_status" not in existing_indexes:
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_faultcard_asset_status ON faultcard (asset_id, fault_status)"))
+
+        # Add partial unique index for auto-draft deduplication
+        if "jobdraft" in inspector.get_table_names():
+            existing_indexes = {idx["name"] for idx in inspector.get_indexes("jobdraft")}
+            if "ix_jobdraft_auto_unique" not in existing_indexes:
+                connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_jobdraft_auto_unique ON jobdraft (resolved_asset_id) WHERE source = 'auto'"))
 
         if "notification_preferences" not in inspector.get_table_names():
             connection.execute(text("""

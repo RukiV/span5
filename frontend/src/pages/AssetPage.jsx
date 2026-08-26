@@ -17,13 +17,15 @@ import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 
 function AssetPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
-  const { user } = useCurrentUser();
+  const { user, hasRight } = useCurrentUser();
   const navigate = useNavigate();
   const [assets, setAssets] = useState([]);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [assettypes, setAssettypes] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [buildings, setBuildings] = useState([]);
@@ -745,6 +747,24 @@ function AssetPage({ embedded = false }) {
           />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
+          {hasRight('assets.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          {hasRight('assets.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="asset"
+              onImported={() => { fetchAssets(); fetchAssettypes(); }}
+            />
+          )}
         </div>
       </div>
 

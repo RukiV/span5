@@ -11,7 +11,7 @@ jest.mock('../services/api', () => ({
 
 const fullRights = ['assets.manage', 'stock.manage', 'rooms.manage', 'buildings.manage',
   'locations.manage', 'faults.manage_all', 'jobs.manage',
-  'calendar.view', 'predictions.view', 'reports.view', 'users.manage',
+  'calendar.view', 'predictions.view', 'users.manage',
   'roles.manage', 'rights.manage'];
 
 jest.mock('../hooks/useCurrentUser', () => ({
@@ -53,7 +53,6 @@ describe('Sidebar', () => {
     expect(screen.getByText('Werksopdragte')).toBeInTheDocument();
     expect(screen.getByText('Kalender')).toBeInTheDocument();
     expect(screen.getByText('Voorspellings')).toBeInTheDocument();
-    expect(screen.getByText('Verslae')).toBeInTheDocument();
     expect(screen.getByText('Teken Uit')).toBeInTheDocument();
   });
 

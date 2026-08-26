@@ -4,6 +4,7 @@
 #         → 1) laai gebruiker-voorkeur  → 2) as in_app_enabled=False, los
 #         → 3) stoor Notification in DB   → 4) as push_enabled, stuur FCM
 # =============================================================================
+import asyncio
 import logging
 from typing import Optional
 from sqlmodel import Session, select, func
@@ -35,6 +36,33 @@ def _init_firebase():
 
 _FIREBASE_INITIALIZED = _init_firebase()
 
+# --- Async FCM push (fire-and-forget) ---
+async def _send_fcm_push_async(user_id: int, title: str, body: str, data: Optional[dict] = None):
+    """Send FCM push asynchronously without blocking the request."""
+    if not _FIREBASE_INITIALIZED:
+        logger.debug(f"[FCM placeholder] Would push to user {user_id}: {title}")
+        return
+    # Import here to avoid circular imports
+    from ..db.database import engine
+    from sqlmodel import Session, select
+    from ..models.notification import DeviceToken
+    
+    with Session(engine) as session:
+        tokens = session.exec(
+            select(DeviceToken).where(DeviceToken.user_id == user_id)
+        ).all()
+    logger.info(f"FCM: {len(tokens)} toestel-tokens gevind vir gebruiker {user_id}")
+    for t in tokens:
+        try:
+            msg = messaging.Message(
+                notification=messaging.Notification(title=title, body=body),
+                data={k: str(v) for k, v in (data or {}).items()},
+                token=t.fcm_token,
+            )
+            messaging.send(msg)
+        except Exception as e:
+            logger.warning(f"FCM send failed for token {t.fcm_token[:20]}...: {e}")
+
 # --- Alle geldige kennisgewing-tipes wat die stelsel ken ---
 NOTIFICATION_TYPES = [
     "fault.created", "fault.assigned", "fault.resolved", "fault.status_changed",
@@ -50,25 +78,78 @@ class NotificationService:
     def __init__(self, session: Session):
         self.session = session
 
-    # --- Privaat: stuur Firebase Cloud Message na al die gebruiker se toestelle ---
-    def _send_fcm_push(self, user_id: int, title: str, body: str, data: Optional[dict] = None):
-        if not _FIREBASE_INITIALIZED:
-            logger.debug(f"[FCM placeholder] Would push to user {user_id}: {title}")
-            return
-        tokens = self.session.exec(
-            select(DeviceToken).where(DeviceToken.user_id == user_id)
+    # --- Batch create notifications in a single transaction ---
+    def create_notifications_batch(
+        self,
+        user_ids: list[int],
+        notification_type: str,
+        title: str,
+        message: str,
+        actor_id: Optional[int] = None,
+        reference_type: Optional[str] = None,
+        reference_id: Optional[int] = None,
+    ) -> list[Notification]:
+        """Create notifications for multiple users in a single transaction.
+        
+        Returns list of created notifications (excludes users with in_app_enabled=False).
+        """
+        if not user_ids:
+            return []
+        
+        # Fetch all preferences in one query
+        prefs = self.session.exec(
+            select(NotificationPreference).where(
+                NotificationPreference.user_id.in_(user_ids),
+                NotificationPreference.notification_type == notification_type,
+            )
         ).all()
-        logger.info(f"FCM: {len(tokens)} toestel-tokens gevind vir gebruiker {user_id}")
-        for t in tokens:
+        pref_map = {(p.user_id, p.notification_type): p for p in prefs}
+        
+        # Build notifications for users who have in_app_enabled=True (or no preference)
+        notifications = []
+        push_users = []  # users who need FCM push
+        
+        for user_id in user_ids:
+            pref = pref_map.get((user_id, notification_type))
+            if pref and not pref.in_app_enabled:
+                continue
+            
+            notif = Notification(
+                user_id=user_id,
+                actor_id=actor_id,
+                notification_type=notification_type,
+                title=title,
+                message=message,
+                reference_type=reference_type,
+                reference_id=reference_id,
+            )
+            notifications.append(notif)
+            
+            if not pref or pref.push_enabled:
+                push_users.append(user_id)
+        
+        # Bulk insert in single transaction
+        if notifications:
+            self.session.add_all(notifications)
+            self.session.commit()
+            for n in notifications:
+                self.session.refresh(n)
+        
+        # Fire-and-forget FCM pushes (don't block) - only if event loop is running
+        for user_id in push_users:
             try:
-                msg = messaging.Message(
-                    notification=messaging.Notification(title=title, body=body),
-                    data={k: str(v) for k, v in (data or {}).items()},
-                    token=t.fcm_token,
-                )
-                messaging.send(msg)
-            except Exception as e:
-                logger.warning(f"FCM send failed for token {t.fcm_token[:20]}...: {e}")
+                loop = asyncio.get_running_loop()
+                loop.create_task(_send_fcm_push_async(
+                    user_id=user_id,
+                    title=title,
+                    body=message,
+                    data={"type": notification_type, "reference_id": str(reference_id or "")},
+                ))
+            except RuntimeError:
+                # No running event loop (e.g., in tests or sync contexts) - skip FCM push
+                logger.debug(f"FCM push skipped for user {user_id}: no running event loop")
+        
+        return notifications
 
     # --- Hoof-inskrypingspunt: skep 'n kennisgewing en stuur dit volgens voorkeure ---
     # 1. Haal NotificationPreference vir (user, type)
@@ -85,34 +166,17 @@ class NotificationService:
         reference_type: Optional[str] = None,
         reference_id: Optional[int] = None,
     ) -> Optional[Notification]:
-        pref = self.session.exec(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id == user_id,
-                NotificationPreference.notification_type == notification_type,
-            )
-        ).first()
-        if pref and not pref.in_app_enabled:
-            return None
-        notif = Notification(
-            user_id=user_id,
-            actor_id=actor_id,
+        """Create a single notification (uses batch internally)."""
+        results = self.create_notifications_batch(
+            user_ids=[user_id],
             notification_type=notification_type,
             title=title,
             message=message,
+            actor_id=actor_id,
             reference_type=reference_type,
             reference_id=reference_id,
         )
-        self.session.add(notif)
-        self.session.commit()
-        self.session.refresh(notif)
-        if not pref or pref.push_enabled:
-            self._send_fcm_push(
-                user_id=user_id,
-                title=title,
-                body=message,
-                data={"type": notification_type, "reference_id": str(reference_id or "")},
-            )
-        return notif
+        return results[0] if results else None
 
     # --- Blaai deur kennisgewings (lysweergawe met filter en paginering) ---
     def get_user_notifications(self, user_id: int, page: int = 1, per_page: int = 20,
@@ -250,13 +314,17 @@ class NotificationService:
             User.user_status == "active",
         )
         users = self.session.exec(stmt).all()
+        notified_user_ids = []
         notified: set[int] = set()
         for user in users:
             if exclude_user_ids and user.user_id in exclude_user_ids:
                 continue
             notified.add(user.user_id)
-            self.create_notification(
-                user_id=user.user_id,
+            notified_user_ids.append(user.user_id)
+        
+        if notified_user_ids:
+            self.create_notifications_batch(
+                user_ids=notified_user_ids,
                 notification_type=notification_type,
                 title=title,
                 message=message,
@@ -278,13 +346,17 @@ class NotificationService:
             User.user_status == "active",
         )
         users = self.session.exec(stmt).all()
+        notified_user_ids = []
         notified: set[int] = set()
         for user in users:
             if exclude_user_ids and user.user_id in exclude_user_ids:
                 continue
             notified.add(user.user_id)
-            self.create_notification(
-                user_id=user.user_id,
+            notified_user_ids.append(user.user_id)
+        
+        if notified_user_ids:
+            self.create_notifications_batch(
+                user_ids=notified_user_ids,
                 notification_type=notification_type,
                 title=title,
                 message=message,

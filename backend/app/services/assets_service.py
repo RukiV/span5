@@ -7,6 +7,7 @@ from ..models.asset import Asset, AssetCreate, AssetUpdate, AssetHistoryEventRea
 from ..models.audit import Auditlog
 from ..models.job import Jobcard
 from .base_service import BaseService
+from .prediction_service import prediction_service
 
 
 class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
@@ -16,7 +17,10 @@ class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
     def create(self, session: Session, data: AssetCreate, user_id: Optional[int] = None) -> Asset:
         if data.asset_created_datetime is None:
             data.asset_created_datetime = datetime.utcnow()
-        return super().create(session, data, user_id=user_id)
+        result = super().create(session, data, user_id=user_id)
+        # Invalidate predictions cache since new asset affects predictions
+        prediction_service.invalidateCache()
+        return result
     
     def getBySerial(self, session: Session, serial: str) -> Asset | None:
         return session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
