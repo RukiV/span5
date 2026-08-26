@@ -18,7 +18,7 @@ if [ -n "$_PIP" ]; then
   $_PIP install -q pytest httpx 2>/dev/null || true
 fi
 cd "$ROOT/backend"
-python3 -m pytest tests/TEST_security.py -v || echo "  (install pytest + httpx to run backend tests)"
+python3 -m pytest tests/ -q || echo "  (install pytest + httpx to run backend tests)"
 cd "$ROOT"
 
 # --- Frontend ---

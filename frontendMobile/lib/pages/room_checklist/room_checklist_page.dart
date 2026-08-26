@@ -241,6 +241,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       timestamp: DateTime.now(),
       locationId: _locationIdForRoom(),
       buildingId: _buildingIdForRoom(),
+      isOutdoor: true,
     );
     return ReportService.addReport(report);
   }
@@ -516,7 +517,11 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
         final selectedBuilding = _selectedBuildingId != null
             ? buildings.where((b) => b.id == _selectedBuildingId).firstOrNull
             : null;
-        final rooms = selectedBuilding?.rooms ?? [];
+        final rooms = selectedBuilding?.rooms ?? selectedCampus?.buildings.expand((b) => b.rooms ?? []).toList() ?? [];
+        final roomBuildingNames = <int, String>{
+          for (final b in buildings)
+            for (final r in (b.rooms ?? [])) r.id: b.name,
+        };
 
         return Center(
           child: SingleChildScrollView(
@@ -556,14 +561,14 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
                       onChanged: (val) => setState(() => _selectedBuildingId = val),
                     ),
                   ],
-                  if (_selectedBuildingId != null) ...[
+                  if (_selectedCampusId != null) ...[
                     const SizedBox(height: 20),
                     const Text("LOKALE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                     const SizedBox(height: 10),
                     if (rooms.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Center(child: Text("Geen lokale in hierdie gebou nie.", style: TextStyle(color: Colors.grey))),
+                        child: Center(child: Text("Geen lokale op hierdie terrein nie.", style: TextStyle(color: Colors.grey))),
                       )
                     else
                       ...rooms.map((room) => Card(
@@ -578,8 +583,12 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(room.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                    Text("${room.type} | Kap: ${room.capacity ?? '-'}",
-                                      style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                                    Text(
+                                      _selectedBuildingId != null
+                                          ? "${room.type} | Kap: ${room.capacity ?? '-'}"
+                                          : "${room.type} | Kap: ${room.capacity ?? '-'} | ${roomBuildingNames[room.id] ?? ''}",
+                                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                    ),
                                   ],
                                 ),
                               ),

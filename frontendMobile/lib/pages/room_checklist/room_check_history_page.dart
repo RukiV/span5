@@ -8,6 +8,7 @@ class _RoomCheckRecord {
   final int id;
   final int roomId;
   final int? userId;
+  final String? userName;
   final String summary;
   final DateTime checkedDatetime;
 
@@ -15,6 +16,7 @@ class _RoomCheckRecord {
     required this.id,
     required this.roomId,
     this.userId,
+    this.userName,
     required this.summary,
     required this.checkedDatetime,
   });
@@ -24,6 +26,7 @@ class _RoomCheckRecord {
       id: json['room_check_id'] ?? 0,
       roomId: json['room_id'] ?? 0,
       userId: json['user_id'],
+      userName: json['user_name'],
       summary: json['summary'] ?? '[]',
       checkedDatetime: DateTime.tryParse(json['checked_datetime'] ?? '') ?? DateTime.now(),
     );
@@ -125,9 +128,12 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
             Expanded(
               child: Text(dateStr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
+            if (check.userName != null && check.userName!.isNotEmpty)
+              Text("Uitgevoer deur: ${check.userName}",
+                style: TextStyle(color: Colors.grey[600], fontSize: 11)),
             if (check.userId != null)
               Text("Gebruiker #${check.userId}",
-                style: TextStyle(color: Colors.grey[600], fontSize: 11)),
+                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
           ],
         ),
         subtitle: Padding(

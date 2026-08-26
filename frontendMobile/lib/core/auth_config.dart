@@ -13,7 +13,7 @@ class AuthConfig {
   static String get redirectUri =>
       dotenv.env['AZURE_REDIRECT_URI'] ?? '';
   static String get scopesString =>
-      dotenv.env['AZURE_SCOPES'] ?? 'openid,profile,email,User.Read';
+      dotenv.env['AZURE_SCOPES'] ?? 'openid,profile,email,User.Read,Calendars.ReadWrite,offline_access';
 
   static List<String> get scopes => scopesString.split(',');
 }

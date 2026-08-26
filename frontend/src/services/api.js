@@ -179,6 +179,7 @@ export const usersAPI = {
   create: (data) => apiClient.post('/users', data),
   update: (id, data) => apiClient.patch(`/users/${id}`, data),
   delete: (id) => apiClient.delete(`/users/${id}`),
+  getAssignable: () => apiClient.get('/users/assignable'),
 };
 
 // ===== ROLLE-API (admin: bestuur rolle en hul regte) =====
@@ -307,6 +308,13 @@ export const roomChecksAPI = {
   getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
   getById: (id) => apiClient.get(`/room-checks/${id}`),
   create: (data) => apiClient.post('/room-checks', data),
+  sessions: {
+    getAll: (params) => apiClient.get('/room-checks/sessions', { params }),
+    create: (data) => apiClient.post('/room-checks/sessions', data),
+    update: (id, data) => apiClient.patch(`/room-checks/sessions/${id}`, data),
+    delete: (id) => apiClient.delete(`/room-checks/sessions/${id}`),
+    complete: (id) => apiClient.post(`/room-checks/sessions/${id}/complete`),
+  },
 };
 
 // ===== KALENDER EVENTS-API =====

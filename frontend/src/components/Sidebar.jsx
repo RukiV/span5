@@ -5,7 +5,7 @@ import {
   IoGridOutline, IoBusinessOutline, IoCubeOutline, IoConstructOutline,
   IoMapOutline, IoLocationOutline, IoWarningOutline, IoDocumentTextOutline,
   IoCalendarOutline, IoBarChartOutline, IoPeopleOutline,
-  IoShieldOutline, IoKeyOutline, IoLogOutOutline, IoSwapHorizontalOutline,
+  IoShieldOutline, IoKeyOutline, IoLogOutOutline, IoSwapHorizontalOutline, IoCheckboxOutline,
 } from "react-icons/io5";
 
 function Sidebar({ currentPath, onLogout }) {
@@ -51,6 +51,7 @@ function Sidebar({ currentPath, onLogout }) {
         )}
 
         {can('faults.manage_all') && <li><Link to="/fault-tickets" className={isActive('/fault-tickets')}><IoWarningOutline style={ic} />Foutkaartjies</Link></li>}
+        {can('roomchecks.manage') && <li><Link to="/room-checks-schedules" className={isActive('/room-checks-schedules')}><IoCheckboxOutline style={ic} />Kontrole Skedules</Link></li>}
         {can('jobs.manage') && <li><Link to="/work-orders" className={isInGroup(['/work-orders', '/ai-drafts'])}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
         {can('calendar.view') && <li><Link to="/calendar" className={isActive('/calendar')}><IoCalendarOutline style={ic} />Kalender</Link></li>}
         {can('reports.view') && <li><Link to="/verslae" className={isActive('/verslae')}><IoSwapHorizontalOutline style={ic} />Verslae</Link></li>}

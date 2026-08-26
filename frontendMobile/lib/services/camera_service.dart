@@ -25,4 +25,24 @@ class CameraService {
     }
     return null;
   }
+
+  /// Picks an existing image from the device gallery (same compression as
+  /// the camera so uploaded files stay small).
+  static Future<File?> pickFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920, // FHD Width
+        maxHeight: 1080, // FHD Height
+        imageQuality: 70, // Compression to save mobile data
+      );
+
+      if (image != null) {
+        return File(image.path);
+      }
+    } catch (e) {
+      debugPrint("Gallery Error: $e");
+    }
+    return null;
+  }
 }

@@ -112,6 +112,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
         return Colors.purple;
       case 'job.completion_requested':
         return Colors.teal;
+      case 'roomcheck.assigned':
+        return const Color(0xFF00796B);
       case 'system.announcement':
         return const Color(0xFF0e1e3b);
       default:
@@ -130,6 +132,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
       case 'job.status_changed':
       case 'job.completion_requested':
         return Icons.construction_outlined;
+      case 'roomcheck.assigned':
+        return Icons.event_available_outlined;
       case 'stock.low':
         return Icons.warning_amber_outlined;
       case 'system.announcement':

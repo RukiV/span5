@@ -12,12 +12,12 @@ from ....services.notification_service import NotificationService
 router = APIRouter()
 
 @router.get("", response_model=List[StockRead])
-def readStocks(session: Session = Depends(getSession), _user: User = Depends(require_right("stock.manage"))):
+def readStocks(session: Session = Depends(getSession), _user: User = Depends(require_right("stock.view"))):
     #Fetch all stocks
     return stock_service.getAll(session)
 
 @router.get("/{stockID}", response_model=StockRead)
-def readStock(stockID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("stock.manage"))):
+def readStock(stockID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("stock.view"))):
     #Fetch single stock
     stock = stock_service.getByID(session, stockID)
     if not stock:

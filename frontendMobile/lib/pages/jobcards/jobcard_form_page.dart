@@ -18,6 +18,7 @@ import '../../services/document_service.dart';
 import '../../services/image_service.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/quote_service.dart';
+import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
@@ -1226,6 +1227,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       'job_status': Jobcard.toBackendStatus(_status),
       'job_priority': _priority,
       'nature': _nature,
+      'job_notes': notes,
       // Werknotas word ook as 'n aparte veld gestoor sodat die kontrakteur se
       // aansig (job_notes) en die FK-kant dieselfde notas sien.
       'job_notes': notes,
@@ -1304,6 +1306,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
       await JobcardService.fetchJobs();
 
+      // 6. Sinkroniseer die geskeduleerde werksopdrag na Outlook (dieselfde
+      //    FBS-WO-merker as die web). Word nie-onderskeidend hanteer — 'n
+      //    fout hier moet nooit die stoor van die werksopdrag blokkeer nie.
+      await _syncScheduledOutlookEvent(
+        jobId,
+        scheduledDatetime: _scheduledDatetime,
+        scheduleType: _scheduleType,
+        description: desc,
+      );
+
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1324,6 +1336,30 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (!mounted) return;
     setState(() => _saving = false);
     _showSnack(message, error: true);
+  }
+
+  /// Skep (of vervang) die Outlook-afspraak vir 'n geskeduleerde werksopdrag,
+  /// met dieselfde `FBS-WO-<id>`-merker as die web se WorkOrderPage. As die
+  /// werksopdrag nie meer geskeduleer is nie, word bestaande merker-afsprake
+  /// verwyder.
+  Future<void> _syncScheduledOutlookEvent(
+    int jobId, {
+    required DateTime? scheduledDatetime,
+    required String scheduleType,
+    required String description,
+  }) async {
+    try {
+      await OutlookService.instance.deleteWorkOrderEvents(jobId);
+      if (scheduledDatetime == null) return;
+      await OutlookService.instance.createWorkOrderEvent(
+        jobId: jobId,
+        description: description,
+        scheduledDatetime: scheduledDatetime,
+        scheduleType: scheduleType,
+      );
+    } catch (e) {
+      debugPrint("Outlook-sinkronisering vir werksopdrag misluk: $e");
+    }
   }
 
   void _showSnack(String message, {bool error = false}) {

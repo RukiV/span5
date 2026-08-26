@@ -10,6 +10,7 @@ class RoomCheckBase(SQLModel):
     checked_datetime: Optional[datetime] = None
 
 class RoomCheck(RoomCheckBase, Base, table=True):
+    __tablename__ = "room_check"
     room_check_id: Optional[int] = Field(default=None, primary_key=True)
 
 class RoomCheckCreate(SQLModel):
@@ -19,6 +20,8 @@ class RoomCheckCreate(SQLModel):
 
 class RoomCheckRead(RoomCheckBase):
     room_check_id: int
+    user_name: Optional[str] = None
+    check_status: Optional[str] = None
 
 class RoomCheckUpdate(SQLModel):
     pass
