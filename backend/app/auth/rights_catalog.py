@@ -74,6 +74,9 @@ RIGHTS_CATALOG: dict[str, str] = {
     "reports.view": "View analytics reports.",
     "analytics.view": "View AI analytics panel.",
     "audit.view": "Read the audit log (read-only, no manage right exists).",
+    # AI
+    "ai.use": "Submit a fault description for AI drafting.",
+    "ai.approve": "Review, approve or reject AI fault drafts.",
     # Dosent
     "roomchecks.execute": "Execute room checklists (Dosent).",
 }
@@ -96,6 +99,7 @@ _FK_RIGHTS = {
     "quotes.view", "quotes.manage",
     "notifications.view", "notifications.manage",
     "predictions.view", "reports.view", "analytics.view", "audit.view",
+    "ai.use", "ai.approve",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
     ROLE_ADMIN: _FK_RIGHTS | {

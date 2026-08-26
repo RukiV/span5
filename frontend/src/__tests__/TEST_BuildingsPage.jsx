@@ -9,7 +9,7 @@ jest.mock('../services/api', () => ({
   locationAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }) },
   roomsAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }) },
 }));
-jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1 }, hasRight: (r) => ["locations.manage","buildings.manage","rooms.manage","assets.manage","stock.manage","faults.manage_all","jobs.manage"].includes(r) }) }));
+jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1 }, hasRight: (r) => ["locations.manage","buildings.manage","rooms.manage","assets.manage","stock.manage","faults.view","jobs.manage"].includes(r) }) }));
 jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
 jest.mock('../components/Modal/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: jest.fn(), dialog: null }) }));
 

@@ -53,7 +53,6 @@ ANON_ENDPOINTS = [
     ("get", f"{API}/building", None),
     ("get", f"{API}/rooms", None),
     ("get", f"{API}/location", None),
-    ("get", f"{API}/contractors", None),
     ("get", f"{API}/quotes", None),
     ("get", f"{API}/predictions", None),
     ("get", f"{API}/audit", None),
@@ -101,7 +100,7 @@ def test_student_can_read_and_create_own_faults(client, headers_for):
 
 def test_student_forbidden_elsewhere(client, headers_for):
     h = headers_for("student")
-    for path in [f"{API}/assets", f"{API}/users", f"{API}/job", f"{API}/stock", f"{API}/contractors"]:
+    for path in [f"{API}/assets", f"{API}/users", f"{API}/job", f"{API}/stock"]:
         assert client.get(path, headers=h).status_code == 403, path
     assert client.post(f"{API}/assets", json=NEW_ASSET_BODY, headers=h).status_code == 403
     assert client.post(f"{API}/job", json=NEW_JOB_BODY, headers=h).status_code == 403
@@ -350,7 +349,7 @@ def test_contractor_web_login_rejected(client, seeded):
 # defense-in-depth if it is ever mounted, but there is nothing to probe here.
 FK_ALLOWED_GETS = [
     f"{API}/assets", f"{API}/assettypes", f"{API}/stock", f"{API}/building",
-    f"{API}/rooms", f"{API}/location", f"{API}/contractors", f"{API}/quotes",
+    f"{API}/rooms", f"{API}/location", f"{API}/quotes",
     f"{API}/predictions", f"{API}/audit", f"{API}/fault",
     f"{API}/job", f"{API}/image/",
 ]

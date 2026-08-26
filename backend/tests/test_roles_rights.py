@@ -40,13 +40,13 @@ def test_only_admin_can_reach_roles_and_rights(client, headers_for):
 def test_admin_lists_builtin_roles_and_rights(client, headers_for):
     h = headers_for("admin")
     roles = client.get(f"{API}/roles", headers=h).json()
-    assert len(roles) == 4
+    assert len(roles) == 5
     assert all(r["is_builtin"] for r in roles)
     admin_role = next(r for r in roles if r["role_id"] == 3)
     assert "right_ids" in admin_role and len(admin_role["right_ids"]) >= 1
 
     rights = client.get(f"{API}/rights", headers=h).json()
-    assert len(rights) == 36
+    assert len(rights) == 39
     assert all(r["is_builtin"] for r in rights)
 
 

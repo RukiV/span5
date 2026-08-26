@@ -23,7 +23,7 @@ function RoomsPage({ embedded = false }) {
   const { user, rights } = useCurrentUser();
   const hasRight = (right) => (rights || []).includes(right);
   const navigate = useNavigate();
-  const canManageSessions = (rights || []).includes("roomchecks.manage");
+  const canManageSessions = (rights || []).includes("room_checks.manage");
 
   const [rooms, setRooms] = useState([]);
   const [showImportWizard, setShowImportWizard] = useState(false);

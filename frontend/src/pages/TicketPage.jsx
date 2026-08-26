@@ -584,7 +584,7 @@ function TicketPage() {
                 onResetWidths={colWidths.resetWidths}
               />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
-              {hasRight('faults.manage_all') && (
+              {hasRight('faults.manage') && (
                 <button
                   type="button"
                   className="btn-add"
@@ -594,7 +594,7 @@ function TicketPage() {
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              {hasRight('faults.manage_all') && (
+              {hasRight('faults.manage') && (
                 <ImportExportModal
                   isOpen={showImportWizard}
                   onClose={() => setShowImportWizard(false)}
