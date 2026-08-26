@@ -44,7 +44,7 @@ def get_image_limits(_user: User = Depends(get_current_user)):
 
 # UPLOAD IMAGE
 # Reachable by asset managers (assets.manage), by students attaching a photo to
-# their own fault card (faults.create_own), AND by contractors attaching a photo
+# their own fault card (faults.create), AND by contractors attaching a photo
 # to their own jobcard (jobs.update_own_status, scoped to own jobs below). The
 # mobile fault-reporting flow uploads here before creating the Faultcard.
 @router.post("/", response_model=ImageAssetRead, status_code=status.HTTP_201_CREATED)
@@ -56,7 +56,7 @@ async def upload_image(
     user: User = Depends(get_current_user),
 ):
     manage = user_has_right(session, user.role_id, "assets.manage")
-    can_fault = user_has_right(session, user.role_id, "faults.create_own")
+    can_fault = user_has_right(session, user.role_id, "faults.create")
     can_job = user_has_right(session, user.role_id, "jobs.update_own_status")
     if not (manage or can_fault or can_job):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -82,7 +82,7 @@ def attach_existing_image(
     parent_id: int,
     parent_type: str,
     session=Depends(getSession),
-    _user: User = Depends(require_any_right("assets.manage", "faults.create_own")),
+    _user: User = Depends(require_any_right("assets.manage", "faults.create")),
 ):
     service = ImageAssetService(session)
     return service.attach_existing_image(image_id=image_id, parent_id=parent_id, parent_type=parent_type)
@@ -115,7 +115,7 @@ def get_image_metadata(image_id: int, session=Depends(getSession), _user: User =
 
 
 @router.get("/", response_model=List[ImageAssetRead])
-def list_images(skip: int = 0, limit: int = 100, session=Depends(getSession), _user: User = Depends(require_right("assets.manage"))):
+def list_images(skip: int = 0, limit: int = 100, session=Depends(getSession), _user: User = Depends(require_right("assets.view"))):
     service = ImageAssetService(session)
     return service.get_multi(skip=skip, limit=limit)
 

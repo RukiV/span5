@@ -12,12 +12,12 @@ router = APIRouter()
 
 
 @router.get("", response_model=List[LocationRead])
-def readLocations(session: Session = Depends(getSession), _user: User = Depends(require_any_right("locations.manage", "faults.create_own"))):
+def readLocations(session: Session = Depends(getSession), _user: User = Depends(require_any_right("locations.view", "faults.create"))):
     return location_service.getAll(session)
 
 
 @router.get("/{locationID}", response_model=LocationRead)
-def readLocation(locationID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("locations.manage"))):
+def readLocation(locationID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("locations.view"))):
     location = location_service.getByID(session, locationID)
     if not location:
         raise HTTPException(status_code=404, detail="Location not found")

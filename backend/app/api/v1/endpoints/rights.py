@@ -23,12 +23,12 @@ def _to_manage_read(right: Rights) -> RightManageRead:
 
 
 @router.get("", response_model=List[RightManageRead])
-def readRights(session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readRights(session: Session = Depends(getSession), _user: User = Depends(require_right("rights.manage"))):
     return [_to_manage_read(right) for right in rights_service.getAll(session)]
 
 
 @router.get("/{rightID}", response_model=RightManageRead)
-def readRight(rightID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.manage"))):
+def readRight(rightID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("rights.manage"))):
     right = rights_service.getByID(session, rightID)
     if not right:
         raise HTTPException(status_code=404, detail="Right not found")
@@ -36,13 +36,13 @@ def readRight(rightID: int, session: Session = Depends(getSession), _user: User 
 
 
 @router.post("", response_model=RightManageRead, status_code=status.HTTP_201_CREATED)
-def addRight(rightIn: RightsCreate, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def addRight(rightIn: RightsCreate, session: Session = Depends(getSession), current: User = Depends(require_right("rights.manage"))):
     right = rights_service.create(session, rightIn, user_id=current.user_id)
     return _to_manage_read(right)
 
 
 @router.patch("/{rightID}", response_model=RightManageRead)
-def patchRight(rightID: int, rightIn: RightsUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def patchRight(rightID: int, rightIn: RightsUpdate, session: Session = Depends(getSession), current: User = Depends(require_right("rights.manage"))):
     right = rights_service.getByID(session, rightID)
     if not right:
         raise HTTPException(status_code=404, detail="Right not found")
@@ -53,7 +53,7 @@ def patchRight(rightID: int, rightIn: RightsUpdate, session: Session = Depends(g
 
 
 @router.delete("/{rightID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeRight(rightID: int, session: Session = Depends(getSession), current: User = Depends(require_right("users.manage"))):
+def removeRight(rightID: int, session: Session = Depends(getSession), current: User = Depends(require_right("rights.manage"))):
     right = rights_service.getByID(session, rightID)
     if not right:
         raise HTTPException(status_code=404, detail="Right not found")

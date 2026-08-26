@@ -78,18 +78,19 @@ def notify_fault_status_change(session: Session, fault: Faultcard, old_status, a
 
 # Authorization is driven entirely by the rights system now (see
 # auth/permissions.py), not by raw role_id comparisons:
-#   - faults.manage_all : Admin/FK — see/edit/delete every fault card. Supersedes
-#                         the own-only rights below.
-#   - faults.create_own : Admin/FK/Student — create a fault card.
-#   - faults.view_own   : Admin/FK/Student — see only fault cards you created.
+#   - faults.view   : Admin/FK — see every fault card.
+#   - faults.manage : Admin/FK — update/delete every fault card.
+#   - faults.create : Admin/FK/Student — create a fault card.
+#   - faults.view_own : Student — see only fault cards you created.
 # The own-fault-card ownership scoping (fault.user_id == user.user_id) is
-# preserved exactly as before; only its trigger condition changed.
+# preserved exactly as before; only its trigger condition changed. Students are
+# read-only after submitting: PATCH requires faults.manage.
 
 
 @router.get("", response_model=List[FaultcardRead])
 def readFaults(session: Session = Depends(getSession), user: User = Depends(get_current_user)):
-    """Fetch faults. faults.manage_all sees all; faults.view_own sees only own."""
-    if user_has_right(session, user.role_id, "faults.manage_all"):
+    """Fetch faults. faults.view sees all; faults.view_own sees only own."""
+    if user_has_right(session, user.role_id, "faults.view"):
         return fault_service.getAll(session)
     if user_has_right(session, user.role_id, "faults.view_own"):
         return session.exec(
@@ -100,8 +101,8 @@ def readFaults(session: Session = Depends(getSession), user: User = Depends(get_
 
 @router.get("/{faultID}", response_model=FaultcardRead)
 def readFault(faultID: int, session: Session = Depends(getSession), user: User = Depends(get_current_user)):
-    """Fetch single fault. Without manage_all, only own fault cards are visible."""
-    manage_all = user_has_right(session, user.role_id, "faults.manage_all")
+    """Fetch single fault. Without faults.view, only own fault cards are visible."""
+    manage_all = user_has_right(session, user.role_id, "faults.view")
     if not (manage_all or user_has_right(session, user.role_id, "faults.view_own")):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     fault = fault_service.getByID(session, faultID)
@@ -113,8 +114,8 @@ def readFault(faultID: int, session: Session = Depends(getSession), user: User =
 
 
 @router.post("", response_model=FaultcardRead, status_code=status.HTTP_201_CREATED)
-def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession), user: User = Depends(require_right("faults.create_own"))):
-    """Create a new fault report. Requires faults.create_own (Admin/FK/Student)."""
+def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession), user: User = Depends(require_right("faults.create"))):
+    """Create a new fault report. Requires faults.create (Admin/FK/Student)."""
     fault = fault_service.create(session, faultIn, user_id=user.user_id)
     notif_svc = NotificationService(session)
     summary = _fault_summary(session, fault)
@@ -140,18 +141,12 @@ def addFault(faultIn: FaultcardCreate, session: Session = Depends(getSession), u
 
 
 @router.patch("/{faultID}", response_model=FaultcardRead)
-def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depends(getSession), user: User = Depends(get_current_user)):
-    """Update existing fault. Without manage_all, only own fault cards are editable."""
-    manage_all = user_has_right(session, user.role_id, "faults.manage_all")
-    if not manage_all:
-        if not (
-            user_has_right(session, user.role_id, "faults.create_own")
-            or user_has_right(session, user.role_id, "faults.view_own")
-        ):
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
-        existing = fault_service.getByID(session, faultID)
-        if not existing or existing.user_id != user.user_id:
-            raise HTTPException(status_code=403, detail="Access denied")
+def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depends(getSession), user: User = Depends(require_right("faults.manage"))):
+    """Update existing fault. Requires faults.manage (Admin/FK).
+
+    Students are read-only after submitting — they may create and view their own
+    fault cards but not edit them afterwards.
+    """
     old = fault_service.getByID(session, faultID)
     old_status = old.fault_status if old else None
     fault = fault_service.update(session, faultID, faultIn, user_id=user.user_id)
@@ -165,8 +160,8 @@ def patchFault(faultID: int, faultIn: FaultcardUpdate, session: Session = Depend
 
 
 @router.delete("/{faultID}", status_code=status.HTTP_204_NO_CONTENT)
-def removeFault(faultID: int, session: Session = Depends(getSession), user: User = Depends(require_right("faults.manage_all"))):
-    """Delete fault. Requires faults.manage_all (Admin/FK)."""
+def removeFault(faultID: int, session: Session = Depends(getSession), user: User = Depends(require_right("faults.manage"))):
+    """Delete fault. Requires faults.manage (Admin/FK)."""
     if not fault_service.delete(session, faultID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Fault not found")
     return None

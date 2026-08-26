@@ -54,6 +54,7 @@ def _read_with_names(session: Session, job: Jobcard) -> JobcardRead:
 
 # Authorization is driven by the rights system (see auth/permissions.py):
 #   - jobs.manage            : Admin/FK — create/delete/edit any job.
+#   - jobs.view              : Admin/FK — see every job.
 #   - jobs.view_own          : Contractor — see only jobs assigned to you.
 #   - jobs.update_own_status : Contractor — patch only job_status /
 #                              job_finisheddatetime / job_notes on your own jobs.
@@ -63,8 +64,8 @@ def _read_with_names(session: Session, job: Jobcard) -> JobcardRead:
 
 @router.get("", response_model=List[JobcardRead])
 def readJobs(session: Session = Depends(getSession), user: User = Depends(get_current_user)):
-    """Fetch jobcards. jobs.manage sees all; jobs.view_own sees only assigned."""
-    if user_has_right(session, user.role_id, "jobs.manage"):
+    """Fetch jobcards. jobs.view sees all; jobs.view_own sees only assigned."""
+    if user_has_right(session, user.role_id, "jobs.view"):
         return [_read_with_names(session, job) for job in job_service.getAll(session)]
     if user_has_right(session, user.role_id, "jobs.view_own"):
         return [
@@ -79,7 +80,7 @@ def readJobs(session: Session = Depends(getSession), user: User = Depends(get_cu
 @router.get("/scheduled/upcoming", response_model=List[JobcardRead])
 def readScheduledJobs(session: Session = Depends(getSession), user: User = Depends(get_current_user)):
     """Fetch scheduled jobcards. jobs.view_own is scoped to assigned jobs."""
-    manage = user_has_right(session, user.role_id, "jobs.manage")
+    manage = user_has_right(session, user.role_id, "jobs.view")
     view_own = user_has_right(session, user.role_id, "jobs.view_own")
     if not (manage or view_own):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
@@ -95,8 +96,8 @@ def readScheduledJobs(session: Session = Depends(getSession), user: User = Depen
 
 @router.get("/{jobID}", response_model=JobcardRead)
 def readJob(jobID: int, session: Session = Depends(getSession), user: User = Depends(get_current_user)):
-    """Fetch single jobcard. Without jobs.manage, only assigned jobs are visible."""
-    manage = user_has_right(session, user.role_id, "jobs.manage")
+    """Fetch single jobcard. Without jobs.view, only assigned jobs are visible."""
+    manage = user_has_right(session, user.role_id, "jobs.view")
     if not (manage or user_has_right(session, user.role_id, "jobs.view_own")):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     job = job_service.getByID(session, jobID)
@@ -158,6 +159,22 @@ def addJob(jobIn: JobcardCreate, session: Session = Depends(getSession), user: U
                 reference_type="job",
                 reference_id=job.jobcard_id,
             )
+        # 'n Nuwe werksopdrag skuif die gekoppelde foutkaartjie outomaties na
+        # IN_PROGRESS (was voorheen 'n aparte PATCH van die mobiele app). Moenie
+        # reeds-geslote/opgeloste kaartjies raak nie.
+        if faultcard and faultcard.fault_status not in (
+            FaultStatus.RESOLVED, FaultStatus.CLOSED,
+        ):
+            if faultcard.fault_status != FaultStatus.IN_PROGRESS:
+                old_status = faultcard.fault_status
+                from ....api.v1.endpoints.fault import notify_fault_status_change
+                faultcard = fault_service.update(
+                    session, faultcard.fault_id,
+                    FaultcardUpdate(fault_status=FaultStatus.IN_PROGRESS),
+                    user_id=user.user_id,
+                )
+                if faultcard:
+                    notify_fault_status_change(session, faultcard, old_status, user)
     notif_svc.notify_admins(
         notification_type="job.created",
         title="Nuwe werksopdrag",

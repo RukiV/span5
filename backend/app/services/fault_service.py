@@ -3,14 +3,28 @@ from datetime import datetime, timezone
 from ..models.fault import Faultcard, FaultcardCreate, FaultcardUpdate
 from .base_service import BaseService
 from .prediction_service import prediction_service
+from .mappoint_service import mappoint_service
 
 
 class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
+    def _apply_mappoint(self, session, obj, data):
+        """Koppel 'n kaartligging (lat/lng) aan die foutkaartjie as beide gegee is.
+
+        Die lat/lng-velde is transiënt — hulle word nie as kolomme gestoor nie,
+        maar 'n Mappoint word geskep/opgedateer en mappoint_id word gekoppel.
+        """
+        latitude = getattr(data, "latitude", None)
+        longitude = getattr(data, "longitude", None)
+        if latitude is not None and longitude is not None:
+            mappoint_service.create_or_update(session, obj, latitude, longitude)
+
     def create(self, session, data, user_id=None):
         obj = self.model.model_validate(data)
         obj.fault_reportdatetime = datetime.now(timezone.utc)
         if user_id is not None:
             obj.user_id = user_id
+
+        self._apply_mappoint(session, obj, data)
 
         session.add(obj)
         try:
@@ -45,8 +59,15 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        # Transiënte velde word nie as kolomme gestoor nie — slegs die
+        # Mappoint-koppeling word daaruit afgelei.
+        update_data.pop("latitude", None)
+        update_data.pop("longitude", None)
         for key, value in update_data.items():
             setattr(obj, key, value)
+
+        self._apply_mappoint(session, obj, data)
+
         obj.fault_updatedatetime = datetime.now(timezone.utc)
 
         session.add(obj)

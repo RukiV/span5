@@ -1,7 +1,8 @@
 """Tests for the Roles & Rights management API.
 
-Covers the users.manage gate, built-in protection, end-to-end right-assignment
-(including live cache invalidation), and the delete/self-lockout guardrails.
+Covers the roles.manage / rights.manage gate, built-in protection, end-to-end
+right-assignment (including live cache invalidation), and the delete/self-lockout
+guardrails.
 """
 
 from sqlmodel import Session, select
@@ -22,7 +23,7 @@ def _rights_by_name(client, admin_headers):
 
 
 # --------------------------------------------------------------------------
-# Access gate (users.manage — Admin only)
+# Access gate (roles.manage / rights.manage — Admin only)
 # --------------------------------------------------------------------------
 
 def test_only_admin_can_reach_roles_and_rights(client, headers_for):
@@ -45,7 +46,7 @@ def test_admin_lists_builtin_roles_and_rights(client, headers_for):
     assert "right_ids" in admin_role and len(admin_role["right_ids"]) >= 1
 
     rights = client.get(f"{API}/rights", headers=h).json()
-    assert len(rights) == 25  # 23 + ai.use + ai.approve (AI fault-draft pipeline)
+    assert len(rights) == 36
     assert all(r["is_builtin"] for r in rights)
 
 
@@ -66,11 +67,12 @@ def test_builtin_right_modify_and_delete_protected(client, headers_for):
     assert client.delete(f"{API}/rights/{right_id}", headers=h).status_code == 403
 
 
-def test_admin_role_cannot_lose_users_manage(client, headers_for):
+def test_admin_role_cannot_lose_admin_console_rights(client, headers_for):
     h = headers_for("admin")
     names = _rights_by_name(client, h)
-    without_users_manage = [i for n, i in names.items() if n != "users.manage"]
-    resp = client.put(f"{API}/roles/3/rights", json={"right_ids": without_users_manage}, headers=h)
+    protected = {"users.manage", "roles.manage", "rights.manage"}
+    without_admin_console = [i for n, i in names.items() if n not in protected]
+    resp = client.put(f"{API}/roles/3/rights", json={"right_ids": without_admin_console}, headers=h)
     assert resp.status_code == 403
 
 
@@ -119,11 +121,13 @@ def test_custom_role_assignment_takes_effect_live(client, headers_for, engine):
     member_headers = {"Authorization": f"Bearer {create_session_token(member_id)}", "X-Client-Type": "web"}
     assert client.get(f"{API}/assets", headers=member_headers).status_code == 403
 
-    # Grant assets.manage to the role -> must take effect immediately (cache cleared).
-    assets_manage_id = _rights_by_name(client, h)["assets.manage"]
-    put = client.put(f"{API}/roles/{role_id}/rights", json={"right_ids": [assets_manage_id]}, headers=h)
+    # Grant assets.view + assets.manage to the role -> must take effect
+    # immediately (cache cleared). Reading /assets only needs assets.view.
+    names = _rights_by_name(client, h)
+    granted = [names["assets.view"], names["assets.manage"]]
+    put = client.put(f"{API}/roles/{role_id}/rights", json={"right_ids": granted}, headers=h)
     assert put.status_code == 200
-    assert put.json() == [assets_manage_id]
+    assert put.json() == granted
 
     assert client.get(f"{API}/assets", headers=member_headers).status_code == 200
 

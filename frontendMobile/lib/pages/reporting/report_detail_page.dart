@@ -2,6 +2,7 @@ import '../../services/campus_service.dart';
 import 'edit_report_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/report_service.dart';
@@ -24,12 +25,32 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   late Report _currentReport;
   List<int> _imageIds = [];
   bool _imagesLoading = true;
+  LatLng? _mapPoint;
 
   @override
   void initState() {
     super.initState();
     _currentReport = widget.report;
     _loadImages();
+    _loadMapPoint();
+  }
+
+  // Haal die kaartligging (Mappoint) vir die kaartjie op.
+  Future<void> _loadMapPoint() async {
+    final mappointId = _currentReport.mappointId;
+    if (mappointId == null) return;
+    try {
+      final response = await ApiClient().client.get('/mappoint/$mappointId');
+      if (response.statusCode == 200) {
+        final lat = (response.data['latitude'] as num?)?.toDouble();
+        final lng = (response.data['longitude'] as num?)?.toDouble();
+        if (mounted && lat != null && lng != null) {
+          setState(() => _mapPoint = LatLng(lat, lng));
+        }
+      }
+    } catch (e) {
+      debugPrint("Kon nie kaartligging laai nie: $e");
+    }
   }
 
   // Haal die kaartjie se fotos (ImageAssetLink met parent_type 'ticket').
@@ -81,7 +102,13 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
             _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
             _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (UserSession.can('faults.manage_all'))
+            if (_currentReport.isOutdoor)
+              _buildDetailRow("Buite Lokaal", "Ja"),
+            if (_mapPoint != null) ...[
+              const SizedBox(height: 12),
+              _buildMapCard(),
+            ],
+            if (UserSession.can('faults.view'))
               _buildDetailRow("Bate ID", _currentReport.assetSerialCode ?? _currentReport.assetId),
             _buildDetailRow("Werksoort", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
@@ -217,7 +244,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               ),
             ),
           ],
-          if (UserSession.can('faults.manage_all')) ...[
+          if (UserSession.can('faults.manage')) ...[
             const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             Row(
               children: [
@@ -284,6 +311,33 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   Widget _buildSectionHeader(String title) {
     return Text(title.toUpperCase(), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2));
+  }
+
+  Widget _buildMapCard() {
+    final point = _mapPoint!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("Kaartligging"),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: IgnorePointer(
+            child: SizedBox(
+              height: 180,
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(target: point, zoom: 17),
+                markers: {
+                  Marker(markerId: const MarkerId("fault_point"), position: point),
+                },
+                zoomControlsEnabled: false,
+                myLocationEnabled: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildDetailRow(String label, String value) {

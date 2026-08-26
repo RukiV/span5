@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, quote, audit, predictions, image, calendar, role, rights, document, room_check, analytics, notifications, ai, import_data
+from .v1.endpoints import assets, assettype, room, location, building, fault, job, stock, auth, user, contractor, quote, audit, predictions, image, calendar, role, rights, document, room_check, room_check_session, analytics, notifications, ai, import_data, mappoint
 
 api_router = APIRouter()
 
@@ -15,6 +15,7 @@ api_router.include_router(stock.router, prefix="/stock", tags=["stock"])
 api_router.include_router(user.router, prefix="/users", tags=["users"])
 api_router.include_router(role.router, prefix="/roles", tags=["roles"])
 api_router.include_router(rights.router, prefix="/rights", tags=["rights"])
+api_router.include_router(contractor.router, prefix="/contractors", tags=["contractors"])
 api_router.include_router(quote.router, prefix="/quotes", tags=["quotes"])
 api_router.include_router(audit.router, prefix="/audit", tags=["audit"])
 api_router.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
@@ -22,6 +23,8 @@ api_router.include_router(image.router, prefix="/image", tags=["image"])
 api_router.include_router(document.router, prefix="", tags=["documents"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["calendar"])
 api_router.include_router(room_check.router, prefix="/room-checks", tags=["room-checks"])
+api_router.include_router(room_check_session.router, prefix="/room-checks/sessions", tags=["room-checks"])
+api_router.include_router(mappoint.router, prefix="/mappoint", tags=["mappoint"])
 api_router.include_router(analytics.router, prefix="", tags=["analytics"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])

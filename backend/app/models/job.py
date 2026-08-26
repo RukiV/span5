@@ -97,6 +97,12 @@ class JobcardCreate(JobcardBase):
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
     duplicate_of: Optional[int] = None
+    mappoint_id: Optional[int] = None
+    # Transiënte velde: word nie as kolomme gestoor nie — die diens skep/wysig
+    # 'n Mappoint (lat/lng) en koppel mappoint_id aan die werksopdrag, sodat
+    # die kontrakteur die fout se presiese ligging sien.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class JobcardRead(JobcardBase):
@@ -142,3 +148,6 @@ class JobcardUpdate(SQLModel):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
+    # Transiënte velde vir die kaartligging (soos by JobcardCreate).
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None

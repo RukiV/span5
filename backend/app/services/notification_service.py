@@ -70,6 +70,7 @@ NOTIFICATION_TYPES = [
     "stock.low",
     "system.announcement",
     "calendar.reminder",
+    "roomcheck.assigned",
 ]
 
 class NotificationService:

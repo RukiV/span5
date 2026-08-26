@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  aad_oauth: ^1.0.0
   image_picker: ^1.0.7
   mobile_scanner: ^7.2.0
   geolocator: ^13.0.1
@@ -32,6 +31,7 @@ dependencies:
   # Kwotasie PDF's: kies 'n PDF-lêer en maak dit in 'n eksterne besigtiger oop
   file_picker: ^8.1.2
   open_filex: ^4.4.0
+  flutter_appauth: ^12.0.2
 
 dev_dependencies:
   flutter_test:
