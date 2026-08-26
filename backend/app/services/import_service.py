@@ -322,7 +322,7 @@ TABLES: dict[str, TableSpec] = {
     # Kontrakteurs is gewone gebruikers (rol "Kontrakteur") en word deur die
     # "user"-tabel ingevoer — daar is geen aparte kontrakteurstabel meer nie.
     "fault": TableSpec(
-        key="fault", label="Foutkaartjies", order=9, right="faults.manage_all",
+        key="fault", label="Foutkaartjies", order=9, right="faults.manage",
         model=Faultcard, create_schema=FaultcardCreate, update_schema=FaultcardUpdate,
         service=fault_service, pk_field="fault_id",
         sheet_aliases=("fout", "foute", "foutkaart", "foutkaartjies", "fault", "faults", "fault ticket"),

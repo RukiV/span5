@@ -57,16 +57,17 @@ def engine_fixture():
 
 @pytest.fixture(name="seeded")
 def seeded_fixture(engine):
-    """Seed roles (1-4), the rights catalog + assignments, one user per role, and
+    """Seed roles (1-5), the rights catalog + assignments, one user per role, and
     a student-owned fault + a contractor-assigned job to exercise ownership scoping.
     """
     permissions.clear_rights_cache()
     with Session(engine) as session:
-        # Roles must be created in this order so they get ids 1..4.
+        # Roles must be created in this order so they get ids 1..5.
         seed._get_or_create_default_role(session)      # 1 = Student
         seed._get_or_create_fk_role(session)           # 2 = FK
         seed._get_or_create_admin_role(session)        # 3 = Admin
         seed._get_or_create_contractor_role(session)   # 4 = Contractor
+        seed._get_or_create_dosent_role(session)       # 5 = Dosent
         seed.seed_rights(session)
 
         student = seed._get_or_create_test_user(session, "s", "s", "student@test.local", "studentpw", seed.ROLE_STUDENT)

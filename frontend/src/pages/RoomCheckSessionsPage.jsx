@@ -41,7 +41,7 @@ function RoomCheckSessionsPage() {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
   const { user, rights } = useCurrentUser();
-  const canManage = (rights || []).includes("roomchecks.manage");
+  const canManage = (rights || []).includes("room_checks.manage");
 
   const [searchParams, setSearchParams] = useSearchParams();
 

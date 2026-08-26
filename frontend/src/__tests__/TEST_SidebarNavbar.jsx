@@ -10,7 +10,8 @@ jest.mock('../services/api', () => ({
 }));
 
 const fullRights = ['assets.manage', 'stock.manage', 'rooms.manage', 'buildings.manage',
-  'locations.manage', 'faults.manage_all', 'jobs.manage',
+  'locations.manage', 'faults.view', 'jobs.manage',
+  'room_checks.manage', 'ai.use', 'ai.approve',
   'calendar.view', 'predictions.view', 'users.manage',
   'roles.manage', 'rights.manage'];
 
