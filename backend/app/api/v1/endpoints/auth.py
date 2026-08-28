@@ -21,6 +21,7 @@ from ....models.revoked_token import RevokedToken
 from ....models.password_reset import PasswordResetToken
 from ....services.user_service import user_service
 from ....services.email_service import send_password_reset
+from ....middleware.rate_limit import limiter
 
 router = APIRouter()
 
@@ -55,12 +56,18 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
     """
     Haal die huidige gebruiker uit die Bearer-token.
     Verifieer token geldigheid en haal gebruiker van database.
+    Kontroleer ook dat die token nie herroep is nie.
     """
     token = _get_bearer_token(request)
     if not token:
         return None
-    # Verifieer token handtekening en verstryking
-    payload = verify_session_token(token)
+    # Verifieer token handtekening, verstryking en herroeping
+    revoked_hashes = {
+        r.token_hash for r in session.exec(
+            select(RevokedToken).where(RevokedToken.expires_at > datetime.utcnow())
+        ).all()
+    }
+    payload = verify_session_token(token, revoked_hashes=revoked_hashes)
     if not payload:
         return None
     # Haal gebruiker uit database
@@ -141,6 +148,7 @@ def _reset_failed_attempts(session: Session, user: User) -> None:
 
 
 @router.post("/login")
+@limiter.limit("10/minute")
 def login(login_data: LoginRequest, request: Request, session: Session = Depends(getSession)):
     """
     Plaaslike aanmelding met e-pos en wagwoord.
@@ -170,6 +178,10 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
     else:
         # Legacy plaintext password migration
         if login_data.user_password == user.user_password:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Legacy plaintext password upgraded to hash on login for user_id=%s", user.user_id
+            )
             user.user_password = hash_password(login_data.user_password)
             session.add(user)
             session.commit()
@@ -207,8 +219,13 @@ def validate_session(request: Request, session: Session = Depends(getSession)):
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
     
-    # Verifieer token handtekening en verstryking
-    payload = verify_session_token(token)
+    # Verifieer token handtekening, verstryking en herroeping
+    revoked_hashes = {
+        r.token_hash for r in session.exec(
+            select(RevokedToken).where(RevokedToken.expires_at > datetime.utcnow())
+        ).all()
+    }
+    payload = verify_session_token(token, revoked_hashes=revoked_hashes)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session.")
     
@@ -289,7 +306,8 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, session: Session = Depends(getSession)):
+@limiter.limit("5/minute")
+def forgot_password(data: ForgotPasswordRequest, request: Request, session: Session = Depends(getSession)):
     user = user_service.get_by_email(session, data.user_email)
     if not user:
         # Always return success to prevent email enumeration
@@ -351,6 +369,7 @@ def reset_password(data: ResetPasswordRequest, session: Session = Depends(getSes
 
 
 @router.post("/microsoft")
+@limiter.limit("10/minute")
 async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request, session: Session = Depends(getSession)):
     """
     Microsoft Azure AD aanmelding.
