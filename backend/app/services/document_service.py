@@ -7,6 +7,9 @@ from ..models.document import QuoteDocument, QuoteDocumentRead, QuoteDocumentUpd
 
 
 class QuoteDocumentService:
+    MAX_PDF_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+    PDF_MAGIC = b"%PDF"
+
     def __init__(self, session: Session):
         self.session = session
 
@@ -18,7 +21,15 @@ class QuoteDocumentService:
         if not content:
             raise HTTPException(status_code=400, detail="Uploaded file is empty")
 
-        if file.content_type and "pdf" not in file.content_type.lower():
+        if len(content) > self.MAX_PDF_UPLOAD_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail="PDF file exceeds the maximum allowed size of 10MB",
+            )
+
+        # Server-side content sniffing: verify the PDF header (%PDF) instead of
+        # trusting the spoofable client-supplied Content-Type header.
+        if not content[:4].startswith(self.PDF_MAGIC):
             raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
         document = QuoteDocument(

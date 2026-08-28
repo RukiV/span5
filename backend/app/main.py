@@ -18,11 +18,24 @@ from .services.reminder_scheduler import reminder_loop
 
 from .middleware.idempotency import IdempotencyMiddleware
 from .middleware.security_headers import add_security_headers
+from .middleware.rate_limit import limiter
 
 app = FastAPI(
     title="FBS Facility Management API", 
     version="1.0.0"
 )
+
+_ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
+_is_prod = _ENV not in {"development", "dev", "local", "test", "testing"}
+
+if _ENV not in {"test", "testing"}:
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
+    from slowapi import _rate_limit_exceeded_handler
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
 
 # --- MOBILE ASSET HOSTING ---
 # This section ensures that images uploaded from the mobile app are stored
@@ -97,18 +110,15 @@ origins = [
 # Starlette app.add_middleware() builds a stack: each call WRAPS the previous
 # one, so the LAST call becomes the OUTERMOST layer. CORSMiddleware MUST be
 # outermost so it intercepts OPTIONS preflight requests before any other
-# middleware can touch them. If it sits inside another middleware, the outer
-# layer may reject or transform the OPTIONS request before CORS headers are
-# added, causing mobile/web clients to fail with 400/403.
+# middleware can touch them.
 #
-# allow_origin_regex=".*" allows any origin during development. The backend
-# still enforces auth via Bearer tokens, so this is safe. For production,
-# replace with an explicit allow_origins list of your domain(s).
+# In production the origin list is explicit; in development any origin is
+# allowed (credentials still protected by Bearer tokens).
 # =============================================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex=".*",
+    allow_origins=origins if _is_prod else ["*"],
+    allow_origin_regex=None if _is_prod else ".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

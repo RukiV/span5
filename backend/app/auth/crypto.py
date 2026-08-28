@@ -4,6 +4,9 @@ from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+_DEV_ENVIRONMENTS = {"development", "dev", "local", "test", "testing"}
+
+_ENV = os.getenv("ENVIRONMENT", os.getenv("APP_ENV", "development")).strip().lower()
 _ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
 _fernet = None
 
@@ -24,6 +27,15 @@ def _get_fernet() -> Fernet:
             ).derive(raw_key.encode("utf-8"))
         )
     else:
+        if _ENV not in _DEV_ENVIRONMENTS:
+            raise RuntimeError(
+                "ENCRYPTION_KEY is not set while ENVIRONMENT is not a development "
+                "environment. Refusing to start: a random per-process key would make "
+                "previously encrypted data unrecoverable after a restart. Set "
+                "ENCRYPTION_KEY to a persistent, secret value."
+            )
+        # Development only: a random key means encrypted values do not survive a
+        # restart, which is acceptable for local testing but never for production.
         key = Fernet.generate_key()
 
     _fernet = Fernet(key)

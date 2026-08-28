@@ -9,7 +9,7 @@ from openpyxl import Workbook
 from pydantic import BaseModel
 from sqlmodel import Session
 
-from ....auth.permissions import get_current_user, user_has_right
+from ....auth.permissions import get_current_user, user_has_right, require_right
 from ....db.database import getSession
 from ....models.user import User
 from ....services.import_service import (
@@ -50,9 +50,17 @@ class ImportCommitIn(BaseModel):
 async def preview_import(
     file: UploadFile = File(...),
     hints: Optional[str] = Form(None),
-    _user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     session: Session = Depends(getSession),
 ):
+    facility_rights = ["assets.manage", "stock.manage", "rooms.manage",
+                       "buildings.manage", "locations.manage", "faults.manage",
+                       "jobs.manage", "quotes.manage", "users.manage"]
+    if not any(user_has_right(session, user.role_id, r) for r in facility_rights):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions to import data",
+        )
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="Leë lêer")
