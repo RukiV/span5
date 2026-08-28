@@ -12,6 +12,30 @@ class ImageAssetService:
     def __init__(self, session: Session):
         self.session = session
 
+    # File-size check applied BEFORE any parsing/compression, independent of the
+    # client-supplied Content-Type header.
+    MAX_RAW_UPLOAD_SIZE = 25 * 1024 * 1024  # 25 MB raw upload cap
+
+    # Magic-byte signatures (server-side content sniffing) so a spoofed
+    # Content-Type cannot smuggle a non-image payload into the system.
+    __ALLOWED_IMAGE_MAGIC = (
+        (b"\xff\xd8\xff", "jpeg"),       # JPEG
+        (b"\x89PNG\r\n\x1a\n", "png"),   # PNG
+        (b"RIFF", "webp"),               # RIFF...WEBP
+        (b"GIF87a", "gif"),              # GIF87a
+        (b"GIF89a", "gif"),              # GIF89a
+    )
+
+    @staticmethod
+    def _sniff_image_header(data: bytes) -> bool:
+        if not data:
+            return False
+        for magic, _name in ImageAssetService.__ALLOWED_IMAGE_MAGIC:
+            if data.startswith(magic):
+                return True
+        return False
+
+
     @staticmethod
     def compress_image_bytes(file_content: bytes, content_type: str, filename: Optional[str] = None) -> tuple[bytes, str]:
         """Resize and compress uploaded images before they are stored in the database."""
@@ -84,6 +108,17 @@ class ImageAssetService:
                 except Exception:
                     pass
                 raise
+
+            if file_content and len(file_content) > self.MAX_RAW_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Uploaded file exceeds the maximum allowed size.",
+                )
+            if file_content and not self._sniff_image_header(file_content):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Uploaded file is not a valid image.",
+                )
 
             compressed_content, compressed_mime_type = self.compress_image_bytes(
                 file_content=file_content,
