@@ -87,21 +87,7 @@ Hierdie opstelling is nodig as jy die stelsel vir 'n nuwe omgewing ontplooi (nie
    ```
    (Hierdie lêer word tans deur `frontendMobile/android/app/build.gradle` ingelees)
 
-### Stap 3: (Opsioneel) Registreer die iOS-app
-
-1. In Firebase Console, klik die iOS-ikoon
-2. **iOS bundle ID**: `com.span5.app` (sien Xcode se projektelling)
-3. Laai die `GoogleService-Info.plist` af en plaas dit in `frontendMobile/ios/Runner/`
-4. **Belangrik**: Voeg die plist by die Xcode-projek — in Xcode, sleep die lêer na
-   die `Runner`-groep en merk die `Runner`-target (Target Membership → Runner) sodat
-   dit saam met die app gebundel word. Sonder hierdie lêer werk die app nog steeds
-   op iOS, maar FCM-stootkennisgewings is af (die app log 'n fout en gaan voort).
-5. **Pas op**: As jy iOS ondersteun, moet jy ook die APNs-sleutel in Firebase oplaai
-   (Project Settings → Cloud Messaging → APNs). Die app stuur `platform: "ios"` op
-   die `POST /notifications/device-token`-oproep, so die backend kan iOS-toestelle
-   korrek rig.
-
-### Stap 4: Skep 'n Firebase Admin SDK-rekening (vir die backend)
+### Stap 3: Skep 'n Firebase Admin SDK-rekening (vir die backend)
 
 Die backend gebruik `firebase-admin` om FCM-berigte te stuur. Dit het 'n diensrekening-sleutel nodig.
 
@@ -114,7 +100,7 @@ Die backend gebruik `firebase-admin` om FCM-berigte te stuur. Dit het 'n diensre
    ```
    (Hierdie lêer is in `.gitignore` — dit word nie in die repo gestoor nie. Gebruik `backend/firebase-service-account.json.example` as verwysing vir die formaat.)
 
-### Stap 5: Werking
+### Stap 4: Werking
 
 - **Mobiele app (Flutter)**: Wanneer die gebruiker aanmeld, registreer die app outomaties die FCM-toestel-token by `POST /api/v1/notifications/device-token`
 - **Backend (Python)**: Wanneer `NotificationService.create_notification()` 'n kennisgewing skep, stuur dit die FCM-berig na alle geregistreerde toestelle vir daardie gebruiker (mits `push_enabled=True` in die voorkeure)
