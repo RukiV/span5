@@ -127,8 +127,8 @@ def update_session(
             NotificationService(session).create_notification(
                 user_id=data.assigned_user_id,
                 notification_type="roomcheck.assigned",
-                title="Lokaal Kontrole Herroewys",
-                message=f"Lokaal kontrole is herroewys aan jou (skedule #{session_id})",
+                title="Lokaal Kontrole Wysig",
+                message=f"Lokaal kontrole is wysig aan jou (skedule #{session_id})",
                 actor_id=user.user_id,
                 reference_type="room_check_session",
                 reference_id=session_id,

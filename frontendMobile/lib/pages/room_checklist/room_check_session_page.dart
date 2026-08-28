@@ -67,8 +67,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Herroewys aan",
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Wysig aan", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     initialValue: session.assignedUserId,
