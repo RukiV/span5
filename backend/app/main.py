@@ -19,6 +19,7 @@ from .services.reminder_scheduler import reminder_loop
 from .middleware.idempotency import IdempotencyMiddleware
 from .middleware.security_headers import add_security_headers
 from .middleware.rate_limit import limiter
+from .middleware.datetimes import UtcDatetimeMiddleware
 
 app = FastAPI(
     title="FBS Facility Management API", 
@@ -36,6 +37,10 @@ if _ENV not in {"test", "testing"}:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+
+# Tag naive (UTC) datetimes in JSON responses with an explicit "Z" so clients in
+# any timezone render the correct local time (10:00 UTC -> 12:00 for a UTC+2 user).
+app.add_middleware(UtcDatetimeMiddleware)
 
 # --- MOBILE ASSET HOSTING ---
 # This section ensures that images uploaded from the mobile app are stored

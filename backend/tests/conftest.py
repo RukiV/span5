@@ -39,6 +39,7 @@ from app.db import seed  # noqa: E402
 from app.db.database import getSession  # noqa: E402
 from app.middleware.idempotency import IdempotencyMiddleware  # noqa: E402
 from app.middleware.security_headers import add_security_headers  # noqa: E402
+from app.middleware.datetimes import UtcDatetimeMiddleware  # noqa: E402
 from app.models.fault import Faultcard  # noqa: E402
 from app.models.job import Jobcard  # noqa: E402
 
@@ -74,6 +75,7 @@ def seeded_fixture(engine):
         fk = seed._get_or_create_test_user(session, "f", "f", "fk@test.local", "fkpw", seed.ROLE_FK)
         admin = seed._get_or_create_test_user(session, "a", "a", "admin@test.local", "adminpw", seed.ROLE_ADMIN)
         contractor = seed._get_or_create_test_user(session, "c", "c", "contractor@test.local", "contractorpw", seed.ROLE_CONTRACTOR)
+        dosent = seed._get_or_create_test_user(session, "d", "d", "dosent@test.local", "dosentpw", seed.ROLE_DOSENT)
 
         fault = Faultcard(fault_description="student's own fault", user_id=student.user_id)
         job = Jobcard(job_desc="contractor's assigned job", contractor_id=contractor.user_id)
@@ -89,18 +91,21 @@ def seeded_fixture(engine):
                 "fk": fk.user_id,
                 "admin": admin.user_id,
                 "contractor": contractor.user_id,
+                "dosent": dosent.user_id,
             },
             "emails": {
                 "student": "student@test.local",
                 "fk": "fk@test.local",
                 "admin": "admin@test.local",
                 "contractor": "contractor@test.local",
+                "dosent": "dosent@test.local",
             },
             "passwords": {
                 "student": "studentpw",
                 "fk": "fkpw",
                 "admin": "adminpw",
                 "contractor": "contractorpw",
+                "dosent": "dosentpw",
             },
             "fault_id": fault.fault_id,
             "job_id": job.jobcard_id,
@@ -119,6 +124,10 @@ def client_fixture(engine, seeded):
     # Add idempotency middleware with the test engine so it uses SQLite
     app.add_middleware(IdempotencyMiddleware)
     app.state.idempotency_engine = engine
+
+    # Same UTC-tagging middleware shipped by the production app (app/main.py),
+    # so responses carry an explicit "Z" on naive (UTC) datetimes.
+    app.add_middleware(UtcDatetimeMiddleware)
 
     def override_get_session():
         with Session(engine) as session:
