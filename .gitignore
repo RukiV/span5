@@ -33,6 +33,10 @@ AI_PLAN.md
 skills-lock.json
 .opencode/
 
+# Large local ML model files (kept off the remote on purpose)
+*.gguf
+*.bin
+
 # Local-only documentation (kept off the remote on purpose)
 DOCKER_101.md
 GIT_101.md

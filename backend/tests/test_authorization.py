@@ -266,7 +266,8 @@ def test_contractor_completion_request_denied_on_other_job(client, headers_for, 
 def test_contractor_can_upload_and_delete_own_job_photos(client, headers_for, seeded):
     h = headers_for("contractor")
     job_id = seeded["job_id"]
-    files = {"file": ("foto.jpg", b"fake-jpeg-bytes", "image/jpeg")}
+    # Minimal valid JPEG header so the server-side magic-byte check passes.
+    files = {"file": ("foto.jpg", b"\xff\xd8\xff" + b"fake-jpeg-bytes", "image/jpeg")}
 
     up = client.post(
         f"{API}/image/",
@@ -292,7 +293,8 @@ def test_contractor_can_upload_and_delete_own_job_photos(client, headers_for, se
 def test_contractor_cannot_upload_or_delete_outside_own_jobs(client, headers_for, engine, seeded):
     h = headers_for("contractor")
     ah = headers_for("admin")
-    files = {"file": ("foto.jpg", b"fake-jpeg-bytes", "image/jpeg")}
+    # Minimal valid JPEG header so the server-side magic-byte check passes.
+    files = {"file": ("foto.jpg", b"\xff\xd8\xff" + b"fake-jpeg-bytes", "image/jpeg")}
 
     with Session(engine) as session:
         other = Jobcard(job_desc="fk's job", contractor_id=seeded["ids"]["fk"])
