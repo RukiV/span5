@@ -178,7 +178,7 @@
     margin-left: auto;
 }
 
-.controls input,
+.controls input:not(.react-select__input):not(.select__input),
 .controls select:not([class*="cascade"]) {
     padding: 10px;
     border: 1px solid #cbd5e1;
@@ -198,6 +198,12 @@
     justify-content: center;
 }
 
+
+/* React-select: single blue outline when focused (border only, no outer ring) */
+.react-select__control--is-focused,
+.select__control--is-focused {
+    box-shadow: none;
+}
 
 /*Main page*/
 .main { 

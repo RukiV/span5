@@ -8,6 +8,7 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import useCloseOnOutsideClick from "../hooks/useCloseOnOutsideClick";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -18,6 +19,39 @@ import "../styles/Asset.css";
 import "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+
+// Prevent react-select from toggling a dropdown closed when you click the control again.
+// Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
+function noCloseOnClick(selectProps, innerOnMouseDown) {
+  return (event) => {
+    if (selectProps && selectProps.menuIsOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (innerOnMouseDown) {
+      innerOnMouseDown(event);
+    }
+  };
+}
+
+const NoCloseControl = (props) => (
+  <components.Control
+    {...props}
+    innerProps={{
+      ...props.innerProps,
+      onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+    }}
+  />
+);
+
+const NoCloseDropdownIndicator = (props) => (
+  <components.DropdownIndicator
+    {...props}
+    innerProps={{
+      ...props.innerProps,
+      onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+    }}
+  />
+);
 
 function AssetPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -55,6 +89,16 @@ function AssetPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const [cascadeMenuOpen, setCascadeMenuOpen] = useState(false);
+  const [cascadeCloseSig, setCascadeCloseSig] = useState(0);
+  const [modalCascadeMenuOpen, setModalCascadeMenuOpen] = useState(false);
+  const [modalCascadeCloseSig, setModalCascadeCloseSig] = useState(0);
+  const controlsCascadeRef = useCloseOnOutsideClick(() => {
+    if (cascadeMenuOpen) setCascadeCloseSig((s) => s + 1);
+  });
+  const modalCascadeRef = useCloseOnOutsideClick(() => {
+    if (modalCascadeMenuOpen) setModalCascadeCloseSig((s) => s + 1);
+  });
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -640,7 +684,7 @@ function AssetPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls" style={{ marginTop: "20px" }}>
         <div className="controls-left">
           <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <input
@@ -651,13 +695,19 @@ function AssetPage({ embedded = false }) {
             />
           </div>
           <Select
-            className="basic-single"
-            classNamePrefix="select"
+            className="react-select-container"
+            classNamePrefix="react-select"
             value={filterColumnOptions.find(option => option.value === filterColumn)}
             onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
             options={filterColumnOptions}
             isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+            styles={{
+              container: (base) => ({ ...base, minWidth: '160px' }),
+              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+            }}
           />
           {(() => {
             const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
@@ -675,41 +725,58 @@ function AssetPage({ embedded = false }) {
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
             const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+              <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
                 {breadcrumbData.map((item, i) => {
                   const isLast = i === breadcrumbData.length - 1;
                   const showArrow = isLast ? cascadeCount < 3 : true;
                   return (
                     <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                      <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                       {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                     </React.Fragment>
                   );
                 })}
               </div>
             );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+            const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+             const CascadeControl = ({ children, ...props }) => (
+               <components.Control
+                 {...props}
+                 innerProps={{
+                   ...props.innerProps,
+                   onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+                 }}
+               >
+                 {children}
+                 {cascadeCount > 0 && (
+                   <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                     <IoReturnUpBack size={24} />
+                   </span>
+                 )}
+               </components.Control>
+             );
+              return (
+                <div ref={controlsCascadeRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ position: 'absolute', bottom: '100%', left: 0, display: 'flex', pointerEvents: 'auto' }}>
+                    {renderBreadcrumb()}
+                  </div>
                   <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                     className="react-select-container"
+                     classNamePrefix="react-select"
+                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                     isClearable
+                     isDisabled={cascadeCount >= 3}
+                     closeMenuOnSelect={false}
+                     key={cascadeCloseSig}
+                     onMenuOpen={() => setCascadeMenuOpen(true)}
+                     onMenuClose={() => setCascadeMenuOpen(false)}
+                     components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -737,6 +804,15 @@ function AssetPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('assets.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={ASSET_COLUMNS}
@@ -747,16 +823,6 @@ function AssetPage({ embedded = false }) {
           />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
-          {hasRight('assets.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
-            </button>
-          )}
           {hasRight('assets.manage') && (
             <ImportExportModal
               isOpen={showImportWizard}
@@ -869,11 +935,17 @@ function AssetPage({ embedded = false }) {
               classNamePrefix="select"
               placeholder="Kies 'n tipe..."
               isSearchable={true}
+              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
               options={assettypeOptions}
               value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
               onChange={(selected) => {
                 setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
                 if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
+              }}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
               }}
             />
           </div>
@@ -894,7 +966,7 @@ function AssetPage({ embedded = false }) {
               if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
               if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
               const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
                   {breadcrumbData.map((item, i) => {
                     const isLast = i === breadcrumbData.length - 1;
                     const showArrow = isLast ? cascadeCount < 3 : true;
@@ -908,27 +980,41 @@ function AssetPage({ embedded = false }) {
                 </div>
               );
               const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
-              return (
-                <>
-                  {renderBreadcrumb()}
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      closeMenuOnSelect={false}
-                      components={{ Control: CascadeControl }}
+               const CascadeControl = ({ children, ...props }) => (
+                 <components.Control
+                   {...props}
+                   innerProps={{
+                     ...props.innerProps,
+                     onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+                   }}
+                 >
+                   {children}
+                   {cascadeCount > 0 && (
+                     <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                       <IoReturnUpBack size={24} />
+                     </span>
+                   )}
+                 </components.Control>
+               );
+               return (
+                 <div ref={modalCascadeRef}>
+                   {renderBreadcrumb()}
+                     <Select
+                       className="react-select-container"
+                       classNamePrefix="react-select"
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       key={modalCascadeCloseSig}
+                       onMenuOpen={() => setModalCascadeMenuOpen(true)}
+                       onMenuClose={() => setModalCascadeMenuOpen(false)}
+                       components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                      styles={{
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -954,7 +1040,7 @@ function AssetPage({ embedded = false }) {
                         setTimeout(() => setCascadeToast(null), 2000);
                       }}
                     />
-                </>
+                </div>
               );
             })()}
             {cascadeToast && (
@@ -975,6 +1061,12 @@ function AssetPage({ embedded = false }) {
               onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
               options={statusOptions}
               isSearchable={false}
+              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+              }}
             />
           </div>
         </div>
