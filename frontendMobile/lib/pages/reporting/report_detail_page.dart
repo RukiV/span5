@@ -70,17 +70,26 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   // Herlaai data vanaf die diens om nuutste status te wys
-  void _refreshData() async {
+  Future<void> _refreshData() async {
     await ReportService.fetchReports();
-    try {
-      final updated = ReportService.reportsNotifier.value.firstWhere((r) => r.id == _currentReport.id);
-      setState(() {
-        _currentReport = updated;
-      });
-      _loadImages();
-    } catch (e) {
-      debugPrint("Kon nie verslag verfris nie: $e");
+    if (!mounted) return;
+    final updated = ReportService.reportsNotifier.value
+        .where((r) => r.id == _currentReport.id)
+        .firstOrNull;
+    if (updated == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Verslag nie meer gevind nie"),
+            backgroundColor: AppColors.warningOrange),
+        );
+      }
+      return;
     }
+    setState(() {
+      _currentReport = updated;
+    });
+    _loadImages();
   }
 
   @override
@@ -280,29 +289,43 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   void _showDeleteDialog(BuildContext context) {
+    bool isDeleting = false;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Verwyder Foutkaartjie", style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
         content: const Text("Is jy seker jy wil hierdie foutkaartjie permanent verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("KANSELLEER")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
-            onPressed: () async {
-              final success = await ReportService.deleteReport(_currentReport.id);
-              if (!mounted) return;
-              if (success) {
-                if (context.mounted) {
-                  Navigator.pop(context); // Maak dialoog toe
-                  Navigator.pop(context); // Gaan terug na lys
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: AppColors.errorRed),
-                  );
-                }
-              }
-            },
-            child: const Text("VERWYDER", style: TextStyle(color: Colors.white)),
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("KANSELLEER")),
+          StatefulBuilder(
+            builder: (builderContext, setInnerState) => ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      setInnerState(() => isDeleting = true);
+                      final messenger = ScaffoldMessenger.of(context);
+                      final success = await ReportService.deleteReport(_currentReport.id);
+                      if (!mounted) return;
+                      if (success) {
+                        Navigator.pop(dialogContext); // Maak dialoog toe
+                        Navigator.pop(context); // Gaan terug na lys
+                        messenger.showSnackBar(
+                          const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: AppColors.errorRed),
+                        );
+                      } else {
+                        setInnerState(() => isDeleting = false);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text("Kon nie foutkaartjie verwyder nie. Probeer weer."),
+                            backgroundColor: AppColors.errorRed),
+                        );
+                      }
+                    },
+              child: isDeleting
+                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text("VERWYDER", style: TextStyle(color: Colors.white)),
+            ),
           ),
         ],
       ),
@@ -354,31 +377,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildTimeline() {
-    List<Map<String, String>> logs = [{"event": "Verslag Ontvang", "time": _currentReport.timestamp.toString().split('.')[0]}];
-    if (_currentReport.phase == "Besig" || _currentReport.phase == "Voltooi") logs.add({"event": "In Vordering", "time": "Hanteer"});
-    if (_currentReport.phase == "Voltooi") logs.add({"event": "Voltooi", "time": "Opgelos"});
-    if (_currentReport.phase == "Geweier") logs.add({"event": "Verwerp", "time": "Geweier"});
-
-    return Column(
-        children: logs.map((log) => _buildTimelineItem(log['event']!, log['time']!, isLast: logs.last == log, isCompleted: true)).toList()
-    );
-  }
-
-  Widget _buildTimelineItem(String title, String time, {bool isLast = false, bool isCompleted = false}) {
-    return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(children: [
-            Container(width: 12, height: 12, decoration: BoxDecoration(color: isCompleted ? AppColors.gold : Colors.grey[300], shape: BoxShape.circle)),
-            if (!isLast) Container(width: 2, height: 40, color: isCompleted ? AppColors.gold.withValues(alpha: 0.5) : Colors.grey[200]),
-          ]),
-          const SizedBox(width: 15),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-            Text(time, style: TextStyle(color: Colors.grey[500], fontSize: 11)),
-            const SizedBox(height: 20),
-          ])),
-        ]
+    // LET WEL: Die backend hou 'n werklike audit-log (fault_service._create_audit_log),
+    // maar die mobiele kliënt het nog nie 'n endpoint om dit te lees nie. Tot
+    // dan word 'n gefabriseerde tydlyn vermy en eerder 'n duidelike nota gewys.
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Audits is tans nie op die mobiele app beskikbaar nie.",
+            style: TextStyle(color: Colors.grey, fontSize: 13)),
+      ],
     );
   }
 }

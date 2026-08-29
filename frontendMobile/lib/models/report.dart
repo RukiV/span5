@@ -19,6 +19,7 @@ class Report {
   final double? latitude; // Kaartligging (transiënt, gestoor via mappoint)
   final double? longitude; // Kaartligging (transiënt, gestoor via mappoint)
   final bool isOutdoor; // Buite Lokaal (is_outdoor op backend)
+  final String? rawStatus; // Rou backend-status (fault_status), voorkom status-verlies by opdatering
 
   Report({
     required this.id,
@@ -38,6 +39,7 @@ class Report {
     this.latitude,
     this.longitude,
     this.isOutdoor = false,
+    this.rawStatus,
   });
 
   // Map vanaf Flutter model na Backend (Faultcard)
@@ -46,7 +48,7 @@ class Report {
       'fault_description': '$title: $description',
       'fault_type': _backendFaultType(category),
       'fault_priority': _backendPriority(priority),
-      'fault_status': _backendFaultStatus(phase),
+      'fault_status': rawStatus ?? _backendFaultStatus(phase),
       'fault_reportdatetime': timestamp.toIso8601String(),
       'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
       'room_id': int.tryParse(location),
@@ -216,6 +218,7 @@ class Report {
       category: frontendCategory,
       priority: frontendPriority,
       phase: frontendPhase,
+      rawStatus: json['fault_status'] as String?,
       user: json['user_id']?.toString() ?? "Stelsel",
       timestamp: json['fault_reportdatetime'] != null 
           ? DateTime.parse(json['fault_reportdatetime']) 
@@ -227,10 +230,12 @@ class Report {
     );
   }
 
+  static const Object _unset = Object();
+
   Report copyWith({
     String? id,
     String? assetId,
-    String? assetSerialCode,
+    Object? assetSerialCode = _unset,
     String? location,
     String? title,
     String? description,
@@ -239,17 +244,18 @@ class Report {
     String? phase,
     String? user,
     DateTime? timestamp,
-    int? locationId,
-    int? buildingId,
-    int? mappointId,
-    double? latitude,
-    double? longitude,
+    Object? locationId = _unset,
+    Object? buildingId = _unset,
+    Object? mappointId = _unset,
+    Object? latitude = _unset,
+    Object? longitude = _unset,
     bool? isOutdoor,
+    String? rawStatus,
   }) {
     return Report(
       id: id ?? this.id,
       assetId: assetId ?? this.assetId,
-      assetSerialCode: assetSerialCode ?? this.assetSerialCode,
+      assetSerialCode: identical(assetSerialCode, _unset) ? this.assetSerialCode : assetSerialCode as String?,
       location: location ?? this.location,
       title: title ?? this.title,
       description: description ?? this.description,
@@ -258,12 +264,13 @@ class Report {
       phase: phase ?? this.phase,
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
-      locationId: locationId ?? this.locationId,
-      buildingId: buildingId ?? this.buildingId,
-      mappointId: mappointId ?? this.mappointId,
-      latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude,
+      locationId: identical(locationId, _unset) ? this.locationId : locationId as int?,
+      buildingId: identical(buildingId, _unset) ? this.buildingId : buildingId as int?,
+      mappointId: identical(mappointId, _unset) ? this.mappointId : mappointId as int?,
+      latitude: identical(latitude, _unset) ? this.latitude : latitude as double?,
+      longitude: identical(longitude, _unset) ? this.longitude : longitude as double?,
       isOutdoor: isOutdoor ?? this.isOutdoor,
+      rawStatus: rawStatus ?? this.rawStatus,
     );
   }
 }

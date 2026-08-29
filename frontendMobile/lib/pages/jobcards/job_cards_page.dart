@@ -44,16 +44,6 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   // ── AI draft queue state ──
   String? _aiStatusFilter = 'draft';
-  final SortController _aiSortCtrl = SortController();
-  final ColumnVisibilityController _aiColVis = ColumnVisibilityController('ai_drafts', [
-    const ColumnDef(key: 'id', label: 'ID'),
-    const ColumnDef(key: 'title', label: 'TITEL'),
-    // Ligging by verstek sigbaar — meeste titels is eenders; die plek onderskei.
-    const ColumnDef(key: 'location', label: 'LIGGING'),
-    const ColumnDef(key: 'type', label: 'TIPE', defaultVisible: false),
-    const ColumnDef(key: 'status', label: 'STATUS'),
-    const ColumnDef(key: 'date', label: 'DATUM', defaultVisible: false),
-  ]);
 
   @override
   void initState() {
@@ -671,3 +661,4 @@ class _AiBadge extends StatelessWidget {
     );
   }
 }
+

@@ -24,6 +24,7 @@ class _LocationPageState extends State<LocationPage> {
   LatLng? _userLocation;
   bool _gpsPermissionDenied = false;
   bool _isSnapping = false;
+  bool _userPicked = false;
 
   @override
   void initState() {
@@ -88,7 +89,7 @@ class _LocationPageState extends State<LocationPage> {
 
     setState(() {
       _userLocation = userPoint;
-      _selectedLocation = userPoint;
+      if (!_userPicked) _selectedLocation = userPoint;
     });
 
     if (moveMap) {
@@ -105,8 +106,7 @@ class _LocationPageState extends State<LocationPage> {
 
       if (mounted) {
         Navigator.pop(context, {
-          'coords':
-              "${_selectedLocation.latitude.toStringAsFixed(6)}, ${_selectedLocation.longitude.toStringAsFixed(6)}",
+          'location': _selectedLocation,
           'screenshot': imageBytes,
         });
       }
@@ -151,6 +151,10 @@ class _LocationPageState extends State<LocationPage> {
           tooltip: "Gebruik my ligging",
           onPressed: () {
             if (_userLocation != null) {
+              setState(() {
+                _selectedLocation = _userLocation!;
+                _userPicked = true;
+              });
               _mapController?.animateCamera(
                   CameraUpdate.newLatLngZoom(_userLocation!, 18.0));
             } else {
@@ -166,11 +170,29 @@ class _LocationPageState extends State<LocationPage> {
             initialCameraPosition:
                 CameraPosition(target: _selectedLocation, zoom: 15),
             onMapCreated: (c) => _mapController = c,
+            onTap: (latLng) {
+              setState(() {
+                _selectedLocation = latLng;
+                _userPicked = true;
+              });
+            },
             myLocationEnabled: !_gpsPermissionDenied,
             myLocationButtonEnabled: false,
             zoomControlsEnabled: false,
             mapType: MapType.normal,
-            markers: {},
+            markers: {
+              Marker(
+                markerId: const MarkerId('selected'),
+                position: _selectedLocation,
+                draggable: true,
+                onDragEnd: (latLng) {
+                  setState(() {
+                    _selectedLocation = latLng;
+                    _userPicked = true;
+                  });
+                },
+              ),
+            },
             circles: {},
           ),
           if (_gpsPermissionDenied)
