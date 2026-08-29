@@ -157,21 +157,56 @@
 }
 
 /*Controls*/
-.controls {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 20px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
+.controls,
 .controls-left,
 .controls-right {
     display: flex;
     align-items: center;
-    gap: 10px;
     flex-wrap: wrap;
+  gap: 10px;
+}
+
+.controls {
+  justify-content: space-between;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.controls-left .control-input-shell {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.controls-left .control-cascade-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.controls-left .control-cascade-breadcrumb {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  display: flex;
+  pointer-events: auto;
+}
+
+.controls-left .react-select-container--compact {
+  min-width: 160px;
+}
+
+.controls-left .react-select-container--wide {
+  min-width: 260px;
+}
+
+.controls-left .react-select-container {
+  min-width: 160px;
+}
+
+.controls-left .control-cascade-stack .react-select-container {
+  min-width: 260px;
 }
 
 .controls-right {
@@ -198,11 +233,144 @@
     justify-content: center;
 }
 
-
 /* React-select: single blue outline when focused (border only, no outer ring) */
 .react-select__control--is-focused,
 .select__control--is-focused {
-    box-shadow: none;
+    box-shadow: none !important;
+}
+
+/* React-select: standard control styling (single source of truth, all pages) */
+.react-select__control,
+.select__control {
+    min-height: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.react-select__value-container,
+.select__value-container {
+    padding: 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+.react-select__single-value,
+.select__single-value {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 38px !important;
+    white-space: nowrap !important;
+}
+
+.breadcrumb-list {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #111827;
+  margin: 6px 0;
+}
+
+.breadcrumb-list-spaced {
+  margin-top: 6px;
+}
+
+.breadcrumb-list-bottom-spaced {
+  margin-bottom: 6px;
+}
+
+.breadcrumb-btn {
+  border: none;
+  cursor: pointer;
+    padding: 0;
+  margin: 0;
+  color: #111827;
+    font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.breadcrumb-btn[data-current="true"] {
+  font-weight: 700;
+}
+
+.breadcrumb-btn[data-current="false"] {
+  font-weight: 600;
+}
+
+.breadcrumb-arrow {
+  color: #9ca3af;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Clear-knoppie vir datetime-local */
+.input-clear-btn {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+  color: #6b7280;
+  line-height: 1;
+  padding: 0;
+}
+
+.input-clear-btn:hover {
+  color: #111827;
+}
+
+.react-select__control--is-disabled .cascade-back-indicator {
+  pointer-events: auto !important;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.react-select__control--is-disabled .cascade-back-indicator:hover {
+  opacity: 1;
+}
+
+.react-select__control--is-disabled {
+  background: #ecfdf5 !important;
+  border-color: #16a34a !important;
+}
+
+.react-select__control--is-disabled .react-select__placeholder {
+  color: #166534 !important;
+}
+
+.breadcrumb-btn:hover {
+  background: #e8d5c4;
+  color: #935e28;
+}
+
+.cascade-back-btn,
+.cascade-back-indicator {
+  display: inline-flex;
+  align-items: center;
+  background: #935e28;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin: 2px;
+}
+
+.cascade-back-btn:hover,
+.cascade-back-indicator:hover {
+  background: #7a4e21 !important;
+  color: #fff !important;
+}
+
+.react-select__control--is-disabled .cascade-back-btn,
+.react-select__control--is-disabled .cascade-back-indicator {
+  pointer-events: auto !important;
+  cursor: pointer;
 }
 
 /*Main page*/

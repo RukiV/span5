@@ -684,9 +684,9 @@ function AssetPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls" style={{ marginTop: "20px" }}>
+      <div className="controls">
         <div className="controls-left">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <div className="control-input-shell">
             <input
               type="text"
               placeholder="Soek bates..."
@@ -756,8 +756,8 @@ function AssetPage({ embedded = false }) {
                </components.Control>
              );
               return (
-                <div ref={controlsCascadeRef} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ position: 'absolute', bottom: '100%', left: 0, display: 'flex', pointerEvents: 'auto' }}>
+                <div ref={controlsCascadeRef} className="control-cascade-stack">
+                  <div className="control-cascade-breadcrumb">
                     {renderBreadcrumb()}
                   </div>
                   <Select
@@ -966,7 +966,7 @@ function AssetPage({ embedded = false }) {
               if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
               if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
               const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                <div className="control-cascade-breadcrumb">
                   {breadcrumbData.map((item, i) => {
                     const isLast = i === breadcrumbData.length - 1;
                     const showArrow = isLast ? cascadeCount < 3 : true;

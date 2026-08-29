@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import Select from "react-select";
 import { useNavigate } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
@@ -112,12 +113,7 @@ function AIDraftQueuePage() {
       <div className="content">
         <div className="controls">
           <div className="controls-left">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">Alle</option>
-              <option value="draft">Konsepte</option>
-              <option value="approved">Goedgekeur</option>
-              <option value="rejected">Afgewys</option>
-            </select>
+            <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />
           </div>
           <div className="controls-right">
             <button className="btn-add" onClick={() => navigate('/ai-drafts/new')}>+ Nuwe AI Konsep</button>
