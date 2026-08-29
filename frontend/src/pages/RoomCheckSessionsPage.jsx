@@ -13,6 +13,7 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import ResizableTh from "../components/ResizableTh";
 import { buildFlatLocationOptions } from "./locationSearchUtils";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import "../components/Modal/Modal.css";
@@ -73,6 +74,8 @@ function RoomCheckSessionsPage() {
   const [roomFilter, setRoomFilter] = useState("");
   const [cascadeToast, setCascadeToast] = useState(null);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, []), [terrains, buildings, rooms]);
+  const filterCascade = useCascadeMenu();
+  const formCascade = useCascadeMenu();
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -358,7 +361,7 @@ function RoomCheckSessionsPage() {
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find((b) => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find((r) => String(r.room_id) === roomFilter)?.room_name || roomFilter });
             return (
-              <div className="control-cascade-stack">
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                 <div className="control-cascade-breadcrumb">
                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
                 </div>
@@ -368,6 +371,10 @@ function RoomCheckSessionsPage() {
                   placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Filter voltooi"][cascadeCount]}
                   isClearable
                   isDisabled={cascadeCount >= 3}
+                  closeMenuOnSelect={false}
+                  menuIsOpen={filterCascade.menuIsOpen}
+                  onMenuOpen={filterCascade.onMenuOpen}
+                  onMenuClose={filterCascade.onMenuClose}
                   components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                   styles={{
                     container: (base) => ({ ...base, minWidth: "260px" }),
@@ -492,7 +499,7 @@ function RoomCheckSessionsPage() {
                 onChange={(e) => setFormDateTime(e.target.value)}
               />
             </div>
-            <div className="input-group" style={{ marginBottom: 16, position: "relative" }}>
+            <div className="input-group" style={{ marginBottom: 16, position: "relative" }} ref={formCascade.containerRef}>
               <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Ligging</label>
               {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
               <Select
@@ -502,6 +509,9 @@ function RoomCheckSessionsPage() {
                 isClearable
                 isDisabled={cascadeCount >= 3}
                 closeMenuOnSelect={false}
+                menuIsOpen={formCascade.menuIsOpen}
+                onMenuOpen={formCascade.onMenuOpen}
+                onMenuClose={formCascade.onMenuClose}
                 components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearCascadeFromLevel} /> }}
                 options={allLocationOptions}
                 menuPortalTarget={document.body}

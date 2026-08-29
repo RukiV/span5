@@ -17,6 +17,7 @@ import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 
 
 function TicketPage() {
@@ -52,6 +53,8 @@ function TicketPage() {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -522,17 +525,21 @@ function TicketPage() {
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
                  return (
-                   <div className="control-cascade-stack">
+                   <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                      <div className="control-cascade-breadcrumb">
                        {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
                      </div>
                      <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       menuIsOpen={filterCascade.menuIsOpen}
+                       onMenuOpen={filterCascade.onMenuOpen}
+                       onMenuClose={filterCascade.onMenuClose}
+                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                       styles={{
                         container: (base) => ({ ...base, minWidth: '260px' }),
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -708,7 +715,7 @@ function TicketPage() {
                   if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
                   if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
                    return (
-                     <>
+                     <div ref={modalCascadeMenu.containerRef}>
                        {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px" })}
                       <Select
                         className="react-select-container"
@@ -719,6 +726,9 @@ function TicketPage() {
                         isClearable
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
+                        menuIsOpen={modalCascadeMenu.menuIsOpen}
+                        onMenuOpen={modalCascadeMenu.onMenuOpen}
+                        onMenuClose={modalCascadeMenu.onMenuClose}
                         components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                         options={allLocationOptions}
                         styles={{
@@ -754,10 +764,10 @@ function TicketPage() {
                           setCascadeToast(`✓ ${label} suksesvol geselekteer`);
                           setTimeout(() => setCascadeToast(null), 2000);
                         }}
-                      />
-                    </>
-                  );
-                })()}
+/>
+                     </div>
+                   );
+                 })()}
                 {cascadeToast && (
                   <div style={{
                     position: "absolute",

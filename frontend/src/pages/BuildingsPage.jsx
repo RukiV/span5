@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
 import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator } from "../components/controlHelpers";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -39,6 +40,8 @@ function BuildingsPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   const [showModal, setShowModal] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
@@ -294,7 +297,7 @@ function BuildingsPage({ embedded = false }) {
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             return (
-              <div className="control-cascade-stack">
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                 <div className="control-cascade-breadcrumb">
                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
                 </div>
@@ -305,6 +308,9 @@ function BuildingsPage({ embedded = false }) {
                     isClearable
                     isDisabled={cascadeCount >= 2}
                     closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
                     components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, DropdownIndicator: NoCloseDropdownIndicator }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -446,7 +452,7 @@ function BuildingsPage({ embedded = false }) {
               const breadcrumbData = [{ level: -1, name: "Terreine" }];
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
                return (
-                 <>
+                 <div ref={modalCascadeMenu.containerRef}>
                    {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px" })}
                   <Select
                     className="react-select-container"
@@ -455,6 +461,9 @@ function BuildingsPage({ embedded = false }) {
                     isClearable
                     isDisabled={cascadeCount >= 1}
                     closeMenuOnSelect={false}
+                    menuIsOpen={modalCascadeMenu.menuIsOpen}
+                    onMenuOpen={modalCascadeMenu.onMenuOpen}
+                    onMenuClose={modalCascadeMenu.onMenuClose}
                     components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                     options={allLocationOptions}
                     styles={{
@@ -476,8 +485,8 @@ function BuildingsPage({ embedded = false }) {
                       if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                     }}
                   />
-                </>
-              );
+                 </div>
+               );
             })()}
           </div>
         </div>

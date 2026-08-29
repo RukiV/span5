@@ -13,6 +13,7 @@ import { cachedFetch } from '../utils/cache';
 import '../styles/App.css';
 import '../styles/Predictions.css';
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import useCascadeMenu from "../hooks/useCascadeMenu";
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -59,6 +60,7 @@ function PredictionsPage() {
   const [roomFilter, setRoomFilter] = useState("");
 
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
+  const filterCascade = useCascadeMenu();
 const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
 const getAssetName = (p) => p.asset_name || '-';
@@ -235,7 +237,7 @@ const colPickerRef = useRef(null);
                   </components.Control>
                 );
                 return (
-                  <div className="control-cascade-stack">
+                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                     <div className="control-cascade-breadcrumb">
                       {renderBreadcrumb()}
                     </div>
@@ -245,6 +247,10 @@ const colPickerRef = useRef(null);
                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={cascadeCount >= 3}
+                      closeMenuOnSelect={false}
+                      menuIsOpen={filterCascade.menuIsOpen}
+                      onMenuOpen={filterCascade.onMenuOpen}
+                      onMenuClose={filterCascade.onMenuClose}
                       components={{ Control: CascadeControl }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
