@@ -8,12 +8,12 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
-import useCloseOnOutsideClick from "../hooks/useCloseOnOutsideClick";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
@@ -89,16 +89,8 @@ function AssetPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
-  const [cascadeMenuOpen, setCascadeMenuOpen] = useState(false);
-  const [cascadeCloseSig, setCascadeCloseSig] = useState(0);
-  const [modalCascadeMenuOpen, setModalCascadeMenuOpen] = useState(false);
-  const [modalCascadeCloseSig, setModalCascadeCloseSig] = useState(0);
-  const controlsCascadeRef = useCloseOnOutsideClick(() => {
-    if (cascadeMenuOpen) setCascadeCloseSig((s) => s + 1);
-  });
-  const modalCascadeRef = useCloseOnOutsideClick(() => {
-    if (modalCascadeMenuOpen) setModalCascadeCloseSig((s) => s + 1);
-  });
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -756,7 +748,7 @@ function AssetPage({ embedded = false }) {
                </components.Control>
              );
               return (
-                <div ref={controlsCascadeRef} className="control-cascade-stack">
+                <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                   <div className="control-cascade-breadcrumb">
                     {renderBreadcrumb()}
                   </div>
@@ -767,9 +759,9 @@ function AssetPage({ embedded = false }) {
                      isClearable
                      isDisabled={cascadeCount >= 3}
                      closeMenuOnSelect={false}
-                     key={cascadeCloseSig}
-                     onMenuOpen={() => setCascadeMenuOpen(true)}
-                     onMenuClose={() => setCascadeMenuOpen(false)}
+                     menuIsOpen={filterCascade.menuIsOpen}
+                     onMenuOpen={filterCascade.onMenuOpen}
+                     onMenuClose={filterCascade.onMenuClose}
                      components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -997,7 +989,7 @@ function AssetPage({ embedded = false }) {
                  </components.Control>
                );
                return (
-                 <div ref={modalCascadeRef}>
+                 <div ref={modalCascadeMenu.containerRef}>
                    {renderBreadcrumb()}
                      <Select
                        className="react-select-container"
@@ -1006,9 +998,9 @@ function AssetPage({ embedded = false }) {
                        isClearable
                        isDisabled={cascadeCount >= 3}
                        closeMenuOnSelect={false}
-                       key={modalCascadeCloseSig}
-                       onMenuOpen={() => setModalCascadeMenuOpen(true)}
-                       onMenuClose={() => setModalCascadeMenuOpen(false)}
+                       menuIsOpen={modalCascadeMenu.menuIsOpen}
+                       onMenuOpen={modalCascadeMenu.onMenuOpen}
+                       onMenuClose={modalCascadeMenu.onMenuClose}
                        components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),

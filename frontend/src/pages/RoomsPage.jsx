@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
@@ -57,8 +58,9 @@ function RoomsPage({ embedded = false }) {
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   
   // Opdateer: Verander die standaard room_type na 'Ander' om by die backend te pas
   const [newRoom, setNewRoom] = useState({
@@ -269,7 +271,6 @@ function RoomsPage({ embedded = false }) {
         if (locId !== String(terrainFilter)) return false;
       }
       if (buildingFilter && String(room.building_id) !== String(buildingFilter)) return false;
-      if (roomFilter && String(room.room_id) !== String(roomFilter)) return false;
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -350,31 +351,33 @@ function RoomsPage({ embedded = false }) {
             isSearchable={false}
           />
           {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+            const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
             const currentDisplayValue = cascadeCount === 0 ? null
               : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
               : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
               : null;
             const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
+              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); }
+              else if (levelIndex === 1) { setBuildingFilter(''); }
             };
             const breadcrumbData = [{ level: -1, name: "Terreine" }];
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
             return (
-              <div className="control-cascade-stack">
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                 <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
                 </div>
                   <Select
                     className="react-select-container react-select-container--wide"
                     classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                    placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
                     isClearable
-                    isDisabled={cascadeCount >= 3}
+                    isDisabled={cascadeCount >= 2}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
                     components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
@@ -386,14 +389,13 @@ function RoomsPage({ embedded = false }) {
                       }
                       if (cascadeCount === 0) return option.data._cascadeLevel === 0;
                       if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
                       return false;
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
                       if (!selectedOption) return;
                       const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
                     }}
                   />
               </div>
@@ -563,7 +565,7 @@ function RoomsPage({ embedded = false }) {
               if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
               return (
-                <>
+                <div ref={modalCascadeMenu.containerRef}>
                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px" })}
                     <Select
                       className="react-select-container"
@@ -572,6 +574,9 @@ function RoomsPage({ embedded = false }) {
                       isClearable
                       isDisabled={cascadeCount >= 2}
                       closeMenuOnSelect={false}
+                      menuIsOpen={modalCascadeMenu.menuIsOpen}
+                      onMenuOpen={modalCascadeMenu.onMenuOpen}
+                      onMenuClose={modalCascadeMenu.onMenuClose}
                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
@@ -596,7 +601,7 @@ function RoomsPage({ embedded = false }) {
                         setTimeout(() => setCascadeToast(null), 2000);
                       }}
                     />
-                </>
+                </div>
               );
             })()}
             {cascadeToast && (

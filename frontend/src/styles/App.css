@@ -261,6 +261,48 @@
     white-space: nowrap !important;
 }
 
+/* ---------- React-select: theme colour (blou -> ligbruin) ---------- */
+/* Die verstek react-select-tema gebruik blou (#2684FF). Die app se tema
+   is ligbruin (#935e28). Ship ligte bruin vir fokus/keuse oor alle bladsye. */
+
+/* Gefokusde kontrole: blou belyn -> ligbruin */
+.react-select__control--is-focused,
+.select__control--is-focused {
+    border-color: #935e28 !important;
+    box-shadow: 0 0 0 1px #935e28 !important;
+}
+
+/* Opsie wat gekies is -> ligbruin agtergrond, wit teks */
+.react-select__option--is-selected,
+.select__option--is-selected {
+    background-color: #935e28 !important;
+    color: #ffffff !important;
+}
+
+/* Opsie waaroor die muis beweeg -> ligte bruin, donker teks */
+.react-select__option--is-focused,
+.select__option--is-focused {
+    background-color: #e8d5c4 !important;
+    color: #7a4e21 !important;
+}
+
+/* Aktiewe ("gedrukte") opsie -> donkerder bruin */
+.react-select__option--is-active,
+.select__option--is-active {
+    background-color: #d9bfa7 !important;
+}
+
+/* Dropdown-aanwyser (pyltjie) in fokus/oop toestand -> ligbruin */
+.react-select__indicator,
+.select__indicator {
+    color: #935e28 !important;
+}
+
+.react-select__indicator--is-focused,
+.select__indicator--is-focused {
+    color: #7a4e21 !important;
+}
+
 .breadcrumb-list {
   display: flex;
   flex-wrap: nowrap;

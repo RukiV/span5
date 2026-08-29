@@ -13,6 +13,7 @@ import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/Asset.css";
 import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -57,6 +58,8 @@ function StockPage({ embedded = false }) {
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -462,7 +465,7 @@ function StockPage({ embedded = false }) {
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
             return (
-              <div className="control-cascade-stack">
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                 <div className="control-cascade-breadcrumb">
                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
                 </div>
@@ -472,6 +475,10 @@ function StockPage({ embedded = false }) {
                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={cascadeCount >= 3}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
                     components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -659,7 +666,7 @@ function StockPage({ embedded = false }) {
               if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
               return (
-                <>
+                <div ref={modalCascadeMenu.containerRef}>
                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
                     <Select
                       className="react-select-container"
@@ -668,6 +675,9 @@ function StockPage({ embedded = false }) {
                       isClearable
                       isDisabled={cascadeCount >= 3}
                       closeMenuOnSelect={false}
+                      menuIsOpen={modalCascadeMenu.menuIsOpen}
+                      onMenuOpen={modalCascadeMenu.onMenuOpen}
+                      onMenuClose={modalCascadeMenu.onMenuClose}
                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                       options={allLocationOptions}
                       styles={{
@@ -702,7 +712,7 @@ function StockPage({ embedded = false }) {
                         setTimeout(() => setCascadeToast(null), 2000);
                       }}
                     />
-                </>
+                </div>
               );
             })()}
             {cascadeToast && (
