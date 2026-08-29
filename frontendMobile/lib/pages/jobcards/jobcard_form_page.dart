@@ -400,8 +400,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 12),
           LocationCascadePicker(
             label: "Ligging",
-            required: true,
-            error: _selectedCampusId == null,
+            errorText: _selectedCampusId == null ? 'Kies \'n ligging' : null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,
             initialRoomId: _selectedRoomId,
@@ -1228,9 +1227,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       'job_priority': _priority,
       'nature': _nature,
       'job_notes': notes,
-      // Werknotas word ook as 'n aparte veld gestoor sodat die kontrakteur se
-      // aansig (job_notes) en die FK-kant dieselfde notas sien.
-      'job_notes': notes,
       'job_createddatetime': widget.jobcard?.createdDatetime?.toIso8601String() ?? DateTime.now().toIso8601String(),
       'job_scheduled_datetime': _scheduledDatetime?.toIso8601String(),
       'job_scheduled_end_datetime': _scheduledEndDatetime?.toIso8601String(),
@@ -1562,3 +1558,4 @@ class _CcUserDialogState extends State<_CcUserDialog> {
     );
   }
 }
+

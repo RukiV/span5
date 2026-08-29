@@ -109,6 +109,9 @@ class _NewReportPageState extends State<NewReportPage> {
     }
   }
 
+  bool _isSubmitting = false;
+  Asset? _resolvedAsset;
+
   Future<void> _autoFillFromCode(String serialCode) async {
     setState(() => _isAutoFilling = true);
     final asset = await AssetService.getAssetBySerialCode(serialCode);
@@ -130,6 +133,7 @@ class _NewReportPageState extends State<NewReportPage> {
       _correctingLocation = false;
       _isAutoFilling = false;
       _assetResolved = true;
+      _resolvedAsset = asset;
     });
   }
 
@@ -508,8 +512,9 @@ class _NewReportPageState extends State<NewReportPage> {
                         MaterialPageRoute(
                             builder: (context) => const ScanPage()));
                     if (scannedCode != null) {
-                      setState(() => serialController.text = scannedCode);
-                      _autoFillFromCode(scannedCode);
+                      final trimmed = scannedCode.trim();
+                      setState(() => serialController.text = trimmed);
+                      await _autoFillFromCode(trimmed);
                     }
                   },
                 ),
@@ -535,7 +540,6 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                     ),
                   ),
-                ),
                 // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
                 // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
                 if (UserSession.can('assets.view'))
@@ -653,7 +657,29 @@ class _NewReportPageState extends State<NewReportPage> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () async {
+                            onPressed: _isSubmitting ? null : _submitReport,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                elevation: 2,
+              ),
+              child: const Text("STUUR FOUTKAARTJIE",
+                  style:
+                      TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitReport() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
                 // Die ligging-kieser is nie 'n FormField nie, so die
                 // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
                 // buite enige terrein het reeds 'n spesifieke fout van
@@ -696,13 +722,26 @@ class _NewReportPageState extends State<NewReportPage> {
 
                 int? finalAssetIdInt;
                 String? finalAssetSerialCode;
-                if (serialController.text.isNotEmpty) {
-                  final asset = await AssetService.getAssetBySerialCode(
-                      serialController.text);
-                  if (asset != null) {
-                    finalAssetIdInt = int.tryParse(asset.id);
-                    finalAssetSerialCode = asset.serialCode;
+                final serial = serialController.text.trim();
+                final Asset? asset = (_resolvedAsset != null &&
+                        _resolvedAsset!.serialCode == serial)
+                    ? _resolvedAsset
+                    : (serial.isNotEmpty
+                        ? await AssetService.getAssetBySerialCode(serial)
+                        : null);
+                if (serial.isNotEmpty && asset == null) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Kon nie bate met kode vind nie — kontroleer die kode"),
+                        backgroundColor: AppColors.errorRed),
+                    );
                   }
+                  return;
+                }
+                if (asset != null) {
+                  finalAssetIdInt = int.tryParse(asset.id);
+                  finalAssetSerialCode = asset.serialCode;
                 }
 
                 final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
@@ -745,6 +784,7 @@ class _NewReportPageState extends State<NewReportPage> {
                   latitude: _mapLocation?.latitude,
                   longitude: _mapLocation?.longitude,
                   isOutdoor: _isOutdoor ?? false,
+                  rawStatus: null,
                 );
 
                 try {
@@ -813,43 +853,23 @@ class _NewReportPageState extends State<NewReportPage> {
                     );
                   }
                 }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 2,
-              ),
-              child: const Text("STUUR FOUTKAARTJIE",
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-            ),
-          ),
-        ),
-      ),
-    );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
-
   Future<void> _pickMapLocation() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (context) => const LocationPage()),
     );
     if (result == null || !mounted) return;
-    final coords = result['coords'] as String?;
-    if (coords == null) return;
-    final parts = coords.split(',');
-    if (parts.length != 2) return;
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null) return;
+    final loc = result['location'] as LatLng?;
+    if (loc == null) return;
     setState(() {
-      _mapLocation = LatLng(lat, lng);
+      _mapLocation = loc;
       _mapScreenshot = result['screenshot'] as Uint8List?;
     });
-    _resolveCampusFromPoint(LatLng(lat, lng));
+    _resolveCampusFromPoint(loc);
   }
 
   /// Bepaal die naaste terrein (binne sy radius) vir die gekose kaartpunt,

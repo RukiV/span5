@@ -29,6 +29,7 @@ class _EditReportPageState extends State<EditReportPage> {
   late String _category;
   late String _priority;
   late String _status;
+  String? _rawStatus;
   String? _selectedCampus;
   String? _selectedBuilding;
   String? _selectedLocation;
@@ -54,6 +55,7 @@ class _EditReportPageState extends State<EditReportPage> {
     _category = _categories.contains(widget.report.category) ? widget.report.category : "Onderhoud";
     _priority = widget.report.priority;
     _status = widget.report.phase;
+    _rawStatus = widget.report.rawStatus;
     _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
     _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
     _selectedLocation = widget.report.location;
@@ -63,6 +65,19 @@ class _EditReportPageState extends State<EditReportPage> {
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     _loadImages();
     _loadMapPoint();
+  }
+
+  // Map die UI-status (vertoon) terug na die rou backend-status wanneer die
+  // gebruiker dit self verander. As dit nie verander word nie, bly die rou
+  // status (rawStatus) onaangeraak sodat 'n opdatering nie die status afskaal nie.
+  String _displayToRawStatus(String display) {
+    switch (display) {
+      case 'Ontvang': return 'Wag';
+      case 'Besig': return 'Besig';
+      case 'Voltooi': return 'Opgelos';
+      case 'Geweier': return 'Gesluit';
+      default: return 'Wag';
+    }
   }
 
   // Haal die bestaande kaartligging vir die kaartjie op.
@@ -99,14 +114,9 @@ class _EditReportPageState extends State<EditReportPage> {
       ),
     );
     if (result == null || !mounted) return;
-    final coords = result['coords'] as String?;
-    if (coords == null) return;
-    final parts = coords.split(',');
-    if (parts.length != 2) return;
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null) return;
-    setState(() => _mapPoint = LatLng(lat, lng));
+    final loc = result['location'] as LatLng?;
+    if (loc == null) return;
+    setState(() => _mapPoint = loc);
   }
 
   @override
@@ -219,6 +229,7 @@ class _EditReportPageState extends State<EditReportPage> {
       category: _category,
       priority: _priority,
       phase: _status,
+      rawStatus: _rawStatus,
       location: roomId,
       locationId: resolvedLocationId,
       buildingId: resolvedBuildingId,
@@ -228,23 +239,35 @@ class _EditReportPageState extends State<EditReportPage> {
 
     final success = await ReportService.updateReport(updatedReport);
 
-    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket'):
-    // verwyder gemerkte fotos, laai dan nuwes op teen die bestaande kaartjie.
-    final faultId = int.tryParse(widget.report.id);
-    for (final id in _removedImageIds) {
-      await ImageService.deleteImage(id);
-    }
-    if (faultId != null) {
-      for (final photo in _newPhotos) {
-        await ImageService.uploadImage(photo, parentId: faultId, parentType: 'ticket');
+    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket').
+    // Slegs nadat die opdatering suksesvol was - enige foto-jaartree word
+    // NOOIT uitgevoer as die stoor misluk nie.
+    List<String> photoFailures = [];
+    if (success) {
+      final faultId = int.tryParse(widget.report.id);
+      for (final id in _removedImageIds) {
+        if (!await ImageService.deleteImage(id)) photoFailures.add('verwyder');
       }
+      if (faultId != null) {
+        for (final photo in _newPhotos) {
+          if (await ImageService.uploadImage(photo, parentId: faultId, parentType: 'ticket') == null) {
+            photoFailures.add('opgelaai');
+          }
+        }
+      }
+      _removedImageIds.clear();
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Foutkaartjie suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
+          SnackBar(
+            content: Text(photoFailures.isEmpty
+                ? "Foutkaartjie suksesvol opgedateer"
+                : "Foutkaartjie opgedateer, maar sommige fotos kon nie verwerk word nie"),
+            backgroundColor: AppColors.successGreen,
+          ),
         );
         Navigator.pop(context, true);
       } else {
@@ -324,7 +347,10 @@ class _EditReportPageState extends State<EditReportPage> {
                       ],
                     ),
                     const SizedBox(height: 20),
-                    _buildDropdown("Status", _status, _statuses, (val) => setState(() => _status = val!)),
+                    _buildDropdown("Status", _status, _statuses, (val) => setState(() {
+                      _status = val!;
+                      _rawStatus = _displayToRawStatus(val!);
+                    })),
                     const SizedBox(height: 20),
                     LocationCascadePicker(
                       label: "Ligging *",

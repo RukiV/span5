@@ -8,6 +8,7 @@ import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/report.dart';
+import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/sort_utils.dart';
@@ -77,6 +78,37 @@ class _ReportingPageState extends State<ReportingPage> {
     }
   }
 
+  /// Lei die kampus-/gebou-ID af vanaf die lokaal-ID wanneer die verslag se
+  /// eie location_id/building_id null is (bv. as die skewende gebruiker nie
+  /// 'n kampus kon oplos nie). Soek andersins in die gelaai kampusboom.
+  int? _campusIdForReport(Report r) {
+    if (r.locationId != null) return r.locationId;
+    final roomId = int.tryParse(r.location);
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((room) => room.id == roomId)) {
+          return c.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  int? _buildingIdForReport(Report r) {
+    if (r.buildingId != null) return r.buildingId;
+    final roomId = int.tryParse(r.location);
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((room) => room.id == roomId)) {
+          return b.id;
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,8 +152,8 @@ class _ReportingPageState extends State<ReportingPage> {
               r.title.toLowerCase().contains(query) ||
               r.location.toLowerCase().contains(query);
           final matchesStatus = _statusFilter == "Alles" || (r.phase == _statusFilter);
-          final matchesCampus = _selectedCampusId == null || r.locationId == _selectedCampusId;
-          final matchesBuilding = _selectedBuildingId == null || r.buildingId == _selectedBuildingId;
+          final matchesCampus = _selectedCampusId == null || _campusIdForReport(r) == _selectedCampusId;
+          final matchesBuilding = _selectedBuildingId == null || _buildingIdForReport(r) == _selectedBuildingId;
           return matchesSearch && matchesStatus && matchesCampus && matchesBuilding;
         }).toList();
 
