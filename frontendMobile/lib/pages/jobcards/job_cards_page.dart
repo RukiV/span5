@@ -176,7 +176,8 @@ class _JobCardsPageState extends State<JobCardsPage>
                 j.status == "Geskeduleer" ||
                 j.status == "Voltooi" ||
                 j.status == "Oop" ||
-                j.status == "Wag")
+                j.status == "Wag" ||
+                j.status == "Gekanselleer")
             .toList();
 
         final filtered = activeJobs.where((j) {

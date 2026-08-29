@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
+import '../../services/room_service.dart';
 import '../../models/user_session.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
@@ -12,6 +14,7 @@ import '../../widgets/location_filter_sheet.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 import '../asset/asset_page.dart';
+import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
 
 class ManageRoomsPage extends StatefulWidget {
@@ -312,6 +315,104 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     }
   }
 
+  /// Skandeer 'n lokaal se QR-kode en gaan direk na daardie lokaal se bates.
+  Future<void> _scanRoomToViewAssets() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanPage(isLocation: true),
+      ),
+    );
+    if (scannedCode == null || !mounted) return;
+
+    final room = await RoomService.getRoomByCode(scannedCode.trim());
+    if (!mounted) return;
+    if (room == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geen lokaal gevind met hierdie kode nie"),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
+        ),
+      );
+    }
+  }
+
+  /// Wys die lokaal se skandeerbare QR-kode. Genereer een indien nodig.
+  Future<void> _showRoomQrDialog(Room room) async {
+    Room displayRoom = room;
+    if (room.roomCode == null || room.roomCode!.isEmpty) {
+      final generated = await RoomService.ensureRoomCode(room.id);
+      if (generated != null && mounted) {
+        displayRoom = generated;
+        setState(() {});
+      }
+    }
+    if (!mounted) return;
+
+    final code = displayRoom.roomCode;
+    if (code == null || code.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie 'n kode vir hierdie lokaal genereer nie."),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                displayRoom.name,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              const Text("Lokaal QR-kode", style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const SizedBox(height: 20),
+              QrImageView(
+                data: code,
+                version: QrVersions.auto,
+                size: 220,
+                backgroundColor: Colors.white,
+              ),
+              const SizedBox(height: 12),
+              SelectableText(
+                code,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 1),
+              ),
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Sluit"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   InputDecoration _popupInputDecoration() {
     return InputDecoration(
       filled: true,
@@ -393,21 +494,39 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 ],
               ),
 
-              if (_selectedBuilding != null && UserSession.can('rooms.manage'))
+              if (_selectedBuilding != null && UserSession.can('rooms.view'))
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showAddRoomDialog(context),
-                      icon: const Icon(Icons.add),
-                      label: const Text("NUWE LOKAAL"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: Row(
+                    children: [
+                      if (UserSession.can('rooms.manage'))
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showAddRoomDialog(context),
+                            icon: const Icon(Icons.add),
+                            label: const Text("NUWE LOKAAL"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.navy,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ),
+                      if (UserSession.can('rooms.manage'))
+                        const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: _scanRoomToViewAssets,
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text("SKANDEER LOKAAL"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.gold,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
 
@@ -460,6 +579,11 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         if (UserSession.can('rooms.manage')) ...[
+                                          IconButton(
+                                            icon: const Icon(Icons.qr_code_2, color: Colors.grey, size: 20),
+                                            tooltip: "Wys QR-kode",
+                                            onPressed: () => _showRoomQrDialog(room),
+                                          ),
                                           IconButton(
                                             icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
                                             tooltip: "Kontroleer bates",
