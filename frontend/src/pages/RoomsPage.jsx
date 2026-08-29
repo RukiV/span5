@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
+import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
@@ -333,23 +333,21 @@ function RoomsPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek lokale..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Select
-            className="basic-single"
-            classNamePrefix="select"
+            className="react-select-container react-select-container--compact"
+            classNamePrefix="react-select"
             value={filterColumnOptions.find(o => o.value === filterColumn)}
             onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
             options={filterColumnOptions}
             isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
           />
           {(() => {
             const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
@@ -366,42 +364,18 @@ function RoomsPage({ embedded = false }) {
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 3 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+              <div className="control-cascade-stack">
+                <div className="control-cascade-breadcrumb">
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                </div>
                   <Select
-                    className="react-select-container"
+                    className="react-select-container react-select-container--wide"
                     classNamePrefix="react-select"
                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={cascadeCount >= 3}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -588,34 +562,9 @@ function RoomsPage({ embedded = false }) {
               const breadcrumbData = [{ level: -1, name: "Terreine" }];
               if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
-              const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                  {breadcrumbData.map((item, i) => {
-                    const isLast = i === breadcrumbData.length - 1;
-                    const showArrow = isLast ? cascadeCount < 2 : true;
-                    return (
-                      <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              );
-              const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
               return (
                 <>
-                  {renderBreadcrumb()}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px" })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
@@ -623,7 +572,7 @@ function RoomsPage({ embedded = false }) {
                       isClearable
                       isDisabled={cascadeCount >= 2}
                       closeMenuOnSelect={false}
-                      components={{ Control: CascadeControl }}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {

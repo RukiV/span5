@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import Select from "react-select";
 import { buildingsAPI, locationAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -223,23 +224,36 @@ function TerrainsPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek terreine..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-            <option value="all">Alle kolomme</option>
-            <option value="id">ID</option>
-            <option value="name">Naam</option>
-            <option value="type">Tipe</option>
-            <option value="streetnum">Straatnommer</option>
-            <option value="streetname">Straatnaam</option>
-          </select>
+          <Select
+            className="react-select-container"
+            classNamePrefix="react-select"
+            value={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "type", label: "Tipe" },
+              { value: "streetnum", label: "Straatnommer" },
+              { value: "streetname", label: "Straatnaam" },
+            ].find((option) => option.value === filterColumn)}
+            onChange={(selected) => setFilterColumn(selected?.value || "all")}
+            options={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "type", label: "Tipe" },
+              { value: "streetnum", label: "Straatnommer" },
+              { value: "streetname", label: "Straatnaam" },
+            ]}
+            isSearchable={false}
+          />
         </div>
         <div className="controls-right">
           <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />

@@ -1,10 +1,5 @@
 /* Work Order Page Styles */
 
-.search-box, .filter-select, .sort-select { padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 12px; background-color: white; box-shadow: inset 0 1px 2px rgba(15,23,42,0.05); }
-
-.search-box { flex: 2; min-width: 220px; }
-
-.filter-select, .sort-select { flex: 1; min-width: 170px; }
 
 
 
@@ -302,34 +297,6 @@
   margin: 0 0 20px;
 }
 
-.controls-section {
-  margin-bottom: 24px;
-}
-
-.search-controls {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.search-input,
-.filter-input {
-  padding: 12px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-family: inherit;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 200px;
-}
-
-.filter-input {
-  min-width: 150px;
-}
-
 .loading {
   text-align: center;
   padding: 40px;
@@ -409,74 +376,4 @@
   .no-print * {
     display: none !important;
   }
-}
-
-/* Clear-knoppie vir datetime-local */
-.input-clear-btn {
-  position: absolute;
-  right: 14px;
-  bottom: 12px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.2em;
-  color: #6b7280;
-  line-height: 1;
-  padding: 0;
-}
-
-.input-clear-btn:hover {
-  color: #111827;
-}
-
-.react-select__control--is-disabled .cascade-back-indicator {
-  pointer-events: auto !important;
-  cursor: pointer;
-  opacity: 0.7;
-}
-
-.react-select__control--is-disabled .cascade-back-indicator:hover {
-  opacity: 1;
-}
-
-.react-select__control--is-disabled {
-  background: #ecfdf5 !important;
-  border-color: #16a34a !important;
-}
-
-.react-select__control--is-disabled .react-select__placeholder {
-  color: #166534 !important;
-}
-
-.breadcrumb-btn {
-  background: #e5e5e5;
-  padding: 0 4px;
-  border-radius: 3px;
-}
-
-.breadcrumb-btn:hover {
-  background: #e8d5c4;
-  color: #935e28;
-}
-
-.cascade-back-btn,
-.cascade-back-indicator {
-  display: inline-flex;
-  align-items: center;
-  background: #935e28;
-  color: #fff;
-  border-radius: 4px;
-  padding: 2px 6px;
-}
-
-.cascade-back-btn:hover,
-.cascade-back-indicator:hover {
-  background: #7a4e21 !important;
-  color: #fff !important;
-}
-
-.react-select__control--is-disabled .cascade-back-btn,
-.react-select__control--is-disabled .cascade-back-indicator {
-  pointer-events: auto !important;
-  cursor: pointer;
 }

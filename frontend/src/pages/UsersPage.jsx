@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Select from 'react-select';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
@@ -265,32 +266,17 @@ function UsersPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek op Naam of E-pos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          <select
-            className="filter-select"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="almal">Alle Statusse</option>
-            <option value="active">Aktief</option>
-            <option value="inactive">Onaktief</option>
-          </select>
-          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-            <option value="all">Alle kolomme</option>
-            <option value="name">Naam</option>
-            <option value="email">E-pos</option>
-            <option value="role">Rol</option>
-            <option value="status">Status</option>
-          </select>
+          <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "almal", label: "Alle Statusse" }, { value: "active", label: "Aktief" }, { value: "inactive", label: "Onaktief" }].find((option) => option.value === filter)} onChange={(selected) => setFilter(selected?.value || "almal")} options={[{ value: "almal", label: "Alle Statusse" }, { value: "active", label: "Aktief" }, { value: "inactive", label: "Onaktief" }]} isSearchable={false} />
+          <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "all", label: "Alle kolomme" }, { value: "name", label: "Naam" }, { value: "email", label: "E-pos" }, { value: "role", label: "Rol" }, { value: "status", label: "Status" }].find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={[{ value: "all", label: "Alle kolomme" }, { value: "name", label: "Naam" }, { value: "email", label: "E-pos" }, { value: "role", label: "Rol" }, { value: "status", label: "Status" }]} isSearchable={false} />
         </div>
         <div className="controls-right">
           <ColumnPicker

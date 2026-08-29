@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
+import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -408,7 +408,7 @@ function StockPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
               placeholder="Soek voorraad..."
@@ -416,18 +416,36 @@ function StockPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-            <option value="all">Alle kolomme</option>
-            <option value="id">ID</option>
-            <option value="name">Naam</option>
-            <option value="brand">Merk</option>
-            <option value="type">Tipe</option>
-            <option value="amount">Hoeveelheid</option>
-            <option value="minimum">Minimum</option>
-            <option value="boxTotal">Boks Totaal</option>
-            <option value="room">Lokaal</option>
-            <option value="description">Beskrywing</option>
-          </select>
+          <Select
+            className="react-select-container"
+            classNamePrefix="react-select"
+            value={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "brand", label: "Merk" },
+              { value: "type", label: "Tipe" },
+              { value: "amount", label: "Hoeveelheid" },
+              { value: "minimum", label: "Minimum" },
+              { value: "boxTotal", label: "Boks Totaal" },
+              { value: "room", label: "Lokaal" },
+              { value: "description", label: "Beskrywing" },
+            ].find((option) => option.value === filterColumn)}
+            onChange={(selected) => setFilterColumn(selected?.value || "all")}
+            options={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "brand", label: "Merk" },
+              { value: "type", label: "Tipe" },
+              { value: "amount", label: "Hoeveelheid" },
+              { value: "minimum", label: "Minimum" },
+              { value: "boxTotal", label: "Boks Totaal" },
+              { value: "room", label: "Lokaal" },
+              { value: "description", label: "Beskrywing" },
+            ]}
+            isSearchable={false}
+          />
           {(() => {
             const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
             const currentDisplayValue = cascadeCount === 0 ? null
@@ -443,42 +461,24 @@ function StockPage({ embedded = false }) {
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 3 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+              <div className="control-cascade-stack">
+                <div className="control-cascade-breadcrumb">
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                </div>
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={cascadeCount >= 3}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -658,34 +658,9 @@ function StockPage({ embedded = false }) {
               if (newStock.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id });
               if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
-              const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                  {breadcrumbData.map((item, i) => {
-                    const isLast = i === breadcrumbData.length - 1;
-                    const showArrow = isLast ? cascadeCount < 3 : true;
-                    return (
-                      <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              );
-              const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
               return (
                 <>
-                  {renderBreadcrumb()}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
@@ -693,8 +668,14 @@ function StockPage({ embedded = false }) {
                       isClearable
                       isDisabled={cascadeCount >= 3}
                       closeMenuOnSelect={false}
-                      components={{ Control: CascadeControl }}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
                       options={allLocationOptions}
+                      styles={{
+                        container: (base) => ({ ...base, minWidth: '260px' }),
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
                           if (cascadeCount === 0)
@@ -817,7 +798,7 @@ function StockPage({ embedded = false }) {
       <div className="content">
           <div className="controls">
             <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <div className="control-input-shell">
                 <input
                   type="text"
                   placeholder="Soek voorraad..."
@@ -825,18 +806,26 @@ function StockPage({ embedded = false }) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="name">Naam</option>
-                <option value="brand">Merk</option>
-                <option value="type">Tipe</option>
-                <option value="amount">Hoeveelheid</option>
-                <option value="minimum">Minimum</option>
-                <option value="boxTotal">Boks Totaal</option>
-                <option value="room">Lokaal</option>
-                <option value="description">Beskrywing</option>
-              </select>
+              <Select
+                className="react-select-container"
+                classNamePrefix="react-select"
+                value={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
+                  { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
+                  { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
+                ].find((option) => option.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected?.value || "all")}
+                options={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
+                  { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
+                  { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
+                ]}
+                isSearchable={false}
+              />
             </div>
             <div className="controls-right">
               <ColumnPicker
