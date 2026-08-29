@@ -8,23 +8,52 @@ import '../core/idempotency.dart';
 class ReportService {
   static final List<Report> _reports = [];
   static final ValueNotifier<List<Report>> reportsNotifier = ValueNotifier(_reports);
+  static final ValueNotifier<bool> isLoadingNotifier = ValueNotifier(false);
+  static String? lastError;
 
   // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
   static String? _pendingKey;
 
   // Haal alle verslae vanaf die backend
   static Future<void> fetchReports() async {
+    isLoadingNotifier.value = true;
+    lastError = null;
     try {
       final response = await ApiClient().client.get('/fault');
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
+        final List<Report> parsed = [];
+        for (final json in data) {
+          try {
+            parsed.add(Report.fromJson(json as Map<String, dynamic>));
+          } catch (e) {
+            debugPrint('Slegs foutkaartjie oorgeslaan: $e');
+          }
+        }
         _reports.clear();
-        _reports.addAll(data.map((json) => Report.fromJson(json)).toList());
+        _reports.addAll(parsed);
         reportsNotifier.value = List.from(_reports);
       }
     } catch (e) {
+      lastError = e.toString();
       debugPrint("Fout met laai van verslae: $e");
+    } finally {
+      isLoadingNotifier.value = false;
     }
+  }
+
+  /// Haal 'n enkele verslag volgens id (GET /fault/{id}) sodat die detail-
+  /// bladsy vars kan wys sonder om op die lys se kas staat te maak.
+  static Future<Report?> getReportById(String id) async {
+    try {
+      final response = await ApiClient().client.get('/fault/$id');
+      if (response.statusCode == 200) {
+        return Report.fromJson(response.data);
+      }
+    } catch (e) {
+      debugPrint("Fout met haal van verslag $id: $e");
+    }
+    return null;
   }
 
   // Stuur 'n nuwe verslag na die backend.
@@ -55,7 +84,7 @@ class ReportService {
   // Dateer 'n verslag op
   static Future<bool> updateReport(Report updatedReport) async {
     try {
-      final response = await ApiClient().client.patch('/fault/${updatedReport.id}', data: updatedReport.toJson());
+      final response = await ApiClient().client.patch('/fault/${updatedReport.id}', data: updatedReport.toUpdateJson());
       if (response.statusCode == 200) {
         final index = _reports.indexWhere((r) => r.id == updatedReport.id);
         if (index != -1) {

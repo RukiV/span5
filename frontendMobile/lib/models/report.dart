@@ -60,6 +60,30 @@ class Report {
     };
   }
 
+  /// PATCH-payload: stuur slegs die velde wat ons wel het; null/leë ID's word
+  /// weggelaat sodat die backend die bestaande waardes behou (geen stomp
+  /// "null"-oorskrywings by opdatering nie).
+  Map<String, dynamic> toUpdateJson() {
+    final m = <String, dynamic>{};
+    m['fault_type'] = _backendFaultType(category);
+    m['fault_priority'] = _backendPriority(priority);
+    m['fault_status'] = rawStatus ?? _backendFaultStatus(phase);
+    m['fault_description'] = '$title: $description';
+    if (assetId != 'Geen Bate') {
+      final a = int.tryParse(assetId);
+      if (a != null) m['asset_id'] = a;
+    }
+    final rid = int.tryParse(location);
+    if (rid != null) m['room_id'] = rid;
+    if (locationId != null) m['location_id'] = locationId;
+    if (buildingId != null) m['building_id'] = buildingId;
+    if (latitude != null) m['latitude'] = latitude;
+    if (longitude != null) m['longitude'] = longitude;
+    if (mappointId != null) m['mappoint_id'] = mappointId;
+    m['is_outdoor'] = isOutdoor;
+    return m;
+  }
+
   static String? _backendFaultType(String cat) {
     switch (cat.toLowerCase()) {
       case 'onderhoud':
@@ -191,6 +215,9 @@ class Report {
 
   factory Report.fromJson(Map<String, dynamic> json) {
     // Map backend status terug na frontend fase
+    if (json['fault_id'] == null) {
+      throw FormatException('Report sonder fault_id');
+    }
     String frontendPhase = _frontendFaultStatus(json['fault_status'] ?? "Wag");
 
     // Map backend prioriteit
@@ -210,7 +237,7 @@ class Report {
     }
 
     return Report(
-      id: json['fault_id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: json['fault_id'].toString(),
       assetId: json['asset_id']?.toString() ?? 'Geen Bate',
       location: json['room_id']?.toString() ?? 'Onbekend',
       title: title,

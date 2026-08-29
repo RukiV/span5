@@ -7,10 +7,12 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
+import '../../services/room_service.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
+import 'scan_page.dart';
 import 'location_page.dart';
 
 class EditReportPage extends StatefulWidget {
@@ -109,7 +111,7 @@ class _EditReportPageState extends State<EditReportPage> {
       context,
       MaterialPageRoute(
         builder: (context) => LocationPage(
-          initialLocation: _mapPoint ?? const LatLng(-25.8480, 28.2366),
+          initialLocation: _mapPoint ?? LocationPage.defaultLocation,
         ),
       ),
     );
@@ -198,6 +200,32 @@ class _EditReportPageState extends State<EditReportPage> {
       _selectedBuilding = building?.name;
       _selectedLocation = room == null ? null : '${room.id}:${room.name}';
     });
+  }
+
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanPage(isLocation: true),
+      ),
+    );
+    if (scannedCode == null || !mounted) return;
+
+    final room = await RoomService.getRoomByCode(scannedCode.trim());
+    if (!mounted) return;
+    if (room == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geen lokaal gevind met hierdie kode nie"),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
   }
 
   Future<void> _saveChanges() async {
@@ -358,6 +386,21 @@ class _EditReportPageState extends State<EditReportPage> {
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,
                       onChanged: _onLocationChanged,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _scanRoom,
+                        icon: const Icon(Icons.qr_code_scanner, size: 18),
+                        label: const Text("Skandeer Lokaal"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.navy,
+                          side: const BorderSide(color: AppColors.navy),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 20),
                     _buildMapSection(),

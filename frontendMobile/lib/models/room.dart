@@ -4,6 +4,8 @@ class Room {
   final String type;
   final int? capacity;
   final int buildingId;
+  final int? locationId;
+  final String? roomCode;
 
   Room({
     required this.id,
@@ -11,6 +13,8 @@ class Room {
     this.type = 'other',
     this.capacity,
     required this.buildingId,
+    this.locationId,
+    this.roomCode,
   });
 
   factory Room.fromJson(Map<String, dynamic> json) => Room(
@@ -19,6 +23,8 @@ class Room {
     type: _frontendRoomType(json['room_type'] ?? 'other'),
     capacity: json['room_capacity'],
     buildingId: json['building_id'] ?? 0,
+    locationId: json['location_id'],
+    roomCode: json['room_code'],
   );
 
   static String _frontendRoomType(String t) {
@@ -55,6 +61,8 @@ class Room {
     String? type,
     int? capacity,
     int? buildingId,
+    int? locationId,
+    String? roomCode,
   }) {
     return Room(
       id: id ?? this.id,
@@ -62,6 +70,8 @@ class Room {
       type: type ?? this.type,
       capacity: capacity ?? this.capacity,
       buildingId: buildingId ?? this.buildingId,
+      locationId: locationId ?? this.locationId,
+      roomCode: roomCode ?? this.roomCode,
     );
   }
 
@@ -70,6 +80,7 @@ class Room {
     'room_type': _backendRoomType(type),
     'room_capacity': capacity,
     'building_id': buildingId,
+    if (roomCode != null) 'room_code': roomCode,
   };
 
   static String _backendRoomType(String t) {

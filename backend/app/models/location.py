@@ -125,6 +125,17 @@ class RoomRead(RoomBase):
     building_id: int
 
 
+class RoomWithPathRead(RoomBase):
+    """Output model for reading a room together with its building and campus path.
+
+    Used by the "scan a room" flow so the client can resolve the full
+    campus -> building -> room path from a scanned room code.
+    """
+    room_id: int
+    building_id: int
+    location_id: Optional[int] = None
+
+
 class RoomUpdate(SQLModel):
     """Input model for updating room records."""
     room_name: Optional[str] = None

@@ -6,6 +6,9 @@ import 'package:geolocator/geolocator.dart';
 import '../../core/app_colors.dart';
 
 class LocationPage extends StatefulWidget {
+  /// Valt terug op hierdie kampus-posisie wanneer geen kaartpunt bekend is
+  /// (byvoorbeeld 'n nuwe verslag sonder 'n geselekteerde ligging).
+  static const LatLng defaultLocation = LatLng(-25.850400, 28.179350);
   final bool autoConfirm;
   final LatLng? initialLocation;
   static bool allowOffCampus = false;
@@ -20,7 +23,7 @@ class _LocationPageState extends State<LocationPage> {
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _positionStream;
 
-  LatLng _selectedLocation = const LatLng(-25.850400, 28.179350);
+  LatLng _selectedLocation = LocationPage.defaultLocation;
   LatLng? _userLocation;
   bool _gpsPermissionDenied = false;
   bool _isSnapping = false;
