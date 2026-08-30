@@ -1,4 +1,34 @@
+from typing import Optional
+from sqlmodel import Session
+
 from ..models.stock import Stock, StockCreate, StockUpdate
 from .base_service import BaseService
+from . import cascade_delete
 
-stock_service = BaseService[Stock, StockCreate, StockUpdate](Stock)
+
+class StockService(BaseService[Stock, StockCreate, StockUpdate]):
+    def delete(self, session: Session, id: int, user_id: Optional[int] = None) -> bool:
+        obj = session.get(self.model, id)
+        if not obj:
+            return False
+
+        payload = obj.model_dump(mode="json")
+        cascade_delete.cascade_delete_stock(session, id)
+        try:
+            self._create_audit_log(
+                session,
+                "delete",
+                {"previous_value": payload, "new_value": None},
+                affected_columns=None,
+                user_id=user_id,
+                affected_id=id,
+                json_data=payload,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        return True
+
+
+stock_service = StockService(Stock)

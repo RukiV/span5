@@ -7,6 +7,7 @@ import '../styles/Calendar.css';
 import { loginRequest } from '../services/msalConfig';
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -56,6 +57,8 @@ function CalendarPage() {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
   const { instance } = useMsal();
+  const { hasRight } = useCurrentUser();
+  const canManage = hasRight('calendar.manage');
   const [loading, setLoading] = useState(true);
   const [events, setEvents] = useState([]);
   const [outlookEvents, setOutlookEvents] = useState([]);
@@ -618,6 +621,7 @@ function CalendarPage() {
               </div>
             </div>
 
+            {canManage && (
             <div className="calendar-form-card">
               <h4>+ Nuwe Kalenderafspraak Skep</h4>
               <form onSubmit={handleCreateEvent} className="calendar-form-grid">
@@ -694,6 +698,7 @@ function CalendarPage() {
                 </div>
               </form>
             </div>
+            )}
           </div>
         </div>
       {dialog}

@@ -1,5 +1,8 @@
 from datetime import datetime
 from typing import Type, TypeVar, Sequence, Generic, Optional, Any
+
+from fastapi import HTTPException
+from psycopg2.errors import ForeignKeyViolation
 from sqlmodel import Session, select, SQLModel
 
 from ..models.audit import Auditlog
@@ -170,6 +173,18 @@ class BaseService(Generic[ModelType, CreateType, UpdateType]):
                 json_data=payload,
             )
             session.commit()
+        except ForeignKeyViolation as exc:
+            # Die rekord word steeds deur ander rekords verwys (bv. 'n gebou
+            # met lokale, of 'n gebruiker met regte). Ons kaskade nie hier nie —
+            # gee eerder 'n duidelike boodskap in plaas van 'n generiese 500.
+            session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Kan nie verwyder nie — hierdie rekord word steeds deur "
+                    "ander rekords gebruik. Verwyder eers daardie verwysings."
+                ),
+            ) from exc
         except Exception:
             session.rollback()
             raise

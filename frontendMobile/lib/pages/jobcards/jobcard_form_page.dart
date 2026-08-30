@@ -400,8 +400,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 12),
           LocationCascadePicker(
             label: "Ligging",
-            required: true,
-            error: _selectedCampusId == null,
+            errorText: _selectedCampusId == null ? "Kies 'n ligging" : null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,
             initialRoomId: _selectedRoomId,

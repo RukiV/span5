@@ -535,7 +535,6 @@ class _NewReportPageState extends State<NewReportPage> {
                       ),
                     ),
                   ),
-                ),
                 // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
                 // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
                 if (UserSession.can('assets.view'))

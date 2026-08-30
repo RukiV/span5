@@ -109,7 +109,7 @@ ROLE_RIGHTS: dict[int, set[str]] = {
     ROLE_FK: set(_FK_RIGHTS),
     ROLE_STUDENT: {"faults.create", "faults.view_own", "notifications.view", "notifications.manage"},
     ROLE_CONTRACTOR: {"calendar.view", "jobs.view_own", "jobs.update_own_status", "notifications.view", "notifications.manage"},
-    ROLE_DOSENT: {"roomchecks.execute", "notifications.view", "notifications.manage"},
+    ROLE_DOSENT: {"roomchecks.execute", "calendar.view", "notifications.view", "notifications.manage"},
 }
 
 # The management API protects these from rename/delete.

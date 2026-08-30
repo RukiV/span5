@@ -13,6 +13,8 @@ import { cachedFetch } from '../utils/cache';
 import '../styles/App.css';
 import '../styles/Predictions.css';
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import useCascadeMenu from "../hooks/useCascadeMenu";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -59,6 +61,7 @@ function PredictionsPage() {
   const [roomFilter, setRoomFilter] = useState("");
 
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
+  const filterCascade = useCascadeMenu();
 const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
 const getAssetName = (p) => p.asset_name || '-';
@@ -193,7 +196,7 @@ const colPickerRef = useRef(null);
       <div className="content">
           {error ? <div className="pred-empty-state">{error}</div> : null}
 
-          <div className="controls" style={{ marginBottom: '0.75rem' }}>
+          <div className="controls">
             <div className="controls-left">
               {(() => {
                 const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
@@ -211,41 +214,45 @@ const colPickerRef = useRef(null);
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
                 const renderBreadcrumb = () => (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+                  <div className="breadcrumb-list">
                     {breadcrumbData.map((item, i) => {
                       const isLast = i === breadcrumbData.length - 1;
                       const showArrow = isLast ? cascadeCount < 3 : true;
                       return (
                         <React.Fragment key={i}>
-                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                          <button type="button" className="breadcrumb-btn" data-current={isLast ? "true" : "false"} onClick={() => clearFromLevel(item.level + 1)}>{item.name}</button>
+                          {showArrow && <span className="breadcrumb-arrow">›</span>}
                         </React.Fragment>
                       );
                     })}
                   </div>
                 );
-                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
                 const CascadeControl = ({ children, ...props }) => (
                   <components.Control {...props}>
                     {children}
                     {cascadeCount > 0 && (
-                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
+                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak">
                         <IoReturnUpBack size={18} />
                       </span>
                     )}
                   </components.Control>
                 );
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {renderBreadcrumb()}
+                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                    <div className="control-cascade-breadcrumb">
+                      {renderBreadcrumb()}
+                    </div>
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={cascadeCount >= 3}
-                      components={{ Control: CascadeControl }}
-                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                      closeMenuOnSelect={false}
+                      menuIsOpen={filterCascade.menuIsOpen}
+                      onMenuOpen={filterCascade.onMenuOpen}
+                      onMenuClose={filterCascade.onMenuClose}
+                      components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -265,7 +272,7 @@ const colPickerRef = useRef(null);
                       }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                         const f = selectedOption._fields;
                         setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}

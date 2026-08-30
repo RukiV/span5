@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import Select from "react-select";
+import { IoTrashOutline } from "react-icons/io5";
 import { buildingsAPI, locationAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -10,6 +12,7 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
@@ -127,14 +130,35 @@ function TerrainsPage({ embedded = false }) {
   };
 
   const handleDeleteTerrain = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie terrein verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
+    const confirmed = await confirmCascade(confirm, { entityLabel: "terrein", childrenLabel: "geboue" });
+    if (!confirmed) return;
     try {
       await locationAPI.delete(id);
       fetchTerrains();
     } catch (error) {
       console.error("Error deleting terrain:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredTerrains.map((x) => x.location_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: locationAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "terreine",
+      childrenLabel: "geboue",
+      refresh: fetchTerrains,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleViewBuildings = (terrain) => {
@@ -214,6 +238,7 @@ function TerrainsPage({ embedded = false }) {
       if (sortKey === 'province') return String(a.location_province || '').localeCompare(String(b.location_province || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredTerrains.length > 0 && selectedIds.length === filteredTerrains.length;
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -223,27 +248,38 @@ function TerrainsPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek terreine..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-            <option value="all">Alle kolomme</option>
-            <option value="id">ID</option>
-            <option value="name">Naam</option>
-            <option value="type">Tipe</option>
-            <option value="streetnum">Straatnommer</option>
-            <option value="streetname">Straatnaam</option>
-          </select>
+          <Select
+            className="react-select-container"
+            classNamePrefix="react-select"
+            value={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "type", label: "Tipe" },
+              { value: "streetnum", label: "Straatnommer" },
+              { value: "streetname", label: "Straatnaam" },
+            ].find((option) => option.value === filterColumn)}
+            onChange={(selected) => setFilterColumn(selected?.value || "all")}
+            options={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "id", label: "ID" },
+              { value: "name", label: "Naam" },
+              { value: "type", label: "Tipe" },
+              { value: "streetnum", label: "Straatnommer" },
+              { value: "streetname", label: "Straatnaam" },
+            ]}
+            isSearchable={false}
+          />
         </div>
         <div className="controls-right">
-          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
-          <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
           {hasRight('locations.manage') && (
             <button
               type="button"
@@ -252,6 +288,13 @@ function TerrainsPage({ embedded = false }) {
               onClick={() => setShowImportWizard(true)}
             >
               ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
+          <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
             </button>
           )}
           {hasRight('locations.manage') && (
@@ -268,30 +311,36 @@ function TerrainsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh key={col.key} col={col} colWidths={colWidths} className={getSortClass(col.sortKey)} onClick={() => handleSort(col.sortKey)} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
                 {col.label}{getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th>Aksies</th>
+            <th style={{ width: '230px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredTerrains.length === 0 ? (
             <tr>
-              <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>
+              <td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>
                 Geen terreine gevind
               </td>
             </tr>
           ) : (
             filteredTerrains.map((terrain) => (
               <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.includes(terrain.location_id)} onChange={() => toggleOne(terrain.location_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(terrain)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-view" onClick={() => handleViewBuildings(terrain)}>Besigtig Geboue</button>
-                  <button className="btn-delete" onClick={() => handleDeleteTerrain(terrain.location_id)}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteTerrain(terrain.location_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))
