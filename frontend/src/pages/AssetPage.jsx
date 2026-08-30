@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -13,11 +13,47 @@ import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+
+// Prevent react-select from toggling a dropdown closed when you click the control again.
+// Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
+function noCloseOnClick(selectProps, innerOnMouseDown) {
+  return (event) => {
+    if (selectProps && selectProps.menuIsOpen) {
+      event.preventDefault();
+      event.stopPropagation();
+    } else if (innerOnMouseDown) {
+      innerOnMouseDown(event);
+    }
+  };
+}
+
+const NoCloseControl = (props) => (
+  <components.Control
+    {...props}
+    innerProps={{
+      ...props.innerProps,
+      onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+    }}
+  />
+);
+
+const NoCloseDropdownIndicator = (props) => (
+  <components.DropdownIndicator
+    {...props}
+    innerProps={{
+      ...props.innerProps,
+      onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
+    }}
+  />
+);
 
 function AssetPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -55,6 +91,8 @@ function AssetPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
@@ -375,15 +413,35 @@ function AssetPage({ embedded = false }) {
   };
 
   const handleDeleteAsset = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "bate", childrenLabel: "foutkaartjies/werkopdragte" });
     if (!confirmed) return;
     try {
       await assetsAPI.delete(id);
       fetchAssets();
     } catch (error) {
       console.error("Error deleting asset:", error);
-      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredItems.map((x) => x.asset_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: assetsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "bates",
+      childrenLabel: "foutkaartjies/werkopdragte",
+      refresh: fetchAssets,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditAsset = (item) => {
@@ -600,6 +658,7 @@ function AssetPage({ embedded = false }) {
       if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
       return 0;
     });
+  const allSelected = filteredItems.length > 0 && selectedIds.length === filteredItems.length;
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -642,7 +701,7 @@ function AssetPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <div className="control-input-shell">
             <input
               type="text"
               placeholder="Soek bates..."
@@ -651,13 +710,19 @@ function AssetPage({ embedded = false }) {
             />
           </div>
           <Select
-            className="basic-single"
-            classNamePrefix="select"
+            className="react-select-container"
+            classNamePrefix="react-select"
             value={filterColumnOptions.find(option => option.value === filterColumn)}
             onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
             options={filterColumnOptions}
             isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+            styles={{
+              container: (base) => ({ ...base, minWidth: '160px' }),
+              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+            }}
           />
           {(() => {
             const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
@@ -675,41 +740,52 @@ function AssetPage({ embedded = false }) {
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
             if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
             const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
+              <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
                 {breadcrumbData.map((item, i) => {
                   const isLast = i === breadcrumbData.length - 1;
                   const showArrow = isLast ? cascadeCount < 3 : true;
                   return (
                     <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                      <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                       {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                     </React.Fragment>
                   );
                 })}
               </div>
             );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+            const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
+              const CascadeControl = ({ children, ...props }) => (
+                <components.Control {...props}>
+                  {children}
+                  {cascadeCount > 0 && (
+                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                      <IoReturnUpBack size={24} />
+                    </span>
+                  )}
+                </components.Control>
+              );
+              return (
+                <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                  <div className="control-cascade-breadcrumb">
+                    {renderBreadcrumb()}
+                  </div>
                   <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                     className="react-select-container"
+                     classNamePrefix="react-select"
+                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                     isClearable
+                     isDisabled={cascadeCount >= 3}
+                     closeMenuOnSelect={false}
+                     menuIsOpen={filterCascade.menuIsOpen}
+                     onMenuOpen={filterCascade.onMenuOpen}
+                     onMenuClose={filterCascade.onMenuClose}
+                       components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -727,7 +803,7 @@ function AssetPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                     }}
@@ -737,6 +813,15 @@ function AssetPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('assets.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={ASSET_COLUMNS}
@@ -747,14 +832,9 @@ function AssetPage({ embedded = false }) {
           />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
-          {hasRight('assets.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
             </button>
           )}
           {hasRight('assets.manage') && (
@@ -771,6 +851,9 @@ function AssetPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -783,21 +866,24 @@ function AssetPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '120px' }}>Aksies</th>
+            <th style={{ width: '230px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredItems.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
             filteredItems.map((item) => (
               <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
-                  <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))
@@ -869,11 +955,17 @@ function AssetPage({ embedded = false }) {
               classNamePrefix="select"
               placeholder="Kies 'n tipe..."
               isSearchable={true}
+              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
               options={assettypeOptions}
               value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
               onChange={(selected) => {
                 setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
                 if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
+              }}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
               }}
             />
           </div>
@@ -884,6 +976,11 @@ function AssetPage({ embedded = false }) {
             <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newAsset.location_id ? { value: newAsset.location_id, label: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id }
+                : cascadeCount === 2 && newAsset.building_id ? { value: newAsset.building_id, label: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id }
+                : cascadeCount === 3 && newAsset.room_id ? { value: newAsset.room_id, label: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
                 else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
@@ -894,7 +991,7 @@ function AssetPage({ embedded = false }) {
               if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
               if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
               const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
+                <div className="control-cascade-breadcrumb">
                   {breadcrumbData.map((item, i) => {
                     const isLast = i === breadcrumbData.length - 1;
                     const showArrow = isLast ? cascadeCount < 3 : true;
@@ -908,27 +1005,35 @@ function AssetPage({ embedded = false }) {
                 </div>
               );
               const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
-              return (
-                <>
-                  {renderBreadcrumb()}
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      closeMenuOnSelect={false}
-                      components={{ Control: CascadeControl }}
+               const CascadeControl = ({ children, ...props }) => (
+                 <components.Control {...props}>
+                   {children}
+                   {cascadeCount > 0 && (
+                     <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                       <IoReturnUpBack size={24} />
+                     </span>
+                   )}
+                 </components.Control>
+               );
+               return (
+                 <div ref={modalCascadeMenu.containerRef}>
+                   {renderBreadcrumb()}
+                     <Select
+                       className="react-select-container"
+                       classNamePrefix="react-select"
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       menuIsOpen={modalCascadeMenu.menuIsOpen}
+                       onMenuOpen={modalCascadeMenu.onMenuOpen}
+                       onMenuClose={modalCascadeMenu.onMenuClose}
+                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      styles={{
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -944,9 +1049,9 @@ function AssetPage({ embedded = false }) {
                         if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newAsset.building_id);
                         return false;
                       }}
-                      value={null}
+                      value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""})); return; }
                         setNewAsset(p => ({...p, ...selectedOption._fields}));
                         if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                         const labels = ["Terrein","Gebou","Lokaal"];
@@ -954,7 +1059,7 @@ function AssetPage({ embedded = false }) {
                         setTimeout(() => setCascadeToast(null), 2000);
                       }}
                     />
-                </>
+                </div>
               );
             })()}
             {cascadeToast && (
@@ -975,6 +1080,12 @@ function AssetPage({ embedded = false }) {
               onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
               options={statusOptions}
               isSearchable={false}
+              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+              }}
             />
           </div>
         </div>
