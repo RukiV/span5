@@ -265,11 +265,11 @@
 /* Die verstek react-select-tema gebruik blou (#2684FF). Die app se tema
    is ligbruin (#935e28). Ship ligte bruin vir fokus/keuse oor alle bladsye. */
 
-/* Gefokusde kontrole: blou belyn -> ligbruin */
+/* Gefokusde kontrole: blou belyn -> ligbruin (enkele skoon lyn, geen buitering meer) */
 .react-select__control--is-focused,
 .select__control--is-focused {
     border-color: #935e28 !important;
-    box-shadow: 0 0 0 1px #935e28 !important;
+    box-shadow: none !important;
 }
 
 /* Opsie wat gekies is -> ligbruin agtergrond, wit teks */
@@ -302,6 +302,20 @@
 .select__indicator--is-focused {
     color: #7a4e21 !important;
 }
+
+/* ---------- Alle invulbare elemente: bruin fokus (normale detek bly grys/swart) ---------- */
+/* Die normale detek word gelaat soos die blaaier/Bootstrap dit gee (grys/swart).
+   Slegs wanneer die element gefokus/geselekteer word, word die detek volbruin
+   (#935e28) met 'n ligte bruin gloed. Validasiefoute (.field-invalid) kry altyd
+   voorrang (klasspesifisiteit slaan die element-selektor). */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="hidden"]):not(.react-select__input):focus,
+textarea:focus,
+select:not([class*="cascade"]):focus {
+    border-color: #935e28 !important;
+    box-shadow: 0 0 0 2px rgba(147, 94, 40, 0.25);
+    outline: none;
+}
+
 
 .breadcrumb-list {
   display: flex;
@@ -411,6 +425,29 @@
 
 .react-select__control--is-disabled .cascade-back-btn,
 .react-select__control--is-disabled .cascade-back-indicator {
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+
+.cascade-clear-indicator {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 4px;
+  margin: 0 !important;
+  height: 40px;
+  line-height: normal !important;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.cascade-clear-indicator:hover {
+  color: #111827;
+}
+
+.react-select__control--is-disabled .cascade-clear-indicator {
   pointer-events: auto !important;
   cursor: pointer;
 }
@@ -611,6 +648,30 @@
   padding: 15px;
   text-align: center;
   border-bottom: 1px solid #eee;
+}
+
+.standard-table td:has(.btn-view, .btn-edit, .btn-delete) {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+}
+
+.standard-table td .btn-view,
+.standard-table td .btn-edit,
+.standard-table td .btn-delete,
+.standard-table td .btn-add {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.standard-table td .btn-delete {
+  padding: 6px 8px;
 }
 
 .standard-table tbody tr {

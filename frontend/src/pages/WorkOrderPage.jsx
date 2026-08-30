@@ -2,8 +2,8 @@
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
-import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
+import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
@@ -1447,7 +1447,7 @@ function WorkOrderPage() {
                        menuIsOpen={filterCascade.menuIsOpen}
                        onMenuOpen={filterCascade.onMenuOpen}
                        onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       styles={{
                         container: (base) => ({ ...base, minWidth: '260px' }),
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -1473,7 +1473,7 @@ function WorkOrderPage() {
                       }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                         const f = selectedOption._fields;
                         setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
@@ -1484,6 +1484,16 @@ function WorkOrderPage() {
             </div>
 
             <div className="controls-right">
+              {hasRight('jobs.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
               <ColumnPicker
                 ref={colPickerRef}
                 columns={colVis.columnDefs}
@@ -1501,16 +1511,6 @@ function WorkOrderPage() {
               >
                 + Nuwe Werksopdrag
               </button>
-              {hasRight('jobs.manage') && (
-                <button
-                  type="button"
-                  className="btn-add"
-                  style={{ marginLeft: '0.5rem' }}
-                  onClick={() => setShowImportWizard(true)}
-                >
-                  ⇅ Invoer / Uitvoer rekords
-                </button>
-              )}
               {hasRight('jobs.manage') && (
                 <ImportExportModal
                   isOpen={showImportWizard}
@@ -1553,13 +1553,13 @@ function WorkOrderPage() {
                       <td key={col.key}>{col.render(order)}</td>
                     ))}
                     <td onClick={e => e.stopPropagation()}>
-                      <button 
+                      <button
                         type="button"
                         className="btn-delete"
                         onClick={() => handleDeleteWorkOrder(order.jobcard_id)}
                         title="Verwyder werksopdrag"
                       >
-                        Verwyder
+                        <IoTrashOutline size={18} />
                       </button>
                     </td>
                   </tr>
@@ -1743,6 +1743,12 @@ function WorkOrderPage() {
                 {/* Ligging & Koppeling + Foutkaartjie —50% elk */}
                 {(() => {
                   const cascadeCount = [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length;
+                  const currentDisplayValue = cascadeCount === 0 ? null
+                    : cascadeCount === 1 && formData.location_id ? { value: formData.location_id, label: terrains?.find(t => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id }
+                    : cascadeCount === 2 && formData.building_id ? { value: formData.building_id, label: buildings?.find(b => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id }
+                    : cascadeCount === 3 && formData.room_id ? { value: formData.room_id, label: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id }
+                    : cascadeCount === 4 && formData.asset_id ? { value: formData.asset_id, label: assets?.find(a => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id }
+                    : null;
                   const clearFromLevel = (levelIndex) => {
                     if (levelIndex <= 0) setFormData(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
                     else if (levelIndex === 1) setFormData(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
@@ -1787,24 +1793,21 @@ function WorkOrderPage() {
                     color: "#fff", cursor: "pointer", display: "flex",
                     alignItems: "center", padding: "4px 8px", margin: "2px",
                   };
-                  const CascadeControl = ({ children, ...props }) => (
-                    <components.Control {...props}>
-                      {children}
-                      {cascadeCount > 0 && (
-                        <>
-                          <span style={{ color: "#ccc", userSelect: "none", display: "inline-flex", alignItems: "center" }}>|</span>
-                          <span
-                            className="cascade-back-btn"
-                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                            title="Terug na vorige vlak"
-                            style={backBtnStyle}
-                          >
-                            <IoReturnUpBack size={24} />
-                          </span>
-                        </>
-                      )}
-                    </components.Control>
-                  );
+                   const CascadeControl = ({ children, ...props }) => (
+                     <components.Control {...props}>
+                       {children}
+                       {cascadeCount > 0 && (
+                         <span
+                           className="cascade-back-btn"
+                           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
+                           title="Terug na vorige vlak"
+                           style={backBtnStyle}
+                         >
+                           <IoReturnUpBack size={24} />
+                         </span>
+                       )}
+                     </components.Control>
+                   );
                   return (
                 <div className={`mri-row flex${invalidFields.location_id ? " field-invalid" : ""}`}>
                   <div ref={liggingRef} className="mri-cell w-50 border-r" style={{ position: "relative" }}>
@@ -1823,7 +1826,7 @@ function WorkOrderPage() {
                         menuIsOpen={modalCascadeMenu.menuIsOpen}
                         onMenuOpen={modalCascadeMenu.onMenuOpen}
                         onMenuClose={modalCascadeMenu.onMenuClose}
-                        components={{ Control: CascadeControl }}
+                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -1847,9 +1850,9 @@ function WorkOrderPage() {
                         if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(formData.room_id);
                         return false;
                         }}
-                        value={null}
+                        value={currentDisplayValue}
                         onChange={(selectedOption) => {
-                          if (!selectedOption) return;
+                          if (!selectedOption) { setFormData(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""})); return; }
                           setFormData((p) => ({...p, ...selectedOption._fields}));
                           const labels = ["Terrein","Gebou","Lokaal","Bate"];
                           const label = labels[selectedOption._cascadeLevel] || "";
@@ -1889,7 +1892,7 @@ function WorkOrderPage() {
                         classNamePrefix="react-select"
                         placeholder="Soek/Kies Foutkaartjie..."
                         isClearable
-                        components={{ Control: CascadeControl }}
+                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                           valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),

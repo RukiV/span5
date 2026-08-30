@@ -5,10 +5,10 @@ export function useConfirmDialog() {
   const [dialogProps, setDialogProps] = useState(null);
   const resolveRef = useRef(null);
 
-  const confirm = useCallback(({ title = 'Confirm', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'info' } = {}) => {
+  const confirm = useCallback(({ title = 'Confirm', message = '', confirmLabel = 'Confirm', cancelLabel = 'Cancel', variant = 'info', cascade = false } = {}) => {
     return new Promise((resolve) => {
       resolveRef.current = resolve;
-      setDialogProps({ title, message, confirmLabel, cancelLabel, variant });
+      setDialogProps({ title, message, confirmLabel, cancelLabel, variant, cascade });
     });
   }, []);
 
@@ -34,6 +34,7 @@ export function useConfirmDialog() {
       confirmLabel={dialogProps.confirmLabel}
       cancelLabel={dialogProps.cancelLabel}
       variant={dialogProps.variant}
+      cascade={dialogProps.cascade}
     />
   ) : null;
 

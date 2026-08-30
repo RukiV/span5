@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
+import { IoTrashOutline } from 'react-icons/io5';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
@@ -10,6 +11,7 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
@@ -168,14 +170,35 @@ function UsersPage({ embedded = false }) {
 
   // Verwyder gebruiker na bevestiging
   const handleDeleteUser = async (userId) => {
-    const confirmed = await confirm({ message: 'Is jy seker jy wil hierdie gebruiker verwyder?', variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "gebruiker", childrenLabel: "werkopdragte" });
     if (!confirmed) return;
     try {
       await apiClient.users.delete(userId);
       fetchUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering van gebruiker.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredUsers.map((x) => x.user_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: apiClient.users.delete,
+      confirm,
+      showToast,
+      entityLabel: "gebruikers",
+      childrenLabel: "werkopdragte",
+      refresh: fetchUsers,
+      errorFallback: "Fout tydens verwydering van gebruiker.",
+    }).then(() => setSelectedIds([]));
   };
 
   // Sluit modal en stel vorm terug
@@ -245,6 +268,7 @@ function UsersPage({ embedded = false }) {
       }
       return 0;
     });
+  const allSelected = filteredUsers.length > 0 && selectedIds.length === filteredUsers.length;
 
   // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
@@ -288,12 +312,20 @@ function UsersPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
+            </button>
+          )}
         </div>
       </div>
 
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -306,20 +338,23 @@ function UsersPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '120px' }}>Aksies</th>
+            <th style={{ width: '150px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredUsers.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen gebruikers gevind</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen gebruikers gevind</td></tr>
           ) : (
             filteredUsers.map(user => (
               <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.includes(user.user_id)} onChange={() => toggleOne(user.user_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(user)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
-                  <button className="btn-delete" onClick={() => handleDeleteUser(user.user_id)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteUser(user.user_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))

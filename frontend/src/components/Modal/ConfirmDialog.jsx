@@ -16,6 +16,7 @@ function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   variant = 'info',
+  cascade = false,
 }) {
   const style = VARIANT_STYLES[variant] || VARIANT_STYLES.info;
 
@@ -24,7 +25,7 @@ function ConfirmDialog({
       isOpen={isOpen}
       onClose={onClose}
       title={title}
-      size="sm"
+      size={cascade ? 'md' : 'sm'}
       footer={
         <>
           <button className="btn-cancel" onClick={onClose}>{cancelLabel}</button>
@@ -38,7 +39,39 @@ function ConfirmDialog({
         </>
       }
     >
-      <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6' }}>{message}</p>
+      {cascade ? (
+        <div>
+          <div
+            style={{
+              border: '2px solid #dc3545',
+              borderRadius: '8px',
+              padding: '16px',
+              background: '#fff5f5',
+              margin: 0,
+            }}
+          >
+            <p style={{ margin: '0 0 10px', fontSize: '16px', fontWeight: 700, color: '#b02a37' }}>
+              ⚠️ Waarskuwing
+            </p>
+            <p style={{ margin: 0, fontSize: '15px', lineHeight: '1.6', color: '#842029' }}>
+              {message}
+            </p>
+          </div>
+          <p
+            style={{
+              margin: '14px 0 0',
+              fontSize: '13px',
+              lineHeight: '1.5',
+              color: '#6c757d',
+              fontStyle: 'italic',
+            }}
+          >
+            Hierdie aksie kan nie ongedaan gemaak word nie.
+          </p>
+        </div>
+      ) : (
+        <p style={{ margin: 0, fontSize: '14px', lineHeight: '1.6' }}>{message}</p>
+      )}
     </Modal>
   );
 }

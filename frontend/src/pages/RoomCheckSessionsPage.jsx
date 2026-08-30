@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import RawSelect from "react-select";
 import Select from "react-select";
-import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { useSearchParams } from "react-router-dom";
 import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -17,6 +18,7 @@ import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import "../components/Modal/Modal.css";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 const STATUS_LABELS = {
   scheduled: "Geskeduleer",
@@ -208,13 +210,7 @@ function RoomCheckSessionsPage() {
   };
 
   const handleDelete = async (s) => {
-    const confirmed = await confirm({
-      title: "Verwyder Skedule",
-      message: "'n Aktiewe kontrole is aan die gang. Is jy seker dat jy dit wil uitvee?",
-      variant: "danger",
-      confirmLabel: "Verwyder",
-      cancelLabel: "Kanselleer",
-    });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "skedule", childrenLabel: "kontroles" });
     if (!confirmed) return;
     try {
       await roomChecksAPI.sessions.delete(s.session_id);
@@ -222,8 +218,28 @@ function RoomCheckSessionsPage() {
       await fetchSessions();
     } catch (err) {
       console.error("Fout met verwydering:", err);
-      showToast({ type: "error", title: "Fout", message: "Kon nie die skedule verwyder nie." });
+      showToast({ type: "error", title: "Fout", message: getDeleteErrorMessage(err, "Kon nie die skedule verwyder nie.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredSessions.map((x) => x.session_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: roomChecksAPI.sessions.delete,
+      confirm,
+      showToast,
+      entityLabel: "skedules",
+      childrenLabel: "kontroles",
+      refresh: fetchSessions,
+      errorFallback: "Kon nie die skedule verwyder nie.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleViewHistory = async (s) => {
@@ -306,6 +322,7 @@ function RoomCheckSessionsPage() {
       if (sortKey === "id") return (a.session_id - b.session_id) * dir;
       return 0;
     });
+  const allSelected = filteredSessions.length > 0 && selectedIds.length === filteredSessions.length;
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -375,7 +392,7 @@ function RoomCheckSessionsPage() {
                   menuIsOpen={filterCascade.menuIsOpen}
                   onMenuOpen={filterCascade.onMenuOpen}
                   onMenuClose={filterCascade.onMenuClose}
-                  components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                  components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                   styles={{
                     container: (base) => ({ ...base, minWidth: "260px" }),
                     control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -399,7 +416,7 @@ function RoomCheckSessionsPage() {
                   }}
                   value={currentDisplayValue}
                   onChange={(selectedOption) => {
-                    if (!selectedOption) return;
+                    if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                     const f = selectedOption._fields;
                     setTerrainFilter(f.location_id);
                     setBuildingFilter(f.building_id);
@@ -420,12 +437,20 @@ function RoomCheckSessionsPage() {
             onResetWidths={colWidths.resetWidths}
           />
           {canManage && <button className="btn-add" onClick={openCreate}>+ Nuwe Skedule</button>}
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
+            </button>
+          )}
         </div>
       </div>
 
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -438,15 +463,18 @@ function RoomCheckSessionsPage() {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: "220px" }}>Aksies</th>
+            <th style={{ width: "250px" }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredSessions.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: "center", padding: "20px" }}>Geen skedules gevind nie.</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: "center", padding: "20px" }}>Geen skedules gevind nie.</td></tr>
           ) : (
             filteredSessions.map((s) => (
               <tr key={s.session_id} onClick={() => canManage && openEdit(s)} style={{ cursor: canManage ? "pointer" : "default" }}>
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.includes(s.session_id)} onChange={() => toggleOne(s.session_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(s)}</td>
                 ))}
@@ -457,7 +485,7 @@ function RoomCheckSessionsPage() {
                   {canManage && s.status === "scheduled" && (
                     <>
                       <button className="btn-view" onClick={() => openEdit(s)}>Wysig</button>
-                      <button className="btn-delete" onClick={() => handleDelete(s)}>Verwyder</button>
+                      <button className="btn-delete" title="Verwyder" onClick={() => handleDelete(s)}><IoTrashOutline size={18} /></button>
                     </>
                   )}
                 </td>
@@ -471,6 +499,11 @@ function RoomCheckSessionsPage() {
 
   const modalContent = showForm && canManage && (() => {
     const cascadeCount = [formLocationId, formBuildingId, formRoomId].filter(Boolean).length;
+    const currentDisplayValue = cascadeCount === 0 ? null
+      : cascadeCount === 1 && formLocationId ? { value: formLocationId, label: terrains?.find((t) => String(t.location_id) === String(formLocationId))?.location_name || formLocationId }
+      : cascadeCount === 2 && formBuildingId ? { value: formBuildingId, label: buildings?.find((b) => String(b.building_id) === String(formBuildingId))?.building_name || formBuildingId }
+      : cascadeCount === 3 && formRoomId ? { value: formRoomId, label: rooms?.find((r) => r.room_id === formRoomId)?.room_name || formRoomId }
+      : null;
     const clearCascadeFromLevel = (levelIndex) => {
       if (levelIndex <= 0) { setFormLocationId(""); setFormBuildingId(""); setFormRoomId(null); }
       else if (levelIndex === 1) { setFormBuildingId(""); setFormRoomId(null); }
@@ -512,12 +545,9 @@ function RoomCheckSessionsPage() {
                 menuIsOpen={formCascade.menuIsOpen}
                 onMenuOpen={formCascade.onMenuOpen}
                 onMenuClose={formCascade.onMenuClose}
-                components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearCascadeFromLevel} /> }}
+                components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearCascadeFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                 options={allLocationOptions}
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
                 styles={{
-                  menuPortal: (base) => ({ ...base, zIndex: 10001 }),
                   control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                   valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
                   singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
@@ -536,9 +566,9 @@ function RoomCheckSessionsPage() {
                   if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(formBuildingId);
                   return false;
                 }}
-                value={null}
+                value={currentDisplayValue}
                 onChange={(selectedOption) => {
-                  if (!selectedOption) return;
+                  if (!selectedOption) { setFormLocationId(""); setFormBuildingId(""); setFormRoomId(null); return; }
                   setFormLocationId(selectedOption._fields.location_id);
                   setFormBuildingId(selectedOption._fields.building_id);
                   setFormRoomId(selectedOption._fields.room_id ? Number(selectedOption._fields.room_id) : null);
@@ -559,14 +589,13 @@ function RoomCheckSessionsPage() {
             <div className="input-group" style={{ marginBottom: 16 }}>
               <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Toegewys aan</label>
               <RawSelect
+                isClearable
+                classNamePrefix="react-select"
                 options={userOptions}
                 value={userOptions.find((o) => o.value === formUserId) || null}
                 onChange={(o) => setFormUserId(o ? o.value : null)}
                 placeholder={formRoomId ? "Kies gebruiker" : "Kies eers 'n lokaal"}
                 isDisabled={!formRoomId}
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={{ menuPortal: (base) => ({ ...base, zIndex: 10001 }) }}
               />
             </div>
           </div>

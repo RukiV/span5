@@ -49,7 +49,7 @@
 
 .border-r { border-right: 1px solid #e5e7eb; padding-right: 20px; }
 
-.mri-fld span { display: block; color: #334155; font-weight: 700; margin-bottom: 8px; }
+.mri-fld > span { display: block; color: #334155; font-weight: 700; margin-bottom: 8px; }
 
 
 
