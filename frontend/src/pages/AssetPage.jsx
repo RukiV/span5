@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -19,6 +19,8 @@ import "../styles/Asset.css";
 import "./Page.jsx";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 // Prevent react-select from toggling a dropdown closed when you click the control again.
 // Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
@@ -411,15 +413,35 @@ function AssetPage({ embedded = false }) {
   };
 
   const handleDeleteAsset = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "bate", childrenLabel: "foutkaartjies/werkopdragte" });
     if (!confirmed) return;
     try {
       await assetsAPI.delete(id);
       fetchAssets();
     } catch (error) {
       console.error("Error deleting asset:", error);
-      showToast({ type: 'error', title: 'Fout tydens verwydering. Probeer asseblief weer.' });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredItems.map((x) => x.asset_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: assetsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "bates",
+      childrenLabel: "foutkaartjies/werkopdragte",
+      refresh: fetchAssets,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditAsset = (item) => {
@@ -636,6 +658,7 @@ function AssetPage({ embedded = false }) {
       if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
       return 0;
     });
+  const allSelected = filteredItems.length > 0 && selectedIds.length === filteredItems.length;
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -731,22 +754,16 @@ function AssetPage({ embedded = false }) {
               </div>
             );
             const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-             const CascadeControl = ({ children, ...props }) => (
-               <components.Control
-                 {...props}
-                 innerProps={{
-                   ...props.innerProps,
-                   onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
-                 }}
-               >
-                 {children}
-                 {cascadeCount > 0 && (
-                   <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                     <IoReturnUpBack size={24} />
-                   </span>
-                 )}
-               </components.Control>
-             );
+              const CascadeControl = ({ children, ...props }) => (
+                <components.Control {...props}>
+                  {children}
+                  {cascadeCount > 0 && (
+                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
+                      <IoReturnUpBack size={24} />
+                    </span>
+                  )}
+                </components.Control>
+              );
               return (
                 <div className="control-cascade-stack" ref={filterCascade.containerRef}>
                   <div className="control-cascade-breadcrumb">
@@ -762,7 +779,7 @@ function AssetPage({ embedded = false }) {
                      menuIsOpen={filterCascade.menuIsOpen}
                      onMenuOpen={filterCascade.onMenuOpen}
                      onMenuClose={filterCascade.onMenuClose}
-                     components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                       components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
                       control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -786,7 +803,7 @@ function AssetPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                     }}
@@ -815,6 +832,11 @@ function AssetPage({ embedded = false }) {
           />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
+            </button>
+          )}
           {hasRight('assets.manage') && (
             <ImportExportModal
               isOpen={showImportWizard}
@@ -829,6 +851,9 @@ function AssetPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -841,21 +866,24 @@ function AssetPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '120px' }}>Aksies</th>
+            <th style={{ width: '230px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredItems.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
             filteredItems.map((item) => (
               <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
-                  <button className="btn-delete" onClick={() => handleDeleteAsset(item.asset_id)}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))
@@ -948,6 +976,11 @@ function AssetPage({ embedded = false }) {
             <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newAsset.location_id ? { value: newAsset.location_id, label: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id }
+                : cascadeCount === 2 && newAsset.building_id ? { value: newAsset.building_id, label: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id }
+                : cascadeCount === 3 && newAsset.room_id ? { value: newAsset.room_id, label: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""}));
                 else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
@@ -973,13 +1006,7 @@ function AssetPage({ embedded = false }) {
               );
               const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
                const CascadeControl = ({ children, ...props }) => (
-                 <components.Control
-                   {...props}
-                   innerProps={{
-                     ...props.innerProps,
-                     onMouseDown: noCloseOnClick(props.selectProps, props.innerProps.onMouseDown),
-                   }}
-                 >
+                 <components.Control {...props}>
                    {children}
                    {cascadeCount > 0 && (
                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
@@ -1001,7 +1028,7 @@ function AssetPage({ embedded = false }) {
                        menuIsOpen={modalCascadeMenu.menuIsOpen}
                        onMenuOpen={modalCascadeMenu.onMenuOpen}
                        onMenuClose={modalCascadeMenu.onMenuClose}
-                       components={{ Control: CascadeControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1022,9 +1049,9 @@ function AssetPage({ embedded = false }) {
                         if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newAsset.building_id);
                         return false;
                       }}
-                      value={null}
+                      value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setNewAsset(p => ({...p, location_id: "", building_id: "", room_id: ""})); return; }
                         setNewAsset(p => ({...p, ...selectedOption._fields}));
                         if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                         const labels = ["Terrein","Gebou","Lokaal"];

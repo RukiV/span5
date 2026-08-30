@@ -14,6 +14,7 @@ import '../styles/App.css';
 import '../styles/Predictions.css';
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -251,7 +252,7 @@ const colPickerRef = useRef(null);
                       menuIsOpen={filterCascade.menuIsOpen}
                       onMenuOpen={filterCascade.onMenuOpen}
                       onMenuClose={filterCascade.onMenuClose}
-                      components={{ Control: CascadeControl }}
+                      components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -271,7 +272,7 @@ const colPickerRef = useRef(null);
                       }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                         const f = selectedOption._fields;
                         setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}

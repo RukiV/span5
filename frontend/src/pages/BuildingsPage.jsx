@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
-import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator } from "../components/controlHelpers";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -13,6 +14,7 @@ import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -164,14 +166,35 @@ function BuildingsPage({ embedded = false }) {
   };
 
   const handleDeleteBuilding = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie gebou verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
+    const confirmed = await confirmCascade(confirm, { entityLabel: "gebou", childrenLabel: "lokale" });
+    if (!confirmed) return;
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredBuildings.map((x) => x.building_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: buildingsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "geboue",
+      childrenLabel: "lokale",
+      refresh: fetchBuildings,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditBuilding = (item) => {
@@ -229,6 +252,7 @@ function BuildingsPage({ embedded = false }) {
       if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -311,7 +335,7 @@ function BuildingsPage({ embedded = false }) {
                     menuIsOpen={filterCascade.menuIsOpen}
                     onMenuOpen={filterCascade.onMenuOpen}
                     onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, DropdownIndicator: NoCloseDropdownIndicator }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
                       control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -328,7 +352,7 @@ function BuildingsPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
                     }}
@@ -338,6 +362,16 @@ function BuildingsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('buildings.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={BUILDING_COLUMNS}
@@ -347,14 +381,9 @@ function BuildingsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
-          {hasRight('buildings.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
             </button>
           )}
           {hasRight('buildings.manage') && (
@@ -371,6 +400,9 @@ function BuildingsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -383,18 +415,21 @@ function BuildingsPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '200px' }}>Aksies</th>
+            <th style={{ width: '230px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredBuildings.map((building) => (
             <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
+              <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={selectedIds.includes(building.building_id)} onChange={() => toggleOne(building.building_id)} />
+              </td>
               {colVis.visibleColumns.map((col) => (
                 <td key={col.key}>{col.render(building)}</td>
               ))}
               <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
-                <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
+                <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteBuilding(building.building_id)}><IoTrashOutline size={18} /></button>
               </td>
             </tr>
           ))}
@@ -446,6 +481,9 @@ function BuildingsPage({ embedded = false }) {
             <label>Terrein *</label>
             {(() => {
               const cascadeCount = [newBuilding.location_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newBuilding.location_id ? { value: newBuilding.location_id, label: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewBuilding(p => ({...p, location_id: ""}));
               };
@@ -464,7 +502,7 @@ function BuildingsPage({ embedded = false }) {
                     menuIsOpen={modalCascadeMenu.menuIsOpen}
                     onMenuOpen={modalCascadeMenu.onMenuOpen}
                     onMenuClose={modalCascadeMenu.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -478,9 +516,9 @@ function BuildingsPage({ embedded = false }) {
                       if (cascadeCount === 0) return option.data._cascadeLevel === 0;
                       return false;
                     }}
-                    value={null}
+                    value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setNewBuilding(p => ({...p, location_id: ""})); return; }
                       setNewBuilding(p => ({...p, ...selectedOption._fields}));
                       if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                     }}

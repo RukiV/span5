@@ -144,7 +144,7 @@ function AIDraftQueuePage() {
                   {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
                 </ResizableTh>
               ))}
-              <th style={{ width: '100px' }}>Aksies</th>
+              <th style={{ width: '130px' }}>Aksies</th>
             </tr>
           </thead>
           <tbody>

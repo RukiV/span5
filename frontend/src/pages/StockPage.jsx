@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
-import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -18,6 +19,7 @@ import "../styles/Asset.css";
 import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 function StockPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -275,15 +277,35 @@ function StockPage({ embedded = false }) {
   };
 
   const handleDeleteStock = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie voorraad-item verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "voorraad-item", childrenLabel: "beelde" });
     if (!confirmed) return;
     try {
       await stockAPI.delete(id);
       fetchStock();
     } catch (error) {
       console.error("Error deleting stock:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredStock.map((x) => x.stock_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: stockAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "voorraad-items",
+      childrenLabel: "beelde",
+      refresh: fetchStock,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditStock = (item) => {
@@ -402,6 +424,7 @@ function StockPage({ embedded = false }) {
       if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredStock.length > 0 && selectedIds.length === filteredStock.length;
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -479,7 +502,7 @@ function StockPage({ embedded = false }) {
                     menuIsOpen={filterCascade.menuIsOpen}
                     onMenuOpen={filterCascade.onMenuOpen}
                     onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
                       control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -505,7 +528,7 @@ function StockPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                     }}
@@ -515,6 +538,16 @@ function StockPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('stock.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={STOCK_COLUMNS}
@@ -524,14 +557,9 @@ function StockPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
-          {hasRight('stock.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
             </button>
           )}
           {hasRight('stock.manage') && (
@@ -548,6 +576,9 @@ function StockPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -560,17 +591,20 @@ function StockPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '120px' }}>Aksies</th>
+            <th style={{ width: '190px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredStock.map((item) => (
             <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
+              <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
+              </td>
               {colVis.visibleColumns.map((col) => (
                 <td key={col.key}>{col.render(item)}</td>
               ))}
               <td onClick={e => e.stopPropagation()}>
-                <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
+                <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteStock(item.stock_id)}><IoTrashOutline size={18} /></button>
               </td>
             </tr>
           ))}
@@ -656,6 +690,11 @@ function StockPage({ embedded = false }) {
             <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newStock.location_id, newStock.building_id, newStock.room_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newStock.location_id ? { value: newStock.location_id, label: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id }
+                : cascadeCount === 2 && newStock.building_id ? { value: newStock.building_id, label: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id }
+                : cascadeCount === 3 && newStock.room_id ? { value: newStock.room_id, label: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewStock(p => ({...p, location_id: "", building_id: "", room_id: ""}));
                 else if (levelIndex === 1) setNewStock(p => ({...p, building_id: "", room_id: ""}));
@@ -678,7 +717,7 @@ function StockPage({ embedded = false }) {
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       styles={{
                         container: (base) => ({ ...base, minWidth: '260px' }),
@@ -702,9 +741,9 @@ function StockPage({ embedded = false }) {
                         if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newStock.building_id);
                         return false;
                       }}
-                      value={null}
+                      value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setNewStock(p => ({...p, location_id: "", building_id: "", room_id: ""})); return; }
                         if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                         const labels = ["Terrein","Gebou","Lokaal"];
                         setNewStock(p => ({...p, ...selectedOption._fields}));
@@ -834,10 +873,84 @@ function StockPage({ embedded = false }) {
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
                 ]}
-                isSearchable={false}
+                  isSearchable={false}
               />
+              {(() => {
+                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+                  : null;
+                const clearFromLevel = (levelIndex) => {
+                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 2) { setRoomFilter(''); }
+                };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
+                return (
+                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                    <div className="control-cascade-breadcrumb">
+                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                    </div>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      isClearable
+                      isDisabled={cascadeCount >= 3}
+                      closeMenuOnSelect={false}
+                      menuIsOpen={filterCascade.menuIsOpen}
+                      onMenuOpen={filterCascade.onMenuOpen}
+                      onMenuClose={filterCascade.onMenuClose}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      styles={{
+                        container: (base) => ({ ...base, minWidth: '260px' }),
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                        return false;
+                      }}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="controls-right">
+              {hasRight('stock.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
               <ColumnPicker
                 ref={colPickerRef}
                 columns={STOCK_COLUMNS}
@@ -847,30 +960,28 @@ function StockPage({ embedded = false }) {
                 onResetWidths={colWidths.resetWidths}
               />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
-          {hasRight('stock.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
-            </button>
-          )}
-          {hasRight('stock.manage') && (
-            <ImportExportModal
-              isOpen={showImportWizard}
-              onClose={() => setShowImportWizard(false)}
-              defaultEntity="stock"
-              onImported={fetchStock}
-            />
-          )}
+            {selectedIds.length > 0 && (
+              <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+                Verwyder Geselekteerde ({selectedIds.length})
+              </button>
+            )}
+            {hasRight('stock.manage') && (
+              <ImportExportModal
+                isOpen={showImportWizard}
+                onClose={() => setShowImportWizard(false)}
+                defaultEntity="stock"
+                onImported={fetchStock}
+              />
+            )}
             </div>
           </div>
 
           <table className="standard-table">
             <thead>
               <tr>
+                <th style={{ width: '36px', textAlign: 'center' }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+                </th>
                 {colVis.visibleColumns.map((col) => (
                   <ResizableTh
                     key={col.key}
@@ -883,20 +994,23 @@ function StockPage({ embedded = false }) {
                     {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
                   </ResizableTh>
                 ))}
-                <th style={{ width: '120px' }}>Aksies</th>
+                <th style={{ width: '190px' }}>Aksies</th>
               </tr>
             </thead>
             <tbody>
               {filteredStock.length === 0 ? (
-                <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
+                <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
               ) : (
                 filteredStock.map((item) => (
                   <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
+                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
+                    </td>
                     {colVis.visibleColumns.map((col) => (
                       <td key={col.key}>{col.render(item)}</td>
                     ))}
                     <td onClick={e => e.stopPropagation()}>
-                      <button className="btn-delete" onClick={() => handleDeleteStock(item.stock_id)}>Verwyder</button>
+                      <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteStock(item.stock_id)}><IoTrashOutline size={18} /></button>
                     </td>
                   </tr>
                 ))

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { renderBreadcrumb, CascadeControl } from "../components/controlHelpers";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -16,6 +17,7 @@ import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 
 function RoomsPage({ embedded = false }) {
@@ -196,14 +198,36 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie lokaal verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
+    const confirmed = await confirmCascade(confirm, { entityLabel: "lokaal", childrenLabel: "bates/voorraad/kaartjies" });
+    if (!confirmed) return;
     try {
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
       console.error("Error deleting room:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedRoomIds, setSelectedRoomIds] = useState([]);
+
+  const toggleAllRooms = () => {
+    setSelectedRoomIds(allRoomsSelected ? [] : filteredRooms.map((r) => r.room_id));
+  };
+  const toggleRoom = (id) => {
+    setSelectedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelectedRooms = () => {
+    batchDelete({
+      ids: selectedRoomIds,
+      apiDelete: roomsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "lokale",
+      childrenLabel: "bates/voorraad/kaartjies",
+      refresh: fetchRooms,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedRoomIds([]));
   };
 
   const handleNewRoom = () => {
@@ -297,6 +321,7 @@ function RoomsPage({ embedded = false }) {
       if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
       return 0;
     });
+  const allRoomsSelected = filteredRooms.length > 0 && selectedRoomIds.length === filteredRooms.length;
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -378,7 +403,7 @@ function RoomsPage({ embedded = false }) {
                     menuIsOpen={filterCascade.menuIsOpen}
                     onMenuOpen={filterCascade.onMenuOpen}
                     onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -393,7 +418,7 @@ function RoomsPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
                     }}
@@ -403,6 +428,16 @@ function RoomsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('rooms.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={ROOM_COLUMNS}
@@ -412,14 +447,9 @@ function RoomsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
-          {hasRight('rooms.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedRoomIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelectedRooms}>
+              Verwyder Geselekteerde ({selectedRoomIds.length})
             </button>
           )}
           {hasRight('rooms.manage') && (
@@ -436,6 +466,9 @@ function RoomsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allRoomsSelected} onChange={toggleAllRooms} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -448,15 +481,18 @@ function RoomsPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '180px' }}>Aksies</th>
+            <th style={{ width: '430px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredRooms.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
           ) : (
             filteredRooms.map((room) => (
               <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedRoomIds.includes(room.room_id)} onChange={() => toggleRoom(room.room_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(room)}</td>
                 ))}
@@ -466,7 +502,7 @@ function RoomsPage({ embedded = false }) {
                   {canManageSessions && (
                     <button className="btn-view" onClick={() => navigate(`/room-checks-schedules?scheduleRoom=${room.room_id}`)}>Skeduleer</button>
                   )}
-                  <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteRoom(room.room_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))
@@ -557,6 +593,10 @@ function RoomsPage({ embedded = false }) {
             <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newRoom.location_id, newRoom.building_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newRoom.location_id ? { value: newRoom.location_id, label: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id }
+                : cascadeCount === 2 && newRoom.building_id ? { value: newRoom.building_id, label: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewRoom(p => ({...p, location_id: "", building_id: ""}));
                 else if (levelIndex === 1) setNewRoom(p => ({...p, building_id: ""}));
@@ -577,7 +617,7 @@ function RoomsPage({ embedded = false }) {
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} /> }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -590,9 +630,9 @@ function RoomsPage({ embedded = false }) {
                         if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newRoom.location_id);
                         return false;
                       }}
-                      value={null}
+                      value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setNewRoom(p => ({...p, location_id: "", building_id: ""})); return; }
                         setNewRoom(p => ({...p, ...selectedOption._fields}));
                         if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                         const labels = ["Terrein","Gebou"];
