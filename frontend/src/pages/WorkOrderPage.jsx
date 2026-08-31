@@ -2,7 +2,8 @@
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
@@ -20,6 +21,7 @@ import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -65,6 +67,8 @@ function WorkOrderPage() {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
 
    
   // Modal en redigerings-state
@@ -1381,28 +1385,38 @@ function WorkOrderPage() {
       <div className="content">
           <div className="controls">
             <div className="controls-left">
-              <input 
-                type="text" 
-                className="search-box"
-                id="jobSearch" 
-                placeholder="Soek op ID of Beskrywing..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+              <div className="control-input-shell">
+                <input
+                  type="text"
+                  id="jobSearch"
+                  placeholder="Soek op ID of Beskrywing..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
               
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ minWidth: '100px' }}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="description">Beskrywing</option>
-                <option value="job_type">Werksoort</option>
-                <option value="asset_id">Bate ID</option>
-                <option value="room_id">Lokaal ID</option>
-                <option value="building_id">Gebou ID</option>
-                <option value="location_id">Terrein ID</option>
-                <option value="fault_id">Fout ID</option>
-                <option value="scheduled">Datum</option>
-                <option value="status">Status</option>
-              </select>
+              <Select
+                className="react-select-container"
+                classNamePrefix="react-select"
+                value={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
+                  { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
+                  { value: "building_id", label: "Gebou ID" }, { value: "location_id", label: "Terrein ID" },
+                  { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
+                  { value: "status", label: "Status" },
+                ].find((option) => option.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected?.value || "all")}
+                options={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
+                  { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
+                  { value: "building_id", label: "Gebou ID" }, { value: "location_id", label: "Terrein ID" },
+                  { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
+                  { value: "status", label: "Status" },
+                ]}
+                isSearchable={false}
+              />
               {(() => {
                 const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
                 const currentDisplayValue = cascadeCount === 0 ? null
@@ -1418,42 +1432,28 @@ function WorkOrderPage() {
                 if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                const renderBreadcrumb = () => (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                    {breadcrumbData.map((item, i) => {
-                      const isLast = i === breadcrumbData.length - 1;
-                      const showArrow = isLast ? cascadeCount < 3 : true;
-                      return (
-                        <React.Fragment key={i}>
-                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                );
-                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-                const CascadeControl = ({ children, ...props }) => (
-                  <components.Control {...props}>
-                    {children}
-                    {cascadeCount > 0 && (
-                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                        <IoReturnUpBack size={18} />
-                      </span>
-                    )}
-                  </components.Control>
-                );
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {renderBreadcrumb()}
+                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                    <div className="control-cascade-breadcrumb">
+                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                    </div>
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      components={{ Control: CascadeControl }}
-                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       menuIsOpen={filterCascade.menuIsOpen}
+                       onMenuOpen={filterCascade.onMenuOpen}
+                       onMenuClose={filterCascade.onMenuClose}
+                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      styles={{
+                        container: (base) => ({ ...base, minWidth: '260px' }),
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                        options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -1473,7 +1473,7 @@ function WorkOrderPage() {
                       }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                         const f = selectedOption._fields;
                         setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
@@ -1484,6 +1484,16 @@ function WorkOrderPage() {
             </div>
 
             <div className="controls-right">
+              {hasRight('jobs.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
               <ColumnPicker
                 ref={colPickerRef}
                 columns={colVis.columnDefs}
@@ -1501,16 +1511,6 @@ function WorkOrderPage() {
               >
                 + Nuwe Werksopdrag
               </button>
-              {hasRight('jobs.manage') && (
-                <button
-                  type="button"
-                  className="btn-add"
-                  style={{ marginLeft: '0.5rem' }}
-                  onClick={() => setShowImportWizard(true)}
-                >
-                  ⇅ Invoer / Uitvoer rekords
-                </button>
-              )}
               {hasRight('jobs.manage') && (
                 <ImportExportModal
                   isOpen={showImportWizard}
@@ -1553,13 +1553,13 @@ function WorkOrderPage() {
                       <td key={col.key}>{col.render(order)}</td>
                     ))}
                     <td onClick={e => e.stopPropagation()}>
-                      <button 
+                      <button
                         type="button"
                         className="btn-delete"
                         onClick={() => handleDeleteWorkOrder(order.jobcard_id)}
                         title="Verwyder werksopdrag"
                       >
-                        Verwyder
+                        <IoTrashOutline size={18} />
                       </button>
                     </td>
                   </tr>
@@ -1743,6 +1743,12 @@ function WorkOrderPage() {
                 {/* Ligging & Koppeling + Foutkaartjie —50% elk */}
                 {(() => {
                   const cascadeCount = [formData.location_id, formData.building_id, formData.room_id, formData.asset_id].filter(Boolean).length;
+                  const currentDisplayValue = cascadeCount === 0 ? null
+                    : cascadeCount === 1 && formData.location_id ? { value: formData.location_id, label: terrains?.find(t => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id }
+                    : cascadeCount === 2 && formData.building_id ? { value: formData.building_id, label: buildings?.find(b => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id }
+                    : cascadeCount === 3 && formData.room_id ? { value: formData.room_id, label: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id }
+                    : cascadeCount === 4 && formData.asset_id ? { value: formData.asset_id, label: assets?.find(a => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id }
+                    : null;
                   const clearFromLevel = (levelIndex) => {
                     if (levelIndex <= 0) setFormData(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
                     else if (levelIndex === 1) setFormData(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
@@ -1787,28 +1793,25 @@ function WorkOrderPage() {
                     color: "#fff", cursor: "pointer", display: "flex",
                     alignItems: "center", padding: "4px 8px", margin: "2px",
                   };
-                  const CascadeControl = ({ children, ...props }) => (
-                    <components.Control {...props}>
-                      {children}
-                      {cascadeCount > 0 && (
-                        <>
-                          <span style={{ color: "#ccc", userSelect: "none", display: "inline-flex", alignItems: "center" }}>|</span>
-                          <span
-                            className="cascade-back-btn"
-                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                            title="Terug na vorige vlak"
-                            style={backBtnStyle}
-                          >
-                            <IoReturnUpBack size={24} />
-                          </span>
-                        </>
-                      )}
-                    </components.Control>
-                  );
+                   const CascadeControl = ({ children, ...props }) => (
+                     <components.Control {...props}>
+                       {children}
+                       {cascadeCount > 0 && (
+                         <span
+                           className="cascade-back-btn"
+                           onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
+                           title="Terug na vorige vlak"
+                           style={backBtnStyle}
+                         >
+                           <IoReturnUpBack size={24} />
+                         </span>
+                       )}
+                     </components.Control>
+                   );
                   return (
                 <div className={`mri-row flex${invalidFields.location_id ? " field-invalid" : ""}`}>
                   <div ref={liggingRef} className="mri-cell w-50 border-r" style={{ position: "relative" }}>
-                    <div className="mri-fld-select mri-fld">
+                    <div ref={modalCascadeMenu.containerRef} className="mri-fld-select mri-fld">
                       <span className="select-label">Ligging & Koppeling</span>
                       {renderBreadcrumb()}
                       <Select
@@ -1820,8 +1823,16 @@ function WorkOrderPage() {
                         isClearable
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
-                        components={{ Control: CascadeControl }}
+                        menuIsOpen={modalCascadeMenu.menuIsOpen}
+                        onMenuOpen={modalCascadeMenu.onMenuOpen}
+                        onMenuClose={modalCascadeMenu.onMenuClose}
+                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
+                        styles={{
+                          control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                          valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                          singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                        }}
                         filterOption={(option, rawInput) => {
                         if (rawInput) {
                           if (cascadeCount === 0)
@@ -1839,9 +1850,9 @@ function WorkOrderPage() {
                         if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(formData.room_id);
                         return false;
                         }}
-                        value={null}
+                        value={currentDisplayValue}
                         onChange={(selectedOption) => {
-                          if (!selectedOption) return;
+                          if (!selectedOption) { setFormData(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""})); return; }
                           setFormData((p) => ({...p, ...selectedOption._fields}));
                           const labels = ["Terrein","Gebou","Lokaal","Bate"];
                           const label = labels[selectedOption._cascadeLevel] || "";
@@ -1881,7 +1892,12 @@ function WorkOrderPage() {
                         classNamePrefix="react-select"
                         placeholder="Soek/Kies Foutkaartjie..."
                         isClearable
-                        components={{ Control: CascadeControl }}
+                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        styles={{
+                          control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                          valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                          singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                        }}
                         filterOption={(option, rawInput) => {
                           if (!rawInput) return true;
                           return option.label.toLowerCase().includes(rawInput.toLowerCase());
@@ -1945,6 +1961,11 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruiker..."
                       isClearable
+                      styles={{
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       value={formData.assigned_to
                         ? { value: formData.assigned_to, label: users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_name + " " + users.find((u) => Number(u.user_id) === Number(formData.assigned_to))?.user_surname || formData.assigned_to }
                         : null}
@@ -1968,6 +1989,11 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruikers om CC..."
                       isMulti
+                      styles={{
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       value={(formData.cc_users || []).map((id) => {
                         const u = users.find((u) => Number(u.user_id) === Number(id));
                         return u ? { value: u.user_id, label: `${u.user_name} ${u.user_surname} (${u.user_email})` } : null;

@@ -27,9 +27,17 @@ const TYPE_COLORS = {
   'calendar.reminder': '#0e1e3b',
 };
 
+function parseAsUtc(dateStr) {
+  // Backend writes naive UTC datetimes; if a string has no explicit timezone
+  // offset, treat it as UTC so the instant is converted to the user's local time
+  // (10:00 UTC -> 12:00 for a UTC+2 user).
+  if (dateStr && /Z$|[+-]\d{2}:?\d{2}$/.test(dateStr)) return new Date(dateStr).getTime();
+  return new Date(dateStr ? `${dateStr}Z` : dateStr).getTime();
+}
+
 function timeAgo(dateStr) {
   const now = Date.now();
-  const then = new Date(dateStr).getTime();
+  const then = parseAsUtc(dateStr);
   const diff = Math.floor((now - then) / 1000);
   if (diff < 60) return 'Nou net';
   if (diff < 3600) return `${Math.floor(diff / 60)}m gelede`;

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
@@ -17,6 +18,8 @@ import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import useCascadeMenu from "../hooks/useCascadeMenu";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 
 function TicketPage() {
@@ -52,6 +55,8 @@ function TicketPage() {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -378,15 +383,35 @@ function TicketPage() {
   };
 
   const handleDeleteTicket = async (ticketId) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie foutkaartjie verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    const confirmed = await confirmCascade(confirm, { entityLabel: "foutkaartjie", childrenLabel: "werkopdragte" });
     if (!confirmed) return;
     try {
       await apiClient.tickets.delete(ticketId);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering van foutkaartjie." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering van foutkaartjie.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredTickets.map((x) => x.fault_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: apiClient.tickets.delete,
+      confirm,
+      showToast,
+      entityLabel: "foutkaartjies",
+      childrenLabel: "werkopdragte",
+      refresh: fetchTickets,
+      errorFallback: "Fout tydens verwydering van foutkaartjie.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleCreateWorkOrder = (ticket) => {
@@ -447,6 +472,7 @@ function TicketPage() {
       if (sortKey === 'category') return String(a.fault_type || '').localeCompare(String(b.fault_type || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredTickets.length > 0 && selectedIds.length === filteredTickets.length;
 
   const getStatusClass = (status) => {
     switch (String(status).toLowerCase()) {
@@ -478,23 +504,34 @@ function TicketPage() {
       <div className="content">
           <div className="controls">
             <div className="controls-left">
-              <input
-                type="text"
-                placeholder="Soek..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+              <div className="control-input-shell">
+                <input
+                  type="text"
+                  placeholder="Soek..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select
+                className="react-select-container"
+                classNamePrefix="react-select"
+                value={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
+                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
+                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
+                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
+                ].find((option) => option.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected?.value || "all")}
+                options={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
+                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
+                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
+                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
+                ]}
+                isSearchable={false}
               />
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="title">Titel</option><option value="asset_id">Bate ID</option>
-                <option value="room_id">Lokaal ID</option>
-                <option value="building_id">Gebou ID</option>
-                <option value="location_id">Terrein ID</option>
-                <option value="category">Kategorie</option>
-                <option value="priority">Prioriteit</option>
-                <option value="status">Status</option>
-              </select>
               {(() => {
                 const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
                 const currentDisplayValue = cascadeCount === 0 ? null
@@ -510,42 +547,28 @@ function TicketPage() {
                 if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                const renderBreadcrumb = () => (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                    {breadcrumbData.map((item, i) => {
-                      const isLast = i === breadcrumbData.length - 1;
-                      const showArrow = isLast ? cascadeCount < 3 : true;
-                      return (
-                        <React.Fragment key={i}>
-                          <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                          {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                );
-                const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-                const CascadeControl = ({ children, ...props }) => (
-                  <components.Control {...props}>
-                    {children}
-                    {cascadeCount > 0 && (
-                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                        <IoReturnUpBack size={18} />
-                      </span>
-                    )}
-                  </components.Control>
-                );
-                return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {renderBreadcrumb()}
-                    <Select
+                 return (
+                   <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                     <div className="control-cascade-breadcrumb">
+                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                     </div>
+                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      components={{ Control: CascadeControl }}
-                      styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       menuIsOpen={filterCascade.menuIsOpen}
+                       onMenuOpen={filterCascade.onMenuOpen}
+                       onMenuClose={filterCascade.onMenuClose}
+                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      styles={{
+                        container: (base) => ({ ...base, minWidth: '260px' }),
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -565,7 +588,7 @@ function TicketPage() {
                       }}
                       value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
                         const f = selectedOption._fields;
                         setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
                       }}
@@ -575,6 +598,16 @@ function TicketPage() {
               })()}
             </div>
             <div className="controls-right">
+              {hasRight('faults.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
               <ColumnPicker
                 ref={colPickerRef}
                 columns={TICKET_COLUMNS}
@@ -584,14 +617,9 @@ function TicketPage() {
                 onResetWidths={colWidths.resetWidths}
               />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
-              {hasRight('faults.manage') && (
-                <button
-                  type="button"
-                  className="btn-add"
-                  style={{ marginLeft: '0.5rem' }}
-                  onClick={() => setShowImportWizard(true)}
-                >
-                  ⇅ Invoer / Uitvoer rekords
+              {selectedIds.length > 0 && (
+                <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+                  Verwyder Geselekteerde ({selectedIds.length})
                 </button>
               )}
               {hasRight('faults.manage') && (
@@ -608,6 +636,9 @@ function TicketPage() {
           <table className="standard-table">
             <thead>
               <tr>
+                <th style={{ width: '36px', textAlign: 'center' }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+                </th>
                 {colVis.visibleColumns.map((col) => (
                   <ResizableTh
                     key={col.key}
@@ -620,21 +651,24 @@ function TicketPage() {
                     {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
                   </ResizableTh>
                 ))}
-                <th style={{ width: '120px' }}>Aksies</th>
+                <th style={{ width: '250px' }}>Aksies</th>
               </tr>
             </thead>
             <tbody>
               {filteredTickets.length === 0 ? (
-                <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen foutkaartjies gevind</td></tr>
+                <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen foutkaartjies gevind</td></tr>
               ) : (
                 filteredTickets.map((ticket) => (
                   <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
+                    <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(ticket.fault_id)} onChange={() => toggleOne(ticket.fault_id)} />
+                    </td>
                     {colVis.visibleColumns.map((col) => (
                       <td key={col.key}>{col.render(ticket)}</td>
                     ))}
                     <td onClick={e => e.stopPropagation()}>
                       <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                      <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
+                      <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteTicket(ticket.fault_id)}><IoTrashOutline size={18} /></button>
                     </td>
                   </tr>
                 ))
@@ -703,6 +737,12 @@ function TicketPage() {
                 <label>Ligging *</label>
                 {(() => {
                   const cascadeCount = [newTicket.location_id, newTicket.building_id, newTicket.room_id, newTicket.asset_id].filter(Boolean).length;
+                  const currentDisplayValue = cascadeCount === 0 ? null
+                    : cascadeCount === 1 && newTicket.location_id ? { value: newTicket.location_id, label: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id }
+                    : cascadeCount === 2 && newTicket.building_id ? { value: newTicket.building_id, label: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id }
+                    : cascadeCount === 3 && newTicket.room_id ? { value: newTicket.room_id, label: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id }
+                    : cascadeCount === 4 && newTicket.asset_id ? { value: newTicket.asset_id, label: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id }
+                    : null;
                   const clearFromLevel = (levelIndex) => {
                     if (levelIndex <= 0) setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
                     else if (levelIndex === 1) setNewTicket(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
@@ -714,52 +754,9 @@ function TicketPage() {
                   if (newTicket.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id });
                   if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
                   if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
-                  const renderBreadcrumb = () => (
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                      {breadcrumbData.map((item, i) => {
-                        const isLast = i === breadcrumbData.length - 1;
-                        const showArrow = isLast ? cascadeCount < 4 : true;
-                        return (
-                          <React.Fragment key={i}>
-                            <button
-                              type="button"
-                              className="breadcrumb-btn"
-                              onClick={() => clearFromLevel(item.level + 1)}
-                              style={{
-                                border: "none", cursor: "pointer", margin: "0",
-                                color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px",
-                                lineHeight: "1", display: "inline-flex", alignItems: "center",
-                              }}
-                            >{item.name}</button>
-                            {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                          </React.Fragment>
-                        );
-                      })}
-                    </div>
-                  );
-                  const backBtnStyle = {
-                    background: "#935e28", border: "none", borderRadius: "4px",
-                    color: "#fff", cursor: "pointer", display: "flex",
-                    alignItems: "center", padding: "4px 8px", margin: "2px",
-                  };
-                  const CascadeControl = ({ children, ...props }) => (
-                    <components.Control {...props}>
-                      {children}
-                      {cascadeCount > 0 && (
-                        <span
-                          className="cascade-back-indicator"
-                          onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
-                          title="Terug na vorige vlak"
-                          style={backBtnStyle}
-                        >
-                          <IoReturnUpBack size={24} />
-                        </span>
-                      )}
-                    </components.Control>
-                  );
-                  return (
-                    <>
-                      {renderBreadcrumb()}
+                   return (
+                     <div ref={modalCascadeMenu.containerRef}>
+                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px" })}
                       <Select
                         className="react-select-container"
                         classNamePrefix="react-select"
@@ -769,8 +766,17 @@ function TicketPage() {
                         isClearable
                         isDisabled={cascadeCount >= 4}
                         closeMenuOnSelect={false}
-                        components={{ Control: CascadeControl }}
+                        menuIsOpen={modalCascadeMenu.menuIsOpen}
+                        onMenuOpen={modalCascadeMenu.onMenuOpen}
+                        onMenuClose={modalCascadeMenu.onMenuClose}
+                        components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
+                        styles={{
+                          container: (base) => ({ ...base, minWidth: '260px' }),
+                          control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                          valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                          singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                        }}
                         filterOption={(option, rawInput) => {
                           if (rawInput) {
                             if (cascadeCount === 0)
@@ -788,9 +794,9 @@ function TicketPage() {
                           if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(newTicket.room_id);
                           return false;
                         }}
-                        value={null}
+                        value={currentDisplayValue}
                         onChange={(selectedOption) => {
-                          if (!selectedOption) return;
+                          if (!selectedOption) { setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""})); return; }
                           setNewTicket(p => ({...p, ...selectedOption._fields}));
                           setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
                           const labels = ["Terrein","Gebou","Lokaal","Bate"];
@@ -798,10 +804,10 @@ function TicketPage() {
                           setCascadeToast(`✓ ${label} suksesvol geselekteer`);
                           setTimeout(() => setCascadeToast(null), 2000);
                         }}
-                      />
-                    </>
-                  );
-                })()}
+/>
+                     </div>
+                   );
+                 })()}
                 {cascadeToast && (
                   <div style={{
                     position: "absolute",

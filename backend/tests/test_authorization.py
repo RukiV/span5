@@ -489,6 +489,112 @@ def test_contractor_calendar_shows_only_own_scheduled_jobs(client, headers_for, 
 
 
 # --------------------------------------------------------------------------
+# Dosent-kalender: slegs eie toegewysde kalender-gebeure
+# --------------------------------------------------------------------------
+
+def test_dosent_calendar_shows_only_own_assigned_events(client, headers_for, engine, seeded):
+    from datetime import datetime
+    from app.models.calendar_event import CalendarEvent
+    from app.models.location import Location, Building, Room
+
+    h = headers_for("dosent")
+    ah = headers_for("admin")
+    with Session(engine) as session:
+        own_evt = CalendarEvent(
+            title="my kontrole", start_datetime=datetime(2025, 6, 12, 9, 0),
+            user_id=seeded["ids"]["dosent"],
+        )
+        other_evt = CalendarEvent(
+            title="ander se kontrole", start_datetime=datetime(2025, 6, 13, 9, 0),
+            user_id=seeded["ids"]["admin"],
+        )
+        loc = Location(
+            location_name="Kampus", location_type="ouvlaks", location_streetnum="1",
+            location_streetname="Straat",
+        )
+        session.add(loc)
+        session.commit()
+        session.refresh(loc)
+        bld = Building(building_name="Hoofgebou", location_id=loc.location_id)
+        session.add(bld)
+        session.commit()
+        session.refresh(bld)
+        room = Room(room_name="Lokaal 1", room_code="R1", building_id=bld.building_id)
+        session.add_all([own_evt, other_evt, room])
+        session.commit()
+        session.refresh(own_evt)
+        session.refresh(other_evt)
+        session.refresh(room)
+        own_id, other_id, room_id = own_evt.event_id, other_evt.event_id, room.room_id
+
+    resp = client.get(
+        f"{API}/calendar/events",
+        params={"start": "2025-06-01", "end": "2025-06-30"},
+        headers=h,
+    )
+    assert resp.status_code == 200, resp.text
+    sources = [(e["source"], e["source_id"]) for e in resp.json()]
+    assert ("calendar_event", own_id) in sources
+    assert ("calendar_event", other_id) not in sources
+
+    # Die Dosent se toegewysde kontrole-skedule verskyn op sy eie kalender.
+    created = client.post(
+        f"{API}/room-checks/sessions",
+        json={"room_id": room_id, "assigned_user_id": seeded["ids"]["dosent"], "scheduled_datetime": "2025-06-14T09:00:00Z"},
+        headers=ah,
+    )
+    assert created.status_code == 201, created.text
+    dosent_own = client.get(
+        f"{API}/calendar/events",
+        params={"start": "2025-06-01", "end": "2025-06-30"},
+        headers=h,
+    )
+    dosent_sources = [(e["source"], e["source_id"]) for e in dosent_own.json()]
+    assert any(s == "calendar_event" for s, _ in dosent_sources)
+
+
+# --------------------------------------------------------------------------
+# Tydsone: naïewe (UTC) datums word met 'n "Z" gestuur sodat kliënte die
+# korrekte plaaslike tyd toon (10:00 UTC -> 12:00 vir 'n UTC+2-gebruiker).
+# --------------------------------------------------------------------------
+
+def test_utc_datetime_middleware_tags_naive_datetimes():
+    from app.middleware.datetimes import _tag_utc
+
+    assert _tag_utc('{"created_at": "2026-08-28T10:00:00"}') == '{"created_at": "2026-08-28T10:00:00Z"}'
+    assert _tag_utc('"2026-08-28T10:00:00.123456"') == '"2026-08-28T10:00:00.123456Z"'
+    # Reeds-tydsone-bewuste waardes word nie verdubbel nie.
+    assert _tag_utc('"2026-08-28T10:00:00Z"') == '"2026-08-28T10:00:00Z"'
+    assert _tag_utc('"2026-08-28T10:00:00+02:00"') == '"2026-08-28T10:00:00+02:00"'
+    # Datum-slegs-stringe (geen tyd) word onaangeraak gelaat.
+    assert _tag_utc('"2026-08-28"') == '"2026-08-28"'
+    # Waardes met 'n offset-al-daar bly onveranderd.
+    assert _tag_utc('"2025-06-14T09:00:00Z"') == '"2025-06-14T09:00:00Z"'
+
+
+def test_utc_datetime_middleware_keeps_content_length_consistent(client, headers_for, engine, seeded):
+    # Die middleware voeg 'Z' by naïewe datums by, wat die liggaam langer maak.
+    # Dit mag nie 'n verouderde Content-Length behou nie, anders breek die
+    # reaksie (RuntimeError: Response content longer than Content-Length).
+    with Session(engine) as session:
+        session.add(Notification(
+            user_id=seeded["ids"]["admin"],
+            notification_type="test.type",
+            title="titel",
+            message="boodskap",
+        ))
+        session.commit()
+    resp = client.get(
+        f"{API}/notifications/unread", headers=headers_for("admin")
+    )
+    assert resp.status_code == 200
+    assert "Z" in resp.text
+    declared = resp.headers.get("content-length")
+    assert declared is not None
+    assert int(declared) == len(resp.content)
+
+
+# --------------------------------------------------------------------------
 # Kontrakteur-kennisgewings: slegs hul eie werksopdragte
 # --------------------------------------------------------------------------
 

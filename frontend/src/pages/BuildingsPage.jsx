@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -12,6 +14,7 @@ import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -39,6 +42,8 @@ function BuildingsPage({ embedded = false }) {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   const [showModal, setShowModal] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
@@ -161,14 +166,35 @@ function BuildingsPage({ embedded = false }) {
   };
 
   const handleDeleteBuilding = async (id) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie gebou verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
+    const confirmed = await confirmCascade(confirm, { entityLabel: "gebou", childrenLabel: "lokale" });
+    if (!confirmed) return;
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredBuildings.map((x) => x.building_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: buildingsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "geboue",
+      childrenLabel: "lokale",
+      refresh: fetchBuildings,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditBuilding = (item) => {
@@ -226,6 +252,7 @@ function BuildingsPage({ embedded = false }) {
       if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -257,23 +284,28 @@ function BuildingsPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek geboue..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Select
-            className="basic-single"
-            classNamePrefix="select"
+            className="react-select-container"
+            classNamePrefix="react-select"
             value={filterColumnOptions.find(o => o.value === filterColumn)}
             onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
             options={filterColumnOptions}
             isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
+            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+            styles={{
+              container: (base) => ({ ...base, minWidth: '160px' }),
+              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+            }}
           />
           {(() => {
             const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
@@ -288,42 +320,28 @@ function BuildingsPage({ embedded = false }) {
             const breadcrumbData = [{ level: -1, name: "Terreine" }];
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 2 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                <div className="control-cascade-breadcrumb">
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
+                </div>
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
                     placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={cascadeCount >= 2}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (cascadeCount === 0 && rawInput)
@@ -334,7 +352,7 @@ function BuildingsPage({ embedded = false }) {
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
                       const f = selectedOption._fields;
                       setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
                     }}
@@ -344,6 +362,16 @@ function BuildingsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('buildings.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={BUILDING_COLUMNS}
@@ -353,14 +381,9 @@ function BuildingsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
-          {hasRight('buildings.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
             </button>
           )}
           {hasRight('buildings.manage') && (
@@ -377,6 +400,9 @@ function BuildingsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -389,18 +415,21 @@ function BuildingsPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '200px' }}>Aksies</th>
+            <th style={{ width: '230px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredBuildings.map((building) => (
             <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
+              <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={selectedIds.includes(building.building_id)} onChange={() => toggleOne(building.building_id)} />
+              </td>
               {colVis.visibleColumns.map((col) => (
                 <td key={col.key}>{col.render(building)}</td>
               ))}
               <td onClick={e => e.stopPropagation()}>
                 <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
-                <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
+                <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteBuilding(building.building_id)}><IoTrashOutline size={18} /></button>
               </td>
             </tr>
           ))}
@@ -439,6 +468,11 @@ function BuildingsPage({ embedded = false }) {
               onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
               options={buildingTypeOptions}
               isSearchable={false}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+              }}
             />
           </div>
         </div>
@@ -447,39 +481,17 @@ function BuildingsPage({ embedded = false }) {
             <label>Terrein *</label>
             {(() => {
               const cascadeCount = [newBuilding.location_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newBuilding.location_id ? { value: newBuilding.location_id, label: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewBuilding(p => ({...p, location_id: ""}));
               };
               const breadcrumbData = [{ level: -1, name: "Terreine" }];
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
-              const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                  {breadcrumbData.map((item, i) => {
-                    const isLast = i === breadcrumbData.length - 1;
-                    const showArrow = isLast ? cascadeCount < 1 : true;
-                    return (
-                      <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              );
-              const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
-              return (
-                <>
-                  {renderBreadcrumb()}
+               return (
+                 <div ref={modalCascadeMenu.containerRef}>
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px" })}
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
@@ -487,23 +499,32 @@ function BuildingsPage({ embedded = false }) {
                     isClearable
                     isDisabled={cascadeCount >= 1}
                     closeMenuOnSelect={false}
-                    components={{ Control: CascadeControl }}
+                    menuIsOpen={modalCascadeMenu.menuIsOpen}
+                    onMenuOpen={modalCascadeMenu.onMenuOpen}
+                    onMenuClose={modalCascadeMenu.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
                     filterOption={(option, rawInput) => {
                       if (cascadeCount === 0 && rawInput)
                         return option.data._cascadeLevel <= 0 && option.label.toLowerCase().includes(rawInput.toLowerCase());
                       if (cascadeCount === 0) return option.data._cascadeLevel === 0;
                       return false;
                     }}
-                    value={null}
+                    value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setNewBuilding(p => ({...p, location_id: ""})); return; }
                       setNewBuilding(p => ({...p, ...selectedOption._fields}));
                       if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                     }}
                   />
-                </>
-              );
+                 </div>
+               );
             })()}
           </div>
         </div>

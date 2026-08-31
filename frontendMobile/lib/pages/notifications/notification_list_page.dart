@@ -145,7 +145,11 @@ class _NotificationListPageState extends State<NotificationListPage> {
 
   String _timeAgo(String dateStr) {
     try {
-      final dt = DateTime.parse(dateStr);
+      // Backend writes naive UTC datetimes. If no timezone offset is present,
+      // treat the value as UTC so it is converted to the device's local time
+      // (10:00 UTC -> 12:00 for a UTC+2 user).
+      final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(dateStr);
+      final dt = DateTime.parse(hasOffset ? dateStr : '${dateStr}Z').toLocal();
       final diff = DateTime.now().difference(dt);
       if (diff.inSeconds < 60) return 'Nou net';
       if (diff.inMinutes < 60) return '${diff.inMinutes}m gelede';

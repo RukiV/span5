@@ -4,6 +4,15 @@ import '../core/api_client.dart';
 import '../core/idempotency.dart';
 import 'outlook_service.dart';
 
+/// Parse a backend datetime string, treating a naive (no-offset) value as UTC so
+/// it is converted to the device's local timezone. Keeps the app correct even if
+/// a response ever lacks the explicit "Z" that the backend normally supplies.
+DateTime parseUtcDatetime(String? value) {
+  if (value == null || value.isEmpty) return DateTime.now();
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
+  return DateTime.parse(hasOffset ? value : '${value}Z').toLocal();
+}
+
 class CalendarEvent {
   final int? eventId;
   final String? source;
@@ -44,10 +53,10 @@ class CalendarEvent {
       title: json['title'] ?? '',
       description: json['description'],
       startDatetime: json['start_datetime'] != null
-          ? DateTime.parse(json['start_datetime'])
+          ? parseUtcDatetime(json['start_datetime'])
           : DateTime.now(),
       endDatetime: json['end_datetime'] != null
-          ? DateTime.parse(json['end_datetime'])
+          ? parseUtcDatetime(json['end_datetime'])
           : null,
       allDay: json['all_day'] ?? false,
       location: json['location'],
