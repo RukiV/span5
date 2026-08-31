@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional, Sequence
+from typing import Sequence
 from sqlmodel import Session, select, cast, Integer
-from sqlalchemy import func
+from sqlalchemy import or_, func
 
 from ..models.asset import Asset, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ..models.audit import Auditlog
@@ -14,6 +14,7 @@ from . import cascade_delete
 class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
     def __init__(self):
         super().__init__(Asset)
+<<<<<<< HEAD
 
     def delete(self, session: Session, id: int, user_id: Optional[int] = None) -> bool:
         obj = session.get(self.model, id)
@@ -46,6 +47,8 @@ class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
         # Invalidate predictions cache since new asset affects predictions
         prediction_service.invalidateCache()
         return result
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     
     def getBySerial(self, session: Session, serial: str) -> Asset | None:
         return session.exec(select(Asset).where(Asset.asset_serial == serial)).first()

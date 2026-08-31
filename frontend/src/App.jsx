@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import './styles/App.css';
 import './logoutInterceptor';
 import { clearAuthSession, isSessionExpired, markUserActivity } from './authSession';
+<<<<<<< HEAD
 import { useCurrentUser } from './hooks/useCurrentUser';
 import { AnalyticsProvider, useAnalytics } from './context/AnalyticsContext';
 import { IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
@@ -11,13 +12,19 @@ import Sidebar from './components/Sidebar';
 import DragHandle from './components/DragHandle';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import AssetPage from './pages/AssetPage';
+import StockPage from './pages/StockPage';
 import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
-import PredictionsPage from './pages/PredictionsPage';
+import UsersPage from './pages/UsersPage';
+import AnalysisPage from './pages/AnalysisPage';
 import CalendarPage from './pages/CalendarPage';
+<<<<<<< HEAD
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
@@ -32,6 +39,13 @@ import AIDraftNewPage from './pages/AIDraftNewPage';
 import AIDraftDetailPage from './pages/AIDraftDetailPage';
 import { ToastProvider } from './components/Toast/ToastContext';
 import { NotificationProvider } from './components/Notifications/NotificationContext';
+=======
+import RoomsPage from './pages/RoomsPage';
+import TerrainsPage from './pages/TerrainsPage';
+import BuildingsPage from './pages/BuildingsPage';
+import ContractorsPage from './pages/ContractorsPage';
+import ReportsPage from './pages/ReportsPage';
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
 /* =========================================================
     1. DIE BESKERMDE ROETE-MEGANISME
@@ -51,6 +65,7 @@ function ProtectedRoute({ children }) {
 }
 
 /* =========================================================
+<<<<<<< HEAD
    1b. REGTE-GEBASEERDE ROETE-BESKERMING
    Draai die token-kontrole (ProtectedRoute) in EN kontroleer boonop
    dat die gebruiker die vereiste reg het (gelees vanaf /auth/me se
@@ -139,6 +154,8 @@ function AppContent() {
 }
 
 /* =========================================================
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
    2. JOU OPGBEDATEERDE APP-ROETES EN DOCKER KONTROLE
    ========================================================= */
 function App() {
@@ -184,6 +201,7 @@ function App() {
 
   return (
     <Router>
+<<<<<<< HEAD
       <div className="app">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -198,6 +216,33 @@ function App() {
           } />
         </Routes>
       </div>
+=======
+      <Routes>
+        {/* Openbare roete (Geen beskerming nodig nie) */}
+        <Route path="/login" element={<LoginPage />} />
+
+        {/* Beskermde roetes (Toegedraai in <ProtectedRoute>) */}
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/assets" element={<ProtectedRoute><AssetPage /></ProtectedRoute>} />
+        <Route path="/stock" element={<ProtectedRoute><StockPage /></ProtectedRoute>} />
+        <Route path="/fault-tickets" element={<ProtectedRoute><TicketPage /></ProtectedRoute>} />
+        <Route path="/work-orders" element={<ProtectedRoute><WorkOrderPage /></ProtectedRoute>} />
+        <Route path="/contractors" element={<ProtectedRoute><ContractorsPage /></ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute><UsersPage /></ProtectedRoute>} />
+        <Route path="/analysis" element={<ProtectedRoute><AnalysisPage /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+        <Route path="/rooms" element={<ProtectedRoute><RoomsPage /></ProtectedRoute>} />
+        <Route path="/terrains" element={<ProtectedRoute><TerrainsPage /></ProtectedRoute>} />
+        <Route path="/buildings" element={<ProtectedRoute><BuildingsPage /></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+        
+        {/* As die gebruiker op "/" land, stuur hulle outomaties na die dashboard via ProtectedRoute */}
+        <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+
+        {/* Wildcard: As 'n URL nie bestaan nie, stuur hulle altyd terug na login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     </Router>
   );
 }

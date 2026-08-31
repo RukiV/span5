@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -127,3 +128,9 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
 
 
 fault_service = FaultService(Faultcard)
+=======
+from ..models.fault import Faultcard, FaultcardCreate, FaultcardUpdate
+from .base_service import BaseService
+
+fault_service = BaseService[Faultcard, FaultcardCreate, FaultcardUpdate](Faultcard)
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
