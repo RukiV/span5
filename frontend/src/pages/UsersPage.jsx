@@ -14,6 +14,22 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { getApiErrorMessage, getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
+const EMAIL_REGEX = /^[\w\.-]+@[\w\.-]+\.\w+$/;
+const PASSWORD_SPECIAL = /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/;
+
+function isPasswordValid(pw) {
+  if (!pw || pw.length < 8 || pw.length > 128) return false;
+  return /[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw) && PASSWORD_SPECIAL.test(pw);
+}
+
+function isEmailFormatValid(email) {
+  return !!email && EMAIL_REGEX.test(email);
+}
+
+function isFieldTouchedEmail(email) {
+  return typeof email === 'string' && email.trim() !== '';
+}
+
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
   const { showToast } = useToast();
@@ -54,6 +70,10 @@ function UsersPage({ embedded = false }) {
   });
 
   const [invalidFields, setInvalidFields] = useState({});
+
+  // Bestuur die lewendige rooi/groen veld-status vir e-pos en wagwoord.
+  // null = neutraal (nog nie getik nie), 'invalid' = rooi, 'valid' = groen.
+  const [fieldStatus, setFieldStatus] = useState({ user_email: null, user_password: null });
   const fieldRefs = useRef({});
 
   // Toegang tot hierdie bladsy word deur
@@ -106,7 +126,13 @@ function UsersPage({ embedded = false }) {
       if (!formUser.user_name?.trim()) errors.user_name = true;
       if (!formUser.user_surname?.trim()) errors.user_surname = true;
       if (!formUser.user_email?.trim()) errors.user_email = true;
-      if (!editingUser && !formUser.user_password?.trim()) errors.user_password = true;
+      // E-pos is getik maar ongeldig of 'n duplikaat -> skud by Stoor
+      if (isFieldTouchedEmail(formUser.user_email) && computeEmailStatus(formUser.user_email) === 'invalid') errors.user_email = true;
+      if (!editingUser) {
+        if (!formUser.user_password?.trim()) errors.user_password = true;
+        // Wagwoord is getik maar voldoen nie aan vereistes -> skud by Stoor
+        if (formUser.user_password?.trim() && computePasswordStatus(formUser.user_password) === 'invalid') errors.user_password = true;
+      }
       if (!formUser.role_id) errors.role_id = true;
       if (!formUser.user_status) errors.user_status = true;
       if (Object.keys(errors).length > 0) {
@@ -144,6 +170,7 @@ function UsersPage({ embedded = false }) {
       setTimeout(() => {
         setShowModal(false);
         setEditingUser(null);
+        resetFieldStatus();
         setFormUser({
           user_name: '',
           user_surname: '',
@@ -161,7 +188,28 @@ function UsersPage({ embedded = false }) {
   };
 
   // Laai gebruiker-data in vorm vir redigering
+  const resetFieldStatus = () => {
+    setFieldStatus({ user_email: null, user_password: null });
+  };
+
+  const computeEmailStatus = (email) => {
+    if (!isFieldTouchedEmail(email)) return null;
+    const formatOk = isEmailFormatValid(email);
+    const editingId = editingUser ? editingUser.user_id : null;
+    const unique = !users.some((u) => u.user_email === email && u.user_id !== editingId);
+    return formatOk && unique ? 'valid' : 'invalid';
+  };
+
+  const computePasswordStatus = (pw) => {
+    if (!pw || pw.trim() === '') return null;
+    return isPasswordValid(pw) ? 'valid' : 'invalid';
+  };
+
+  const emailFieldClass = fieldStatus.user_email === 'valid' ? 'field-valid' : (fieldStatus.user_email === 'invalid' ? 'field-invalid-flat' : '');
+  const passwordFieldClass = fieldStatus.user_password === 'valid' ? 'field-valid' : (fieldStatus.user_password === 'invalid' ? 'field-invalid-flat' : '');
+
   const handleEditUser = (user) => {
+    resetFieldStatus();
     setEditingUser(user);
     setFormUser({
       user_name: user.user_name,
@@ -212,6 +260,7 @@ function UsersPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingUser(null);
+    resetFieldStatus();
     setFormUser({
       user_name: '',
       user_surname: '',
@@ -318,7 +367,7 @@ function UsersPage({ embedded = false }) {
             resetVisibility={colVis.resetVisibility}
             onResetWidths={colWidths.resetWidths}
           />
-          <button className="btn-add" onClick={() => setShowModal(true)}>+ Nuwe Gebruiker</button>
+          <button className="btn-add" onClick={() => { resetFieldStatus(); setShowModal(true); }}>+ Nuwe Gebruiker</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
               Verwyder Geselekteerde ({selectedIds.length})
@@ -410,11 +459,13 @@ function UsersPage({ embedded = false }) {
           <input
             ref={el => fieldRefs.current.user_email = el}
             type="email"
-            className={invalidFields.user_email ? "field-invalid" : ""}
+            className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
             value={formUser.user_email}
             onChange={(e) => {
-              setFormUser({ ...formUser, user_email: e.target.value });
+              const value = e.target.value;
+              setFormUser({ ...formUser, user_email: value });
               setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+              setFieldStatus(p => ({ ...p, user_email: computeEmailStatus(value) }));
             }}
           />
         </div>
@@ -424,11 +475,13 @@ function UsersPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.user_password = el}
               type="password"
-              className={invalidFields.user_password ? "field-invalid" : ""}
+              className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
               value={formUser.user_password}
               onChange={(e) => {
-                setFormUser({ ...formUser, user_password: e.target.value });
+                const value = e.target.value;
+                setFormUser({ ...formUser, user_password: value });
                 setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+                setFieldStatus(p => ({ ...p, user_password: computePasswordStatus(value) }));
               }}
             />
             <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
