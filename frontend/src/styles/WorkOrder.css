@@ -149,6 +149,7 @@
     background-color: white;
     margin: 5% auto;
     width: 1200px;
+    min-height: 70vh;
     border-radius: 10px;
     overflow: hidden;
     max-height: 90vh; 
@@ -375,8 +376,4 @@
   .no-print * {
     display: none !important;
   }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
