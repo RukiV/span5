@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import { useToast } from '../components/Toast/useToast';
@@ -10,6 +11,8 @@ function RightsPage({ embedded = false }) {
   const [view, setView] = useState('list');
   const [rights, setRights] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterColumn, setFilterColumn] = useState('all');
 
 
   const [rightForm, setRightForm] = useState({ id: null, name: '', description: '', isBuiltin: false });
@@ -59,6 +62,26 @@ function RightsPage({ embedded = false }) {
 
   const backToList = () => { setView('list'); };
 
+  const FILTER_COLUMNS = [
+    { value: 'all', label: 'Alle kolomme' },
+    { value: 'name', label: 'Naam' },
+    { value: 'description', label: 'Beskrywing' },
+    { value: 'type', label: 'Tipe' },
+  ];
+
+  const filteredRights = [...rights].filter(right => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+    const values = {
+      name: right.right_name,
+      description: right.right_description,
+      type: right.is_builtin ? 'Ingebou' : 'Pasgemaak',
+    };
+    return filterColumn === 'all'
+      ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
+      : String(values[filterColumn] || '').toLowerCase().includes(query);
+  });
+
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
   const pageContent = (
@@ -66,9 +89,21 @@ function RightsPage({ embedded = false }) {
 
       {view === 'list' ? (
         <>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-            <div style={{ flex: 1 }} />
-            <button type="button" className="btn-add" onClick={openNewRight}>+ Nuwe Reg</button>
+          <div className="controls">
+            <div className="controls-left">
+              <div className="control-input-shell">
+                <input
+                  type="text"
+                  placeholder="Soek regte..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select className="react-select-container" classNamePrefix="react-select" value={FILTER_COLUMNS.find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={FILTER_COLUMNS} isSearchable={false} />
+            </div>
+            <div className="controls-right">
+              <button type="button" className="btn-add" onClick={openNewRight}>+ Nuwe Reg</button>
+            </div>
           </div>
 
           <table className="standard-table">
@@ -76,23 +111,27 @@ function RightsPage({ embedded = false }) {
               <tr><th>Naam</th><th>Beskrywing</th><th>Tipe</th><th>Aksies</th></tr>
             </thead>
             <tbody>
-              {rights.map(right => (
-                <tr key={right.right_id}>
-                  <td>{right.right_name}</td>
-                  <td>{right.right_description}</td>
-                  <td>{right.is_builtin ? 'Ingebou' : 'Pasgemaak'}</td>
-                  <td>
-                    {right.is_builtin ? (
-                      <span style={{ color: '#888' }}>Beskerm</span>
-                    ) : (
-                      <>
-                        <button className="btn-edit" onClick={() => openEditRight(right)}>Wysig</button>
-                        <button className="btn-delete" onClick={() => deleteRight(right)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {filteredRights.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Geen regte gevind nie</td></tr>
+              ) : (
+                filteredRights.map(right => (
+                  <tr key={right.right_id}>
+                    <td>{right.right_name}</td>
+                    <td>{right.right_description}</td>
+                    <td>{right.is_builtin ? 'Ingebou' : 'Pasgemaak'}</td>
+                    <td>
+                      {right.is_builtin ? (
+                        <span style={{ color: '#888' }}>Beskerm</span>
+                      ) : (
+                        <>
+                          <button className="btn-edit" onClick={() => openEditRight(right)}>Wysig</button>
+                          <button className="btn-delete" onClick={() => deleteRight(right)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </>

@@ -1,6 +1,7 @@
 from typing import Optional
 from datetime import datetime
 
+from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from ..auth.security import hash_password, validate_password_strength
@@ -17,6 +18,11 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
     """
 
     def create(self, session: Session, data: UserCreate, user_id: Optional[int] = None) -> User:
+        if self.get_by_email(session, data.user_email):
+            raise HTTPException(
+                status_code=409,
+                detail="Daar is reeds 'n gebruiker met hierdie e-posadres.",
+            )
         if getattr(data, "user_password", None):
             validate_password_strength(data.user_password)
             data = data.model_copy(update={"user_password": hash_password(data.user_password)})
@@ -25,6 +31,13 @@ class UserService(BaseService[User, UserCreate, UserUpdate]):
         return super().create(session, data, user_id=user_id)
 
     def update(self, session: Session, id: int, data: UserUpdate, user_id: Optional[int] = None) -> Optional[User]:
+        if getattr(data, "user_email", None):
+            existing = self.get_by_email(session, data.user_email)
+            if existing and existing.user_id != id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Daar is reeds 'n gebruiker met hierdie e-posadres.",
+                )
         if getattr(data, "user_password", None):
             validate_password_strength(data.user_password)
             data = data.model_copy(update={"user_password": hash_password(data.user_password)})

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
@@ -44,6 +44,8 @@ function BuildingsPage({ embedded = false }) {
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
   const filterCascade = useCascadeMenu();
   const modalCascadeMenu = useCascadeMenu();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showModal, setShowModal] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
@@ -76,6 +78,13 @@ function BuildingsPage({ embedded = false }) {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.building) {
+      const target = buildings.find((b) => String(b.building_id) === String(location.state.building.building_id));
+      if (target) handleEditBuilding(target);
+    }
+  }, [location.state?.building, buildings]);
 
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
@@ -564,7 +573,7 @@ function BuildingsPage({ embedded = false }) {
                     </thead>
                     <tbody>
                       {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
-                        <tr key={room.room_id}>
+                        <tr key={room.room_id} onClick={() => navigate('/rooms', { state: { room } })} style={{ cursor: 'pointer' }}>
                           <td>{room.room_name}</td>
                           <td>{room.room_code}</td>
                           <td>{translateRoomType(room.room_type || 'other')}</td>
@@ -615,7 +624,7 @@ function BuildingsPage({ embedded = false }) {
                   </thead>
                   <tbody>
                     {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
-                      <tr key={room.room_id}>
+                      <tr key={room.room_id} onClick={() => navigate('/rooms', { state: { room } })} style={{ cursor: 'pointer' }}>
                         <td>{room.room_name}</td>
                         <td>{room.room_code}</td>
                         <td>{translateRoomType(room.room_type || 'other')}</td>

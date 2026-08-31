@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
@@ -26,6 +26,7 @@ function RoomsPage({ embedded = false }) {
   const { user, rights } = useCurrentUser();
   const hasRight = (right) => (rights || []).includes(right);
   const navigate = useNavigate();
+  const location = useLocation();
   const canManageSessions = (rights || []).includes("room_checks.manage");
 
   const [rooms, setRooms] = useState([]);
@@ -83,6 +84,13 @@ function RoomsPage({ embedded = false }) {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.room) {
+      const target = rooms.find((r) => String(r.room_id) === String(location.state.room.room_id));
+      if (target) handleEditRoom(target);
+    }
+  }, [location.state?.room, rooms]);
 
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
@@ -749,7 +757,7 @@ function RoomsPage({ embedded = false }) {
                     </thead>
                     <tbody>
                       {getAssetsForRoom(selectedRoom.room_id).map((asset) => (
-                        <tr key={asset.asset_id}>
+                        <tr key={asset.asset_id} onClick={() => navigate('/assets', { state: { asset } })} style={{ cursor: 'pointer' }}>
                           <td>{asset.asset_name}</td>
                           <td>{asset.asset_serial}</td>
                           <td>{asset.asset_isoutdoor ? "Ja" : "Nee"}</td>
@@ -800,7 +808,7 @@ function RoomsPage({ embedded = false }) {
                   </thead>
                   <tbody>
                     {getAssetsForRoom(selectedRoom.room_id).map((asset) => (
-                      <tr key={asset.asset_id}>
+                      <tr key={asset.asset_id} onClick={() => navigate('/assets', { state: { asset } })} style={{ cursor: 'pointer' }}>
                         <td>{asset.asset_name}</td>
                         <td>{asset.asset_serial}</td>
                         <td>{asset.asset_isoutdoor ? "Ja" : "Nee"}</td>

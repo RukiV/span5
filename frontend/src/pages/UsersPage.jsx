@@ -11,7 +11,7 @@ import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getApiErrorMessage, getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
@@ -119,6 +119,12 @@ function UsersPage({ embedded = false }) {
 
       let dataToSend = { ...formUser };
 
+      // Stuur 'n leë terrein as null, anders weier die backend dit met 'n 422
+      // ("Input should be a valid integer") omdat '' nie as 'n int geparseer kan word nie.
+      if (dataToSend.location_id === '' || dataToSend.location_id == null) {
+        dataToSend.location_id = null;
+      }
+
       // Wanneer redigeer, stuur nie leë wagwoord (laat bestaande wagwoord onveranderd)
       if (editingUser && !formUser.user_password) {
         delete dataToSend.user_password;
@@ -149,7 +155,7 @@ function UsersPage({ embedded = false }) {
       }, 1500);
     } catch (error) {
       console.error('Error saving user:', error);
-      showToast({ type: 'error', message: error.response?.data?.detail || 'Fout by die opslaan van gebruiker' });
+      showToast({ type: 'error', message: getApiErrorMessage(error, 'Fout by die opslaan van gebruiker. Probeer asseblief weer.') });
     }
   };
 
@@ -424,6 +430,9 @@ function UsersPage({ embedded = false }) {
                 setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
               }}
             />
+            <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+              Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
+            </small>
           </div>
         )}
         <div className="form-group">

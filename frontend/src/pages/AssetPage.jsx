@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
@@ -60,6 +60,7 @@ function AssetPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
   const { user, hasRight } = useCurrentUser();
   const navigate = useNavigate();
+  const location = useLocation();
   const [assets, setAssets] = useState([]);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [assettypes, setAssettypes] = useState([]);
@@ -164,6 +165,13 @@ function AssetPage({ embedded = false }) {
     };
     loadInitialData();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.asset) {
+      const target = assets.find((a) => String(a.asset_id) === String(location.state.asset.asset_id));
+      if (target) handleEditAsset(target);
+    }
+  }, [location.state?.asset, assets]);
 
   useEffect(() => {
     let mounted = true;
