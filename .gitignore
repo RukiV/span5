@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 .env
 .env.local
 .env.production
@@ -45,3 +46,24 @@ WIRELESS_SETUP.md
 fix-rbac-prompt.md
 .pytest_cache
 demo.md
+=======
+.env
+.env.local
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+*.log
+.idea/
+.vscode/
+dist/
+build/
+*.db
+*.sqlite
+.coverage/
+htmlcov/
+**/__pycache__/
+webblad/
+frontendMobile/skills/
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3

@@ -1,20 +1,27 @@
 import hashlib
 from typing import Optional
 import os
+<<<<<<< HEAD
 import secrets
 from datetime import datetime, timedelta, timezone
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 import httpx
 from pydantic import BaseModel
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 
+<<<<<<< HEAD
 from ....auth.session import (
     SESSION_DURATION_SECONDS, create_session_token, create_refresh_token,
     verify_session_token, revoke_token,
 )
 from ....auth.security import verify_password, is_hashed, hash_password, validate_password_strength, PasswordError
 from ....auth.permissions import get_current_user, get_rights_for_role
+=======
+from ....auth.session import SESSION_DURATION_SECONDS, create_session_token, verify_session_token
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 from ....db.database import getSession
 from ....models.user import UserRead, User, _MAX_FAILED_ATTEMPTS, _LOCKOUT_MINUTES
 from ....models.revoked_token import RevokedToken
@@ -31,6 +38,7 @@ class MicrosoftTokenRequest(BaseModel):
     microsoft_token: str
 
 
+<<<<<<< HEAD
 # /auth/me response model. Deliberately a separate model (not UserRead, which is
 # reused for /users) so the resolved rights list can ride along without bloating
 # the generic user schema. This rights array is the single source of truth both
@@ -41,6 +49,8 @@ class CurrentUserRead(UserRead):
     location_name: Optional[str] = None
 
 
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 def _get_bearer_token(request: Request) -> Optional[str]:
     """
     Ekstraheer die Bearer-token uit die Authorization-header.
@@ -76,25 +86,20 @@ def _get_current_user(request: Request, session: Session) -> Optional[User]:
 
 def _check_system_access(user: User, request: Request):
     """
-    UX gate only — NOT a security boundary.
-
-    Students (role_id=1) and Contractors (role_id=4) may only use the mobile app,
-    so we return a friendly 403 at web login. But this relies on the
-    client-supplied X-Client-Type header, which any HTTP client can spoof, so it
-    must never be treated as what actually stops a Student/Contractor: that job
-    belongs entirely to the rights checks on every endpoint (require_right), which
-    produce 403 on everything except their own fault/job data regardless of the
-    header. This check just gives a nicer message than a scatter of 403s.
+    Kontroleer of gebruiker toegang het tot FBS-stelsel.
+    Slegs role_id >= 2 (FK-koÃ¶rdineerder en Administrator) mag aanmeld.
+    Gewone gebruikers (role_id=1) word geweier met 403-fout.
     """
     client_type = request.headers.get("X-Client-Type")
 
-    if user.role_id in (1, 4) and client_type != "mobile":
+    if user.role_id == 1 and client_type != "mobile":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Studente en kontrakteurs het slegs toegang via die mobiele app. Kontak Administrasie vir hulp asseblief: admin@akademia.co.za"
+            detail="Studente het slegs toegang via die mobiele app. Kontak Administrasie vir hulp asseblief: admin@akademia.co.za"
         )
 
 
+<<<<<<< HEAD
 @router.get("/me", response_model=CurrentUserRead)
 def current_user(user: User = Depends(get_current_user), session: Session = Depends(getSession)):
     rights = sorted(get_rights_for_role(session, user.role_id))
@@ -124,6 +129,18 @@ def logout(request: Request, session: Session = Depends(getSession)):
             )
             session.add(revoked)
             session.commit()
+=======
+@router.get("/me", response_model=UserRead)
+def current_user(request: Request, session: Session = Depends(getSession)):
+    user = _get_current_user(request, session)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated.")
+    return user
+
+
+@router.post("/logout")
+def logout():
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     return {"detail": "Logged out."}
 
 
@@ -158,12 +175,19 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
     4. Gee app-sessietoken terug
     """
     user = user_service.get_by_email(session, login_data.user_email)
+<<<<<<< HEAD
 
     if not user:
+=======
+    
+    # Verifieer dat gebruiker bestaan en wagwoord korrek is
+    if not user or user.user_password != login_data.user_password:
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
+<<<<<<< HEAD
 
     if user.is_locked:
         remaining = (user.locked_until - datetime.utcnow()).seconds // 60
@@ -196,6 +220,11 @@ def login(login_data: LoginRequest, request: Request, session: Session = Depends
 
     _reset_failed_attempts(session, user)
 
+=======
+    
+    # Kontroleer of gebruiker se rol toelaat toegang tot stelsel
+    # Hierdie gee 403-fout vir gewone gebruikers (role_id=1)
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     _check_system_access(user, request)
 
     app_token = create_session_token(user.user_id)
@@ -281,6 +310,7 @@ def refresh_session(request: Request, session: Session = Depends(getSession)):
 
 
 @router.post("/revoke")
+<<<<<<< HEAD
 def revoke_session(request: Request, session: Session = Depends(getSession)):
     token = _get_bearer_token(request)
     if token:
@@ -293,6 +323,9 @@ def revoke_session(request: Request, session: Session = Depends(getSession)):
             )
             session.add(revoked)
             session.commit()
+=======
+def revoke_session():
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     return {"detail": "session revoked"}
 
 
@@ -415,15 +448,12 @@ async def microsoft_login(token_request: MicrosoftTokenRequest, request: Request
             # Gebruiker bestaan reeds - gebruik hulle
             user = existing_user
         else:
-            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek.
-            # Hulle meld aan via Microsoft, nooit met 'n plaaslike wagwoord nie —
-            # so ken 'n onraaibare, gehashte lukrake waarde toe (nie 'n bekende
-            # platteks soos "microsoft_oauth" wat enigeen kon gebruik nie).
+            # Nuwe Microsoft gebruikers word nou as Student (1) geskep by verstek
             user = User(
                 user_name=user_name,
                 user_surname=user_surname,
                 user_email=user_email,
-                user_password=hash_password(secrets.token_urlsafe(32)),
+                user_password="microsoft_oauth",                                                            #Default password
                 user_status="active",
                 role_id=1  # Standaard rol
             )

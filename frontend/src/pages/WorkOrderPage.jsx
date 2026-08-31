@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
@@ -5,6 +6,13 @@ import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
+=======
+﻿import React, { useState, useEffect } from "react";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
+import { useMsal } from '@azure/msal-react';
+import Select from "react-select"; // Bygevoeg vir React-Select dropdowns
+import { assetsAPI, workOrdersAPI, contractorsAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI } from "../services/api";
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
 import { normalizeWorkOrdersPayload } from './workOrderUtils';
@@ -24,9 +32,15 @@ import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 
 function WorkOrderPage() {
+<<<<<<< HEAD
   const { confirm, dialog } = useConfirmDialog();
   const { showToast } = useToast();
   const { user, hasRight } = useCurrentUser();
+=======
+  // Haal admin-status vir beheer-opsies
+  const { isAdmin } = useCurrentUser();
+  const logout = useLogout();
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const { instance } = useMsal();
   const location = useLocation();
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -41,6 +55,7 @@ function WorkOrderPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
+<<<<<<< HEAD
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
 
   const WORKORDER_COLUMNS = [
@@ -71,20 +86,30 @@ function WorkOrderPage() {
   const modalCascadeMenu = useCascadeMenu();
 
    
+=======
+  const [sortBy, setSortBy] = useState("id");              // Sorteer op veld
+  const [sortDirection, setSortDirection] = useState("asc");
+  
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [pendingJobcardId, setPendingJobcardId] = useState(null);
-  const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
+<<<<<<< HEAD
   const [newQuote, setNewQuote] = useState({ contractor_id: "" });
+=======
+  const [contractors, setContractors] = useState([]);
+  const [newQuote, setNewQuote] = useState({ contractor_id: "", amount: "", description: "" });
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
 
+<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState("besonderhede");
   const [cascadeToast, setCascadeToast] = useState(null);
   const [showSchedulerPopup, setShowSchedulerPopup] = useState(false);
@@ -107,6 +132,8 @@ function WorkOrderPage() {
   const [quotePdfFiles, setQuotePdfFiles] = useState({});
   const [quotePdfPreviewUrls, setQuotePdfPreviewUrls] = useState({});
 
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   // Nuwe state spesifiek vir Terrein en Gebou interaktiewe dropdowns binne die modal
   const [selectedTerrein, setSelectedTerrein] = useState(null);
   const [selectedGebou, setSelectedGebou] = useState(null);
@@ -121,11 +148,10 @@ function WorkOrderPage() {
     // Hoofinligting
     job_desc: "",                   // Hoofbeskrywing
     job_type: "",                   // Werksoort (maintenance, repair, inspection, installation, emergency)
-    job_status: "",                  // Status (Oop, Wag, Voltooid)
-    job_priority: "",                // Prioriteit
+    job_status: "open",             // Status (open, wag, voltooid)
+    job_priority: "Normal",         // Prioriteit
     job_createddatetime: "",        // Skeppingsdatum
     job_scheduled_datetime: "",     // Geskeduleerde datum
-    job_scheduled_end_datetime: "", // Geskeduleerde einddatum
     job_schedule_type: "enkel",     // Herhalingstipe
 
     // Aanspreekpunt-inligting
@@ -149,10 +175,6 @@ function WorkOrderPage() {
     authorized_by: "",              // Goedgekeur deur
     completed_date: "",             // Voltooide datum
     cost_recovery_notes: "",        // Kostetoerekening-aantekeninge
-
-    // Toewysing
-    assigned_to: null,              // Verantwoordelike gebruiker (user_id)
-    cc_users: [],                   // CC gebruikers (array van user_id's)
   });
 
   // AI-veldvoorstelle: werksoort/prioriteit uit die beskrywing (reëls-klassifiseerder).
@@ -264,7 +286,7 @@ function WorkOrderPage() {
     fetchBuildings();
     fetchTerrains();
     fetchTickets();
-    fetchUsers();
+    fetchContractors();
   }, []);
 
   useEffect(() => {
@@ -278,6 +300,7 @@ function WorkOrderPage() {
     }
   }, [location.state?.ticket, assets, rooms, buildings, terrains]);
 
+<<<<<<< HEAD
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
@@ -293,6 +316,8 @@ function WorkOrderPage() {
     };
   }, []);
 
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const fetchTerrains = async () => {
     try {
       const response = await locationAPI.getAll();
@@ -308,6 +333,18 @@ function WorkOrderPage() {
       setBuildings(response.data || []);
     } catch (error) {
       console.error("Fout by haal geboue:", error);
+    }
+  };
+
+  const fetchContractors = async () => {
+    try {
+      const response = await contractorsAPI.getAll();
+      const contractorList = response.data || [];
+      setContractors(contractorList);
+      return contractorList;
+    } catch (error) {
+      console.error("Fout by haal kontrakteurs:", error);
+      return [];
     }
   };
 
@@ -329,6 +366,7 @@ function WorkOrderPage() {
     }
   };
 
+<<<<<<< HEAD
   const fetchUsers = async () => {
     try {
       const response = await usersAPI.getAll();
@@ -478,6 +516,8 @@ function WorkOrderPage() {
     }
   };
 
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   // Haal werksopdragte-lys van backend
   const fetchWorkOrders = async () => {
     setLoading(true);
@@ -742,7 +782,6 @@ function WorkOrderPage() {
       job_priority: order.job_priority || "Normal",
       job_createddatetime: formatDateForInput(order.job_createddatetime),
       job_scheduled_datetime: formatDateTimeForInput(order.job_scheduled_datetime || order.job_createddatetime),
-      job_scheduled_end_datetime: formatDateTimeForInput(order.job_scheduled_end_datetime) || "",
       job_schedule_type: order.job_schedule_type || "enkel",
       contact_name: order.contact_name || "",
       contact_email: order.contact_email || "",
@@ -761,10 +800,6 @@ function WorkOrderPage() {
       authorized_by: order.authorized_by || "",
       completed_date: formatDateForInput(order.job_finisheddatetime),
       cost_recovery_notes: order.cost_recovery_notes || "",
-      assigned_to: order.assigned_to ? Number(order.assigned_to) : null,
-      cc_users: order.cc_users
-        ? String(order.cc_users).split(",").map((id) => Number(id.trim())).filter((id) => !isNaN(id))
-        : [],
     });
 
     // Stel koppelings-tipe vas
@@ -804,19 +839,25 @@ function WorkOrderPage() {
 
     if (quoteIds.length > 0) {
       try {
-        const contractorUsers = users.filter(u => u.role_id === 4);
+        const contractorList = contractors.length > 0 ? contractors : await fetchContractors();
         const quoteResponses = await Promise.allSettled(quoteIds.map((id) => quotesAPI.getById(id)));
         const loadedQuotes = quoteResponses
           .filter((result) => result.status === "fulfilled" && result.value)
           .map((result) => {
             const response = result.value;
             const quoteData = response.data || response;
-            const contractorUser = contractorUsers.find((u) => u.user_id === Number(quoteData.contractor_id));
+            const contractor = contractorList.find((item) => item.contractor_id === Number(quoteData.contractor_id));
             return {
               id: quoteData.quote_id,
               dbId: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
+<<<<<<< HEAD
               contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
+=======
+              contractor_name: contractor?.contractor_name || "",
+              amount: Number(quoteData.quote_price || 0),
+              description: quoteData.quote_desc || "",
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
               selection_reason: quoteData.quote_selection_reason || ""
             };
@@ -862,21 +903,10 @@ function WorkOrderPage() {
   // Hanteer besparing van werksopdrag
   const handleSaveWorkOrder = async () => {
     try {
-      const errors = {};
-      if (!formData.job_status) errors.job_status = true;
-      if (!formData.job_priority) errors.job_priority = true;
-      if (!formData.nature) errors.nature = true;
-      if (!formData.job_type) errors.job_type = true;
-      if (!formData.brief_description?.trim()) errors.brief_description = true;
-      if (!formData.location_id) errors.location_id = true;
-      if (Object.keys(errors).length > 0) {
-        setInvalidFields(errors);
-        const firstKey = Object.keys(errors)[0];
-        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
-        fieldRefs.current[firstKey]?.focus();
+      if (!formData.job_desc && !formData.brief_description) {
+        alert("Voer asseblief 'n beskrywing in.");
         return;
       }
-      setInvalidFields({});
 
       if (isSubmitting) return;
       setIsSubmitting(true);
@@ -890,7 +920,6 @@ function WorkOrderPage() {
         job_notes: formData.job_notes || null,
         job_createddatetime: formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
         job_scheduled_datetime: formatDateTimeForPayload(formData.job_scheduled_datetime) || formatDateTimeForPayload(formData.job_createddatetime) || new Date().toISOString(),
-        job_scheduled_end_datetime: formatDateTimeForPayload(formData.job_scheduled_end_datetime) || null,
         job_schedule_type: formData.job_schedule_type || "enkel",
         asset_id: formData.asset_id ? Number(formData.asset_id) : null,
         room_id: formData.room_id ? Number(formData.room_id) : null,
@@ -898,10 +927,6 @@ function WorkOrderPage() {
         location_id: formData.location_id ? Number(formData.location_id) : null,
         fault_id: formData.fault_id ? Number(formData.fault_id) : null,
         job_finisheddatetime: formatDateTimeForPayload(formData.completed_date),
-        assigned_to: formData.assigned_to ? Number(formData.assigned_to) : null,
-        cc_users: formData.cc_users && formData.cc_users.length > 0
-          ? formData.cc_users.join(",")
-          : null,
       };
 
       let savedWorkOrderResponse;
@@ -1044,14 +1069,25 @@ function WorkOrderPage() {
       return;
     }
 
+<<<<<<< HEAD
     const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const existingQuote = quoteEditId ? quotes.find((q) => q.id === quoteEditId) : null;
+=======
+    const contractor = contractors.find(c => c.contractor_id === Number(newQuote.contractor_id));
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     const updatedQuote = {
       id: quoteEditId || Date.now(),
       dbId: existingQuote?.dbId ?? null,
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
+<<<<<<< HEAD
       contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
       createdAt: existingQuote?.createdAt || new Date().toLocaleDateString('af-ZA'),
+=======
+      contractor_name: contractor ? contractor.contractor_name : "",
+      amount: parseFloat(newQuote.amount),
+      description: newQuote.description,
+      createdAt: quoteEditId ? quotes.find((q) => q.id === quoteEditId)?.createdAt || new Date().toLocaleDateString('af-ZA') : new Date().toLocaleDateString('af-ZA'),
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
       selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
 
@@ -1186,15 +1222,13 @@ function WorkOrderPage() {
     setConnectionTargetId("");
     setSelectedTerrein(null);
     setSelectedGebou(null);
-    setInvalidFields({});
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "",
-      job_priority: "",
+      job_status: "OPEN",
+      job_priority: "Normal",
       job_createddatetime: "",
       job_scheduled_datetime: "",
-      job_scheduled_end_datetime: "",
       job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
@@ -1210,8 +1244,6 @@ function WorkOrderPage() {
       authorized_by: "",
       completed_date: "",
       cost_recovery_notes: "",
-      assigned_to: null,
-      cc_users: [],
     });
   };
 
@@ -1220,6 +1252,7 @@ function WorkOrderPage() {
     setEditingId(null);
     setSelectedTerrein(null);
     setSelectedGebou(null);
+<<<<<<< HEAD
     setInvalidFields({});
     setJobImages([]);
     setTicketImages([]);
@@ -1230,14 +1263,15 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     setFormData({
       job_desc: "",
       job_type: "",
-      job_status: "",
-      job_priority: "",
+      job_status: "OPEN",
+      job_priority: "Normal",
       job_createddatetime: new Date().toISOString().split('T')[0],
       job_scheduled_datetime: new Date().toISOString().slice(0, 16),
-      job_scheduled_end_datetime: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
       job_schedule_type: "enkel",
       contact_name: "",
       contact_email: "",
@@ -1253,8 +1287,6 @@ function WorkOrderPage() {
       authorized_by: "",
       completed_date: "",
       cost_recovery_notes: "",
-      assigned_to: null,
-      cc_users: [],
     });
     setConnectionType("");
     setConnectionTargetId("");
@@ -1277,10 +1309,6 @@ function WorkOrderPage() {
   // Filter en sorteer werksopdragte vir tabel
   const filteredWorkOrders = [...workOrders]
     .filter((order) => {
-      if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
-      if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
-      if (roomFilter && String(order.room_id) !== roomFilter) return false;
-
       const query = searchTerm.trim().toLowerCase();
       const description = order.job_desc || "";
       if (!query) return true;
@@ -1374,8 +1402,6 @@ function WorkOrderPage() {
     label: `${t.fault_id} - ${t.fault_desc || t.fault_title || 'Foutkaartjie'}`
   }));
 
-
-
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
   }
@@ -1395,6 +1421,7 @@ function WorkOrderPage() {
                 />
               </div>
               
+<<<<<<< HEAD
               <Select
                 className="react-select-container"
                 classNamePrefix="react-select"
@@ -1481,6 +1508,21 @@ function WorkOrderPage() {
                   </div>
                 );
               })()}
+=======
+              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
+                <option value="all">Alle kolomme</option>
+                <option value="id">ID</option>
+                <option value="description">Beskrywing</option>
+                <option value="job_type">Werksoort</option>
+                <option value="asset_id">Bate ID</option>
+                <option value="room_id">Lokaal ID</option>
+                <option value="building_id">Gebou ID</option>
+                <option value="location_id">Terrein ID</option>
+                <option value="fault_id">Terrein ID</option>
+                <option value="scheduled">Datum</option>
+                <option value="status">Status</option>
+              </select>
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
             </div>
 
             <div className="controls-right">
@@ -1511,6 +1553,7 @@ function WorkOrderPage() {
               >
                 + Nuwe Werksopdrag
               </button>
+<<<<<<< HEAD
               {hasRight('jobs.manage') && (
                 <ImportExportModal
                   isOpen={showImportWizard}
@@ -1519,6 +1562,8 @@ function WorkOrderPage() {
                   onImported={fetchWorkOrders}
                 />
               )}
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
             </div>
           </div>
 
@@ -1548,12 +1593,40 @@ function WorkOrderPage() {
                 </tr>
               ) : (
                 filteredWorkOrders.map((order) => (
+<<<<<<< HEAD
                   <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
                     {colVis.visibleColumns.map((col) => (
                       <td key={col.key}>{col.render(order)}</td>
                     ))}
                     <td onClick={e => e.stopPropagation()}>
                       <button
+=======
+                  <tr key={order.jobcard_id}>
+                    <td>{order.jobcard_id}</td>
+                    <td className="description-cell">{order.job_desc || "-"}</td>
+                    <td>{order.job_type || "-"}</td>
+                    <td>{order.asset_id || "-"}</td>
+                    <td>{order.room_id || "-"}</td>
+                    <td>{order.building_id || "-"}</td>
+                    <td>{order.location_id || "-"}</td>
+                    <td>{order.fault_id || "-"}</td>
+                    <td>{order.job_scheduled_datetime ? new Date(order.job_scheduled_datetime).toLocaleString('af-ZA') : (order.job_createddatetime ? new Date(order.job_createddatetime).toLocaleString('af-ZA') : "-")}</td>
+                    <td>
+                      <span className={`status-badge ${getStatusClass(order.job_status)}`}>
+                        {translateStatus(order.job_status)}
+                      </span>
+                    </td>
+                    <td>
+                      <button 
+                        type="button"
+                        className="btn-edit"
+                        onClick={() => handleEditWorkOrder(order)}
+                        title="Bekyk en wysig werksopdrag"
+                      >
+                        Bekyk
+                      </button>
+                      <button 
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
                         type="button"
                         className="btn-delete"
                         onClick={() => handleDeleteWorkOrder(order.jobcard_id)}
@@ -1571,7 +1644,7 @@ function WorkOrderPage() {
 {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
         <div className="modal">
-          <div className="modal-content-workorder" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content-workorder" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
                 <h3>Werksopdrag Kaart</h3>
@@ -1588,6 +1661,7 @@ function WorkOrderPage() {
                 <span className="close no-print" onClick={handleCloseModal}>&times;</span>
             </div>
 
+<<<<<<< HEAD
             {/* Tab Navbar */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "2px", marginBottom: "12px", borderBottom: "2px solid #dee2e6" }}>
               {[
@@ -1730,15 +1804,23 @@ function WorkOrderPage() {
                     ref={el => fieldRefs.current.brief_description = el}
                     className={`mri-txt-area-large${invalidFields.brief_description ? " field-invalid" : ""}`}
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
+=======
+            {/* Vorm */}
+            <form className="mri-border-box" onSubmit={(e) => e.preventDefault()}>
+              {/* Rij 1: Besonderhede */}
+              <div className="mri-row flex">
+                <div className="mri-cell w-60 border-r">
+                  <label>Werksopdrag Beskrywing</label>
+                  <input 
+                    type="text" 
+                    className="mri-txt-area-large"
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
                     value={formData.brief_description}
-                    onChange={(e) => {
-                      setFormData({...formData, brief_description: e.target.value});
-                      setInvalidFields(p => { const n = {...p}; delete n.brief_description; return n; });
-                    }}
-                    onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px"; }}
+                    onChange={(e) => setFormData({...formData, brief_description: e.target.value})}
                     placeholder="Kort beskrywing van werk"
                   />
                 </div>
+<<<<<<< HEAD
 
                 {/* Ligging & Koppeling + Foutkaartjie —50% elk */}
                 {(() => {
@@ -2180,6 +2262,15 @@ function WorkOrderPage() {
                   </div>
                 </div>
                 <div className="mri-cell w-50">
+=======
+                <div className="mri-cell w-40">
+                  <div className="mri-fld"><span>Geskeduleerde Datum en Tyd</span> 
+                    <input 
+                      type="datetime-local"
+                      onChange={(e) => setFormData({...formData, job_scheduled_datetime: e.target.value})}
+                    />
+                  </div>
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
                   <div className="mri-fld"><span>Herhaling</span> 
                     <select 
                       value={formData.job_schedule_type}
@@ -2191,13 +2282,50 @@ function WorkOrderPage() {
                       <option value="jaarliks">Jaarliks</option>
                     </select>
                   </div>
+                  <div className="mri-fld"><span>Status</span> 
+                    <select 
+                      value={formData.job_status}
+                      onChange={(e) => setFormData({...formData, job_status: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="Wag">Wag</option>
+                      <option value="Oop">Oop</option>
+                      <option value="Besig">Besig</option>
+                      <option value="Voltooid">Voltooid</option>
+                      <option value="Gekanselleer">Gekanselleer</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              </>
-              )}
-            </form>
-            )}
+{/* Bate en Aard Seksie met React-Select Dropdowns */}
+              <div className="mri-row flex">
+                <div className="mri-cell w-50 border-r">
+                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Ligging & Koppeling</label>
+                  
+                  {/* 1. Terrein Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Terrein</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Terrein..."
+                      isClearable
+                      value={formData.location_id ? { value: formData.location_id, label: terrains?.find((terrain) => Number(terrain.location_id) === Number(formData.location_id))?.location_name || formData.location_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        location_id: selectedOption ? selectedOption.value : "",
+                        building_id: "",
+                        room_id: "",
+                        asset_id: ""
+                      })}
+                      options={(terrains || []).map((terrain) => ({
+                        value: terrain.location_id,
+                        label: `${terrain.location_id} - ${terrain.location_name || terrain.location_desc || "Terrein"}`
+                      }))}
+                    />
+                  </div>
 
+<<<<<<< HEAD
             {activeTab === "kontrakteurWerknotas" && (
               <>
               <div className="mri-border-box">
@@ -2254,21 +2382,206 @@ function WorkOrderPage() {
               <div className="mri-border-box">
                 <div className="mri-fld">
                   <span>Kontrakteur Werknotas</span>
+=======
+                  {/* 2. Gebou Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Gebou</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Gebou..."
+                      isClearable
+                      isDisabled={!formData.location_id}
+                      value={formData.building_id ? { value: formData.building_id, label: buildings?.find((building) => Number(building.building_id) === Number(formData.building_id))?.building_name || formData.building_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        building_id: selectedOption ? selectedOption.value : "",
+                        room_id: "",
+                        asset_id: ""
+                      })}
+                      options={(buildings || []).filter((building) => Number(building.location_id) === Number(formData.location_id)).map((building) => ({
+                        value: building.building_id,
+                        label: `${building.building_id} - ${building.building_name || "Gebou"}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 3. Lokaal Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Lokaal (Kamer)</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Lokaal..."
+                      isClearable
+                      isDisabled={!formData.building_id}
+                      value={formData.room_id ? { value: formData.room_id, label: rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_name || rooms?.find((room) => Number(room.room_id) === Number(formData.room_id))?.room_number || formData.room_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        room_id: selectedOption ? selectedOption.value : "",
+                        asset_id: ""
+                      })}
+                      options={(rooms || []).filter((room) => Number(room.building_id) === Number(formData.building_id)).map((room) => ({
+                        value: room.room_id,
+                        label: `${room.room_id} - ${room.room_name || room.room_number || "Lokaal"}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 4. Bate Dropdown */}
+                  <div className="mri-fld-select">
+                    <span className="select-label">Gekoppelde Bate</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Kies Bate..."
+                      isClearable
+                      isDisabled={!formData.room_id}
+                      value={formData.asset_id ? { value: formData.asset_id, label: assets?.find((asset) => Number(asset.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id } : null}
+                      onChange={(selectedOption) => setFormData({
+                        ...formData,
+                        asset_id: selectedOption ? selectedOption.value : ""
+                      })}
+                      options={(assets || []).filter((asset) => Number(asset.room_id) === Number(formData.room_id)).map((asset) => ({
+                        value: asset.asset_id,
+                        label: `${asset.asset_id} - ${asset.asset_name}`
+                      }))}
+                    />
+                  </div>
+
+                  {/* 5. Foutkaartjie Dropdown */}
+                  <div className="mri-fld-select" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px dashed #e5e7eb" }}>
+                    <span className="select-label">Foutkaartjie Verwysing</span>
+                    <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                      placeholder="Soek/Kies Foutkaartjie..."
+                      isClearable
+                      value={formData.fault_id ? { value: formData.fault_id, label: getTicketOptionLabel((tickets || []).find((ticket) => Number(ticket.fault_id) === Number(formData.fault_id))) } : null}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) {
+                          setFormData({
+                            ...formData,
+                            fault_id: "",
+                            job_type: "",
+                            job_priority: "Normal",
+                            brief_description: "",
+                            location_id: "",
+                            building_id: "",
+                            room_id: "",
+                            asset_id: ""
+                          });
+                          return;
+                        }
+                        const ticket=(tickets||[]).find(t=>Number(t.fault_id)===Number(selectedOption.value));
+                        setFormData({
+                          ...formData,
+                          fault_id: ticket?.fault_id || "",
+                          job_type: normalizeWorkTypeValue(ticket?.fault_type) || "",
+                          job_priority: normalizePriorityValue(ticket?.fault_priority) || "Normal",
+                          brief_description: getTicketDisplayTitle(ticket),
+                          location_id: ticket?.location_id || "",
+                          building_id: ticket?.building_id || "",
+                          room_id: ticket?.room_id || "",
+                          asset_id: ticket?.asset_id || ""
+                        });
+                      }}
+                      options={(tickets || []).filter(ticket=>{
+                        if(formData.location_id && Number(ticket.location_id)!==Number(formData.location_id)) return false;
+                        if(formData.building_id && Number(ticket.building_id)!==Number(formData.building_id)) return false;
+                        if(formData.room_id && Number(ticket.room_id)!==Number(formData.room_id)) return false;
+                        if(formData.asset_id && Number(ticket.asset_id)!==Number(formData.asset_id)) return false;
+                        return true;
+                      }).map((ticket) => ({
+                        value: ticket.fault_id,
+                        label: getTicketOptionLabel(ticket)
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Regterkant: Aard en Prioriteit (Bly gewone HTML HTML-selects vir nou, of jy kan hulle ook vervang) */}
+                <div className="mri-cell w-50">
+                  <label style={{ fontWeight: "700", marginBottom: "12px", display: "block" }}>Kategorisering</label>
+                  <div className="mri-fld"><span>Aard</span> 
+                    <select
+                      value={formData.nature}
+                      onChange={(e) => setFormData({...formData, nature: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="Elektries">Elektries</option>
+                      <option value="Meganies">Meganies</option>
+                      <option value="Siviel">Siviel</option>
+                      <option value="Buite">Buite</option>
+                      <option value="Algemeen">Algemeen</option>
+                    </select>
+                  </div>
+                  <div className="mri-fld"><span>Werksoort</span> 
+                    <select 
+                      value={formData.job_type}
+                      onChange={(e) => setFormData({...formData, job_type: e.target.value})}
+                    >
+                      <option value="">Kies...</option>
+                      <option value="Onderhoud">Onderhoud</option>
+                      <option value="Herstel">Herstel</option>
+                      <option value="Inspeksie">Inspeksie</option>
+                      <option value="Installasie">Installasie</option>
+                    </select>
+                  </div>
+                  <div className="mri-fld"><span>Prioriteit</span> 
+                    <select value={formData.job_priority} onChange={(e) => setFormData({...formData, job_priority: e.target.value})}>
+                      <option>Laag</option>
+                      <option>Normal</option>
+                      <option>Hoog</option>
+                      <option>Dringend</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Werk-Notas */}
+              <div className="mri-row bg-light-grey">
+                <div className="mri-cell w-100">
+                  <label>Werknotas</label>
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
                   <textarea 
                     className="mri-txt-area-large"
-                    style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
                     value={formData.job_notes}
                     onChange={(e) => setFormData({...formData, job_notes: e.target.value})}
-                    onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 140) + "px"; }}
                     placeholder="Gedetailleerde beskrywing van werk wat gedoen moet word..."
                   />
                 </div>
               </div>
+<<<<<<< HEAD
               </>
             )}
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
-            {activeTab === "kwotasies" && (
-              <div className="mri-border-box">
+              {/* Voltooiing */}
+              <div className="mri-row flex last-row">
+                <div className="mri-cell w-50 border-r">
+                  <label>Voltooiing</label>
+                  <div className="mri-fld"><span>Goedgekeur deur</span> <input type="text" value={formData.authorized_by} onChange={(e) => setFormData({...formData, authorized_by: e.target.value})} /></div>
+                  <div className="mri-fld"><span>Voltooide Datum</span> <input type="date" value={formData.completed_date} onChange={(e) => setFormData({...formData, completed_date: e.target.value})} /></div>
+                </div>
+                <div className="mri-cell w-50">
+                  <label>Koste-Nota</label>
+                  <textarea 
+                    className="mri-txt-area-small"
+                    value={formData.cost_recovery_notes}
+                    onChange={(e) => setFormData({...formData, cost_recovery_notes: e.target.value})}
+                    placeholder="Koste-toerekening notas..."
+                  />
+                </div>
+              </div>
+            </form>
+
+            {/* QUOTES SEKSIE */}
+            <div className="mri-border-box">
+              <h3>Kwotasies</h3>
+              
+              {/* Voeg Nuwe Kwotasie By */}
               <div className="quote-form">
                 <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
                 <div className="mri-row">
@@ -2281,9 +2594,9 @@ function WorkOrderPage() {
                         className="quote-input"
                       >
                         <option value="">Kies Kontrakteur</option>
-                        {users.filter(u => u.role_id === 4).map((user) => (
-                          <option key={user.user_id} value={user.user_id}>
-                            {user.user_name} {user.user_surname}
+                        {contractors.map((contractor) => (
+                          <option key={contractor.contractor_id} value={contractor.contractor_id}>
+                            {contractor.contractor_name}
                           </option>
                         ))}
                       </select>
@@ -2419,9 +2732,9 @@ function WorkOrderPage() {
                   Geen kwotasies bygevoeg nie
                 </div>
               )}
-              </div>
-            )}
+            </div>
 
+<<<<<<< HEAD
             {activeImageViewer && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
                 <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
@@ -2431,13 +2744,19 @@ function WorkOrderPage() {
               </div>
             )}
 
+=======
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
             {/* Knoppies */}
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
+<<<<<<< HEAD
               <button type="button" className="btn-add" onClick={handleSaveWorkOrder} disabled={isSubmitting}>
                 {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
               </button>
+=======
+              <button type="button" className="btn-add" onClick={handleSaveWorkOrder}>Stoor</button>
+>>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
             </div>
             <AiSuggestPanel
               suggestions={jobSuggestions}
