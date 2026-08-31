@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import { useToast } from '../components/Toast/useToast';
@@ -11,6 +12,8 @@ function RolesPage({ embedded = false }) {
   const [roles, setRoles] = useState([]);
   const [rights, setRights] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterColumn, setFilterColumn] = useState('all');
 
 
   const [roleForm, setRoleForm] = useState({ id: null, name: '', isBuiltin: false, rightIds: [] });
@@ -67,6 +70,24 @@ function RolesPage({ embedded = false }) {
 
   const backToList = () => { setView('list'); };
 
+  const FILTER_COLUMNS = [
+    { value: 'all', label: 'Alle kolomme' },
+    { value: 'name', label: 'Naam' },
+    { value: 'type', label: 'Tipe' },
+  ];
+
+  const filteredRoles = [...roles].filter(role => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) return true;
+    const values = {
+      name: role.role_name,
+      type: role.is_builtin ? 'Ingebou' : 'Pasgemaak',
+    };
+    return filterColumn === 'all'
+      ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
+      : String(values[filterColumn] || '').toLowerCase().includes(query);
+  });
+
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
   const pageContent = (
@@ -74,9 +95,21 @@ function RolesPage({ embedded = false }) {
 
       {view === 'list' ? (
         <>
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' }}>
-            <div style={{ flex: 1 }} />
-            <button type="button" className="btn-add" onClick={openNewRole}>+ Nuwe Rol</button>
+          <div className="controls">
+            <div className="controls-left">
+              <div className="control-input-shell">
+                <input
+                  type="text"
+                  placeholder="Soek rolle..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select className="react-select-container" classNamePrefix="react-select" value={FILTER_COLUMNS.find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={FILTER_COLUMNS} isSearchable={false} />
+            </div>
+            <div className="controls-right">
+              <button type="button" className="btn-add" onClick={openNewRole}>+ Nuwe Rol</button>
+            </div>
           </div>
 
           <table className="standard-table">
@@ -84,19 +117,23 @@ function RolesPage({ embedded = false }) {
               <tr><th>Naam</th><th>Aantal regte</th><th>Tipe</th><th>Aksies</th></tr>
             </thead>
             <tbody>
-              {roles.map(role => (
-                <tr key={role.role_id}>
-                  <td>{role.role_name}</td>
-                  <td>{(role.right_ids || []).length}</td>
-                  <td>{role.is_builtin ? 'Ingebou' : 'Pasgemaak'}</td>
-                  <td>
-                    <button className="btn-edit" onClick={() => openEditRole(role)}>Wysig</button>
-                    {!role.is_builtin && (
-                      <button className="btn-delete" onClick={() => deleteRole(role)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {filteredRoles.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Geen rolle gevind nie</td></tr>
+              ) : (
+                filteredRoles.map(role => (
+                  <tr key={role.role_id}>
+                    <td>{role.role_name}</td>
+                    <td>{(role.right_ids || []).length}</td>
+                    <td>{role.is_builtin ? 'Ingebou' : 'Pasgemaak'}</td>
+                    <td>
+                      <button className="btn-edit" onClick={() => openEditRole(role)}>Wysig</button>
+                      {!role.is_builtin && (
+                        <button className="btn-delete" onClick={() => deleteRole(role)} style={{ marginLeft: '5px', backgroundColor: '#dc3545' }}>Verwyder</button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </>
