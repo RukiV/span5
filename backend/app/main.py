@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,11 +21,24 @@ from .middleware.idempotency import IdempotencyMiddleware
 from .middleware.security_headers import add_security_headers
 from .middleware.rate_limit import limiter
 from .middleware.datetimes import UtcDatetimeMiddleware
+from .auth.security import PasswordError
 
 app = FastAPI(
     title="FBS Facility Management API", 
     version="1.0.0"
 )
+
+@app.exception_handler(PasswordError)
+async def password_error_handler(request, exc):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": (
+                "Wagwoord voldoen nie aan die vereistes nie: moet ten minste 8 "
+                "karakters lank wees, een hoofletter, een syfer en een simbool bevat."
+            )
+        },
+    )
 
 _ENV = os.getenv("ENVIRONMENT", "development").strip().lower()
 _is_prod = _ENV not in {"development", "dev", "local", "test", "testing"}

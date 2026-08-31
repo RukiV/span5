@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { buildingsAPI, locationAPI } from "../services/api";
@@ -19,6 +19,7 @@ import "../styles/Rooms.css";
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const navigate = useNavigate();
   const { hasRight } = useCurrentUser();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
@@ -502,7 +503,7 @@ function TerrainsPage({ embedded = false }) {
                     </thead>
                     <tbody>
                       {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
-                        <tr key={building.building_id}>
+                        <tr key={building.building_id} onClick={() => navigate('/buildings', { state: { building } })} style={{ cursor: 'pointer' }}>
                           <td>{building.building_name}</td>
                           <td>{translateBuildingType(building.building_type)}</td>
                         </tr>
@@ -546,7 +547,7 @@ function TerrainsPage({ embedded = false }) {
                   </thead>
                   <tbody>
                     {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
-                      <tr key={building.building_id}>
+                      <tr key={building.building_id} onClick={() => navigate('/buildings', { state: { building } })} style={{ cursor: 'pointer' }}>
                         <td>{building.building_name}</td>
                         <td>{translateBuildingType(building.building_type)}</td>
                       </tr>

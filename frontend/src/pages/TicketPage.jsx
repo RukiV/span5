@@ -91,7 +91,7 @@ function TicketPage() {
 
   // AI-veldvoorstelle: kategorie/prioriteit uit titel+beskrywing (reëls).
   // Die vorm se vertoonwaardes is Afrikaans — map die enjin se EN-enum hier.
-  const FAULT_TYPE_EN_AF = { REPAIR: 'Herstelwerk', MAINTENANCE: 'Instandhouding', INSTALLATION: 'Opgradering' };
+  const FAULT_TYPE_EN_AF = { REPAIR: 'Herstel', MAINTENANCE: 'Onderhoud', INSPECTION: 'Inspeksie', INSTALLATION: 'Installasie' };
   const FAULT_PRIO_EN_AF = { LOW: 'Laag', MEDIUM: 'Medium', HIGH: 'Hoog' };
   const aiSuggestions = useAiSuggestions({
     context: 'fault',
@@ -715,9 +715,10 @@ function TicketPage() {
                 <label>Kategorie *</label>
                 <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }}>
                   <option value="">Kies kategorie</option>
-                  <option value="Instandhouding">Onderhoud</option>
-                  <option value="Herstelwerk">Herstel</option>
-                  <option value="Opgradering">Opgradeer</option>
+                  <option value="Onderhoud">Onderhoud</option>
+                  <option value="Herstel">Herstel</option>
+                  <option value="Inspeksie">Inspeksie</option>
+                  <option value="Installasie">Installasie</option>
                 </select>
               </div>
             </div>
