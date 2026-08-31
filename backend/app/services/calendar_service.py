@@ -3,6 +3,7 @@ from typing import Optional, Sequence
 from sqlalchemy import or_
 from sqlmodel import Session, select
 
+from ..auth.permissions import user_has_right
 from ..auth.rights_catalog import ROLE_CONTRACTOR
 from ..models.calendar_event import CalendarEvent, CalendarEventCreate, CalendarEventUpdate
 from ..models.job import Jobcard
@@ -36,14 +37,24 @@ class CalendarService(BaseService[CalendarEvent, CalendarEventCreate, CalendarEv
     ) -> list[dict]:
         is_contractor = user is not None and user.role_id == ROLE_CONTRACTOR
 
+        # Managers (who assign/schedule room checks or manage the calendar) see all
+        # events. Any other viewer (Dosent / contractor) may only see events assigned
+        # to them, so their calendar reflects exactly what was allocated to them.
+        is_manager = user is not None and (
+            user_has_right(session, user.role_id, "room_checks.manage")
+            or user_has_right(session, user.role_id, "calendar.manage")
+        )
+
         calendar_events: Sequence[CalendarEvent] = []
-        if not is_contractor:
-            calendar_events = session.exec(
-                select(CalendarEvent).where(
-                    CalendarEvent.start_datetime >= start,
-                    CalendarEvent.start_datetime <= end,
-                ).order_by(CalendarEvent.start_datetime.asc())
-            ).all()
+        calendar_query = select(CalendarEvent).where(
+            CalendarEvent.start_datetime >= start,
+            CalendarEvent.start_datetime <= end,
+        )
+        if not is_manager and user is not None:
+            calendar_query = calendar_query.where(CalendarEvent.user_id == user.user_id)
+        calendar_events = session.exec(
+            calendar_query.order_by(CalendarEvent.start_datetime.asc())
+        ).all()
 
         job_query = select(Jobcard).where(
             Jobcard.job_scheduled_datetime.isnot(None),

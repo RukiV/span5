@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select, { components } from "react-select";
-import { IoReturnUpBack } from "react-icons/io5";
+import Select from "react-select";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
@@ -15,6 +17,7 @@ import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
 
 function RoomsPage({ embedded = false }) {
@@ -57,8 +60,9 @@ function RoomsPage({ embedded = false }) {
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   
   // Opdateer: Verander die standaard room_type na 'Ander' om by die backend te pas
   const [newRoom, setNewRoom] = useState({
@@ -194,14 +198,36 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie lokaal verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' }); if (!confirmed) return;
+    const confirmed = await confirmCascade(confirm, { entityLabel: "lokaal", childrenLabel: "bates/voorraad/kaartjies" });
+    if (!confirmed) return;
     try {
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
       console.error("Error deleting room:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout tydens verwydering. Probeer asseblief weer." });
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedRoomIds, setSelectedRoomIds] = useState([]);
+
+  const toggleAllRooms = () => {
+    setSelectedRoomIds(allRoomsSelected ? [] : filteredRooms.map((r) => r.room_id));
+  };
+  const toggleRoom = (id) => {
+    setSelectedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelectedRooms = () => {
+    batchDelete({
+      ids: selectedRoomIds,
+      apiDelete: roomsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "lokale",
+      childrenLabel: "bates/voorraad/kaartjies",
+      refresh: fetchRooms,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedRoomIds([]));
   };
 
   const handleNewRoom = () => {
@@ -269,7 +295,6 @@ function RoomsPage({ embedded = false }) {
         if (locId !== String(terrainFilter)) return false;
       }
       if (buildingFilter && String(room.building_id) !== String(buildingFilter)) return false;
-      if (roomFilter && String(room.room_id) !== String(roomFilter)) return false;
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -296,6 +321,7 @@ function RoomsPage({ embedded = false }) {
       if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
       return 0;
     });
+  const allRoomsSelected = filteredRooms.length > 0 && selectedRoomIds.length === filteredRooms.length;
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -333,75 +359,51 @@ function RoomsPage({ embedded = false }) {
     <>
       <div className="controls">
         <div className="controls-left">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="control-input-shell">
             <input
               type="text"
-              className="search-box"
               placeholder="Soek lokale..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
           <Select
-            className="basic-single"
-            classNamePrefix="select"
+            className="react-select-container react-select-container--compact"
+            classNamePrefix="react-select"
             value={filterColumnOptions.find(o => o.value === filterColumn)}
             onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
             options={filterColumnOptions}
             isSearchable={false}
-            styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
           />
           {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+            const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
             const currentDisplayValue = cascadeCount === 0 ? null
               : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
               : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
               : null;
             const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
+              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); }
+              else if (levelIndex === 1) { setBuildingFilter(''); }
             };
             const breadcrumbData = [{ level: -1, name: "Terreine" }];
             if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
             if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "4px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 3 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" onClick={() => clearFromLevel(item.level + 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: "0", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "none", border: "none", color: "#111827", cursor: "pointer", display: "flex", alignItems: "center", padding: "0 4px" };
-            const CascadeControl = ({ children, ...props }) => (
-              <components.Control {...props}>
-                {children}
-                {cascadeCount > 0 && (
-                  <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Vorige vlak" style={backBtnStyle}>
-                    <IoReturnUpBack size={18} />
-                  </span>
-                )}
-              </components.Control>
-            );
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {renderBreadcrumb()}
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                <div className="control-cascade-breadcrumb">
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
+                </div>
                   <Select
-                    className="react-select-container"
+                    className="react-select-container react-select-container--wide"
                     classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                    placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
                     isClearable
-                    isDisabled={cascadeCount >= 3}
-                    components={{ Control: CascadeControl }}
-                    styles={{ container: (base) => ({ ...base, minWidth: '260px' }) }}
+                    isDisabled={cascadeCount >= 2}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -412,14 +414,13 @@ function RoomsPage({ embedded = false }) {
                       }
                       if (cascadeCount === 0) return option.data._cascadeLevel === 0;
                       if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
                       return false;
                     }}
                     value={currentDisplayValue}
                     onChange={(selectedOption) => {
-                      if (!selectedOption) return;
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
                       const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
                     }}
                   />
               </div>
@@ -427,6 +428,16 @@ function RoomsPage({ embedded = false }) {
           })()}
         </div>
         <div className="controls-right">
+          {hasRight('rooms.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
           <ColumnPicker
             ref={colPickerRef}
             columns={ROOM_COLUMNS}
@@ -436,14 +447,9 @@ function RoomsPage({ embedded = false }) {
             onResetWidths={colWidths.resetWidths}
           />
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
-          {hasRight('rooms.manage') && (
-            <button
-              type="button"
-              className="btn-add"
-              style={{ marginLeft: '0.5rem' }}
-              onClick={() => setShowImportWizard(true)}
-            >
-              ⇅ Invoer / Uitvoer rekords
+          {selectedRoomIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelectedRooms}>
+              Verwyder Geselekteerde ({selectedRoomIds.length})
             </button>
           )}
           {hasRight('rooms.manage') && (
@@ -460,6 +466,9 @@ function RoomsPage({ embedded = false }) {
       <table className="standard-table">
         <thead>
           <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allRoomsSelected} onChange={toggleAllRooms} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
             {colVis.visibleColumns.map((col) => (
               <ResizableTh
                 key={col.key}
@@ -472,15 +481,18 @@ function RoomsPage({ embedded = false }) {
                 {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
               </ResizableTh>
             ))}
-            <th style={{ width: '180px' }}>Aksies</th>
+            <th style={{ width: '430px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
           {filteredRooms.length === 0 ? (
-            <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
+            <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
           ) : (
             filteredRooms.map((room) => (
               <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedRoomIds.includes(room.room_id)} onChange={() => toggleRoom(room.room_id)} />
+                </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(room)}</td>
                 ))}
@@ -490,7 +502,7 @@ function RoomsPage({ embedded = false }) {
                   {canManageSessions && (
                     <button className="btn-view" onClick={() => navigate(`/room-checks-schedules?scheduleRoom=${room.room_id}`)}>Skeduleer</button>
                   )}
-                  <button className="btn-delete" onClick={() => handleDeleteRoom(room.room_id)}>Verwyder</button>
+                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteRoom(room.room_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>
             ))
@@ -581,6 +593,10 @@ function RoomsPage({ embedded = false }) {
             <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newRoom.location_id, newRoom.building_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newRoom.location_id ? { value: newRoom.location_id, label: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id }
+                : cascadeCount === 2 && newRoom.building_id ? { value: newRoom.building_id, label: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id }
+                : null;
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewRoom(p => ({...p, location_id: "", building_id: ""}));
                 else if (levelIndex === 1) setNewRoom(p => ({...p, building_id: ""}));
@@ -588,34 +604,9 @@ function RoomsPage({ embedded = false }) {
               const breadcrumbData = [{ level: -1, name: "Terreine" }];
               if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
-              const renderBreadcrumb = () => (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                  {breadcrumbData.map((item, i) => {
-                    const isLast = i === breadcrumbData.length - 1;
-                    const showArrow = isLast ? cascadeCount < 2 : true;
-                    return (
-                      <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              );
-              const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
               return (
-                <>
-                  {renderBreadcrumb()}
+                <div ref={modalCascadeMenu.containerRef}>
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px" })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
@@ -623,7 +614,10 @@ function RoomsPage({ embedded = false }) {
                       isClearable
                       isDisabled={cascadeCount >= 2}
                       closeMenuOnSelect={false}
-                      components={{ Control: CascadeControl }}
+                      menuIsOpen={modalCascadeMenu.menuIsOpen}
+                      onMenuOpen={modalCascadeMenu.onMenuOpen}
+                      onMenuClose={modalCascadeMenu.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -636,9 +630,9 @@ function RoomsPage({ embedded = false }) {
                         if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newRoom.location_id);
                         return false;
                       }}
-                      value={null}
+                      value={currentDisplayValue}
                       onChange={(selectedOption) => {
-                        if (!selectedOption) return;
+                        if (!selectedOption) { setNewRoom(p => ({...p, location_id: "", building_id: ""})); return; }
                         setNewRoom(p => ({...p, ...selectedOption._fields}));
                         if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
                         const labels = ["Terrein","Gebou"];
@@ -647,7 +641,7 @@ function RoomsPage({ embedded = false }) {
                         setTimeout(() => setCascadeToast(null), 2000);
                       }}
                     />
-                </>
+                </div>
               );
             })()}
             {cascadeToast && (

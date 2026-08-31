@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
 
+/// Parse a backend datetime string, treating a naive (no-offset) value as UTC so
+/// it is converted to the device's local timezone.
+DateTime? sessionFromJsonDatetime(dynamic value) {
+  if (value == null) return null;
+  final s = value.toString();
+  if (s.isEmpty) return null;
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(s);
+  return DateTime.parse(hasOffset ? s : '${s}Z').toLocal();
+}
+
 class RoomCheckSession {
   final int sessionId;
   final int roomId;
@@ -34,9 +44,7 @@ class RoomCheckSession {
         sessionId: json['session_id'] ?? 0,
         roomId: json['room_id'] ?? 0,
         assignedUserId: json['assigned_user_id'] ?? 0,
-        scheduledDatetime: json['scheduled_datetime'] != null
-            ? DateTime.tryParse(json['scheduled_datetime'])
-            : null,
+        scheduledDatetime: sessionFromJsonDatetime(json['scheduled_datetime']),
         status: json['status'] ?? 'scheduled',
         calendarEventId: json['calendar_event_id'],
         roomCheckId: json['room_check_id'],

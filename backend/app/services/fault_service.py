@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
+from typing import Optional
+
+from sqlmodel import Session
 
 from ..models.fault import Faultcard, FaultcardCreate, FaultcardUpdate
 from .base_service import BaseService
 from .prediction_service import prediction_service
 from .mappoint_service import mappoint_service
+from . import cascade_delete
 
 
 class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
@@ -96,6 +100,30 @@ class FaultService(BaseService[Faultcard, FaultcardCreate, FaultcardUpdate]):
         prediction_service.invalidateCache()
         
         return obj
+
+    def delete(self, session: Session, id: int, user_id: Optional[int] = None) -> bool:
+        obj = session.get(self.model, id)
+        if not obj:
+            return False
+
+        payload = obj.model_dump(mode="json")
+        cascade_delete.cascade_delete_fault(session, id)
+        try:
+            self._create_audit_log(
+                session,
+                "delete",
+                {"previous_value": payload, "new_value": None},
+                affected_columns=None,
+                user_id=user_id,
+                affected_id=id,
+                json_data=payload,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        prediction_service.invalidateCache()
+        return True
 
 
 fault_service = FaultService(Faultcard)
