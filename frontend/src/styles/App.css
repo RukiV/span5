@@ -815,6 +815,16 @@ select:not([class*="cascade"]):focus {
   animation: shake 0.4s ease;
 }
 
+/* Lewendige rooi veld-status (geen skud nie) - net vir e-pos/wagwoord
+   terwyl die gebruiker tik. Die skud-animasie geld slegs vir .field-invalid. */
+.field-invalid-flat {
+  border: 2px solid #dc3545 !important;
+}
+
+.field-valid {
+  border: 2px solid #28a745 !important;
+}
+
 .facility-tab-bar {
   display: flex;
   background: #f5f0eb;
