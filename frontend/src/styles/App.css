@@ -130,6 +130,11 @@
   background: #935e28;
 }
 
+.sidebar ul li.dropdown .dropdown-trigger.active-link {
+  background: #935e28;
+  color: white;
+}
+
 .sidebar ul li a.active-link:hover {
   color: var(--blou) !important;
 }
@@ -713,6 +718,7 @@ select:not([class*="cascade"]):focus {
 }
 
 .dropdown:hover .dropdown-content, .dropdown:hover .dropdown-content2  {display: block;}
+.dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {display: block;}
 
 /* Kode vir arrow vir dropdown*/
 .sidebar ul li.dropdown .dropdown-trigger {
@@ -720,6 +726,11 @@ select:not([class*="cascade"]):focus {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  padding: 20px;
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+  box-sizing: border-box;
 }
 
 .sidebar ul li.dropdown .dropdown-trigger::after {
@@ -735,6 +746,12 @@ select:not([class*="cascade"]):focus {
 }
 
 .sidebar ul li.dropdown:hover .dropdown-trigger::after {
+  transform: rotate(90deg);    
+  opacity: 1;                  
+  color: var(--wit);        
+}
+
+.sidebar ul li.dropdown.open .dropdown-trigger::after {
   transform: rotate(90deg);    
   opacity: 1;                  
   color: var(--wit);        
