@@ -6,7 +6,6 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
-<<<<<<< HEAD
 _DEFAULT_SECRET = "please-change-this-secret"
 _DEV_ENVIRONMENTS = {"development", "dev", "local", "test", "testing"}
 
@@ -28,9 +27,6 @@ if not SECRET_KEY or SECRET_KEY == _DEFAULT_SECRET:
             "AUTH_SECRET_KEY environment variable."
         )
 
-=======
-SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "please-change-this-secret")
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 SESSION_DURATION_SECONDS = int(os.getenv("SESSION_DURATION_SECONDS", "7200"))
 REFRESH_TOKEN_DURATION_SECONDS = int(os.getenv("REFRESH_TOKEN_DURATION_SECONDS", "86400"))
 
@@ -44,10 +40,6 @@ def _hash_token(token: str) -> str:
 
 
 def create_session_token(user_id: int) -> str:
-<<<<<<< HEAD
-=======
-    #Moet not role add en dalk rights
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     payload = {
         "user_id": user_id,
         "exp": int((datetime.now(timezone.utc) + timedelta(seconds=SESSION_DURATION_SECONDS)).timestamp()),

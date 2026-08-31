@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,14 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 import os
 
+import asyncio
 from .api.api import api_router
 from .db.database import createDBandTables, engine, purge_expired_revoked_tokens
 from .db.seed import seed_data
-<<<<<<< HEAD
 from .services import auto_draft_scheduler, survival_service
 from .services.reminder_scheduler import reminder_loop
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
 from .middleware.idempotency import IdempotencyMiddleware
 from .middleware.security_headers import add_security_headers
@@ -72,11 +74,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 # ----------------------------
 
 @app.on_event("startup")
-def onStartup():
+async def onStartup():
     createDBandTables()
 
     seed_data()
-<<<<<<< HEAD
 
     # Log scheduler configuration for debugging
     import logging
@@ -100,9 +101,6 @@ def onStartup():
         asyncio.create_task(asyncio.to_thread(survival_service.maybe_train, engine))
 
     asyncio.create_task(reminder_loop())
-=======
-#ports
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
     if auto_draft_scheduler.AI_AUTO_DRAFT_ENABLED:
         asyncio.create_task(auto_draft_scheduler.auto_draft_loop())

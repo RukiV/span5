@@ -708,20 +708,6 @@ select:not([class*="cascade"]):focus {
   display: none;
   text-align: left;
   z-index: 1;
-<<<<<<< HEAD
-=======
-  left: 250px;
-  
- 
-}
-
-.dropdown-content {
-  bottom: -60px;
-}
-
-.dropdown-content2{
-  bottom: -30px;
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 }
 
 .dropdown-content a,.dropdown-content2 a {
@@ -763,7 +749,6 @@ select:not([class*="cascade"]):focus {
   transform: rotate(90deg);    
   opacity: 1;                  
   color: var(--wit);        
-<<<<<<< HEAD
 }
 
 .sidebar ul li.dropdown.open .dropdown-trigger::after {
@@ -828,16 +813,6 @@ select:not([class*="cascade"]):focus {
 .field-invalid {
   border: 2px solid #dc3545 !important;
   animation: shake 0.4s ease;
-}
-
-/* Lewendige rooi veld-status (geen skud nie) - net vir e-pos/wagwoord
-   terwyl die gebruiker tik. Die skud-animasie geld slegs vir .field-invalid. */
-.field-invalid-flat {
-  border: 2px solid #dc3545 !important;
-}
-
-.field-valid {
-  border: 2px solid #28a745 !important;
 }
 
 .facility-tab-bar {
@@ -944,6 +919,4 @@ select:not([class*="cascade"]):focus {
 }
 .col-resizer--active {
   background: rgba(147, 94, 40, 0.55);
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 }

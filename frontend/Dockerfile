@@ -10,6 +10,7 @@ COPY package*.json ./
 RUN npm install
 RUN npm install @azure/msal-browser @azure/msal-react
 RUN npm install react-select
+RUN npm install react-icons
 
 # Copy source code
 COPY . .

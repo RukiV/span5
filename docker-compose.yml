@@ -25,12 +25,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-CHANGE_ME_STRONG_PASSWORD}@postgres:5432/facility_db?sslmode=prefer
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-your_client_id_here}
-<<<<<<< HEAD
       ENVIRONMENT: ${ENVIRONMENT:-development}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     depends_on:
       postgres:
         condition: service_healthy

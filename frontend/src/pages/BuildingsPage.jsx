@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
@@ -24,29 +23,12 @@ function BuildingsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
   const { user, hasRight } = useCurrentUser();
-=======
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import Select from "react-select";
-import Sidebar from '../components/Sidebar';
-import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
-import { useCurrentUser } from "../hooks/useCurrentUser";
-import '../styles/App.css';
-import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
-
-function BuildingsPage() {
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-<<<<<<< HEAD
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const BUILDING_COLUMNS = [
     { key: 'id', label: 'ID', render: (b) => b.building_id, sortKey: 'id', defaultVisible: false },
@@ -66,28 +48,17 @@ function BuildingsPage() {
   const location = useLocation();
   const [showModal, setShowModal] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
-=======
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
-  const [showModal, setShowModal] = useState(false);
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
-<<<<<<< HEAD
     building_type: "",
     location_id: "",
   });
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
-=======
-    building_type: "other",
-    location_id: "",
-  });
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
   const translateBuildingType = (type) => {
     const translations = {
@@ -108,7 +79,6 @@ function BuildingsPage() {
     loadData();
   }, []);
 
-<<<<<<< HEAD
   useEffect(() => {
     if (location.state?.building) {
       const target = buildings.find((b) => String(b.building_id) === String(location.state.building.building_id));
@@ -124,8 +94,6 @@ function BuildingsPage() {
     }
   }, [user]);
 
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const fetchBuildings = async () => {
     setLoading(true);
     try {
@@ -174,7 +142,6 @@ function BuildingsPage() {
   };
 
   const handleSaveBuilding = async () => {
-<<<<<<< HEAD
     const errors = {};
     if (!newBuilding.building_name?.trim()) errors.building_name = true;
     if (!newBuilding.location_id) errors.location_id = true;
@@ -186,17 +153,6 @@ function BuildingsPage() {
       return;
     }
     setInvalidFields({});
-=======
-    if (!newBuilding.building_name?.trim()) {
-      alert("Voer asseblief 'n gebounaam in");
-      return;
-    }
-
-    if (!newBuilding.location_id) {
-      alert("Voer asseblief 'n terrein in");
-      return;
-    }
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
     const buildingData = {
       building_name: newBuilding.building_name,
@@ -214,29 +170,18 @@ function BuildingsPage() {
       handleCloseModal();
     } catch (error) {
       console.error("Error saving building:", error);
-<<<<<<< HEAD
       showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
-=======
-      alert("Fout tydens besparing. Probeer asseblief weer.");
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     }
   };
 
   const handleDeleteBuilding = async (id) => {
-<<<<<<< HEAD
     const confirmed = await confirmCascade(confirm, { entityLabel: "gebou", childrenLabel: "lokale" });
     if (!confirmed) return;
-=======
-    if (!window.confirm("Is jy seker jy wil hierdie gebou verwyder?")) {
-      return;
-    }
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-<<<<<<< HEAD
       showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
   };
@@ -261,22 +206,12 @@ function BuildingsPage() {
     }).then(() => setSelectedIds([]));
   };
 
-=======
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
-    }
-  };
-
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const handleEditBuilding = (item) => {
     setIsEditing(true);
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-<<<<<<< HEAD
       building_type: item.building_type || "",
-=======
-      building_type: item.building_type || "Ander",
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -303,11 +238,8 @@ function BuildingsPage() {
 
   const filteredBuildings = [...buildings]
     .filter((building) => {
-<<<<<<< HEAD
       if (terrainFilter && String(building.location_id) !== String(terrainFilter)) return false;
       if (buildingFilter && String(building.building_id) !== String(buildingFilter)) return false;
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -322,7 +254,6 @@ function BuildingsPage() {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-<<<<<<< HEAD
       if (!sortKey) return 0;
       const dir = sortDirection === 'asc' ? 1 : -1;
       if (sortKey === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * dir;
@@ -331,14 +262,6 @@ function BuildingsPage() {
       return 0;
     });
   const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
-=======
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.building_id || 0) - Number(b.building_id || 0)) * direction;
-      if (sortBy === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * direction;
-      return 0;
-    });
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -348,14 +271,6 @@ function BuildingsPage() {
     { value: "terrain", label: "Terrein" }
   ];
 
-<<<<<<< HEAD
-=======
-  const sortByOptions = [
-    { value: "default", label: "Standaard" },
-    { value: "name", label: "Naam" }
-  ];
-
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
   const buildingTypeOptions = [
     { value: "Kantoorgebou", label: "Admin" },
     { value: "Onderwys", label: "Onderwys" },
@@ -371,7 +286,6 @@ function BuildingsPage() {
   }));
 
   if (loading) {
-<<<<<<< HEAD
     return <div className="main"><div className="content">Laai...</div></div>;
   }
 
@@ -688,137 +602,6 @@ function BuildingsPage() {
       </div>
 
       {showModal && modalContent}
-=======
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
-  }
-
-  return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/buildings" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Gebou Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <input
-                  type="text"
-                  className="search-box"
-                  placeholder="Soek geboue..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={filterColumnOptions.find(o => o.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-                options={filterColumnOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
-              />
-            </div>
-            <div className="controls-right">
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={sortByOptions.find(o => o.value === sortBy)}
-                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
-                options={sortByOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
-              />
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-              <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
-            </div>
-          </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>Naam</th>
-                <th>Tipe</th>
-                <th>Terrein</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBuildings.map((building) => (
-                <tr key={building.building_id}>
-                  <td>{building.building_name}</td>
-                  <td>{translateBuildingType(building.building_type)}</td>
-                  <td>{getTerrainName(building.location_id)}</td>
-                  <td>
-                    <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
-                    <button className="btn-edit" onClick={() => handleEditBuilding(building)}>Wysig</button>
-                    <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-               <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Naam</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_name}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_name: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Tipe</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
-                  options={buildingTypeOptions}
-                  isSearchable={false}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies 'n terrein..."
-                  isSearchable={true}
-                  options={terrainOptions}
-                  value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
-          </div>
-        </div>
-      )}
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
 
       {showRoomsModal && selectedBuilding && (
         <div className="modal" style={{ display: "flex" }}>
@@ -841,11 +624,7 @@ function BuildingsPage() {
                   </thead>
                   <tbody>
                     {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
-<<<<<<< HEAD
                       <tr key={room.room_id} onClick={() => navigate('/rooms', { state: { room } })} style={{ cursor: 'pointer' }}>
-=======
-                      <tr key={room.room_id}>
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
                         <td>{room.room_name}</td>
                         <td>{room.room_code}</td>
                         <td>{translateRoomType(room.room_type || 'other')}</td>
@@ -862,10 +641,7 @@ function BuildingsPage() {
           </div>
         </div>
       )}
-<<<<<<< HEAD
       {dialog}
-=======
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
     </div>
   );
 }

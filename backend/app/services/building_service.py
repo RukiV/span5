@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from typing import Optional
 from sqlmodel import Session
 
@@ -33,9 +32,3 @@ class BuildingService(BaseService[Building, BuildingCreate, BuildingUpdate]):
 
 
 building_service = BuildingService(Building)
-=======
-from ..models.location import Building, BuildingCreate, BuildingUpdate
-from .base_service import BaseService
-
-building_service = BaseService[Building, BuildingCreate, BuildingUpdate](Building)
->>>>>>> a6cc9b7400a2a627147078aeed60cfe907bbb8c3
