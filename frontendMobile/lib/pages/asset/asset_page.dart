@@ -16,6 +16,8 @@ import '../reporting/scan_page.dart';
 import '../room_checklist/room_check_history_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 
 class AssetsPage extends StatefulWidget {
   final String? filterRoomId;
@@ -42,6 +44,7 @@ class _AssetsPageState extends State<AssetsPage> {
     const ColumnDef(key: 'status', label: 'Status'),
     const ColumnDef(key: 'created', label: 'Geskep', defaultVisible: false),
   ]);
+  final SelectionController<String> _selection = SelectionController<String>();
 
   @override
   void initState() {
@@ -195,6 +198,19 @@ class _AssetsPageState extends State<AssetsPage> {
             MaterialPageRoute(builder: (_) => const ManageAssetTypesPage()),
           ),
         ),
+      if (UserSession.can('assets.manage')) ...[
+        SelectModeButton<String>(
+          controller: _selection,
+          onToggle: () => setState(() =>
+              _selection.isSelecting ? _selection.exit() : _selection.enter()),
+        ),
+        BulkDeleteAction<String>(
+          controller: _selection,
+          confirmTitle: 'Verwyder Bates',
+          confirmMessage: 'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
+          onDelete: _bulkDeleteAssets,
+        ),
+      ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
   }
@@ -283,7 +299,6 @@ class _AssetsPageState extends State<AssetsPage> {
               return Column(
                 children: [
                   _buildAssetRow(asset),
-                  const Divider(height: 1),
                 ],
               );
             },
@@ -295,30 +310,62 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Widget _buildAssetRow(Asset asset) {
-    return InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset))),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-        child: Row(
-          children: _colVis.visibleColumns.map((col) {
-            int flex = 2;
-            Widget child;
-            switch (col.key) {
-              case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
-              case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
-              case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-              case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-              case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-              case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-              case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
-              case 'created': child = const Text('-', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12)); break;
-              default: child = const Text(''); break;
-            }
-            return Expanded(flex: flex, child: child);
-          }).toList(),
-        ),
-      ),
+    return CardDataRow(
+      leading: _selection.isSelecting
+          ? Checkbox(
+              value: _selection.isSelected(asset.id),
+              onChanged: (_) => setState(() => _selection.toggle(asset.id)),
+            )
+          : null,
+      trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+      onTap: () {
+        if (_selection.isSelecting) {
+          setState(() => _selection.toggle(asset.id));
+        } else {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)));
+        }
+      },
+      children: _colVis.visibleColumns.map((col) {
+        int flex = 2;
+        Widget child;
+        switch (col.key) {
+          case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
+          case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
+          case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+          case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+          case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+          case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+          case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
+          case 'created': child = Text('-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
+          default: child = const Text(''); break;
+        }
+        return Expanded(flex: flex, child: child);
+      }).toList(),
     );
+  }
+
+  Future<void> _bulkDeleteAssets(BuildContext context, Set<String> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await AssetService.deleteAsset(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await AssetService.fetchAssets();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok bate/bates verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   Widget _buildFab() {
