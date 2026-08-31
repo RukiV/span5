@@ -13,6 +13,8 @@ import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 import '../asset/asset_page.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
@@ -38,6 +40,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     const ColumnDef(key: 'type', label: 'Tipe'),
     const ColumnDef(key: 'capacity', label: 'Kapasiteit'),
   ]);
+  final SelectionController<int> _selection = SelectionController<int>();
 
   @override
   void initState() {
@@ -288,28 +291,61 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     );
   }
 
-  Future<void> _deleteRoom(Room room) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Verwyder Lokaal"),
-        content: Text("Is jy seker jy wil '${room.name}' verwyder?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("KANSELLEER")),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("VERWYDER", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      final success = await CampusService.removeRoom(room.id);
-      if (!mounted) return;
+  List<Widget> _buildRoomCells(Room room) {
+    return _colVis.visibleColumns.map((col) {
+      int flex = 2;
+      Widget child;
+      switch (col.key) {
+        case 'name':
+          flex = 3;
+          child = Text(
+            room.name,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+          );
+          break;
+        case 'type':
+          flex = 2;
+          child = Text(
+            room.type,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        case 'capacity':
+          flex = 1;
+          child = Text(
+            room.capacity?.toString() ?? '-',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        default:
+          child = const SizedBox.shrink();
+      }
+      return Expanded(flex: flex, child: child);
+    }).toList();
+  }
+
+  Future<void> _bulkDeleteRooms(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await CampusService.removeRoom(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await CampusService.fetchCampuses();
+    if (context.mounted) {
+      setState(() => _selection.exit());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? "Lokaal verwyder." : "Kon nie die lokaal verwyder nie."),
-          backgroundColor: success ? Colors.green : Colors.red,
+          content: Text(fail == 0
+              ? "$ok lokaal/lokale verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -490,6 +526,20 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       },
                     ),
                   ),
+                  if (UserSession.can('rooms.manage')) ...[
+                    SelectModeButton<int>(
+                      controller: _selection,
+                      onToggle: () => setState(() =>
+                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
+                    ),
+                    BulkDeleteAction<int>(
+                      controller: _selection,
+                      confirmTitle: 'Verwyder Lokale',
+                      confirmMessage: 'Wil jy ${_selection.count} geselekteerde lokaal/lokale verwyder?',
+                      childWarning: 'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
+                      onDelete: _bulkDeleteRooms,
+                    ),
+                  ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
@@ -569,52 +619,53 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                               itemCount: filtered.length,
                               itemBuilder: (context, index) {
                                 final room = filtered[index];
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  child: ListTile(
-                                    title: Text(room.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-                                    subtitle: Text("ID: ${room.id} | ${room.type}", style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (UserSession.can('rooms.manage')) ...[
-                                          IconButton(
-                                            icon: const Icon(Icons.qr_code_2, color: Colors.grey, size: 20),
-                                            tooltip: "Wys QR-kode",
-                                            onPressed: () => _showRoomQrDialog(room),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
-                                            tooltip: "Kontroleer bates",
-                                            onPressed: () => Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => RoomChecklistPage(roomId: room.id),
-                                              ),
+                                return CardDataRow(
+                                  leading: _selection.isSelecting
+                                      ? Checkbox(
+                                          value: _selection.isSelected(room.id),
+                                          onChanged: (_) => setState(() => _selection.toggle(room.id)),
+                                        )
+                                      : null,
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (!_selection.isSelecting && UserSession.can('rooms.manage')) ...[
+                                        IconButton(
+                                          icon: const Icon(Icons.qr_code_2, color: Colors.grey, size: 20),
+                                          tooltip: "Wys QR-kode",
+                                          onPressed: () => _showRoomQrDialog(room),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
+                                          tooltip: "Kontroleer bates",
+                                          onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RoomChecklistPage(roomId: room.id),
                                             ),
                                           ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                            onPressed: () => _showEditRoomDialog(context, room),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                            onPressed: () => _deleteRoom(room),
-                                          ),
-                                        ],
-                                        const Icon(Icons.chevron_right, color: AppColors.gold),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                          onPressed: () => _showEditRoomDialog(context, room),
+                                        ),
                                       ],
-                                    ),
-                                    onTap: () {
+                                      const Icon(Icons.chevron_right, color: AppColors.gold),
+                                    ],
+                                  ),
+                                  onTap: () {
+                                    if (_selection.isSelecting) {
+                                      setState(() => _selection.toggle(room.id));
+                                    } else {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
                                         ),
                                       );
-                                    },
-                                  ),
+                                    }
+                                  },
+                                  children: _buildRoomCells(room),
                                 );
                               },
                             ),

@@ -7,6 +7,7 @@ from ....db.database import getSession
 from ....models.location import BuildingRead, BuildingCreate, BuildingUpdate
 from ....models.user import User
 from ....services.building_service import building_service
+from ....services.cascade_delete_service import delete_building_cascade
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ def patchBuilding(buildingID: int, buildingIn: BuildingUpdate, session: Session 
 
 @router.delete("/{buildingID}", status_code=status.HTTP_204_NO_CONTENT)
 def removeBuilding(buildingID: int, session: Session = Depends(getSession), user: User = Depends(require_right("buildings.manage"))):
-    if not building_service.delete(session, buildingID, user_id=user.user_id):
+    if not delete_building_cascade(session, buildingID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Building not found")
 
     return None
