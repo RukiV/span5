@@ -1,0 +1,407 @@
+.iw-stepsbar {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.iw-stepsbar .iw-active {
+  color: #111827;
+  font-weight: 700;
+}
+
+.iw-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 2.25rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.iw-dropzone:hover,
+.iw-dragover {
+  border-color: #28a745;
+  background-color: #f0fdf4;
+}
+
+.iw-dropzone-icon {
+  font-size: 2rem;
+  color: #28a745;
+}
+
+.iw-dropzone-text {
+  display: flex;
+  flex-direction: column;
+  margin-top: 0.35rem;
+}
+
+.iw-dropzone-hint {
+  margin-top: 0.75rem;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.iw-busy {
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.iw-stepnote {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 0.75rem;
+}
+
+.iw-sheetcard {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.iw-sheethead {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.iw-sheetname {
+  font-weight: 700;
+}
+
+.iw-rowcount {
+  color: #6b7280;
+  font-size: 12.5px;
+}
+
+.iw-entityselect,
+.iw-maptable select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  font-size: 13.5px;
+  background: #fff;
+}
+
+.iw-entityselect {
+  margin-left: auto;
+  min-width: 210px;
+}
+
+.iw-maptable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.6rem;
+  font-size: 13px;
+}
+
+.iw-maptable th {
+  text-align: left;
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.3rem 0.4rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.iw-maptable td {
+  padding: 0.22rem 0.4rem;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.iw-unmapped td {
+  color: #9ca3af;
+}
+
+.iw-warning {
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #92400e;
+}
+
+.iw-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.iw-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.iw-badge-create {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.iw-badge-update {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.iw-badge-skip {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.iw-badge-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.iw-previewcard {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.iw-previewhead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.iw-previewmeta {
+  color: #6b7280;
+  font-size: 12.5px;
+}
+
+.iw-linkbtn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 12.5px;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.iw-errortable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  font-size: 12.5px;
+}
+
+.iw-errortable th {
+  text-align: left;
+  color: #6b7280;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.25rem 0.4rem;
+}
+
+.iw-errortable td {
+  padding: 0.22rem 0.4rem;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+}
+
+.iw-dupmode {
+  margin-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.75rem;
+}
+
+.iw-dupmode h4 {
+  margin: 0 0 0.5rem;
+  font-size: 14px;
+}
+
+.iw-dupoption {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0.4rem;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.iw-dupoption.iw-selected {
+  border-color: #28a745;
+  background: #f0fdf4;
+}
+
+.iw-dupoption input {
+  margin-top: 0.2rem;
+}
+
+.iw-dupoption span {
+  display: flex;
+  flex-direction: column;
+}
+
+.iw-dupoption em {
+  font-style: normal;
+  color: #6b7280;
+  font-size: 12.5px;
+}
+
+.iw-done {
+  text-align: center;
+  padding: 0.75rem 0;
+}
+
+.iw-done-icon {
+  width: 52px;
+  height: 52px;
+  line-height: 52px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 26px;
+  margin: 0 auto 0.5rem;
+}
+
+.iw-done-icon.iw-partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.iw-done-errors {
+  text-align: left;
+  margin: 0.75rem auto 0;
+  max-width: 640px;
+  font-size: 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.iw-done-errors ul {
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0.4rem 0 0.2rem;
+  padding-left: 1.2rem;
+  color: #991b1b;
+}
+
+.iw-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.iw-upload {
+  display: flex;
+  flex-direction: column;
+}
+
+.iw-example {
+  margin-top: 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.iw-example-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: #f9fafb;
+  border: none;
+  padding: 0.55rem 0.8rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  text-align: left;
+}
+
+.iw-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  color: #6b7280;
+}
+
+.iw-caret.iw-open {
+  transform: rotate(90deg);
+}
+
+.iw-example-body {
+  padding: 0.65rem 0.8rem 0.8rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.iw-example-controls {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.iw-example-controls select {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.3rem 0.45rem;
+  font-size: 13.5px;
+  background: #fff;
+  min-width: 220px;
+}
+
+.iw-example-controls .btn-edit {
+  font-size: 13px;
+}
+
+.iw-tablewrap {
+  overflow-x: auto;
+}
+
+.iw-example-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.iw-example-table th {
+  text-align: left;
+  background: #f3f4f6;
+  color: #374151;
+  white-space: nowrap;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.iw-example-table td {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.iw-empty {
+  color: #cbd5e1;
+}
+
+.iw-notes {
+  margin: 0.6rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.iw-notes li {
+  margin-bottom: 0.15rem;
+}

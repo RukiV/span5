@@ -26,14 +26,15 @@ class CameraService {
     return null;
   }
 
-  /// Allows the user to select an existing photo from their gallery.
+  /// Picks an existing image from the device gallery (same compression as
+  /// the camera so uploaded files stay small).
   static Future<File?> pickFromGallery() async {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 70,
+        maxWidth: 1920, // FHD Width
+        maxHeight: 1080, // FHD Height
+        imageQuality: 70, // Compression to save mobile data
       );
 
       if (image != null) {

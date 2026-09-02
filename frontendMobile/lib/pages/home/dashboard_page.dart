@@ -9,7 +9,9 @@ import '../../models/asset.dart';
 import '../../models/user_session.dart';
 
 class DashboardPage extends StatefulWidget {
-  final Function(int)? onTabRequested;
+  /// Vra 'n bladsy aan op naam (bv. "Werksopdragte"). Die naam moet ooreenstem
+  /// met 'n inskrywing in HomePage se menu, anders word die versoek geïgnoreer.
+  final void Function(String title)? onTabRequested;
 
   const DashboardPage({super.key, this.onTabRequested});
 
@@ -96,9 +98,9 @@ class _DashboardPageState extends State<DashboardPage> {
                               context,
                               "Foutkaartjies",
                               nuwe.toString(),
-                              "(-3%)",
+                              "",
                               AppColors.gold,
-                              6, // Foutkaartjies index
+                              "Foutkaartjies",
                               cardWidth,
                             ),
                             _buildMiniStatCard(
@@ -107,16 +109,16 @@ class _DashboardPageState extends State<DashboardPage> {
                               werksopdragteTotaal.toString(),
                               "",
                               AppColors.successGreen, // Werksopdragte is nou Groen
-                              8, // Werksopdragte index
+                              "Werksopdragte",
                               cardWidth,
                             ),
                             _buildMiniStatCard(
                               context,
                               "Verslae",
                               voltooi.toString(),
-                              "(+10%)",
+                              "",
                               AppColors.infoBlue,
-                              10, // Verslae index
+                              "Foutkaartjies",
                               cardWidth,
                             ),
                           ],
@@ -146,9 +148,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       context,
                       "Totale Bates",
                       assets.length.toString(),
-                      "+5%",
+                      "",
                       AppColors.navy,
-                      1, // Bates index
+                      "Bates",
                     ),
                     const SizedBox(height: 20),
                     
@@ -192,10 +194,9 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildMiniStatCard(BuildContext context, String title, String value, String trend, Color color, int targetTab, double width) {
-    bool isPositive = trend.contains('+');
+  Widget _buildMiniStatCard(BuildContext context, String title, String value, String trend, Color color, String targetTitle, double width) {
     return InkWell(
-      onTap: () => widget.onTabRequested?.call(targetTab),
+      onTap: () => widget.onTabRequested?.call(targetTitle),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: width,
@@ -212,20 +213,22 @@ class _DashboardPageState extends State<DashboardPage> {
             Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey), maxLines: 1),
             const SizedBox(height: 4),
             Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.navy)),
-            const SizedBox(height: 2),
-            Text(
-              trend,
-              style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPositive ? AppColors.successGreen : AppColors.errorRed),
-            ),
+            if (trend.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                trend,
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: trend.contains('+') ? AppColors.successGreen : AppColors.errorRed),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildWideStatCard(BuildContext context, String title, String value, String trend, Color color, int targetTab) {
+  Widget _buildWideStatCard(BuildContext context, String title, String value, String trend, Color color, String targetTitle) {
     return InkWell(
-      onTap: () => widget.onTabRequested?.call(targetTab),
+      onTap: () => widget.onTabRequested?.call(targetTitle),
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -245,11 +248,14 @@ class _DashboardPageState extends State<DashboardPage> {
                 Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navy)),
               ],
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.successGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text(trend, style: const TextStyle(color: AppColors.successGreen, fontSize: 12, fontWeight: FontWeight.bold)),
-            )
+            if (trend.isEmpty)
+              const SizedBox.shrink()
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.successGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                child: Text(trend, style: const TextStyle(color: AppColors.successGreen, fontSize: 12, fontWeight: FontWeight.bold)),
+              )
           ],
         ),
       ),

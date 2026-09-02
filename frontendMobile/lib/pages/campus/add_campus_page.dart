@@ -19,29 +19,31 @@ class _AddCampusPageState extends State<AddCampusPage> {
   final _typeController = TextEditingController();
   final _streetNumController = TextEditingController();
   final _streetNameController = TextEditingController();
-  final _zipIdController = TextEditingController(text: "1");
+  final _suburbController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _provinceController = TextEditingController();
+  final _countryController = TextEditingController();
   bool _isLoading = false;
   LatLng _selectedLocation = const LatLng(-25.8522, 28.1884);
+  final TextEditingController _radiusController = TextEditingController(text: "110");
 
   InputDecoration _inputDecoration(String label) {
     return InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      fillColor: Colors.grey[50],
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
       suffixIcon: label == "Ligging" ? const Icon(Icons.map, color: AppColors.gold) : null,
     );
   }
@@ -74,24 +76,26 @@ class _AddCampusPageState extends State<AddCampusPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: _nameController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(""),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 20),
-                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Tipe", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: _typeController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Ligging op Kaart", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Ligging op Kaart", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   InkWell(
                     onTap: () async {
                       final LatLng? result = await Navigator.push(
@@ -107,10 +111,11 @@ class _AddCampusPageState extends State<AddCampusPage> {
                       }
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.grey[50],
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(
                         children: [
@@ -128,26 +133,66 @@ class _AddCampusPageState extends State<AddCampusPage> {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Toegelate Radius (meter)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _radiusController,
+                    style: const TextStyle(fontSize: 14),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: _inputDecoration(""),
+                    validator: (v) {
+                      final val = double.tryParse(v ?? "");
+                      return (v == null || v.isEmpty || val == null || val <= 0) ? "Geldige radius word vereis" : null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  const Text("Straatnommer", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: _streetNumController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Straatnaam", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   TextFormField(
                     controller: _streetNameController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 20),
-                  const Text("Poskode ID", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text("Suburb", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
                   TextFormField(
-                    controller: _zipIdController,
+                    controller: _suburbController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(""),
-                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text("Stad", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _cityController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(""),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text("Provinsie", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _provinceController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(""),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text("Land", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _countryController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(""),
                   ),
                   const SizedBox(height: 32),
                   Row(
@@ -168,8 +213,12 @@ class _AddCampusPageState extends State<AddCampusPage> {
                               code: _typeController.text,
                               streetNum: _streetNumController.text,
                               streetName: _streetNameController.text,
-                              zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
+                              suburb: _suburbController.text,
+                              city: _cityController.text,
+                              province: _provinceController.text,
+                              country: _countryController.text,
                               location: _selectedLocation,
+                              radius: double.tryParse(_radiusController.text) ?? 110,
                             );
                             final success = await CampusService.addCampus(campus);
                             if (!mounted) return;
@@ -182,10 +231,10 @@ class _AddCampusPageState extends State<AddCampusPage> {
                           }
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5E34),
+                          backgroundColor: AppColors.gold,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         child: _isLoading
                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))

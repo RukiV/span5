@@ -14,6 +14,7 @@ class FaultcardBase(SQLModel):
     fault_priority: Priority = Field(default=Priority.MEDIUM)
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+    is_outdoor: bool = False
 
     @field_validator('fault_description', mode='before')
     @classmethod
@@ -30,13 +31,7 @@ class Faultcard(FaultcardBase, Base, table=True):
     building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
     location_id: Optional[int] = Field(default=None, foreign_key="location.location_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
-            
-    # Universal Foreign Key linking to the separate image module
-    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
-    image_id_2: Optional[int] = Field(default=None, foreign_key="image.image_id")
-    image_id_3: Optional[int] = Field(default=None, foreign_key="image.image_id")
-    
-    # No SQLAlchemy relationship object declared here to avoid ambiguous foreign-key resolution
+    duplicate_of: Optional[int] = Field(default=None, foreign_key="faultcard.fault_id")
 
 
 class FaultcardCreate(FaultcardBase):
@@ -45,9 +40,11 @@ class FaultcardCreate(FaultcardBase):
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
-    image_id: Optional[int] = None
-    image_id_2: Optional[int] = None
-    image_id_3: Optional[int] = None
+    duplicate_of: Optional[int] = None
+    # Transient velde: word nie as kolomme gestoor nie — die diens skep/wysig
+    # 'n Mappoint (lat/lng) en koppel mappoint_id aan die foutkaartjie.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class FaultcardRead(FaultcardBase):
@@ -59,9 +56,7 @@ class FaultcardRead(FaultcardBase):
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None
-    image_id_2: Optional[int] = None
-    image_id_3: Optional[int] = None
+    duplicate_of: Optional[int] = None
 
 
 class FaultcardUpdate(SQLModel):
@@ -72,12 +67,14 @@ class FaultcardUpdate(SQLModel):
     fault_priority: Optional[Priority] = None
     fault_reportdatetime: Optional[datetime] = None
     fault_updatedatetime: Optional[datetime] = None
+    is_outdoor: Optional[bool] = None
     user_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None
-    image_id_2: Optional[int] = None
-    image_id_3: Optional[int] = None
+    duplicate_of: Optional[int] = None
+    # Transient velde vir die kaartligging (soos by FaultcardCreate).
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None

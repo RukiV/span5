@@ -1,35 +1,64 @@
-import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import Sidebar from '../components/Sidebar';
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import useColumnSort from "../hooks/useColumnSort";
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
-import { useLogout } from "./Page.jsx";
-import UserProfileHeader from '../components/UserProfileHeader';
+import { buildFlatLocationOptions } from './locationSearchUtils';
 
-function BuildingsPage() {
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
+function BuildingsPage({ embedded = false }) {
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user, hasRight } = useCurrentUser();
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const BUILDING_COLUMNS = [
+    { key: 'id', label: 'ID', render: (b) => b.building_id, sortKey: 'id', defaultVisible: false },
+    { key: 'name', label: 'Naam', render: (b) => b.building_name, sortKey: 'name', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (b) => translateBuildingType(b.building_type), sortKey: 'type', defaultVisible: true },
+    { key: 'terrain', label: 'Terrein', render: (b) => getTerrainName(b.location_id), sortKey: 'terrain', defaultVisible: true },
+  ];
+  const colVis = useColumnVisibility('buildings-page', BUILDING_COLUMNS);
+  const colWidths = useColumnWidths('buildings-page', BUILDING_COLUMNS);
+  const colPickerRef = useRef(null);
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showModal, setShowModal] = useState(false);
+  const [showImportWizard, setShowImportWizard] = useState(false);
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
-    building_type: "other",
+    building_type: "",
     location_id: "",
   });
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
 
   const translateBuildingType = (type) => {
     const translations = {
@@ -49,6 +78,21 @@ function BuildingsPage() {
     };
     loadData();
   }, []);
+
+  useEffect(() => {
+    if (location.state?.building) {
+      const target = buildings.find((b) => String(b.building_id) === String(location.state.building.building_id));
+      if (target) handleEditBuilding(target);
+    }
+  }, [location.state?.building, buildings]);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   const fetchBuildings = async () => {
     setLoading(true);
@@ -98,15 +142,17 @@ function BuildingsPage() {
   };
 
   const handleSaveBuilding = async () => {
-    if (!newBuilding.building_name?.trim()) {
-      alert("Voer asseblief 'n gebounaam in");
+    const errors = {};
+    if (!newBuilding.building_name?.trim()) errors.building_name = true;
+    if (!newBuilding.location_id) errors.location_id = true;
+    if (Object.keys(errors).length > 0) {
+      setInvalidFields(errors);
+      const firstKey = Object.keys(errors)[0];
+      fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      fieldRefs.current[firstKey]?.focus();
       return;
     }
-
-    if (!newBuilding.location_id) {
-      alert("Voer asseblief 'n terrein in");
-      return;
-    }
+    setInvalidFields({});
 
     const buildingData = {
       building_name: newBuilding.building_name,
@@ -124,21 +170,40 @@ function BuildingsPage() {
       handleCloseModal();
     } catch (error) {
       console.error("Error saving building:", error);
-      alert("Fout tydens besparing. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: "Fout tydens besparing. Probeer asseblief weer." });
     }
   };
 
   const handleDeleteBuilding = async (id) => {
-    if (!window.confirm("Is jy seker jy wil hierdie gebou verwyder?")) {
-      return;
-    }
+    const confirmed = await confirmCascade(confirm, { entityLabel: "gebou", childrenLabel: "lokale" });
+    if (!confirmed) return;
     try {
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
       console.error("Error deleting building:", error);
-      alert("Fout tydens verwydering. Probeer asseblief weer.");
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering. Probeer asseblief weer.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredBuildings.map((x) => x.building_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: buildingsAPI.delete,
+      confirm,
+      showToast,
+      entityLabel: "geboue",
+      childrenLabel: "lokale",
+      refresh: fetchBuildings,
+      errorFallback: "Fout tydens verwydering. Probeer asseblief weer.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleEditBuilding = (item) => {
@@ -146,7 +211,7 @@ function BuildingsPage() {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_type: item.building_type || "Ander",
+      building_type: item.building_type || "",
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -173,6 +238,8 @@ function BuildingsPage() {
 
   const filteredBuildings = [...buildings]
     .filter((building) => {
+      if (terrainFilter && String(building.location_id) !== String(terrainFilter)) return false;
+      if (buildingFilter && String(building.building_id) !== String(buildingFilter)) return false;
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
       const values = {
@@ -187,12 +254,14 @@ function BuildingsPage() {
       return String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.building_id || 0) - Number(b.building_id || 0)) * direction;
-      if (sortBy === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(translateBuildingType(a.building_type)).localeCompare(String(translateBuildingType(b.building_type)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -200,11 +269,6 @@ function BuildingsPage() {
     { value: "name", label: "Naam" },
     { value: "type", label: "Tipe" },
     { value: "terrain", label: "Terrein" }
-  ];
-
-  const sortByOptions = [
-    { value: "default", label: "Standaard" },
-    { value: "name", label: "Naam" }
   ];
 
   const buildingTypeOptions = [
@@ -222,135 +286,322 @@ function BuildingsPage() {
   }));
 
   if (loading) {
-    return <div style={{ display: "flex" }}><div className="main"><div className="content">Laai...</div></div></div>;
+    return <div className="main"><div className="content">Laai...</div></div>;
   }
 
-  return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/buildings" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Gebou Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
-          <div className="controls">
-            <div className="controls-left">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <input
-                  type="text"
-                  className="search-box"
-                  placeholder="Soek geboue..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={filterColumnOptions.find(o => o.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-                options={filterColumnOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '160px' }) }}
-              />
-            </div>
-            <div className="controls-right">
-              <Select
-                className="basic-single"
-                classNamePrefix="select"
-                value={sortByOptions.find(o => o.value === sortBy)}
-                onChange={(selected) => setSortBy(selected ? selected.value : "default")}
-                options={sortByOptions}
-                isSearchable={false}
-                styles={{ container: (base) => ({ ...base, minWidth: '140px' }) }}
-              />
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }} title="Stygend">▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }} title="Dalend">▼</button>
-              </div>
-              <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
-            </div>
+  const pageContent = (
+    <>
+      <div className="controls">
+        <div className="controls-left">
+          <div className="control-input-shell">
+            <input
+              type="text"
+              placeholder="Soek geboue..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-
-          <table className="standard-table">
-            <thead>
-              <tr>
-                <th>Naam</th>
-                <th>Tipe</th>
-                <th>Terrein</th>
-                <th>Aksies</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBuildings.map((building) => (
-                <tr key={building.building_id}>
-                  <td>{building.building_name}</td>
-                  <td>{translateBuildingType(building.building_type)}</td>
-                  <td>{getTerrainName(building.location_id)}</td>
-                  <td>
-                    <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
-                    <button className="btn-edit" onClick={() => handleEditBuilding(building)}>Wysig</button>
-                    <button className="btn-delete" onClick={() => handleDeleteBuilding(building.building_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Select
+            className="react-select-container"
+            classNamePrefix="react-select"
+            value={filterColumnOptions.find(o => o.value === filterColumn)}
+            onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
+            options={filterColumnOptions}
+            isSearchable={false}
+            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+            styles={{
+              container: (base) => ({ ...base, minWidth: '160px' }),
+              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+            }}
+          />
+          {(() => {
+            const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
+            const currentDisplayValue = cascadeCount === 0 ? null
+              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+              : null;
+            const clearFromLevel = (levelIndex) => {
+              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); }
+              else if (levelIndex === 1) { setBuildingFilter(''); }
+            };
+            const breadcrumbData = [{ level: -1, name: "Terreine" }];
+            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+            return (
+              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                <div className="control-cascade-breadcrumb">
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
+                </div>
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 2}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={filterCascade.menuIsOpen}
+                    onMenuOpen={filterCascade.onMenuOpen}
+                    onMenuClose={filterCascade.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
+                    options={allLocationOptions}
+                    filterOption={(option, rawInput) => {
+                      if (cascadeCount === 0 && rawInput)
+                        return option.data._cascadeLevel <= 0 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                      return false;
+                    }}
+                    value={currentDisplayValue}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
+                      const f = selectedOption._fields;
+                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
+                    }}
+                  />
+              </div>
+            );
+          })()}
+        </div>
+        <div className="controls-right">
+          {hasRight('buildings.manage') && (
+            <button
+              type="button"
+              className="btn-add"
+              style={{ marginLeft: '0.5rem' }}
+              onClick={() => setShowImportWizard(true)}
+            >
+              ⇅ Invoer / Uitvoer rekords
+            </button>
+          )}
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={BUILDING_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
+          <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
+          {selectedIds.length > 0 && (
+            <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+              Verwyder Geselekteerde ({selectedIds.length})
+            </button>
+          )}
+          {hasRight('buildings.manage') && (
+            <ImportExportModal
+              isOpen={showImportWizard}
+              onClose={() => setShowImportWizard(false)}
+              defaultEntity="building"
+              onImported={fetchBuildings}
+            />
+          )}
         </div>
       </div>
 
-      {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-               <span className="close" onClick={handleCloseModal}>&times;</span>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Naam</label>
-                <input
-                  type="text"
-                  value={newBuilding.building_name}
-                  onChange={(e) => setNewBuilding({ ...newBuilding, building_name: e.target.value })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Tipe</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "other" })}
-                  options={buildingTypeOptions}
-                  isSearchable={false}
-                />
-              </div>
-            </div>
-            <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies 'n terrein..."
-                  isSearchable={true}
-                  options={terrainOptions}
-                  value={terrainOptions.find(o => Number(o.value) === Number(newBuilding.location_id)) || null}
-                  onChange={(selected) => setNewBuilding({ ...newBuilding, location_id: selected ? selected.value : "" })}
-                />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
+      <table className="standard-table">
+        <thead>
+          <tr>
+            <th style={{ width: '36px', textAlign: 'center' }}>
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+            </th>
+            {colVis.visibleColumns.map((col) => (
+              <ResizableTh
+                key={col.key}
+                col={col}
+                colWidths={colWidths}
+                className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                onClick={() => col.sortKey && handleSort(col.sortKey)}
+                onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+              >
+                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+              </ResizableTh>
+            ))}
+            <th style={{ width: '230px' }}>Aksies</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredBuildings.map((building) => (
+            <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
+              <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={selectedIds.includes(building.building_id)} onChange={() => toggleOne(building.building_id)} />
+              </td>
+              {colVis.visibleColumns.map((col) => (
+                <td key={col.key}>{col.render(building)}</td>
+              ))}
+              <td onClick={e => e.stopPropagation()}>
+                <button className="btn-view" onClick={() => handleViewRooms(building)}>Besigtig Lokale</button>
+                <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteBuilding(building.building_id)}><IoTrashOutline size={18} /></button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+
+  const modalContent = (
+    <div className="modal" style={{ display: "flex" }}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <span className="close" onClick={handleCloseModal}>&times;</span>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Naam *</label>
+            <input
+              type="text"
+              ref={el => fieldRefs.current.building_name = el}
+              className={invalidFields.building_name ? "field-invalid" : ""}
+              value={newBuilding.building_name}
+              onChange={(e) => {
+                setNewBuilding({ ...newBuilding, building_name: e.target.value });
+                if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
+              }}
+            />
+          </div>
+          <div className="input-group">
+            <label>Tipe</label>
+            <Select
+              className="basic-single"
+              classNamePrefix="select"
+              value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
+              onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
+              options={buildingTypeOptions}
+              isSearchable={false}
+              styles={{
+                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+              }}
+            />
           </div>
         </div>
-      )}
+        <div className="input-row">
+          <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative" }}>
+            <label>Terrein *</label>
+            {(() => {
+              const cascadeCount = [newBuilding.location_id].filter(Boolean).length;
+              const currentDisplayValue = cascadeCount === 0 ? null
+                : cascadeCount === 1 && newBuilding.location_id ? { value: newBuilding.location_id, label: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id }
+                : null;
+              const clearFromLevel = (levelIndex) => {
+                if (levelIndex <= 0) setNewBuilding(p => ({...p, location_id: ""}));
+              };
+              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
+               return (
+                 <div ref={modalCascadeMenu.containerRef}>
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px" })}
+                  <Select
+                    className="react-select-container"
+                    classNamePrefix="react-select"
+                    placeholder={["Kies Terrein...","Ligging voltooi"][cascadeCount]}
+                    isClearable
+                    isDisabled={cascadeCount >= 1}
+                    closeMenuOnSelect={false}
+                    menuIsOpen={modalCascadeMenu.menuIsOpen}
+                    onMenuOpen={modalCascadeMenu.onMenuOpen}
+                    onMenuClose={modalCascadeMenu.onMenuClose}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    options={allLocationOptions}
+                    styles={{
+                      container: (base) => ({ ...base, minWidth: '260px' }),
+                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                    }}
+                    filterOption={(option, rawInput) => {
+                      if (cascadeCount === 0 && rawInput)
+                        return option.data._cascadeLevel <= 0 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                      return false;
+                    }}
+                    value={currentDisplayValue}
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) { setNewBuilding(p => ({...p, location_id: ""})); return; }
+                      setNewBuilding(p => ({...p, ...selectedOption._fields}));
+                      if (invalidFields.location_id) setInvalidFields(prev => { const n = {...prev}; delete n.location_id; return n; });
+                    }}
+                  />
+                 </div>
+               );
+            })()}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+          <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {pageContent}
+
+        {showModal && modalContent}
+
+        {showRoomsModal && selectedBuilding && (
+          <div className="modal" style={{ display: "flex" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>Lokale in {selectedBuilding.building_name} ({getTerrainName(selectedBuilding.location_id)})</h3>
+                <span className="close" onClick={() => setShowRoomsModal(false)}>&times;</span>
+              </div>
+              <div className="modal-body">
+                {getRoomsForBuilding(selectedBuilding.building_id).length > 0 ? (
+                  <table className="standard-table">
+                    <thead>
+                      <tr>
+                        <th>Naam</th>
+                        <th>Kode</th>
+                        <th>Tipe</th>
+                        <th>Status</th>
+                        <th>Kapasiteit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
+                        <tr key={room.room_id} onClick={() => navigate('/rooms', { state: { room } })} style={{ cursor: 'pointer' }}>
+                          <td>{room.room_name}</td>
+                          <td>{room.room_code}</td>
+                          <td>{translateRoomType(room.room_type || 'other')}</td>
+                          <td>{room.room_status}</td>
+                          <td>{room.room_capacity ?? '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p>Geen lokale in hierdie gebou.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      {dialog}
+      </>
+    );
+  }
+
+  return (
+    <div className="main">
+      <div className="content">
+        {pageContent}
+      </div>
+
+      {showModal && modalContent}
 
       {showRoomsModal && selectedBuilding && (
         <div className="modal" style={{ display: "flex" }}>
@@ -373,7 +624,7 @@ function BuildingsPage() {
                   </thead>
                   <tbody>
                     {getRoomsForBuilding(selectedBuilding.building_id).map((room) => (
-                      <tr key={room.room_id}>
+                      <tr key={room.room_id} onClick={() => navigate('/rooms', { state: { room } })} style={{ cursor: 'pointer' }}>
                         <td>{room.room_name}</td>
                         <td>{room.room_code}</td>
                         <td>{translateRoomType(room.room_type || 'other')}</td>
@@ -390,6 +641,7 @@ function BuildingsPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

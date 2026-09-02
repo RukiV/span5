@@ -46,3 +46,8 @@ app.*.map.json
 
 # Sensitive environment variables
 .env
+keystore.properties
+
+# Demo files
+DEMO
+

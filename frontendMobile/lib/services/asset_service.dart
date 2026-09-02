@@ -3,12 +3,16 @@ import 'package:dio/dio.dart';
 import 'dart:math';
 import '../models/asset.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 // AssetService: Manages the lifecycle and state of assets (equipment/hardware) in the app.
 class AssetService {
   // Static list to store assets and a notifier to trigger UI updates when the list changes.
   static final List<Asset> _assets = [];
   static final ValueNotifier<List<Asset>> assetsNotifier = ValueNotifier(_assets);
+
+  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
+  static String? _pendingKey;
 
   // Fetches all assets from the backend.
   static Future<void> fetchAssets() async {
@@ -51,8 +55,14 @@ class AssetService {
     try {
       final payload = asset.toJson();
       debugPrint("📤 POST /assets payload: $payload");
-      final response = await ApiClient().client.post('/assets', data: payload);
+      _pendingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/assets',
+        data: payload,
+        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+      );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingKey = null;
         await fetchAssets();
         return true;
       }

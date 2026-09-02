@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../models/campus.dart';
 import '../models/building.dart';
 import '../models/room.dart';
 import '../core/api_client.dart';
+import '../core/idempotency.dart';
 
 class CampusService {
   static final List<Campus> _campuses = [];
   static final ValueNotifier<List<Campus>> campusesNotifier = ValueNotifier(_campuses);
+
+  // Pending X-Idempotency-Keys per entity; each reused until that create
+  // succeeds, then cleared. Separate keys so campus/building/room creates
+  // never share a key.
+  static String? _pendingCampusKey;
+  static String? _pendingBuildingKey;
+  static String? _pendingRoomKey;
 
   static Future<void> fetchCampuses() async {
     try {
@@ -49,17 +58,6 @@ class CampusService {
   }
 
   // --- Helper methods (adapted from old rooms-based approach) ---
-
-  static List<Room> getRoomsForCampus(String campusName) {
-    try {
-      final campus = _campuses.firstWhere(
-        (c) => c.name == campusName || campusName.contains(c.name),
-      );
-      return campus.buildings.expand<Room>((b) => b.rooms ?? <Room>[]).toList();
-    } catch (_) {
-      return [];
-    }
-  }
 
   static String getRoomName(String roomId) {
     for (var campus in _campuses) {
@@ -110,44 +108,21 @@ class CampusService {
     }
   }
 
-  static List<Building> getBuildingsForCampus(String campusName) {
-    final campus = getCampusByName(campusName);
-    return campus?.buildings ?? [];
-  }
-
-  static List<Room> getRoomsForBuilding(int buildingId) {
-    for (var campus in _campuses) {
-      for (var building in campus.buildings) {
-        if (building.id == buildingId) {
-          return building.rooms ?? [];
-        }
-      }
-    }
-    return [];
-  }
-
   // --- Campus CRUD ---
 
   static Future<bool> addCampus(Campus campus) async {
     try {
-      int zipId = campus.zipcodeId;
-      // If default, try to get a real one from backend
-      if (zipId == 1) {
-        try {
-          final zipResponse = await ApiClient().client.get('/zipcode');
-          if (zipResponse.statusCode == 200 && (zipResponse.data as List).isNotEmpty) {
-            zipId = zipResponse.data[0]['zipcode_id'];
-          }
-        } catch (e) {
-          debugPrint("Could not load zipcodes: $e");
-        }
-      }
+      final data = campus.toJson();
+      _pendingCampusKey ??= Idempotency.generate();
 
-      final data = campus.copyWith(zipcodeId: zipId).toJson();
-
-      final response = await ApiClient().client.post('/location', data: data);
+      final response = await ApiClient().client.post(
+        '/location',
+        data: data,
+        options: Options(headers: {'X-Idempotency-Key': _pendingCampusKey!}),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingCampusKey = null;
         await fetchCampuses();
         return true;
       }
@@ -188,9 +163,15 @@ class CampusService {
 
   static Future<bool> addBuilding(Building building) async {
     try {
-      final response = await ApiClient().client.post('/building', data: building.toJson());
+      _pendingBuildingKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/building',
+        data: building.toJson(),
+        options: Options(headers: {'X-Idempotency-Key': _pendingBuildingKey!}),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingBuildingKey = null;
         await fetchCampuses();
         return true;
       }
@@ -231,8 +212,14 @@ class CampusService {
 
   static Future<bool> addRoom(Room room) async {
     try {
-      final response = await ApiClient().client.post('/rooms', data: room.toJson());
+      _pendingRoomKey ??= Idempotency.generate();
+      final response = await ApiClient().client.post(
+        '/rooms',
+        data: room.toJson(),
+        options: Options(headers: {'X-Idempotency-Key': _pendingRoomKey!}),
+      );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        _pendingRoomKey = null;
         await fetchCampuses();
         return true;
       }

@@ -1,17 +1,51 @@
 from datetime import datetime
-from typing import Sequence
+from typing import Optional, Sequence
 from sqlmodel import Session, select, cast, Integer
-from sqlalchemy import or_, func
+from sqlalchemy import func
 
 from ..models.asset import Asset, AssetCreate, AssetUpdate, AssetHistoryEventRead
 from ..models.audit import Auditlog
 from ..models.job import Jobcard
 from .base_service import BaseService
+from .prediction_service import prediction_service
+from . import cascade_delete
 
 
 class AssetService(BaseService[Asset, AssetCreate, AssetUpdate]):
     def __init__(self):
         super().__init__(Asset)
+
+    def delete(self, session: Session, id: int, user_id: Optional[int] = None) -> bool:
+        obj = session.get(self.model, id)
+        if not obj:
+            return False
+
+        payload = obj.model_dump(mode="json")
+        cascade_delete.cascade_delete_asset(session, id)
+        try:
+            self._create_audit_log(
+                session,
+                "delete",
+                {"previous_value": payload, "new_value": None},
+                affected_columns=None,
+                user_id=user_id,
+                affected_id=id,
+                json_data=payload,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        prediction_service.invalidateCache()
+        return True
+
+    def create(self, session: Session, data: AssetCreate, user_id: Optional[int] = None) -> Asset:
+        if data.asset_created_datetime is None:
+            data.asset_created_datetime = datetime.utcnow()
+        result = super().create(session, data, user_id=user_id)
+        # Invalidate predictions cache since new asset affects predictions
+        prediction_service.invalidateCache()
+        return result
     
     def getBySerial(self, session: Session, serial: str) -> Asset | None:
         return session.exec(select(Asset).where(Asset.asset_serial == serial)).first()

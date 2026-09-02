@@ -11,10 +11,14 @@ class Report {
   final String phase; // Word gemap na fault_status op backend
   final String user;
   final DateTime timestamp;
-  final String? gpsCoords; // Word gemap na mappoint_id op backend
-  final int? imageId;
+  // Fotos leef nou in ImageAssetLink (parent_type 'ticket') aan die backend-kant,
+  // NIE meer as 'n image_id op die Faultcard nie — sien ImageService.
   final int? locationId; // Kampus (location_id op backend)
   final int? buildingId; // Gebou (building_id op backend)
+  final int? mappointId; // Kaartligging (mappoint_id op backend)
+  final double? latitude; // Kaartligging (transiënt, gestoor via mappoint)
+  final double? longitude; // Kaartligging (transiënt, gestoor via mappoint)
+  final bool isOutdoor; // Buite Lokaal (is_outdoor op backend)
 
   Report({
     required this.id,
@@ -28,10 +32,12 @@ class Report {
     required this.phase,
     required this.user,
     required this.timestamp,
-    this.gpsCoords,
-    this.imageId,
     this.locationId,
     this.buildingId,
+    this.mappointId,
+    this.latitude,
+    this.longitude,
+    this.isOutdoor = false,
   });
 
   // Map vanaf Flutter model na Backend (Faultcard)
@@ -44,27 +50,32 @@ class Report {
       'fault_reportdatetime': timestamp.toIso8601String(),
       'asset_id': (assetId == "0" || assetId == "Geen Bate") ? null : int.tryParse(assetId),
       'room_id': int.tryParse(location),
-      'mappoint_id': int.tryParse(gpsCoords ?? ''),
       'location_id': locationId,
       'building_id': buildingId,
-      if (imageId != null) 'image_id': imageId,
+      'latitude': latitude,
+      'longitude': longitude,
+      'is_outdoor': isOutdoor,
     };
   }
 
   static String? _backendFaultType(String cat) {
     switch (cat.toLowerCase()) {
+      case 'onderhoud':
       case 'instandhouding':
       case 'maintenance':
-        return 'Instandhouding';
+        return 'Onderhoud';
       case 'herstel':
       case 'herstelwerk':
       case 'repair':
-        return 'Herstelwerk';
-      case 'opgradering':
-      case 'upgrade':
-        return 'Opgradering';
+        return 'Herstel';
+      case 'inspeksie':
+      case 'inspection':
+        return 'Inspeksie';
+      case 'installasie':
+      case 'installation':
+        return 'Installasie';
       default:
-        return null;
+        return 'Onderhoud';
     }
   }
 
@@ -159,15 +170,20 @@ class Report {
     switch (t) {
       case 'MAINTENANCE':
       case 'Instandhouding':
-        return 'Instandhouding';
+      case 'Onderhoud':
+        return 'Onderhoud';
       case 'REPAIR':
       case 'Herstelwerk':
+      case 'Herstel':
         return 'Herstel';
-      case 'UPGRADE':
-      case 'Opgradering':
-        return 'Opgradering';
+      case 'INSPECTION':
+      case 'Inspeksie':
+        return 'Inspeksie';
+      case 'INSTALLATION':
+      case 'Installasie':
+        return 'Installasie';
       default:
-        return 'Algemeen';
+        return 'Onderhoud';
     }
   }
 
@@ -204,10 +220,10 @@ class Report {
       timestamp: json['fault_reportdatetime'] != null 
           ? DateTime.parse(json['fault_reportdatetime']) 
           : DateTime.now(),
-      gpsCoords: json['mappoint_id']?.toString(),
-      imageId: json['image_id'],
       locationId: json['location_id'],
       buildingId: json['building_id'],
+      mappointId: json['mappoint_id'],
+      isOutdoor: json['is_outdoor'] ?? false,
     );
   }
 
@@ -223,10 +239,12 @@ class Report {
     String? phase,
     String? user,
     DateTime? timestamp,
-    String? gpsCoords,
-    int? imageId,
     int? locationId,
     int? buildingId,
+    int? mappointId,
+    double? latitude,
+    double? longitude,
+    bool? isOutdoor,
   }) {
     return Report(
       id: id ?? this.id,
@@ -240,10 +258,12 @@ class Report {
       phase: phase ?? this.phase,
       user: user ?? this.user,
       timestamp: timestamp ?? this.timestamp,
-      gpsCoords: gpsCoords ?? this.gpsCoords,
-      imageId: imageId ?? this.imageId,
       locationId: locationId ?? this.locationId,
       buildingId: buildingId ?? this.buildingId,
+      mappointId: mappointId ?? this.mappointId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      isOutdoor: isOutdoor ?? this.isOutdoor,
     );
   }
 }

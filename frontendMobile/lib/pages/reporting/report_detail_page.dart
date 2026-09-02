@@ -1,9 +1,12 @@
 import '../../services/campus_service.dart';
 import 'edit_report_page.dart';
+import '../jobcards/jobcard_form_page.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/report_service.dart';
+import '../../services/image_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
 import 'dart:typed_data';
@@ -20,11 +23,50 @@ class ReportDetailPage extends StatefulWidget {
 
 class _ReportDetailPageState extends State<ReportDetailPage> {
   late Report _currentReport;
+  List<int> _imageIds = [];
+  bool _imagesLoading = true;
+  LatLng? _mapPoint;
 
   @override
   void initState() {
     super.initState();
     _currentReport = widget.report;
+    _loadImages();
+    _loadMapPoint();
+  }
+
+  // Haal die kaartligging (Mappoint) vir die kaartjie op.
+  Future<void> _loadMapPoint() async {
+    final mappointId = _currentReport.mappointId;
+    if (mappointId == null) return;
+    try {
+      final response = await ApiClient().client.get('/mappoint/$mappointId');
+      if (response.statusCode == 200) {
+        final lat = (response.data['latitude'] as num?)?.toDouble();
+        final lng = (response.data['longitude'] as num?)?.toDouble();
+        if (mounted && lat != null && lng != null) {
+          setState(() => _mapPoint = LatLng(lat, lng));
+        }
+      }
+    } catch (e) {
+      debugPrint("Kon nie kaartligging laai nie: $e");
+    }
+  }
+
+  // Haal die kaartjie se fotos (ImageAssetLink met parent_type 'ticket').
+  Future<void> _loadImages() async {
+    final faultId = int.tryParse(_currentReport.id);
+    if (faultId == null) {
+      if (mounted) setState(() => _imagesLoading = false);
+      return;
+    }
+    final ids = await ImageService.getImagesForParent('ticket', faultId);
+    if (mounted) {
+      setState(() {
+        _imageIds = ids;
+        _imagesLoading = false;
+      });
+    }
   }
 
   // Herlaai data vanaf die diens om nuutste status te wys
@@ -35,6 +77,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       setState(() {
         _currentReport = updated;
       });
+      _loadImages();
     } catch (e) {
       debugPrint("Kon nie verslag verfris nie: $e");
     }
@@ -59,9 +102,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
             _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
             _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (UserSession.hasAdminPrivileges)
+            if (_currentReport.isOutdoor)
+              _buildDetailRow("Buite Lokaal", "Ja"),
+            if (_mapPoint != null) ...[
+              const SizedBox(height: 12),
+              _buildMapCard(),
+            ],
+            if (UserSession.can('faults.view'))
               _buildDetailRow("Bate ID", _currentReport.assetSerialCode ?? _currentReport.assetId),
-            _buildDetailRow("Kategorie", _currentReport.category),
+            _buildDetailRow("Werksoort", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
             if (_currentReport.description.isNotEmpty)
               Padding(
@@ -88,38 +137,46 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildImageSection() {
-    if (_currentReport.imageId == null) return const SizedBox.shrink();
+    if (_imagesLoading || _imageIds.isEmpty) return const SizedBox.shrink();
 
-    final imageUrl = '${ApiClient().client.options.baseUrl}/image/${_currentReport.imageId}/file';
+    final baseUrl = ApiClient().client.options.baseUrl;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader("Foto"),
+        _buildSectionHeader("Foto's"),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 250,
-          child: InkWell(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
-                ),
-              );
-            },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(child: Text("Foto nie beskikbaar")),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: _imageIds.map((id) {
+            final imageUrl = '$baseUrl/image/$id/file';
+            return InkWell(
+              onTap: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => Dialog(
+                    child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
+                  ),
+                );
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  imageUrl,
+                  height: 120,
+                  width: 120,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 120,
+                    width: 120,
+                    color: Colors.grey[200],
+                    child: const Center(child: Text("Foto nie\nbeskikbaar", textAlign: TextAlign.center)),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          }).toList(),
         ),
       ],
     );
@@ -167,7 +224,27 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               ),
             ],
           ),
-          if (UserSession.hasAdminPrivileges) ...[
+          if (UserSession.can('jobs.manage')) ...[
+            const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final created = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => JobcardFormPage(report: _currentReport),
+                    ),
+                  );
+                  if (created == true) _refreshData();
+                },
+                icon: const Icon(Icons.assignment_add, color: Colors.white, size: 18),
+                label: const Text("SKEP WERKSOPDRAG", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 12)),
+              ),
+            ),
+          ],
+          if (UserSession.can('faults.manage')) ...[
             const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             Row(
               children: [
@@ -234,6 +311,33 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   Widget _buildSectionHeader(String title) {
     return Text(title.toUpperCase(), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2));
+  }
+
+  Widget _buildMapCard() {
+    final point = _mapPoint!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader("Kaartligging"),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: IgnorePointer(
+            child: SizedBox(
+              height: 180,
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(target: point, zoom: 17),
+                markers: {
+                  Marker(markerId: const MarkerId("fault_point"), position: point),
+                },
+                zoomControlsEnabled: false,
+                myLocationEnabled: false,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildDetailRow(String label, String value) {

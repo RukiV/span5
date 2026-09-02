@@ -7,12 +7,27 @@ from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard, FaultStatus, Priority, Type
-from ..models.contractor import Contractor
-from ..models.role import Role
+from ..models.quote import Quote
+from ..models.role import Role, Rights, RoleRight
 from ..models.user import User
 from ..models.audit import Auditlog
+from ..models.notification import NotificationPreference
 
-from ..models.image import ImageAsset, ImageBlob
+from ..models.image import ImageAsset, ImageAssetLink, ImageBlob
+from ..auth.security import hash_password, is_hashed
+
+# Built-in roles & rights catalog live in a lightweight shared module so both the
+# seed and the management endpoints/services use one source of truth.
+from ..auth.rights_catalog import (  # noqa: F401  (re-exported for existing importers)
+    ROLE_STUDENT,
+    ROLE_FK,
+    ROLE_ADMIN,
+    ROLE_CONTRACTOR,
+    ROLE_DOSENT,
+    RIGHTS_CATALOG,
+    ROLE_RIGHTS,
+    LEGACY_RIGHT_MIGRATION,
+)
 
 def generate_mock_image_bytes(color_hex: str) -> bytes:
     """Generates a tiny, valid 1x1 pixel PNG byte string of a specific color 
@@ -22,7 +37,7 @@ def generate_mock_image_bytes(color_hex: str) -> bytes:
     return b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc`\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
 
 
-def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int) -> User:
+def _get_or_create_test_user(session: Session, user_name: str, user_surname: str, user_email: str, user_password: str, role_id: int, location_id: Optional[int] = None) -> User:
     """
     Soek bestaande toetsgebruiker of skep nuwe met gegewe rol.
     
@@ -31,6 +46,7 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
         user_email: E-posadres vir soeken/skep
         user_password: Wagwoord vir nuwe gebruiker
         role_id: Rol-ID (1=Gebruiker, 2=FK-Koördineerder, 3=Administrateur)
+        location_id: Opsionele Terrein-ID vir FK-koördineerders
         
     Returns:
         Bestaande of nuwe Gebruiker-objek
@@ -38,31 +54,55 @@ def _get_or_create_test_user(session: Session, user_name: str, user_surname: str
     # Soek of gebruiker bestaan reeds
     user = session.exec(select(User).where(User.user_email == user_email)).first()
     if user:
+        changed = False
         if user.role_id != role_id:
             user.role_id = role_id
+            changed = True
+        if location_id is not None and user.location_id != location_id:
+            user.location_id = location_id
+            changed = True
+        if changed:
             session.add(user)
             session.commit()
             session.refresh(user)
         return user
 
-    # Skep nuwe toetsgebruiker met gegewe parameters
+    # Skep nuwe toetsgebruiker met gegewe parameters.
+    # Wagwoorde word altyd gehash gestoor (nooit platteks nie).
     user = User(
         user_name=user_name,
         user_surname=user_surname,
         user_email=user_email,
-        user_password=user_password,
+        user_password=hash_password(user_password),
         user_number="0000000000",
         user_lastlogintime=None,
         user_lastlogouttime=None,
         user_status="active",
         role_id=role_id,  # Toekenning van rol vir toesgang-beheer
+        location_id=location_id,
     )
     session.add(user)
     session.commit()
     session.refresh(user)
     return user
 
-def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "") -> Location:
+
+def _get_or_create_test_quote(session: Session) -> Quote:
+    """Ensure a test Quote exists for document uploads during development."""
+    quote = session.exec(select(Quote)).first()
+    if quote:
+        return quote
+
+    quote = Quote(
+        quote_date=datetime.utcnow().date(),
+        quote_status="draft",
+    )
+    session.add(quote)
+    session.commit()
+    session.refresh(quote)
+    return quote
+
+def _get_or_create_location(session: Session, name: str, location_type: str, streetnum: str, streetname: str, suburb: str = "", city: str = "", province: str = "", country: str = "", latitude: Optional[float] = None, longitude: Optional[float] = None, radius: Optional[float] = None) -> Location:
     location = session.exec(select(Location).where(Location.location_name == name)).first()
     if location:
         return location
@@ -76,6 +116,9 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
         location_city=city,
         location_province=province,
         location_country=country,
+        location_latitude=latitude,
+        location_longitude=longitude,
+        location_radius=radius,
     )
     session.add(location)
     session.commit()
@@ -118,58 +161,73 @@ def _get_or_create_room(session: Session, name: str, code:str, capacity: int, ro
     return room
 
 
-def _get_or_create_assettype(session: Session) -> Assettype:
-    assettype = session.exec(select(Assettype)).first()
+def _get_or_create_assettype(session: Session, name: str, avg: int | None = None, min_: int | None = None, max_: int | None = None, interval: int | None = None, threshold: int | None = None) -> Assettype:
+    assettype = session.exec(select(Assettype).where(Assettype.assettype_name == name)).first()
     if assettype:
         return assettype
 
     assettype = Assettype(
-        assettype_name="Algemene Toerusting",
-        assettype_avg_lifespan=5,
-        assettype_min_lifespan=3,
-        assettype_max_lifespan=7,
-        assettype_service_interval=12,
+        assettype_name=name,
+        assettype_avg_lifespan=avg,
+        assettype_min_lifespan=min_,
+        assettype_max_lifespan=max_,
+        assettype_service_interval=interval,
+        assettype_replacement_threshold=threshold,
     )
     session.add(assettype)
     session.commit()
     session.refresh(assettype)
     return assettype
 
-# 2. ADDED HELPER: New method to query or persist unique image records into your standalone cache table
-def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes) -> ImageAsset:
-    """Finds an existing image by name, or saves a new one with its isolated data blob."""
+def _get_or_create_image(session: Session, filename: str, mime_type: str, raw_data: bytes, parent_id: int, parent_type: str, display_order: int) -> ImageAsset:
+    """Finds an existing image by name, or saves a new one with its isolated data blob and a parent link."""
     image = session.exec(select(ImageAsset).where(ImageAsset.filename == filename)).first()
-    if image:
-        return image
+    if image is None:
+        blob_data = ImageBlob(file_bytes=raw_data)
+        image = ImageAsset(
+            filename=filename,
+            mime_type=mime_type,
+            size_bytes=len(raw_data),
+            file_blob=blob_data,
+        )
+        session.add(image)
+        session.commit()
+        session.refresh(image)
 
-    blob_data = ImageBlob(file_bytes=raw_data)
-    image = ImageAsset(
-        filename=filename,
-        mime_type=mime_type,
-        size_bytes=len(raw_data),
-        file_blob=blob_data  # Connects structural keys smoothly via the 1:1 relation setup
-    )
-    session.add(image)
-    session.commit()
-    session.refresh(image)
+    existing_link = session.exec(
+        select(ImageAssetLink).where(
+            ImageAssetLink.image_id == image.image_id,
+            ImageAssetLink.parent_id == parent_id,
+            ImageAssetLink.parent_type == parent_type,
+        )
+    ).first()
+
+    if existing_link is None:
+        link = ImageAssetLink(
+            image_id=image.image_id,
+            parent_id=parent_id,
+            parent_type=parent_type,
+            display_order=display_order,
+        )
+        session.add(link)
+        session.commit()
+
     return image
 
-
-# 3. MODIFIED FUNCTION: Added image_id parameter to the asset creation tracker
 def _get_or_create_asset(
-    session: Session, 
-    name: str, 
-    brand: str, 
-    serial: str, 
-    status: AssetStatus, 
-    is_outdoor: bool, 
-    room_id: int | None, 
+    session: Session,
+    name: str,
+    brand: str,
+    serial: str,
+    status: AssetStatus,
+    is_outdoor: bool,
+    room_id: int | None,
     assettype_id: int,
-    image_id: Optional[int] = None  # Added here as a nullable link
+    created_dt: datetime | None = None,
+    image_id: Optional[int] = None,
 ) -> Asset:
     asset = session.exec(select(Asset).where(Asset.asset_serial == serial)).first()
     if asset:
-        # Update image_id if it was changed or newly passed during seeding loops
         if image_id and asset.image_id != image_id:
             asset.image_id = image_id
             session.add(asset)
@@ -185,7 +243,8 @@ def _get_or_create_asset(
         asset_isoutdoor=is_outdoor,
         room_id=room_id,
         assettype_id=assettype_id,
-        image_id=image_id,  # Linked directly to the generic image table
+        asset_created_datetime=created_dt or datetime.utcnow(),
+        image_id=image_id,
     )
     session.add(asset)
     session.commit()
@@ -214,38 +273,20 @@ def _get_or_create_stock(session: Session, name: str, brand: str, amount: int, m
     return stock
 
 
-def _get_or_create_contractor(session: Session, businessName: str, name: str, surname: str, email: str, number: Optional[str], contractor_type: Optional[str]) -> Contractor:
-    contractor = session.exec(select(Contractor).where(Contractor.contractor_email == email)
-    ).first()
-    if contractor:
-        return contractor
-
-    contractor = Contractor(
-        contractor_businessName=businessName,
-        contractor_name=name,
-        contractor_surname=surname,
-        contractor_email=email,
-        contractor_number=number,
-        contractor_type=contractor_type,
-    )
-    session.add(contractor)
-    session.commit()
-    session.refresh(contractor)
-    return contractor
-
-
 def _get_or_create_job(
     session: Session,
     desc: str,
     status: JobStatus,
     job_type: Optional[str],
     created_dt: Optional[datetime],
+    finished_dt: Optional[datetime] = None,
     asset_id: Optional[int] = None,
     room_id: Optional[int] = None,
     building_id: Optional[int] = None,
     location_id: Optional[int] = None,
     fault_id: Optional[int] = None,
     quote_id: Optional[int] = None,
+    contractor_id: Optional[int] = None,
 ) -> Jobcard:
     job = session.exec(
         select(Jobcard)
@@ -259,12 +300,14 @@ def _get_or_create_job(
         job_status=status,
         job_type=job_type,
         job_createddatetime=created_dt,
+        job_finisheddatetime=finished_dt,
         asset_id=asset_id,
         room_id=room_id,
         building_id=building_id,
         location_id=location_id,
         fault_id=fault_id,
         quote_id=quote_id,
+        contractor_id=contractor_id,
     )
     session.add(job)
     session.commit()
@@ -284,6 +327,7 @@ def _get_or_create_fault(
     building_id: Optional[int] = None,
     location_id: Optional[int] = None,
     mappoint_id: Optional[int] = None,
+    is_outdoor: bool = False,
 ) -> Faultcard:
     fault = session.exec(
         select(Faultcard)
@@ -303,6 +347,7 @@ def _get_or_create_fault(
         building_id=building_id,
         location_id=location_id,
         mappoint_id=mappoint_id,
+        is_outdoor=is_outdoor,
     )
     session.add(fault)
     session.commit()
@@ -349,6 +394,32 @@ def _get_or_create_fk_role(session: Session) -> Role:
     return role
 
 
+def _get_or_create_contractor_role(session: Session) -> Role:
+    """Skep Kontrakteur-rol (role_id=4). Kan aanmeld op mobiele app."""
+    role = session.exec(select(Role).where(Role.role_name == "Kontrakteur")).first()
+    if role:
+        return role
+
+    role = Role(role_name="Kontrakteur")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
+def _get_or_create_dosent_role(session: Session) -> Role:
+    """Skep Dosent-rol (role_id=5). Voer lokale kontroles uit op mobiele app."""
+    role = session.exec(select(Role).where(Role.role_name == "Dosent")).first()
+    if role:
+        return role
+
+    role = Role(role_name="Dosent")
+    session.add(role)
+    session.commit()
+    session.refresh(role)
+    return role
+
+
 def _create_asset_audit_log(session: Session, asset: Asset, action: str = "create", previous_value: Optional[dict] = None, new_value: Optional[dict] = None, affected_columns: Optional[list] = None, timestamp: Optional[datetime] = None) -> None:
     """Helper function to create audit logs for assets."""
     full_record = asset.model_dump(mode="json")
@@ -371,6 +442,126 @@ def _create_asset_audit_log(session: Session, asset: Asset, action: str = "creat
     session.commit()
 
 
+def _get_or_create_right(session: Session, right_name: str, description: str) -> Rights:
+    """Idempotent create of a single Rights row."""
+    right = session.exec(select(Rights).where(Rights.right_name == right_name)).first()
+    if right:
+        return right
+
+    right = Rights(right_name=right_name, right_description=description)
+    session.add(right)
+    session.commit()
+    session.refresh(right)
+    return right
+
+
+def _get_or_create_role_right(session: Session, role_id: int, right_id: int) -> RoleRight:
+    """Idempotent create of a single RoleRight association row."""
+    existing = session.exec(
+        select(RoleRight).where(
+            RoleRight.role_id == role_id,
+            RoleRight.right_id == right_id,
+        )
+    ).first()
+    if existing:
+        return existing
+
+    role_right = RoleRight(role_id=role_id, right_id=right_id)
+    session.add(role_right)
+    session.commit()
+    session.refresh(role_right)
+    return role_right
+
+
+def _migrate_legacy_rights(session: Session) -> None:
+    """One-time, idempotent remap of the pre-split right names.
+
+    For every role (built-in or custom) holding a legacy right name, grant the
+    replacement rights and drop the legacy association, then remove the
+    migrated-away Rights rows. Safe to run on every startup: once the legacy
+    names are gone it becomes a no-op.
+    """
+    name_to_id = {r.right_name: r.right_id for r in session.exec(select(Rights)).all()}
+
+    legacy_present = [name for name in LEGACY_RIGHT_MIGRATION if name in name_to_id]
+    if not legacy_present:
+        return
+
+    # Ensure replacement rights exist so associations can be remapped.
+    for name, description in RIGHTS_CATALOG.items():
+        if name not in name_to_id:
+            _get_or_create_right(session, name, description)
+    name_to_id = {r.right_name: r.right_id for r in session.exec(select(Rights)).all()}
+
+    rows = session.exec(
+        select(RoleRight, Rights.right_name)
+        .join(Rights, Rights.right_id == RoleRight.right_id)
+    ).all()
+
+    for role_right, right_name in rows:
+        replacements = LEGACY_RIGHT_MIGRATION.get(right_name)
+        if replacements is None:
+            continue
+        if right_name in replacements:
+            continue  # renamed to itself; leave the association as-is
+        for replacement in replacements:
+            replacement_id = name_to_id.get(replacement)
+            if replacement_id is not None:
+                _get_or_create_role_right(session, role_right.role_id, replacement_id)
+        session.delete(role_right)
+
+    # Drop Rights rows of legacy names that are no longer part of the catalog.
+    retired_names = [
+        name for name in LEGACY_RIGHT_MIGRATION
+        if name not in RIGHTS_CATALOG and name in name_to_id
+    ]
+    if retired_names:
+        retired = session.exec(
+            select(Rights).where(Rights.right_name.in_(retired_names))
+        ).all()
+        for right in retired:
+            session.delete(right)
+
+    session.commit()
+
+
+def seed_rights(session: Session) -> None:
+    """Seed the Rights catalog and RoleRight assignments (idempotent).
+
+    Both the catalog (RIGHTS_CATALOG) and the assignments (ROLE_RIGHTS) are the
+    single source of truth used by the app and the tests. Any legacy pre-split
+    right names are migrated first so existing databases keep working.
+    """
+    _migrate_legacy_rights(session)
+
+    name_to_id: dict[str, int] = {}
+    for right_name, description in RIGHTS_CATALOG.items():
+        right = _get_or_create_right(session, right_name, description)
+        name_to_id[right_name] = right.right_id
+
+    for role_id, right_names in ROLE_RIGHTS.items():
+        for right_name in right_names:
+            _get_or_create_role_right(session, role_id, name_to_id[right_name])
+
+
+def _migrate_plaintext_passwords(session: Session) -> None:
+    """One-time, idempotent migration of any legacy plaintext passwords to hashes.
+
+    Detects already-hashed values by their hash prefix (via ``is_hashed``), so it
+    is safe to run on every startup: hashed rows are skipped.
+    """
+    users = session.exec(select(User)).all()
+    migrated = 0
+    for user in users:
+        if not is_hashed(user.user_password):
+            user.user_password = hash_password(user.user_password)
+            session.add(user)
+            migrated += 1
+    if migrated:
+        session.commit()
+        print(f"Migrated {migrated} plaintext password(s) to hashed storage.")
+
+
 def seed_data():
     """
     Seed-funksie - Inisialiseer databasis met toetsdata.
@@ -384,6 +575,12 @@ def seed_data():
         user_role = _get_or_create_default_role(session)           # ID 1
         fk_role = _get_or_create_fk_role(session)                 # ID 2
         admin_role = _get_or_create_admin_role(session)           # ID 3
+        contractor_role = _get_or_create_contractor_role(session) # ID 4
+        dosent_role = _get_or_create_dosent_role(session)         # ID 5
+
+        # Seed the Rights catalog + RoleRight assignments now that roles exist.
+        # This is the source of truth for authorization (see auth/permissions.py).
+        seed_rights(session)
 
         # Skep toetsgebruikers vir elke rol
         # Gewone Gebruiker - kan NIE aanmeld nie (403-fout)
@@ -396,7 +593,11 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # Ensure a test quote exists so uploads to /quotes/1/documents succeed in development
+        test_quote = _get_or_create_test_quote(session)
+        print("Seed ensured test quote_id:", getattr(test_quote, 'quote_id', None))
+
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Leriba-kampus
         _get_or_create_test_user(
             session,
             user_name="fk",
@@ -404,6 +605,7 @@ def seed_data():
             user_email="fk@example.com",
             user_password="fk123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=1,  # Leriba-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -425,7 +627,7 @@ def seed_data():
             role_id=user_role.role_id,  # role_id = 1 (geweier)
         )
 
-        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad
+        # FK-Koördineerder - KAN aanmeld, geen toegang tot Users-blad, outomaties gefiltreer tot Gerhardstraat-kampus
         _get_or_create_test_user(
             session,
             user_name="Jaco",
@@ -433,6 +635,7 @@ def seed_data():
             user_email="jaco@gmail.com",
             user_password="jaco123",
             role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+            location_id=2,  # Gerhardstraat-kampus
         )
 
         # Administrateur - KAN aanmeld EN vol toegang
@@ -445,18 +648,68 @@ def seed_data():
             role_id=admin_role.role_id,  # role_id = 3 (toelaat)
         )
 
-        # Skep toetsdata vir lokasies, kamers, bates, ens.
+        # Kontrakteur - KAN aanmeld op mobiele app, slegs toegang tot toegewysde werksopdragte
+        _get_or_create_test_user(
+            session,
+            user_name="Jan",
+            user_surname="Botha",
+            user_email="jan.botha@workfix.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
+        )
 
+        _get_or_create_test_user(
+            session,
+            user_name="Lindiwe",
+            user_surname="Mokoena",
+            user_email="lindiwe.mokoena@plumbright.co.za",
+            user_password="contractor123",
+            role_id=contractor_role.role_id,  # role_id = 4 (toelaat)
+        )
+
+        # Dosent - voer lokale kontroles uit (role_id = 5)
+        _get_or_create_test_user(
+            session,
+            user_name="prof",
+            user_surname="example",
+            user_email="prof@example.com",
+            user_password="prof123",
+            role_id=dosent_role.role_id,  # role_id = 5 (toelaat)
+        )
+
+        # Ekstra FK-gebruikers
+        _get_or_create_test_user(
+            session,
+            user_name="Elektra",
+            user_surname="King",
+            user_email="elektra@gmail.com",
+            user_password="Test@1234",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
+        _get_or_create_test_user(
+            session,
+            user_name="Guillaume",
+            user_surname="Kruger",
+            user_email="guillaumekruger214@gmail.com",
+            user_password="Test@1234",
+            role_id=fk_role.role_id,  # role_id = 2 (toelaat)
+        )
+
+        # Skep toetsdata vir lokasies, kamers, bates, ens.
         loc1 = _get_or_create_location(
             session,
             name="Leriba-kampus",
             location_type="Kampus",
             streetnum="245",
             streetname="Endstraat",
-            suburb="Clubview",
+suburb="Clubview",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.8480,
+            longitude=28.2366,
+            radius=110,
         )
 
         loc2 = _get_or_create_location(
@@ -465,10 +718,13 @@ def seed_data():
             location_type="Kampus",
             streetnum="117",
             streetname="Gerhardstraat",
-            suburb="Die Hoewes",
+suburb="Die Hoewes",
             city="Centurion",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.8471,
+            longitude=28.2334,
+            radius=110,
         )
 
         loc3 = _get_or_create_location(
@@ -477,10 +733,13 @@ def seed_data():
             location_type="Kampus",
             streetnum="1",
             streetname="Bredastraat",
-            suburb="Esterville",
+suburb="Esterville",
             city="Paarl",
             province="Wes Kaap",
             country="Suid Afrika",
+            latitude=-33.7350,
+            longitude=18.9600,
+            radius=110,
         )
 
         loc4 = _get_or_create_location(
@@ -489,10 +748,13 @@ def seed_data():
             location_type="Kantoor",
             streetnum="1120",
             streetname="Hertzogstraat",
-            suburb="Villieria",
+suburb="Villieria",
             city="Pretoria",
             province="Gauteng",
             country="Suid Afrika",
+            latitude=-25.7188,
+            longitude=28.1996,
+            radius=110,
         )
 
         bld1 = _get_or_create_building(
@@ -573,27 +835,11 @@ def seed_data():
             building_id=bld1.building_id,
         )
 
-        contractor1 = _get_or_create_contractor(
-            session,
-            businessName="Jan's Woodworking",
-            name="Jan",
-            surname="Botha",
-            email="jan.botha@workfix.co.za",
-            number="+27 21 555 1234",
-            contractor_type="Electrical",
-        )
+        type_elek = _get_or_create_assettype(session, "Elektriese Toerusting", avg=60, min_=36, max_=84, interval=6, threshold=3)
+        type_meubels = _get_or_create_assettype(session, "Meubels", avg=120, min_=60, max_=180, interval=24, threshold=2)
+        type_alge = _get_or_create_assettype(session, "Algemene Toerusting", avg=36, min_=12, max_=60, interval=12, threshold=4)
 
-        contractor2 = _get_or_create_contractor(
-            session,
-            businessName="Bethesda Plumbing",
-            name="Lindy",
-            surname="Bethesda",
-            email="lindiwe.mokoena@plumbright.co.za",
-            number="+27 11 555 6789",
-            contractor_type="Plumbing",
-        )
-
-        assettype = _get_or_create_assettype(session)
+        now = datetime.utcnow()
 
         # 1. Define your mock image bytes
         mock_bytes = generate_mock_image_bytes("FF0000")
@@ -603,7 +849,10 @@ def seed_data():
             session=session,
             filename="hq_projector_ceiling_mount.png",
             mime_type="image/png",
-            raw_data=mock_bytes
+            raw_data=mock_bytes,
+            parent_id=1,
+            parent_type="asset",
+            display_order=1,
         )
 
         # 3. Pass the valid image_id to your asset creator
@@ -615,8 +864,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room1.room_id,
-            assettype_id=assettype.assettype_id,
-            image_id=img1.image_id  # This will now successfully contain a real integer ID (like 1, 2, etc.)
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=540),
         )
 
         _get_or_create_asset(
@@ -627,7 +876,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room2.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=420),
         )
 
         _get_or_create_asset(
@@ -638,7 +888,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room3.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=200),
         )
 
         _get_or_create_asset(
@@ -649,7 +900,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_elek.assettype_id,
+            created_dt=now - timedelta(days=90),
         )
 
         _get_or_create_asset(
@@ -660,7 +912,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=60),
         )
 
         _get_or_create_asset(
@@ -671,7 +924,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room4.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=120),
         )
 
         _get_or_create_asset(
@@ -682,7 +936,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=365),
         )
 
         _get_or_create_asset(
@@ -693,7 +948,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=150),
         )
 
         _get_or_create_asset(
@@ -704,7 +960,8 @@ def seed_data():
             status=AssetStatus.ACTIVE,
             is_outdoor=False,
             room_id=room5.room_id,
-            assettype_id=assettype.assettype_id,
+            assettype_id=type_meubels.assettype_id,
+            created_dt=now - timedelta(days=30),
         )
 
         _get_or_create_stock(
@@ -734,16 +991,37 @@ def seed_data():
         projector_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000001")).first()
         stoel_asset = session.exec(select(Asset).where(Asset.asset_serial == "AK MT000005")).first()
 
+        # Haal kontrakteur-gebruikers op om werksopdragte aan hulle toe te ken
+        jan_user = session.exec(select(User).where(User.user_email == "jan.botha@workfix.co.za")).first()
+        lindiwe_user = session.exec(select(User).where(User.user_email == "lindiwe.mokoena@plumbright.co.za")).first()
+        jan_contractor_id = jan_user.user_id if jan_user else None
+        lindiwe_contractor_id = lindiwe_user.user_id if lindiwe_user else None
+
+        _get_or_create_job(
+            session,
+            desc="Projektor lens skoonmaak en kalibrasie.",
+            status=JobStatus.COMPLETED,
+            job_type="maintenance",
+            created_dt=now - timedelta(days=180),
+            finished_dt=now - timedelta(days=178),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+            room_id=room3.room_id,
+            building_id=bld1.building_id,
+            location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
+        )
+
         _get_or_create_job(
             session,
             desc="Herstel projektor lens.",
             status=JobStatus.OPEN,
             job_type="Onderhoud",
-            created_dt=datetime.now(),
+            created_dt=now - timedelta(days=5),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
+            contractor_id=jan_contractor_id,
         )
 
         _get_or_create_job(
@@ -756,6 +1034,7 @@ def seed_data():
             room_id=room4.room_id,
             building_id=bld3.building_id,
             location_id=loc1.location_id,
+            contractor_id=lindiwe_contractor_id,
         )
 
         _get_or_create_fault(
@@ -764,7 +1043,7 @@ def seed_data():
             status=FaultStatus.IN_PROGRESS,
             priority=Priority.LOW,
             fault_type=Type.REPAIR,
-            report_dt=datetime(2025, 7, 6, 13, 0, 0),
+            report_dt=now - timedelta(days=10),
             asset_id=stoel_asset.asset_id if stoel_asset else None,
             room_id=room4.room_id,
             building_id=bld3.building_id,
@@ -776,13 +1055,427 @@ def seed_data():
             description="Projektor lens is gekraak",
             status=FaultStatus.WAIT,
             priority=Priority.MEDIUM,
-            fault_type=Type.MAINTENANCE,
-            report_dt=datetime(2025, 3, 11, 9, 30, 11),
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=45),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Projektor oorverhit na lang gebruik",
+            status=FaultStatus.CLOSED,
+            priority=Priority.HIGH,
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=120),
+            asset_id=projector_asset.asset_id if projector_asset else None,
+        )
+
+        _get_or_create_fault(
+            session,
+            description="Projektor skakel nie aan nie",
+            status=FaultStatus.RESOLVED,
+            priority=Priority.HIGH,
+            fault_type=Type.REPAIR,
+            report_dt=now - timedelta(days=200),
             asset_id=projector_asset.asset_id if projector_asset else None,
             room_id=room3.room_id,
             building_id=bld1.building_id,
             location_id=loc1.location_id,
         )
+
+        # ═══════════════════════════════════════════════════════════════
+        # Uitgebreide realisitiese toetsdata vir analitiese insigte
+        # ═══════════════════════════════════════════════════════════════
+
+        # ── Addisionele asset tipes ──────────────────────────────
+        type_it = _get_or_create_assettype(session, "IT Toerusting", avg=48, min_=24, max_=72, interval=12, threshold=3)
+        type_hvac = _get_or_create_assettype(session, "HVAC Toerusting", avg=84, min_=60, max_=120, interval=6, threshold=2)
+        type_veiligheid = _get_or_create_assettype(session, "Veiligheidstoerusting", avg=36, min_=12, max_=60, interval=3, threshold=4)
+        type_kombuis = _get_or_create_assettype(session, "Kombuistoerusting", avg=72, min_=36, max_=120, interval=12, threshold=2)
+
+        # ── Addisionele geboue ──────────────────────────────────
+        bld5 = _get_or_create_building(session, "Wetenskapblok", BuildingType.LABORATORY, loc1.location_id)
+        bld6 = _get_or_create_building(session, "Biblioteek", BuildingType.OTHER, loc1.location_id)
+        bld7 = _get_or_create_building(session, "Sportkompleks", BuildingType.OTHER, loc2.location_id)
+        bld8 = _get_or_create_building(session, "Residensie A", BuildingType.OTHER, loc2.location_id)
+        bld9 = _get_or_create_building(session, "Adminblok", BuildingType.ADMIN, loc3.location_id)
+        bld10 = _get_or_create_building(session, "Laboratorium", BuildingType.LABORATORY, loc3.location_id)
+
+        # ── Addisionele lokale ──────────────────────────────────
+        room6 = _get_or_create_room(session, "Lab 1", "L11", 24, RoomType.LABORATORY, RoomStatus.OPERATIONAL, bld5.building_id)
+        room7 = _get_or_create_room(session, "Lab 2", "L12", 20, RoomType.LABORATORY, RoomStatus.OPERATIONAL, bld5.building_id)
+        room8 = _get_or_create_room(session, "Lesinglokaal A", "L13", 80, RoomType.CLASSROOM, RoomStatus.OPERATIONAL, bld3.building_id)
+        room9 = _get_or_create_room(session, "Lesinglokaal B", "L14", 60, RoomType.CLASSROOM, RoomStatus.OPERATIONAL, bld3.building_id)
+        room10 = _get_or_create_room(session, "Leesarea", "L15", 30, RoomType.OTHER, RoomStatus.OPERATIONAL, bld6.building_id)
+        room11 = _get_or_create_room(session, "IT-sentrum", "L16", 40, RoomType.LABORATORY, RoomStatus.OPERATIONAL, bld6.building_id)
+        room12 = _get_or_create_room(session, "Gimnasium", "L17", 50, RoomType.OTHER, RoomStatus.OPERATIONAL, bld7.building_id)
+        room13 = _get_or_create_room(session, "Kleedkamer M", "L18", 10, RoomType.BATHROOM, RoomStatus.OPERATIONAL, bld7.building_id)
+        room14 = _get_or_create_room(session, "Kleedkamer F", "L19", 10, RoomType.BATHROOM, RoomStatus.OPERATIONAL, bld7.building_id)
+        room15 = _get_or_create_room(session, "Kantoor 1", "K1", 2, RoomType.OFFICE, RoomStatus.OPERATIONAL, bld9.building_id)
+        room16 = _get_or_create_room(session, "Kantoor 2", "K2", 1, RoomType.OFFICE, RoomStatus.OPERATIONAL, bld9.building_id)
+        room17 = _get_or_create_room(session, "Kantoor 3", "K3", 4, RoomType.OFFICE, RoomStatus.OPERATIONAL, bld9.building_id)
+        room18 = _get_or_create_room(session, "Residensie Kamer 1", "RK1", 2, RoomType.OTHER, RoomStatus.OPERATIONAL, bld8.building_id)
+        room19 = _get_or_create_room(session, "Residensie Kamer 2", "RK2", 2, RoomType.OTHER, RoomStatus.OPERATIONAL, bld8.building_id)
+        room20 = _get_or_create_room(session, "Residensie Kamer 3", "RK3", 2, RoomType.OTHER, RoomStatus.OPERATIONAL, bld8.building_id)
+        room21 = _get_or_create_room(session, "Kombuis", "K4", 10, RoomType.OTHER, RoomStatus.OPERATIONAL, bld2.building_id)
+        room22 = _get_or_create_room(session, "Bedieningsarea", "K5", 5, RoomType.OTHER, RoomStatus.OPERATIONAL, bld2.building_id)
+
+        # ── Addisionele bates (verskillende statusse) ──────────
+        _get_or_create_asset(session, "Rekenaar HP EliteDesk", "HP", "IT-001", AssetStatus.ACTIVE, False, room11.room_id, type_it.assettype_id, now - timedelta(days=400))
+        _get_or_create_asset(session, "Rekenaar HP EliteDesk", "HP", "IT-002", AssetStatus.ACTIVE, False, room11.room_id, type_it.assettype_id, now - timedelta(days=380))
+        _get_or_create_asset(session, "Rekenaar Dell Optiplex", "Dell", "IT-003", AssetStatus.ACTIVE, False, room8.room_id, type_it.assettype_id, now - timedelta(days=180))
+        _get_or_create_asset(session, "Rekenaar Dell Optiplex", "Dell", "IT-004", AssetStatus.MAINTENANCE, False, room8.room_id, type_it.assettype_id, now - timedelta(days=200))
+        _get_or_create_asset(session, "Rekenaar Dell Optiplex", "Dell", "IT-005", AssetStatus.ACTIVE, False, room9.room_id, type_it.assettype_id, now - timedelta(days=90))
+        _get_or_create_asset(session, "Rekenaar Dell Optiplex", "Dell", "IT-006", AssetStatus.INACTIVE, False, room15.room_id, type_it.assettype_id, now - timedelta(days=700))
+        _get_or_create_asset(session, "Drukker LaserJet", "HP", "IT-010", AssetStatus.ACTIVE, False, room11.room_id, type_it.assettype_id, now - timedelta(days=300))
+        _get_or_create_asset(session, "Drukker LaserJet", "HP", "IT-011", AssetStatus.MAINTENANCE, False, room15.room_id, type_it.assettype_id, now - timedelta(days=500))
+        _get_or_create_asset(session, "Naskoot", "Canon", "IT-012", AssetStatus.ACTIVE, False, room15.room_id, type_it.assettype_id, now - timedelta(days=100))
+
+        # ── Survival-vloot: gesonde meerderheid + min probleemkinders ──────────
+        # Realisme-reëls sodat voorspellings sin maak:
+        #  * Ouderdom bly binne die tipe se gemiddelde lewensduur.
+        #  * Gesonde bates kry 'n ONLANGSE diensbeurt en hooguit een OU fout
+        #    (>12 maande) — ou foute voed die survival-model (events) sonder
+        #    om die 12-maand-fouttellers of lewensduur-reëls te laat loop.
+        #  * Slegs 'n klein eksplisiete minderheid ("probleemkinders") is werklike
+        #    vervangings-kandidate (onlangse herhaalde foute, oorskryde
+        #    lewensduur, agterstallige onderhoud).
+        _fleet_kinds = [
+            # (naam, merk, tipe, serial-prefix, maks_ouderdom_dae)
+            ("Kantoor stoel", "Boss", type_meubels, "MB", 2400),
+            ("Kantoor tafel", "Steelcase", type_meubels, "KT", 2600),
+            ("Rekenaar Dell Optiplex", "Dell", type_it, "IT", 1300),
+            ("Projektor Epson", "Epson", type_it, "PR", 1250),
+            ("Drukker LaserJet", "HP", type_it, "DJ", 1200),
+            ("Lugversorging split", "Samsung", type_hvac, "HV", 2200),
+            ("Yskas kombuis", "Defy", type_kombuis, "KB", 1900),
+            ("Microgolf", "Sunbeam", type_kombuis, "MG", 1800),
+            ("Brandblusser", "SafeSys", type_veiligheid, "BB", 950),
+            ("Nooduitgang bord", "SafeSys", type_veiligheid, "ND", 900),
+            ("Skoonmaak kar", "Karcher", type_alge, "SK", 1000),
+            ("Stofsuig industrieel", "Karcher", type_alge, "ST", 1050),
+            ("Krag punt multi", "Ellies", type_elek, "KP", 1600),
+            ("Beligting buite LED", "Radiant", type_elek, "BL", 1500),
+        ]
+        for gi, (f_name, f_brand, f_type, f_prefix, f_max_age) in enumerate(_fleet_kinds):
+            for n in range(6):
+                fi = gi * 6 + n
+                age_days = 520 + (fi * 97) % max(1, f_max_age - 550)
+                status = AssetStatus.ACTIVE if fi % 5 else AssetStatus.MAINTENANCE
+                room = [room6, room7, room8, room9, room10, room11, room12,
+                        room15, room16, room17, room18, room19, room20, room21, room22][fi % 15]
+                asset_f = _get_or_create_asset(
+                    session, f_name, f_brand, f"{f_prefix}-F{100 + fi}", status,
+                    False, room.room_id, f_type.assettype_id, now - timedelta(days=age_days),
+                )
+                room_obj = session.get(Room, room.room_id)
+                building_f = room_obj.building_id if room_obj else None
+                service_days = 25 + (fi * 23) % 210          # onlangse diens: nooit agterstallig
+                _get_or_create_job(
+                    session,
+                    desc=f"{f_name}: roetine-diens uitgevoer",
+                    status=JobStatus.COMPLETED,
+                    job_type="MAINTENANCE",
+                    created_dt=now - timedelta(days=service_days + 2),
+                    finished_dt=now - timedelta(days=service_days),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
+                    building_id=building_f,
+                )
+                # Een OU aanvanklike reparasie (>12 maande gelede) vir ELKE vloot-bate —
+                # survival-event sonder om die 12-maand-reëls te roer.
+                fault_days = 385 + (fi * 31) % 320
+                if fault_days >= age_days - 5:
+                    fault_days = max(370, age_days // 2)
+                _get_or_create_fault(
+                    session,
+                    description=f"{f_name}: aanvanklike aanloopfout",
+                    status=FaultStatus.CLOSED,
+                    priority=Priority.LOW,
+                    fault_type=Type.REPAIR,
+                    report_dt=now - timedelta(days=fault_days),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
+                )
+                _get_or_create_job(
+                    session,
+                    desc=f"{f_name}: hanteer 'aanvanklike aanloopfout'",
+                    status=JobStatus.COMPLETED,
+                    job_type="REPAIR",
+                    created_dt=now - timedelta(days=fault_days - 2),
+                    finished_dt=now - timedelta(days=max(1, fault_days - 4)),
+                    asset_id=asset_f.asset_id,
+                    room_id=room.room_id,
+                    building_id=building_f,
+                )
+
+        # ── Probleemkinders: die werklike vervangings-kandidate ────────────
+        _problem_specs = [
+            # (naam, merk, tipe, reeks, kamer, ouderdom, rede)
+            ("Kantoor stoel", "Xpert", type_meubels, "MB-900", room15, 1300, "faults"),
+            ("Rekenaar HP EliteDesk", "HP", type_it, "IT-940", room11, 1550, "lifespan"),
+            ("Projektor Epson", "Epson", type_it, "PR-941", room9, 1500, "faults"),
+            ("Lugversorging split", "Alliance", type_hvac, "HV-942", room12, 2600, "lifespan"),
+            ("Yskas kombuis", "KIC", type_kombuis, "KB-943", room21, 2300, "faults"),
+            ("Brandblusser", "SafeSys", type_veiligheid, "BB-944", room10, 1250, "lifespan"),
+            ("Grasmaaier", "Ryobi", type_alge, "SK-945", room10, 1150, "faults"),
+            ("Generator", "Honda", type_elek, "EL-946", room10, 1750, "overdue"),
+            ("Water verwarmer", "Kwikot", type_kombuis, "KB-947", room18, 1400, "overdue"),
+            ("Alarm paneel", "SafeSys", type_veiligheid, "ND-948", room13, 800, "faults"),
+            ("Drukker LaserJet", "HP", type_it, "DJ-949", room16, 1350, "faults"),
+            ("Krag punt multi", "Ellies", type_elek, "KP-950", room20, 1900, "faults"),
+        ]
+        for p_name, p_brand, p_type, p_serial, p_room, p_age, p_reason in _problem_specs:
+            p_asset = _get_or_create_asset(
+                session, p_name, p_brand, p_serial, AssetStatus.MAINTENANCE, False,
+                p_room.room_id, p_type.assettype_id, now - timedelta(days=p_age),
+            )
+            p_room_obj = session.get(Room, p_room.room_id)
+            p_building = p_room_obj.building_id if p_room_obj else None
+            if p_reason == "faults":
+                # Drie onlangse foute binne 12 maande → bo drempel.
+                for k, (prio, d_back) in enumerate([
+                    (Priority.MEDIUM, 300), (Priority.HIGH, 120), (Priority.HIGH, 30),
+                ]):
+                    _get_or_create_fault(
+                        session,
+                        description=f"{p_name} herhaalfout {k + 1}",
+                        status=FaultStatus.IN_PROGRESS if k == 2 else FaultStatus.CLOSED,
+                        priority=prio,
+                        fault_type=Type.REPAIR,
+                        report_dt=now - timedelta(days=d_back),
+                        asset_id=p_asset.asset_id,
+                        room_id=p_room.room_id,
+                    )
+                _get_or_create_job(
+                    session,
+                    desc=f"{p_name} herhaalfout-hantering",
+                    status=JobStatus.OPEN,
+                    job_type="REPAIR",
+                    created_dt=now - timedelta(days=28),
+                    asset_id=p_asset.asset_id,
+                    room_id=p_room.room_id,
+                    building_id=p_building,
+                )
+            elif p_reason == "overdue":
+                # Laaste diens ver verby interval + 180 dae.
+                _get_or_create_fault(
+                    session,
+                    description=f"{p_name} benodig dringende diens",
+                    status=FaultStatus.WAIT,
+                    priority=Priority.HIGH,
+                    fault_type=Type.MAINTENANCE,
+                    report_dt=now - timedelta(days=200),
+                    asset_id=p_asset.asset_id,
+                    room_id=p_room.room_id,
+                )
+            # "lifespan"-gevalle: geen ekstra foute nodig nie — ouderdom alleen
+            # laat Lewensduur-oorskry toeslaan.
+        _get_or_create_asset(session, "Wifi-roeterg", "MikroTik", "IT-020", AssetStatus.ACTIVE, False, room6.room_id, type_it.assettype_id, now - timedelta(days=250))
+        _get_or_create_asset(session, "Wifi-roeterg AP", "Ubiquiti", "IT-021", AssetStatus.ACTIVE, False, room8.room_id, type_it.assettype_id, now - timedelta(days=150))
+        _get_or_create_asset(session, "Lugversorger", "Samsung", "HVAC-001", AssetStatus.ACTIVE, True, room8.room_id, type_hvac.assettype_id, now - timedelta(days=800))
+        _get_or_create_asset(session, "Lugversorger", "LG", "HVAC-002", AssetStatus.ACTIVE, True, room9.room_id, type_hvac.assettype_id, now - timedelta(days=600))
+        _get_or_create_asset(session, "Lugversorger", "LG", "HVAC-003", AssetStatus.MAINTENANCE, True, room11.room_id, type_hvac.assettype_id, now - timedelta(days=900))
+        _get_or_create_asset(session, "Lugversorger", "Daikin", "HVAC-004", AssetStatus.ACTIVE, True, room6.room_id, type_hvac.assettype_id, now - timedelta(days=400))
+        _get_or_create_asset(session, "Verwarmer", "Dyson", "HVAC-010", AssetStatus.ACTIVE, False, room15.room_id, type_hvac.assettype_id, now - timedelta(days=200))
+        _get_or_create_asset(session, "Plafonwaaier", "Fanco", "HVAC-020", AssetStatus.ACTIVE, False, room8.room_id, type_hvac.assettype_id, now - timedelta(days=365))
+        _get_or_create_asset(session, "Plafonwaaier", "Fanco", "HVAC-021", AssetStatus.DECOMMISSIONED, False, room9.room_id, type_hvac.assettype_id, now - timedelta(days=1000))
+        _get_or_create_asset(session, "Brandblusser", "Ace", "VEILIG-001", AssetStatus.ACTIVE, False, room3.room_id, type_veiligheid.assettype_id, now - timedelta(days=200))
+        _get_or_create_asset(session, "Brandblusser", "Ace", "VEILIG-002", AssetStatus.ACTIVE, False, room8.room_id, type_veiligheid.assettype_id, now - timedelta(days=180))
+        _get_or_create_asset(session, "Brandblusser", "Ace", "VEILIG-003", AssetStatus.MAINTENANCE, False, room11.room_id, type_veiligheid.assettype_id, now - timedelta(days=300))
+        _get_or_create_asset(session, "Brandblusser", "Ace", "VEILIG-004", AssetStatus.ACTIVE, False, room21.room_id, type_veiligheid.assettype_id, now - timedelta(days=90))
+        _get_or_create_asset(session, "Nooduitgang-bord", "Eaton", "VEILIG-010", AssetStatus.ACTIVE, False, room3.room_id, type_veiligheid.assettype_id, now - timedelta(days=150))
+        _get_or_create_asset(session, "Nooduitgang-bord", "Eaton", "VEILIG-011", AssetStatus.ACTIVE, False, room8.room_id, type_veiligheid.assettype_id, now - timedelta(days=150))
+        _get_or_create_asset(session, "Nooduitgang-bord", "Eaton", "VEILIG-012", AssetStatus.INACTIVE, False, room9.room_id, type_veiligheid.assettype_id, now - timedelta(days=600))
+        _get_or_create_asset(session, "Yskas", "Defy", "KOM-001", AssetStatus.ACTIVE, False, room21.room_id, type_kombuis.assettype_id, now - timedelta(days=500))
+        _get_or_create_asset(session, "Mikrogolf", "Samsung", "KOM-002", AssetStatus.ACTIVE, False, room21.room_id, type_kombuis.assettype_id, now - timedelta(days=300))
+        _get_or_create_asset(session, "Waterketel", "Russell Hobbs", "KOM-003", AssetStatus.ACTIVE, False, room21.room_id, type_kombuis.assettype_id, now - timedelta(days=100))
+        _get_or_create_asset(session, "Koffiemasjien", "Nespresso", "KOM-004", AssetStatus.MAINTENANCE, False, room22.room_id, type_kombuis.assettype_id, now - timedelta(days=250))
+
+        # ── Addisionele voorraad ────────────────────────────────
+        _get_or_create_stock(session, "T8 Fluorescerende buis 1200mm", "Osram", 25, 10, 30, "Verbruiksgoedere", "T8 1200mm 36W koelwit fluoresserende buis.", room2.room_id)
+        _get_or_create_stock(session, "T8 Fluorescerende buis 600mm", "Osram", 15, 5, 20, "Verbruiksgoedere", "T8 600mm 18W fluoresserende buis.", room2.room_id)
+        _get_or_create_stock(session, "LED-paneellig 600x600", "Philips", 8, 2, 10, "Verbruiksgoedere", "LED inbou-paneel 40W 600x600mm koelwit.", room2.room_id)
+        _get_or_create_stock(session, "Stopcontact dubbel", "Crabtree", 12, 5, 20, "Onderdele", "Dubbelstopcontact 16A met aarding wit.", room1.room_id)
+        _get_or_create_stock(session, "Muur-schakelaar enkel", "Crabtree", 20, 10, 50, "Onderdele", "Ligschakelaar enkelpool 10A wit.", room1.room_id)
+        _get_or_create_stock(session, "Draad 1.5mm²", "Apex", 2, 1, 5, "Onderdele", "Elektriese draad 1.5mm² rooi (rol = 100m).", room1.room_id)
+        _get_or_create_stock(session, "Draad 2.5mm²", "Apex", 1, 1, 3, "Onderdele", "Elektriese draad 2.5mm² swart (rol = 100m).", room1.room_id)
+        _get_or_create_stock(session, "Handseep vulling", "Diversey", 4, 2, 6, "Verbruiksgoedere", "Vloeibare handseep 5l napvulling vir dispenser.", room2.room_id)
+        _get_or_create_stock(session, "Handdoekrol", "Kimberly Clark", 6, 3, 10, "Verbruiksgoedere", "Bruin handdoekrol 2-laag 200m.", room2.room_id)
+        _get_or_create_stock(session, "Vullissakke 100L", "Glad", 50, 10, 100, "Verbruiksgoedere", "Swart vullissakke 100L sterkte vir buite-dromme.", room2.room_id)
+        _get_or_create_stock(session, "Vullissakke 25L", "Glad", 80, 20, 200, "Verbruiksgoedere", "Swart vullissakke 25L vir binnekorwe.", room2.room_id)
+        _get_or_create_stock(session, "Sement 50kg", "PPC", 5, 2, 10, "Onderdele", "Gewone Portland sement 50kg sak vir herstelwerk.", room5.room_id)
+        _get_or_create_stock(session, "Verf wit 20L", "Dulux", 3, 1, 5, "Verbruiksgoedere", "Wit muurverf 20L emmersie, waterbasis.", room5.room_id)
+        _get_or_create_stock(session, "Lugversorger filter", "LG", 4, 2, 8, "Onderdele", "LG lugversorger filter pas HVAC-002/003.", room5.room_id)
+        _get_or_create_stock(session, "Linte", "3M", 10, 5, 20, "Verbruiksgoedere", "Skilderslint 48mm x 50m.", room5.room_id)
+
+        # ── Addisionele kontrakteurs (gebruikers met rol "Kontrakteur") ─
+        _get_or_create_test_user(session, "Thabo", "Mokoena", "thabo@coolair.co.za", "contractor123", contractor_role.role_id)
+        _get_or_create_test_user(session, "Mpho", "Nkosi", "mpho@safesys.co.za", "contractor123", contractor_role.role_id)
+        _get_or_create_test_user(session, "David", "Smith", "david@itsolutions.co.za", "contractor123", contractor_role.role_id)
+        _get_or_create_test_user(session, "Susan", "Venter", "susan@kombuiswerke.co.za", "contractor123", contractor_role.role_id)
+
+        # Haal kontrakteurs op via User-rekeninge (FK in jobcard verwys na user.user_id)
+        thabo_user = session.exec(select(User).where(User.user_email == "thabo@coolair.co.za")).first()
+        mpho_user = session.exec(select(User).where(User.user_email == "mpho@safesys.co.za")).first()
+        david_user = session.exec(select(User).where(User.user_email == "david@itsolutions.co.za")).first()
+        susan_user = session.exec(select(User).where(User.user_email == "susan@kombuiswerke.co.za")).first()
+
+        # Haal nuwe bates op vir werksopdragte/foute
+        ac_unit = session.exec(select(Asset).where(Asset.asset_serial == "HVAC-003")).first()
+        pc_dead = session.exec(select(Asset).where(Asset.asset_serial == "IT-004")).first()
+        printer_dead = session.exec(select(Asset).where(Asset.asset_serial == "IT-011")).first()
+        coffee_machine = session.exec(select(Asset).where(Asset.asset_serial == "KOM-004")).first()
+        fire_extinguisher = session.exec(select(Asset).where(Asset.asset_serial == "VEILIG-003")).first()
+        dell_optiplex_005 = session.exec(select(Asset).where(Asset.asset_serial == "IT-005")).first()
+
+        # ── Addisionele foutkaartjies ───────────────────────────
+        _get_or_create_fault(session, "Lugversorger blaas warm lug", FaultStatus.OPEN, Priority.HIGH, Type.REPAIR,
+            now - timedelta(days=2), ac_unit.asset_id if ac_unit else None, room11.room_id, bld6.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Rekenaar vries voortdurend", FaultStatus.OPEN, Priority.MEDIUM, Type.MAINTENANCE,
+            now - timedelta(days=5), pc_dead.asset_id if pc_dead else None, room8.room_id, bld3.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Drukker papierstoor", FaultStatus.IN_PROGRESS, Priority.LOW, Type.MAINTENANCE,
+            now - timedelta(days=8), printer_dead.asset_id if printer_dead else None, room15.room_id, bld9.building_id, loc3.location_id)
+        _get_or_create_fault(session, "Koffiemasjien lek water", FaultStatus.OPEN, Priority.LOW, Type.REPAIR,
+            now - timedelta(days=1), coffee_machine.asset_id if coffee_machine else None, room22.room_id, bld2.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Brandblusser druk laag", FaultStatus.OPEN, Priority.HIGH, Type.MAINTENANCE,
+            now - timedelta(days=3), fire_extinguisher.asset_id if fire_extinguisher else None, None, None, loc1.location_id, is_outdoor=True)
+        _get_or_create_fault(session, "Kraan lek in kombuis", FaultStatus.OPEN, Priority.MEDIUM, Type.REPAIR,
+            now - timedelta(days=10), None, room21.room_id, bld2.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Toilet oorloop", FaultStatus.OPEN, Priority.HIGH, Type.REPAIR,
+            now - timedelta(days=1), None, room1.room_id, bld2.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Toilet spoel stukkend", FaultStatus.IN_PROGRESS, Priority.MEDIUM, Type.REPAIR,
+            now - timedelta(days=4), None, room2.room_id, bld2.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Projektor flikker", FaultStatus.CONFIRMED, Priority.MEDIUM, Type.REPAIR,
+            now - timedelta(days=7), projector_asset.asset_id if projector_asset else None, room3.room_id, bld1.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Werkstation maak geraas", FaultStatus.RESOLVED, Priority.LOW, Type.MAINTENANCE,
+            now - timedelta(days=30), dell_optiplex_005.asset_id if dell_optiplex_005 else None, room9.room_id, bld3.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Noodligte werk nie", FaultStatus.CLOSED, Priority.MEDIUM, Type.REPAIR,
+            now - timedelta(days=60), None, None, None, loc1.location_id, is_outdoor=True)
+        _get_or_create_fault(session, "Wifi onstabiel op 2de vloer", FaultStatus.OPEN, Priority.MEDIUM, Type.MAINTENANCE,
+            now - timedelta(days=3), None, room8.room_id, bld3.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Kantoorligte flikker", FaultStatus.IN_PROGRESS, Priority.LOW, Type.REPAIR,
+            now - timedelta(days=12), None, room15.room_id, bld9.building_id, loc3.location_id)
+        _get_or_create_fault(session, "Kelder oorstroming", FaultStatus.CLOSED, Priority.HIGH, Type.REPAIR,
+            now - timedelta(days=90), None, room5.room_id, bld1.building_id, loc1.location_id)
+        _get_or_create_fault(session, "Bankie langs die sportveld is stukkend", FaultStatus.OPEN, Priority.LOW, Type.REPAIR,
+            now - timedelta(days=2), None, None, None, loc2.location_id, is_outdoor=True)
+        _get_or_create_fault(session, "Stoephek spring nie oop nie", FaultStatus.OPEN, Priority.MEDIUM, Type.MAINTENANCE,
+            now - timedelta(days=6), None, None, None, loc3.location_id, is_outdoor=True)
+
+        # ── Addisionele werksopdragte ───────────────────────────
+        cpu_asset_003 = session.exec(select(Asset).where(Asset.asset_serial == "IT-003")).first()
+        scanner_asset = session.exec(select(Asset).where(Asset.asset_serial == "IT-012")).first()
+        fan_asset = session.exec(select(Asset).where(Asset.asset_serial == "HVAC-020")).first()
+        fridge_asset = session.exec(select(Asset).where(Asset.asset_serial == "KOM-001")).first()
+
+        _thabo_id = thabo_user.user_id if thabo_user else None
+        _mpho_id = mpho_user.user_id if mpho_user else None
+        _david_id = david_user.user_id if david_user else None
+        _susan_id = susan_user.user_id if susan_user else None
+
+        _get_or_create_job(session, "Lugversorger HVAC-003 herstel", JobStatus.IN_PROGRESS, "Onderhoud",
+            created_dt=now - timedelta(days=2),
+            asset_id=ac_unit.asset_id if ac_unit else None,
+            room_id=room11.room_id, building_id=bld6.building_id, location_id=loc1.location_id,
+            contractor_id=_thabo_id)
+        _get_or_create_job(session, "Rekenaar IT-006 buite diens stel", JobStatus.COMPLETED, "Afskrywing",
+            created_dt=now - timedelta(days=10),
+            room_id=room15.room_id, building_id=bld9.building_id, location_id=loc3.location_id,
+            finished_dt=now - timedelta(days=8))
+        _get_or_create_job(session, "Brandblusser VEILIG-003 diens", JobStatus.OPEN, "Onderhoud",
+            created_dt=now - timedelta(days=3),
+            asset_id=fire_extinguisher.asset_id if fire_extinguisher else None,
+            room_id=room11.room_id, building_id=bld6.building_id, location_id=loc1.location_id,
+            contractor_id=_mpho_id)
+        _get_or_create_job(session, "Kombuiskraan vervang", JobStatus.OPEN, "Herstelwerk",
+            created_dt=now - timedelta(days=10),
+            room_id=room21.room_id, building_id=bld2.building_id, location_id=loc1.location_id,
+            contractor_id=lindiwe_contractor_id)
+        _get_or_create_job(session, "Drukker IT-011 herstel", JobStatus.CANCELLED, "Herstelwerk",
+            created_dt=now - timedelta(days=20),
+            asset_id=printer_dead.asset_id if printer_dead else None,
+            room_id=room15.room_id, building_id=bld9.building_id, location_id=loc3.location_id)
+        _get_or_create_job(session, "Kantoornetwerk opgradering", JobStatus.COMPLETED, "Opgradering",
+            created_dt=now - timedelta(days=45),
+            room_id=room15.room_id, building_id=bld9.building_id, location_id=loc3.location_id,
+            finished_dt=now - timedelta(days=40), contractor_id=_david_id)
+        _get_or_create_job(session, "Plafonwaaier HVAC-020 installeer", JobStatus.COMPLETED, "Installasie",
+            created_dt=now - timedelta(days=365),
+            asset_id=fan_asset.asset_id if fan_asset else None,
+            room_id=room8.room_id, building_id=bld3.building_id, location_id=loc1.location_id,
+            finished_dt=now - timedelta(days=362))
+        _get_or_create_job(session, "Stoel AK MT003767 opknap", JobStatus.OPEN, "Onderhoud",
+            created_dt=now - timedelta(days=5),
+            room_id=room5.room_id, building_id=bld1.building_id, location_id=loc1.location_id)
+        _get_or_create_job(session, "Lesinglokaal B - nuwe witbord installeer", JobStatus.COMPLETED, "Installasie",
+            created_dt=now - timedelta(days=14),
+            room_id=room9.room_id, building_id=bld3.building_id, location_id=loc1.location_id,
+            finished_dt=now - timedelta(days=12))
+        _get_or_create_job(session, "Yskas KOM-001 diens", JobStatus.COMPLETED, "Onderhoud",
+            created_dt=now - timedelta(days=60),
+            asset_id=fridge_asset.asset_id if fridge_asset else None,
+            room_id=room21.room_id, building_id=bld2.building_id, location_id=loc1.location_id,
+            finished_dt=now - timedelta(days=58), contractor_id=_susan_id)
+
+        # ── Kalender gebeurtenisse ──────────────────────────────
+        from ..models.calendar_event import CalendarEvent
+
+        def _get_or_create_event(session, title, start_dt, end_dt=None, desc="", location="", color=None):
+            ev = session.exec(select(CalendarEvent).where(CalendarEvent.title == title, CalendarEvent.start_datetime == start_dt)).first()
+            if ev:
+                return ev
+            ev = CalendarEvent(
+                title=title,
+                description=desc,
+                start_datetime=start_dt,
+                end_datetime=end_dt or start_dt + timedelta(hours=1),
+                all_day=False,
+                location=location,
+                color=color,
+                user_id=3,
+            )
+            session.add(ev)
+            session.commit()
+            session.refresh(ev)
+            return ev
+
+        # Admin-gebruiker (ID 3) se kalender
+        base_today = now.replace(hour=8, minute=0, second=0, microsecond=0)
+
+        _get_or_create_event(session, "Fasiliteitsbestuur vergadering", base_today + timedelta(hours=1),
+            base_today + timedelta(hours=2), "Maandelikse opvolg vergadering met fasiliteite span.", "Kantoor 1 - Adminblok", "#935e28")
+        _get_or_create_event(session, "HVAC inspeksie - Wetenskapblok", base_today + timedelta(days=1, hours=9),
+            base_today + timedelta(days=1, hours=11), "Kwartaallikse HVAC inspeksie van alle eenhede.", "Wetenskapblok", "#2563eb")
+        _get_or_create_event(session, "Brandoefening", base_today + timedelta(days=3, hours=10),
+            base_today + timedelta(days=3, hours=10, minutes=30), "Verpligte brandoefening vir alle personeel.", "Heel kampus", "#dc2626")
+        _get_or_create_event(session, "Kontrakteur evaluering", base_today + timedelta(days=5, hours=14),
+            base_today + timedelta(days=5, hours=16), "Evaluering van HVAC en loodgieter kontrakteurs.", "Kantoor 1", "#935e28")
+        _get_or_create_event(session, "Voorraadopname", base_today + timedelta(days=7, hours=8),
+            base_today + timedelta(days=7, hours=12), "Kwartaallikse voorraadopname van alle stoorkamers.", "Stoorkamer L10", "#16a34a")
+        _get_or_create_event(session, "IT-netwerk instandhouding", base_today + timedelta(days=10, hours=18),
+            base_today + timedelta(days=10, hours=22), "Geskeduleerde netwerk instandhouding - stelsels sal ontoeganklik wees.", "IT-sentrum", "#2563eb")
+        _get_or_create_event(session, "Kafeteria toerusting diens", base_today + timedelta(days=14, hours=9),
+            base_today + timedelta(days=14, hours=13), "Jaarlikse diens van kombuistoerusting.", "Spys Kafeteria", "#dc2626")
+        _get_or_create_event(session, "Personeel opleiding: Brandveiligheid", base_today + timedelta(days=21, hours=9),
+            base_today + timedelta(days=21, hours=11), "Brandveiligheidsopleiding vir nuwe personeel.", "Lesinglokaal A", "#935e28")
+
+        # Add more events with varied dates
+        _get_or_create_event(session, "Gebouinspeksie - Residensie A", base_today + timedelta(days=30, hours=8),
+            base_today + timedelta(days=30, hours=12), "Jaarlikse gebou inspeksie.", "Residensie A, Gerhardstraat", "#16a34a")
+        _get_or_create_event(session, "Fakulteitsraad vergadering", base_today + timedelta(days=60, hours=14),
+            base_today + timedelta(days=60, hours=16), "Kwartaallikse fakulteitsraad.", "Konferensiekamer Boerneef", "#935e28")
+        _get_or_create_event(session, "Sportdag voorbereiding", base_today + timedelta(days=90, hours=7),
+            base_today + timedelta(days=90, hours=17), "Opstel van toerusting vir jaarlikse sportdag.", "Sportkompleks", "#16a34a")
+
+        # ── Addisionele kwotasies ──────────────────────────────
+        _get_or_create_test_quote(session)
+
+        # ── Ekstra gebruikers vir data-rykheid ──────────────────
+        _get_or_create_test_user(session, "Sandra", "Prinsloo", "sandra@example.com", "sandra123", admin_role.role_id)
+        _get_or_create_test_user(session, "Bongani", "Zuma", "bongani@example.com", "bongani123", fk_role.role_id, location_id=loc3.location_id)
+        _get_or_create_test_user(session, "Chantelle", "van der Merwe", "chantelle@example.com", "chantelle123", user_role.role_id)
+        _get_or_create_test_user(session, "Johan", "Venter", "johan@venter.co.za", "johan123", fk_role.role_id, location_id=loc2.location_id)
 
         # Create audit logs for all assets
         print("Creating audit logs for assets...")
@@ -860,6 +1553,35 @@ def seed_data():
                 new_value={"room_id": room5.room_id},
                 timestamp=datetime(2025, 6, 1, 16, 20, 0),
             )
+
+        # Upgrade any legacy plaintext passwords already in the DB to hashes.
+        _migrate_plaintext_passwords(session)
+
+        # Seed default notification preferences for all active users
+        NOTIF_TYPES = [
+            "fault.created", "fault.assigned", "fault.resolved", "fault.status_changed",
+            "job.created", "job.assigned", "job.status_changed",
+            "stock.low",
+            "system.announcement",
+            "calendar.reminder",
+        ]
+        all_users = session.exec(select(User).where(User.user_status == "active")).all()
+        for user in all_users:
+            for ntype in NOTIF_TYPES:
+                existing = session.exec(
+                    select(NotificationPreference).where(
+                        NotificationPreference.user_id == user.user_id,
+                        NotificationPreference.notification_type == ntype,
+                    )
+                ).first()
+                if not existing:
+                    session.add(NotificationPreference(
+                        user_id=user.user_id,
+                        notification_type=ntype,
+                        in_app_enabled=True,
+                        email_enabled=False,
+                        push_enabled=True,
+                    ))
 
         session.commit()
         print("Database seeded successfully!")

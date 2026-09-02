@@ -45,11 +45,17 @@ class JobcardBase(SQLModel):
     job_type: Optional[str] = Field(default=None, max_length=50)
     job_createddatetime: Optional[datetime] = None
     job_scheduled_datetime: Optional[datetime] = None
+    job_scheduled_end_datetime: Optional[datetime] = None
     job_schedule_type: Optional[str] = Field(default="enkel", max_length=20)
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
+    job_priority: Optional[str] = Field(default="Normal", max_length=20)
+    nature: Optional[str] = Field(default=None, max_length=100)
+    assigned_to: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    cc_users: Optional[str] = Field(default=None)
+    job_notes: Optional[str] = Field(default=None, max_length=5000)
 
-    @field_validator('job_desc', 'job_type', mode='before')
+    @field_validator('job_desc', 'job_type', 'job_notes', mode='before')
     @classmethod
     def _sanitize_strings(cls, v, info):
         return sanitize_text(v)
@@ -70,6 +76,7 @@ class Jobcard(JobcardBase, Base, table=True):
     """Model for jobcard data."""
     jobcard_id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    contractor_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
     asset_id: Optional[int] = Field(default=None, foreign_key="asset.asset_id")
     room_id: Optional[int] = Field(default=None, foreign_key="room.room_id")
     building_id: Optional[int] = Field(default=None, foreign_key="building.building_id")
@@ -78,28 +85,31 @@ class Jobcard(JobcardBase, Base, table=True):
     quote_id: Optional[int] = Field(default=None, foreign_key="quote.quote_id")
     jobrecurr_id: Optional[int] = Field(default=None, foreign_key="jobrecurring.jobrecurr_id")
     mappoint_id: Optional[int] = Field(default=None, foreign_key="mappoint.mappoint_id")
-            
-    # Universal Foreign Key linking to the separate image module
-    image_id: Optional[int] = Field(default=None, foreign_key="image.image_id")
-    
-    # Unidirectional relationship 
-    image: Optional[ImageAsset] = Relationship()
+    duplicate_of: Optional[int] = Field(default=None, foreign_key="jobcard.jobcard_id")
 
 
 class JobcardCreate(JobcardBase):
     """Input model for creating jobcard records."""
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
-    image_id: Optional[int] = None
+    duplicate_of: Optional[int] = None
+    mappoint_id: Optional[int] = None
+    # Transiënte velde: word nie as kolomme gestoor nie — die diens skep/wysig
+    # 'n Mappoint (lat/lng) en koppel mappoint_id aan die werksopdrag, sodat
+    # die kontrakteur die fout se presiese ligging sien.
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class JobcardRead(JobcardBase):
     """Output model for reading jobcard records."""
     jobcard_id: int
     user_id: Optional[int] = None
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
@@ -108,9 +118,8 @@ class JobcardRead(JobcardBase):
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None
-    
-    image: Optional[ImageAssetRead] = None
+    assigned_name: Optional[str] = None
+    contractor_name: Optional[str] = None
 
 
 class JobcardUpdate(SQLModel):
@@ -118,18 +127,27 @@ class JobcardUpdate(SQLModel):
     job_desc: Optional[str] = None
     job_status: Optional[JobStatus] = None
     job_type: Optional[str] = None
+    job_priority: Optional[str] = None
+    nature: Optional[str] = None
     job_createddatetime: Optional[datetime] = None
     job_scheduled_datetime: Optional[datetime] = None
+    job_scheduled_end_datetime: Optional[datetime] = None
     job_schedule_type: Optional[str] = None
     job_finisheddatetime: Optional[datetime] = None
     quote_ids: Optional[str] = None
+    job_notes: Optional[str] = None
     user_id: Optional[int] = None
+    contractor_id: Optional[int] = None
     asset_id: Optional[int] = None
     room_id: Optional[int] = None
     building_id: Optional[int] = None
     location_id: Optional[int] = None
     fault_id: Optional[int] = None
+    assigned_to: Optional[int] = None
+    cc_users: Optional[str] = None
     quote_id: Optional[int] = None
     jobrecurr_id: Optional[int] = None
     mappoint_id: Optional[int] = None
-    image_id: Optional[int] = None
+    # Transiënte velde vir die kaartligging (soos by JobcardCreate).
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None

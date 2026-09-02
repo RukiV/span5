@@ -1,14 +1,12 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
-import 'package:aad_oauth/aad_oauth.dart';
-import 'package:aad_oauth/model/config.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
-import '../../core/navigation.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
-import '../../core/auth_config.dart';
+import '../../services/outlook_token_manager.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
 /// Dit ondersteun e-pos/wagwoord-aanmelding, Microsoft Outlook SSO,
@@ -22,28 +20,18 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final LocalAuthentication auth = LocalAuthentication();
+  final _secureStorage = const FlutterSecureStorage();
   
   bool _isLoading = false;
   bool _canCheckBiometrics = false;
   bool _obscurePassword = true; // Beheer die sigbaarheid van die wagwoord
-  late AadOAuth oauth;
 
   final TextEditingController _userControl = TextEditingController();
   final TextEditingController _passControl = TextEditingController();
 
-  // Ons skuif die Config na 'n getter om seker te maak dit lees die vars waardes
-  Config get _oauthConfig => Config(
-    tenant: AuthConfig.tenantId,
-    clientId: AuthConfig.clientId,
-    scope: AuthConfig.scopes.join(' '),
-    redirectUri: AuthConfig.redirectUri,
-    navigatorKey: navigatorKey,
-  );
-
   @override
   void initState() {
     super.initState();
-    oauth = AadOAuth(_oauthConfig);
     _initAuth();
   }
 
@@ -55,11 +43,8 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _canCheckBiometrics = canCheck || isSupported);
 
       if (_canCheckBiometrics) {
-        final prefs = await SharedPreferences.getInstance();
-        bool useBio = prefs.getBool('use_biometrics') ?? false;
-
-        if (useBio) {
-          // As biometrie geaktiveer is, probeer outomaties stawing na die eerste frame.
+        final bioPref = await _secureStorage.read(key: 'use_biometrics');
+        if (bioPref == 'true') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _authenticateWithBiometrics();
           });
@@ -163,11 +148,12 @@ class _LoginPageState extends State<LoginPage> {
 
         if (!mounted) return;
 
-        // Kyk of ons biometrie moet voorstel vir toekomstige gebruik.
-        final prefs = await SharedPreferences.getInstance();
-        if (prefs.getBool('use_biometrics') == null && _canCheckBiometrics) {
-          bool? wantBio = await _showBiometricPrompt();
-          await prefs.setBool('use_biometrics', wantBio ?? false);
+        if (_canCheckBiometrics) {
+          final existing = await _secureStorage.read(key: 'use_biometrics');
+          if (existing == null) {
+            bool? wantBio = await _showBiometricPrompt();
+            await _secureStorage.write(key: 'use_biometrics', value: (wantBio ?? false).toString());
+          }
         }
 
         if (mounted) {
@@ -220,23 +206,41 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   /// Hanteer Microsoft Outlook SSO aanmelding.
+  /// Dieselfde vloei as die web (frontend/): meld aan via die Azure-app met
+  /// `User.Read + Calendars.ReadWrite`, hou die Graph-token vir kalendersinkronisering
+  /// en verruil dit vir die app se eie sessietoken by die backend.
   Future<void> _outlookLogin() async {
+    // flutter_appauth (stelsel-webblaaier) ondersteun nie Windows/Linux nie —
+    // wys net 'n boodskap.
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      _showError("Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.");
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      await oauth.login();
-      String? accessToken = await oauth.getAccessToken();
-      if (accessToken != null && mounted) {
-        final response = await ApiClient().client.post(
-          '/auth/microsoft',
-          data: {'microsoft_token': accessToken},
-        );
+      final signedIn = await OutlookTokenManager.instance.signIn();
+      if (!signedIn || !mounted) {
+        setState(() => _isLoading = false);
+        return;
+      }
 
-        if (response.statusCode == 200) {
-          final token = response.data['access_token'];
-          // Stoor Microsoft sessie token ook veilig.
-          await ApiClient().saveToken(token);
-          await _fetchProfileAndNavigate();
-        }
+      final accessToken = await OutlookTokenManager.instance.getGraphAccessToken();
+      if (accessToken == null) {
+        setState(() => _isLoading = false);
+        _showError("Kon nie die Microsoft-token verkry nie.");
+        return;
+      }
+
+      final response = await ApiClient().client.post(
+        '/auth/microsoft',
+        data: {'microsoft_token': accessToken},
+      );
+
+      if (response.statusCode == 200) {
+        final token = response.data['access_token'];
+        await ApiClient().saveToken(token);
+        await _fetchProfileAndNavigate();
       } else {
         setState(() => _isLoading = false);
       }

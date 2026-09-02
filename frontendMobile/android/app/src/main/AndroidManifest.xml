@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="FBS"
         android:name="${applicationName}"
@@ -38,13 +39,13 @@
 
                 <data
                     android:scheme="msauth"
-                    android:host="com.example.untitled"
-                    android:path="/xc13Rb9XZfaL0EqEJWzx78ijaeM%3D" />
+                    android:host="com.fbs.akademiafbs"
+                    android:pathPrefix="/%2B34jsPvrOFoH3Nt1TvORlteS4Dc%3D" />
             </intent-filter>
         </activity>
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_GOOGLE_MAPS_API_KEY_HERE"/>
+            android:value="${googleMapsApiKey}"/>
 
         <meta-data
             android:name="flutterEmbedding"

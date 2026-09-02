@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
+import '../reporting/select_location_page.dart';
 
 class EditCampusPage extends StatefulWidget {
   final Campus campus;
@@ -17,7 +19,12 @@ class _EditCampusPageState extends State<EditCampusPage> {
   late TextEditingController _typeController;
   late TextEditingController _streetNumController;
   late TextEditingController _streetNameController;
-  late TextEditingController _zipIdController;
+  late TextEditingController _suburbController;
+  late TextEditingController _cityController;
+  late TextEditingController _provinceController;
+  late TextEditingController _countryController;
+  late LatLng _selectedLocation;
+  late TextEditingController _radiusController;
   bool _isSaving = false;
 
   @override
@@ -27,7 +34,12 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _typeController = TextEditingController(text: widget.campus.code);
     _streetNumController = TextEditingController(text: widget.campus.streetNum);
     _streetNameController = TextEditingController(text: widget.campus.streetName);
-    _zipIdController = TextEditingController(text: widget.campus.zipcodeId.toString());
+    _suburbController = TextEditingController(text: widget.campus.suburb);
+    _cityController = TextEditingController(text: widget.campus.city);
+    _provinceController = TextEditingController(text: widget.campus.province);
+    _countryController = TextEditingController(text: widget.campus.country);
+    _selectedLocation = widget.campus.location;
+    _radiusController = TextEditingController(text: widget.campus.radius.toStringAsFixed(0));
   }
 
   @override
@@ -36,31 +48,35 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _typeController.dispose();
     _streetNumController.dispose();
     _streetNameController.dispose();
-    _zipIdController.dispose();
+    _suburbController.dispose();
+    _cityController.dispose();
+    _provinceController.dispose();
+    _countryController.dispose();
+    _radiusController.dispose();
     super.dispose();
   }
 
   InputDecoration _inputDecoration() {
     return InputDecoration(
       filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      fillColor: Colors.grey[50],
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.gold, width: 2),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: AppColors.errorRed),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 
@@ -88,7 +104,12 @@ class _EditCampusPageState extends State<EditCampusPage> {
       code: _typeController.text,
       streetNum: _streetNumController.text,
       streetName: _streetNameController.text,
-      zipcodeId: int.tryParse(_zipIdController.text) ?? 1,
+      suburb: _suburbController.text,
+      city: _cityController.text,
+      province: _provinceController.text,
+      country: _countryController.text,
+      location: _selectedLocation,
+      radius: double.tryParse(_radiusController.text) ?? widget.campus.radius,
     );
 
     final success = await CampusService.updateCampus(updatedCampus);
@@ -146,16 +167,68 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   _buildFieldLabel("Naam"),
                   TextFormField(
                     controller: _nameController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
                   ),
                   const SizedBox(height: 16),
-                  
+
                   _buildFieldLabel("Tipe / Kode"),
                   TextFormField(
                     controller: _typeController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
                     validator: (v) => v!.isEmpty ? "Vereis" : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Ligging op Kaart"),
+                  InkWell(
+                    onTap: () async {
+                      final LatLng? result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SelectLocationPage(initialLocation: _selectedLocation),
+                        ),
+                      );
+                      if (result != null) {
+                        setState(() => _selectedLocation = result);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on, color: AppColors.gold),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}",
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                          ),
+                          const Text("VERANDER", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Toegelate Radius (meter)"),
+                  TextFormField(
+                    controller: _radiusController,
+                    style: const TextStyle(fontSize: 14),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: _inputDecoration(),
+                    validator: (v) {
+                      final val = double.tryParse(v ?? "");
+                      return (v == null || v.isEmpty || val == null || val <= 0) ? "Geldige radius word vereis" : null;
+                    },
                   ),
                   const SizedBox(height: 16),
 
@@ -170,6 +243,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                             _buildFieldLabel("Nr"),
                             TextFormField(
                               controller: _streetNumController,
+                              style: const TextStyle(fontSize: 14),
                               decoration: _inputDecoration(),
                               validator: (v) => v!.isEmpty ? "Vereis" : null,
                             ),
@@ -185,6 +259,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                             _buildFieldLabel("Straatnaam"),
                             TextFormField(
                               controller: _streetNameController,
+                              style: const TextStyle(fontSize: 14),
                               decoration: _inputDecoration(),
                               validator: (v) => v!.isEmpty ? "Vereis" : null,
                             ),
@@ -195,12 +270,35 @@ class _EditCampusPageState extends State<EditCampusPage> {
                   ),
                   const SizedBox(height: 16),
 
-                  _buildFieldLabel("Poskode ID"),
+                  _buildFieldLabel("Suburb"),
                   TextFormField(
-                    controller: _zipIdController,
+                    controller: _suburbController,
+                    style: const TextStyle(fontSize: 14),
                     decoration: _inputDecoration(),
-                    keyboardType: TextInputType.number,
-                    validator: (v) => v!.isEmpty ? "Vereis" : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Stad"),
+                  TextFormField(
+                    controller: _cityController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Provinsie"),
+                  TextFormField(
+                    controller: _provinceController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildFieldLabel("Land"),
+                  TextFormField(
+                    controller: _countryController,
+                    style: const TextStyle(fontSize: 14),
+                    decoration: _inputDecoration(),
                   ),
                   const SizedBox(height: 32),
                   
@@ -218,7 +316,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                           backgroundColor: AppColors.gold,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           elevation: 0,
                         ),
                         child: _isSaving

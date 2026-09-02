@@ -1,0 +1,148 @@
+.dx-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 0.9rem;
+}
+
+.dx-tab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 0.5rem 1.1rem;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  margin-bottom: -2px;
+}
+
+.dx-tab:hover {
+  color: #111827;
+}
+
+.dx-tab.dx-active {
+  color: #111827;
+  border-bottom-color: #28a745;
+}
+
+.dx-export {
+  display: flex;
+  flex-direction: column;
+}
+
+.dx-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  margin-bottom: 0.6rem;
+}
+
+.dx-card.dx-checked {
+  border-color: #a7f3d0;
+  background: #f0fdf4;
+}
+
+.dx-tablehead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.dx-count {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.dx-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.15rem 1rem;
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.dx-colactions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.9rem;
+}
+
+.dx-colactions .iw-linkbtn {
+  margin-left: 0;
+}
+
+.dx-col {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 13px;
+  padding: 0.12rem 0;
+}
+
+.dx-options {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dx-option-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dx-option-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.dx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dx-pill input {
+  accent-color: #28a745;
+}
+
+.dx-pill.dx-selected {
+  border-color: #28a745;
+  background: #f0fdf4;
+  font-weight: 600;
+}
+
+.dx-pill input:disabled {
+  opacity: 0.4;
+}
+
+.dx-template-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dx-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.85rem;
+}

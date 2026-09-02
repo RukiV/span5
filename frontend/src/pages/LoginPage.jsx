@@ -141,7 +141,6 @@ function LoginPage() {
               required
               disabled={loading}
             />
-            <a href="/forgot-password" className="forgot-password-link">Vergeet wagwoord?</a>
           </div>
           <button type="submit" className="btn-login" disabled={loading}>
             {loading ? 'Besig...' : 'Teken In'}

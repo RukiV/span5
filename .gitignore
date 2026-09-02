@@ -1,5 +1,11 @@
 .env
 .env.local
+.env.production
+.env.development
+.env.staging
+firebase-service-account.json
+frontend/build/
+frontendMobile/keystore.properties
 node_modules/
 __pycache__/
 *.pyc
@@ -17,3 +23,25 @@ htmlcov/
 **/__pycache__/
 webblad/
 frontendMobile/skills/
+backend/uploads/
+backend/firebase-service-account.json
+backend/data/
+AGENTS.md
+AI_PLAN.md
+.agents/
+.agents
+skills-lock.json
+.opencode/
+
+# Large local ML model files (kept off the remote on purpose)
+*.gguf
+*.bin
+
+# Local-only documentation (kept off the remote on purpose)
+DOCKER_101.md
+GIT_101.md
+MICROSOFT_LOGIN_SETUP.md
+WIRELESS_SETUP.md
+fix-rbac-prompt.md
+.pytest_cache
+demo.md

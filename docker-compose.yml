@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: facility_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_STRONG_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -19,9 +19,15 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    # Resolve host.docker.internal so OLLAMA_URL can reach the host's Ollama.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:password@postgres:5432/facility_db
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD:-CHANGE_ME_STRONG_PASSWORD}@postgres:5432/facility_db?sslmode=prefer
       MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-your_client_id_here}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,18 +39,20 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    profiles: ["web"]
     ports:
-      - "3000:80"
+      - "443:443"
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
     environment:
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
-      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=https://localhost
       - REACT_APP_MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-your_client_id_here}
       - REACT_APP_MICROSOFT_TENANT_ID=common
-      - REACT_APP_REDIRECT_URI=http://localhost:3000/auth/callback
+      - REACT_APP_REDIRECT_URI=https://localhost/auth/callback
     stdin_open: true
     tty: true
     depends_on:

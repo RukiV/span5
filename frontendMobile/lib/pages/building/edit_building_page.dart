@@ -23,6 +23,7 @@ class _EditBuildingPageState extends State<EditBuildingPage> {
     {'value': 'onderwys', 'label': 'Onderwys'},
     {'value': 'laboratory', 'label': 'Laboratorium'},
     {'value': 'warehouse', 'label': 'Pakhuis'},
+    {'value': 'kafeteria', 'label': 'Kafeteria'},
     {'value': 'other', 'label': 'Ander'},
   ];
 

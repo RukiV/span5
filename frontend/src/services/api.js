@@ -63,6 +63,15 @@ apiClient.interceptors.response.use(
   }
 );
 
+// ===== BATE TIPES-API =====
+export const assettypesAPI = {
+  getAll: () => apiClient.get('/assettypes'),
+  getById: (id) => apiClient.get(`/assettypes/${id}`),
+  create: (data) => apiClient.post('/assettypes', data),
+  update: (id, data) => apiClient.patch(`/assettypes/${id}`, data),
+  delete: (id) => apiClient.delete(`/assettypes/${id}`),
+};
+
 // ===== BATES-API =====
 export const assetsAPI = {
   getAll: () => apiClient.get('/assets'),
@@ -114,7 +123,6 @@ export const locationAPI = {
 export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
-  upload: (formData) => apiClient.post('/image/', formData),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
   create: (data) => {
     // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
@@ -134,7 +142,7 @@ export const workOrdersAPI = {
   getRecent: (limit = 5) => apiClient.get('/job/recent', { params: { limit } }),
   getById: (id) => apiClient.get(`/job/${id}`),
   getScheduled: () => apiClient.get('/job/scheduled/upcoming'),
-  create: (data) => apiClient.post('/job', data),
+  create: (data, config) => apiClient.post('/job', data, config),
   update: (id, data) => apiClient.patch(`/job/${id}`, data),
   delete: (id) => apiClient.delete(`/job/${id}`),
 };
@@ -171,14 +179,27 @@ export const usersAPI = {
   create: (data) => apiClient.post('/users', data),
   update: (id, data) => apiClient.patch(`/users/${id}`, data),
   delete: (id) => apiClient.delete(`/users/${id}`),
+  getAssignable: () => apiClient.get('/users/assignable'),
 };
 
-export const contractorsAPI = {
-  getAll: () => apiClient.get('/contractors'),
-  getById: (id) => apiClient.get(`/contractors/${id}`),
-  create: (data) => apiClient.post('/contractors', data),
-  update: (id, data) => apiClient.patch(`/contractors/${id}`, data),
-  delete: (id) => apiClient.delete(`/contractors/${id}`),
+// ===== ROLLE-API (admin: bestuur rolle en hul regte) =====
+export const rolesAPI = {
+  getAll: () => apiClient.get('/roles'),
+  getById: (id) => apiClient.get(`/roles/${id}`),
+  create: (data) => apiClient.post('/roles', data),
+  update: (id, data) => apiClient.patch(`/roles/${id}`, data),
+  delete: (id) => apiClient.delete(`/roles/${id}`),
+  getRights: (id) => apiClient.get(`/roles/${id}/rights`),
+  setRights: (id, rightIds) => apiClient.put(`/roles/${id}/rights`, { right_ids: rightIds }),
+};
+
+// ===== REGTE-API (admin: bestuur regte-katalogus) =====
+export const rightsAPI = {
+  getAll: () => apiClient.get('/rights'),
+  getById: (id) => apiClient.get(`/rights/${id}`),
+  create: (data) => apiClient.post('/rights', data),
+  update: (id, data) => apiClient.patch(`/rights/${id}`, data),
+  delete: (id) => apiClient.delete(`/rights/${id}`),
 };
 
 export const quotesAPI = {
@@ -189,14 +210,19 @@ export const quotesAPI = {
   delete: (id) => apiClient.delete(`/quotes/${id}`),
 };
 
+// ===== VOORSPELLINGS-API =====
+export const predictionsAPI = {
+  getAll: () => apiClient.get('/predictions'),
+  getByAsset: (id) => apiClient.get(`/predictions/${id}`),
+};
+
+// Die audit-log is doelbewus LEES-ALLEEN aan die agterkant: audit-rye word net
+// intern geskep as 'n newe-effek van werklike data-veranderinge. Die vorige
+// create/update/delete client-metodes is verwyder saam met hul roetes.
 export const auditsAPI = {
   getAllUnsorted: () => apiClient.get('/audit'),
   getAll: () => apiClient.get('/audit'),
   getById: (id) => apiClient.get(`/audit/${id}`),
-  create: (data) => apiClient.post('/audit', data),
-  update: (id, data) => apiClient.patch(`/audit/${id}`, data),
-  delete: (id) => apiClient.delete(`/audit/${id}`),
-
   getRoomChangesForAsset: (asset_id) => apiClient.get(`/audit/asset/${asset_id}`),
 };
 
@@ -217,18 +243,92 @@ export const auditsAPI = {
  * - delete: Verwyder beeld en sy grepe
  */
 export const imageAPI = {
-  upload: (formData) => apiClient.post('/image/', formData, {
+  upload: (formData, params = {}) => apiClient.post('/image/', formData, {
+    params,
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  uploadForParent: (parentId, parentType, formData) => apiClient.post('/image/', formData, {
+    params: { parent_id: parentId, parent_type: parentType },
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   getAll: (skip = 0, limit = 100) => apiClient.get('/image/', { params: { skip, limit } }),
   getById: (id) => apiClient.get(`/image/${id}`),
+  getByParent: (parentType, parentId) => apiClient.get(`/image/parent/${parentType}/${parentId}`),
   getFileUrl: (id) => `${apiClient.defaults.baseURL}/image/${id}/file`,
   update: (id, data) => apiClient.patch(`/image/${id}`, data),
   delete: (id) => apiClient.delete(`/image/${id}`),
 };
 
+// ===== KWOTASIE DOKUMENTE-API (PDF) =====
+export const documentsAPI = {
+  getByQuote: (quoteId) => apiClient.get(`/quotes/${quoteId}/documents`),
+  create: (quoteId, formData) => apiClient.post(`/quotes/${quoteId}/documents`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getFileUrl: (documentId) => `${apiClient.defaults.baseURL}/documents/${documentId}/file`,
+  delete: (documentId) => apiClient.delete(`/documents/${documentId}`),
+};
+
+// ===== AI JOBDRAFTS-API =====
+export const jobDraftsAPI = {
+  create: (data) => apiClient.post('/ai', data),
+  getAll: (params) => apiClient.get('/ai', { params }),
+  getById: (id) => apiClient.get(`/ai/${id}`),
+  approve: (id, data) => apiClient.post(`/ai/${id}/approve`, data),
+  reject: (id, data) => apiClient.post(`/ai/${id}/reject`, data),
+};
+
+// ===== DATA-INVOER-API (CSV/XLSX) =====
+export const importAPI = {
+  schema: () => apiClient.get('/import/schema'),
+  preview: (file, hints) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (hints && Object.keys(hints).length > 0) {
+      formData.append('hints', JSON.stringify(hints));
+    }
+    return apiClient.post('/import/preview', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+  },
+  commit: (payload) => apiClient.post('/import/commit', payload, { timeout: 120000 }),
+  exportData: (payload) =>
+    apiClient.post('/import/export', payload, { responseType: 'blob', timeout: 120000 }),
+};
+
+
+// ===== AI VELDVOORSTELLE-API =====
+export const suggestAPI = {
+  suggest: (context, fields, config) => apiClient.post('/ai/suggest', { context, fields }, config),
+};
+
+// ===== LOKAAL KONTROLE-API =====
+export const roomChecksAPI = {
+  getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
+  getById: (id) => apiClient.get(`/room-checks/${id}`),
+  create: (data) => apiClient.post('/room-checks', data),
+  sessions: {
+    getAll: (params) => apiClient.get('/room-checks/sessions', { params }),
+    create: (data) => apiClient.post('/room-checks/sessions', data),
+    update: (id, data) => apiClient.patch(`/room-checks/sessions/${id}`, data),
+    delete: (id) => apiClient.delete(`/room-checks/sessions/${id}`),
+    complete: (id) => apiClient.post(`/room-checks/sessions/${id}/complete`),
+  },
+};
+
+// ===== KALENDER EVENTS-API =====
+export const calendarEventsAPI = {
+  getRange: (start, end) => apiClient.get('/calendar/events', { params: { start, end } }),
+  getById: (id) => apiClient.get(`/calendar/events/${id}`),
+  create: (data) => apiClient.post('/calendar/events', data),
+  update: (id, data) => apiClient.patch(`/calendar/events/${id}`, data),
+  delete: (id) => apiClient.delete(`/calendar/events/${id}`),
+};
+
 // Attach all API collections to apiClient
 apiClient.assets = assetsAPI;
+apiClient.assettypes = assettypesAPI;
 apiClient.stock = stockAPI;
 apiClient.rooms = roomsAPI;
 apiClient.buildings = buildingsAPI;
@@ -237,9 +337,17 @@ apiClient.tickets = ticketsAPI;
 apiClient.workOrders = workOrdersAPI;
 apiClient.auth = authAPI;
 apiClient.users = usersAPI;
-apiClient.contractors = contractorsAPI;
+apiClient.roles = rolesAPI;
+apiClient.rights = rightsAPI;
 apiClient.quotes = quotesAPI;
+apiClient.predictions = predictionsAPI;
 apiClient.image = imageAPI;
+apiClient.documents = documentsAPI;
+apiClient.calendarEvents = calendarEventsAPI;
+apiClient.roomChecks = roomChecksAPI;
+apiClient.jobDrafts = jobDraftsAPI;
+apiClient.suggest = suggestAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };
+export default apiClient;

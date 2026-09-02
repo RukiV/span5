@@ -1,13 +1,17 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
+import '../../core/api_client.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
 import '../../models/report.dart';
-import '../../models/campus.dart';
+import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_cascade_picker.dart';
+import 'location_page.dart';
 
 class EditReportPage extends StatefulWidget {
   final Report report;
@@ -28,10 +32,17 @@ class _EditReportPageState extends State<EditReportPage> {
   String? _selectedCampus;
   String? _selectedBuilding;
   String? _selectedLocation;
-  File? _photoFile;
   bool _isLoading = false;
 
-  final List<String> _categories = ["Instandhouding", "Herstelwerk", "Opgradering", "Ander"];
+  static const int _maxPhotos = 3;
+  List<int> _existingImageIds = [];
+  final Set<int> _removedImageIds = {};
+  final List<File> _newPhotos = [];
+  bool _imagesLoading = true;
+
+  LatLng? _mapPoint;
+
+  final List<String> _categories = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
   final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
 
@@ -40,48 +51,149 @@ class _EditReportPageState extends State<EditReportPage> {
     super.initState();
     _titleController = TextEditingController(text: widget.report.title);
     _descriptionController = TextEditingController(text: widget.report.description);
-    _category = _categories.contains(widget.report.category) ? widget.report.category : "Ander";
+    _category = _categories.contains(widget.report.category) ? widget.report.category : "Onderhoud";
     _priority = widget.report.priority;
     _status = widget.report.phase;
     _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
     _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
+    _selectedLocation = widget.report.location;
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    CampusService.campusesNotifier.addListener(_onCampusesChanged);
+    _loadImages();
+    _loadMapPoint();
+  }
+
+  // Haal die bestaande kaartligging vir die kaartjie op.
+  Future<void> _loadMapPoint() async {
+    if (widget.report.latitude != null && widget.report.longitude != null) {
+      if (mounted) {
+        setState(() => _mapPoint = LatLng(widget.report.latitude!, widget.report.longitude!));
+      }
+      return;
+    }
+    final mappointId = widget.report.mappointId;
+    if (mappointId == null) return;
+    try {
+      final response = await ApiClient().client.get('/mappoint/$mappointId');
+      if (response.statusCode == 200) {
+        final lat = (response.data['latitude'] as num?)?.toDouble();
+        final lng = (response.data['longitude'] as num?)?.toDouble();
+        if (mounted && lat != null && lng != null) {
+          setState(() => _mapPoint = LatLng(lat, lng));
+        }
+      }
+    } catch (e) {
+      debugPrint("Kon nie kaartligging laai nie: $e");
+    }
+  }
+
+  Future<void> _pickMapLocation() async {
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPage(
+          initialLocation: _mapPoint ?? const LatLng(-25.8480, 28.2366),
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    final coords = result['coords'] as String?;
+    if (coords == null) return;
+    final parts = coords.split(',');
+    if (parts.length != 2) return;
+    final lat = double.tryParse(parts[0].trim());
+    final lng = double.tryParse(parts[1].trim());
+    if (lat == null || lng == null) return;
+    setState(() => _mapPoint = LatLng(lat, lng));
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     super.dispose();
   }
 
-  List<String> get _filteredBuildings {
-    if (_selectedCampus == null) return [];
-    final campus = CampusService.getCampusByName(_selectedCampus!);
-    if (campus == null) return [];
-    return campus.buildings.map((b) => b.name).toList();
+  /// Wanneer die kampusboom eers ná die eerste bou laai, moet die kieser se
+  /// beginligging steeds ingevul word. Moenie die gebruiker se eie keuse
+  /// oorskryf as hy reeds 'n nuwe ligging gekies het nie.
+  void _onCampusesChanged() {
+    if (!mounted) return;
+    final original = widget.report.location;
+    final userHasNotChanged = _selectedLocation == null || _selectedLocation == original;
+    setState(() {
+      if (userHasNotChanged) {
+        _selectedCampus = CampusService.getCampusNameByRoomId(original);
+        _selectedBuilding = CampusService.getBuildingNameByRoomId(original);
+        _selectedLocation = original;
+      }
+    });
   }
 
-  List<String> get _filteredRooms {
-    if (_selectedBuilding == null) return [];
-    final campus = CampusService.getCampusByName(_selectedCampus ?? '');
-    if (campus == null) return [];
-    final building = campus.buildings.where((b) => b.name == _selectedBuilding).firstOrNull;
-    if (building == null) return [];
-    return (building.rooms ?? []).map((r) => '${r.id}:${r.name}').toList();
+  Future<void> _loadImages() async {
+    final faultId = int.tryParse(widget.report.id);
+    if (faultId == null) {
+      if (mounted) setState(() => _imagesLoading = false);
+      return;
+    }
+    final ids = await ImageService.getImagesForParent('ticket', faultId);
+    if (mounted) {
+      setState(() {
+        _existingImageIds = ids;
+        _imagesLoading = false;
+      });
+    }
+  }
+
+  /// Die verslag se `location` is 'n lokaal-ID; ons soek die pad daarheen op
+  /// sodat die kieser met die bestaande ligging oopmaak.
+  int? get _initialRoomId => int.tryParse(widget.report.location);
+
+  int? get _initialBuildingId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return b.id;
+      }
+    }
+    return null;
+  }
+
+  int? get _initialCampusId {
+    final roomId = _initialRoomId;
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((r) => r.id == roomId)) return c.id;
+      }
+    }
+    return null;
+  }
+
+  /// Vertaal die kieser se ID's na die string-vorm wat [_saveChanges] verwag.
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room =
+        (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
+
+    setState(() {
+      _selectedCampus = campus?.name;
+      _selectedBuilding = building?.name;
+      _selectedLocation = room == null ? null : '${room.id}:${room.name}';
+    });
   }
 
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
-
-    int? imageId = widget.report.imageId;
-    if (_photoFile != null) {
-      imageId = await ImageService.uploadImage(_photoFile!);
-    }
 
     String roomId = _selectedLocation ?? widget.report.location;
     if (roomId.contains(":")) {
@@ -108,12 +220,25 @@ class _EditReportPageState extends State<EditReportPage> {
       priority: _priority,
       phase: _status,
       location: roomId,
-      imageId: imageId,
       locationId: resolvedLocationId,
       buildingId: resolvedBuildingId,
+      latitude: _mapPoint?.latitude,
+      longitude: _mapPoint?.longitude,
     );
 
     final success = await ReportService.updateReport(updatedReport);
+
+    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket'):
+    // verwyder gemerkte fotos, laai dan nuwes op teen die bestaande kaartjie.
+    final faultId = int.tryParse(widget.report.id);
+    for (final id in _removedImageIds) {
+      await ImageService.deleteImage(id);
+    }
+    if (faultId != null) {
+      for (final photo in _newPhotos) {
+        await ImageService.uploadImage(photo, parentId: faultId, parentType: 'ticket');
+      }
+    }
 
     if (mounted) {
       setState(() => _isLoading = false);
@@ -128,6 +253,47 @@ class _EditReportPageState extends State<EditReportPage> {
         );
       }
     }
+  }
+
+  Widget _buildBreadcrumbs() {
+    final campus = _selectedCampus ?? "Onbekende Kampus";
+    final building = _selectedBuilding ?? "Onbekende Gebou";
+    String room = "Onbekende Lokaal";
+
+    if (_selectedLocation != null) {
+      if (_selectedLocation!.contains(':')) {
+        room = _selectedLocation!.split(':').last;
+      } else {
+        room = CampusService.getRoomName(_selectedLocation!);
+      }
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.navy.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              "$campus > $building > $room",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -147,11 +313,12 @@ class _EditReportPageState extends State<EditReportPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildBreadcrumbs(),
                     _buildTextField("Titel", _titleController),
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Expanded(child: _buildDropdown("Kategorie", _category, _categories, (val) => setState(() => _category = val!))),
+                        Expanded(child: _buildDropdown("Werksoort", _category, _categories, (val) => setState(() => _category = val!))),
                         const SizedBox(width: 12),
                         Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities, (val) => setState(() => _priority = val!))),
                       ],
@@ -159,47 +326,15 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     _buildDropdown("Status", _status, _statuses, (val) => setState(() => _status = val!)),
                     const SizedBox(height: 20),
-                    ValueListenableBuilder<List<Campus>>(
-                      valueListenable: CampusService.campusesNotifier,
-                      builder: (context, campuses, _) {
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: SearchableDropdown<String>(
-                                label: "Kampus",
-                                hint: "Kies Kampus",
-                                value: _selectedCampus,
-                                items: campuses
-                                    .map((c) => SearchableDropdownItem(value: c.name, label: c.name))
-                                    .toList(),
-                                onChanged: (v) => setState(() {
-                                  _selectedCampus = v;
-                                  _selectedBuilding = null;
-                                  _selectedLocation = null;
-                                }),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: SearchableDropdown<String>(
-                                label: "Gebou",
-                                hint: "Kies Gebou",
-                                value: _selectedBuilding,
-                                items: _filteredBuildings
-                                    .map((b) => SearchableDropdownItem(value: b, label: b))
-                                    .toList(),
-                                onChanged: (v) => setState(() {
-                                  _selectedBuilding = v;
-                                  _selectedLocation = null;
-                                }),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
+                    LocationCascadePicker(
+                      label: "Ligging *",
+                      initialCampusId: _initialCampusId,
+                      initialBuildingId: _initialBuildingId,
+                      initialRoomId: _initialRoomId,
+                      onChanged: _onLocationChanged,
                     ),
                     const SizedBox(height: 20),
-                    _buildRoomDropdown(),
+                    _buildMapSection(),
                     const SizedBox(height: 20),
                     _buildTextField("Beskrywing", _descriptionController, maxLines: 5),
                     const SizedBox(height: 16),
@@ -211,7 +346,7 @@ class _EditReportPageState extends State<EditReportPage> {
                       child: ElevatedButton(
                         onPressed: _saveChanges,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.terracotta,
+                          backgroundColor: AppColors.gold,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         child: const Text("OPDATEER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -223,58 +358,142 @@ class _EditReportPageState extends State<EditReportPage> {
             ),
     );
   }
-
-  Widget _buildRoomDropdown() {
-    return SearchableDropdown<String>(
-      label: "Lokaal",
-      hint: "Kies Lokaal",
-      value: _selectedLocation ?? widget.report.location,
-      items: _filteredRooms.map((r) {
-        final name = r.contains(":") ? r.split(":").last : r;
-        return SearchableDropdownItem(value: r, label: name);
-      }).toList(),
-      onChanged: (v) => setState(() => _selectedLocation = v),
-    );
-  }
-
-  Widget _buildPhotoSection() {
+  Widget _buildMapSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Foto", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+        const Text("Kaartligging (Opsioneel)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            InkWell(
-              onTap: () async {
-                final photo = await CameraService.takePhoto();
-                if (photo != null) {
-                  setState(() => _photoFile = photo);
-                }
-              },
-              child: Container(
-                height: 80, width: 80,
-                decoration: BoxDecoration(
-                  color: _photoFile != null ? AppColors.gold.withValues(alpha: 0.1) : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _photoFile != null ? AppColors.gold : Colors.grey[300]!),
-                ),
-                child: _photoFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(7),
-                        child: Image.file(_photoFile!, fit: BoxFit.cover),
-                      )
-                    : const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+        if (_mapPoint == null)
+          InkWell(
+            onTap: _pickMapLocation,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.map_outlined, color: AppColors.gold),
+                  SizedBox(width: 10),
+                  Expanded(child: Text("Kies 'n presiese ligging op die kaart", style: TextStyle(fontSize: 14))),
+                  Text("KIES OP KAART", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                ],
               ),
             ),
-            if (_photoFile != null) ...[
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: () => setState(() => _photoFile = null),
-                child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
-              ),
+          )
+        else
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.successGreen.withValues(alpha: 0.08),
+              border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.4)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on, color: AppColors.successGreen),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "${_mapPoint!.latitude.toStringAsFixed(6)}, ${_mapPoint!.longitude.toStringAsFixed(6)}",
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.navy),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_location_alt, size: 18, color: AppColors.gold),
+                  tooltip: "Verander kaartligging",
+                  onPressed: _pickMapLocation,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18, color: AppColors.errorRed),
+                  tooltip: "Verwyder kaartligging",
+                  onPressed: () => setState(() => _mapPoint = null),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+//checkmark for room asset scanning and barcode scanning
+  Widget _buildPhotoSection() {
+    final baseUrl = ApiClient().client.options.baseUrl;
+    final visibleExisting = _existingImageIds.where((id) => !_removedImageIds.contains(id)).toList();
+    final total = visibleExisting.length + _newPhotos.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Foto's (maks $_maxPhotos)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+        const SizedBox(height: 8),
+        if (_imagesLoading)
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final id in visibleExisting)
+                _photoThumb(
+                  child: Image.network(
+                    '$baseUrl/image/$id/file',
+                    height: 80, width: 80, fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => Container(
+                      height: 80, width: 80, color: Colors.grey[200],
+                      child: const Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  ),
+                  onRemove: () => setState(() => _removedImageIds.add(id)),
+                ),
+              for (int i = 0; i < _newPhotos.length; i++)
+                _photoThumb(
+                  child: Image.file(_newPhotos[i], height: 80, width: 80, fit: BoxFit.cover),
+                  onRemove: () => setState(() => _newPhotos.removeAt(i)),
+                ),
+              if (total < _maxPhotos)
+                InkWell(
+                  onTap: () async {
+                    final photo = await CameraService.takePhoto();
+                    if (photo != null) {
+                      setState(() => _newPhotos.add(photo));
+                    }
+                  },
+                  child: Container(
+                    height: 80, width: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+                  ),
+                ),
             ],
-          ],
+          ),
+      ],
+    );
+  }
+
+  Widget _photoThumb({required Widget child, required VoidCallback onRemove}) {
+    return Stack(
+      children: [
+        ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
+        Positioned(
+          right: 0, top: 0,
+          child: InkWell(
+            onTap: onRemove,
+            child: Container(
+              decoration: const BoxDecoration(color: AppColors.errorRed, shape: BoxShape.circle),
+              child: const Icon(Icons.close, color: Colors.white, size: 18),
+            ),
+          ),
         ),
       ],
     );
@@ -284,18 +503,36 @@ class _EditReportPageState extends State<EditReportPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
-        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+        const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           maxLines: maxLines,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          ),
+          style: const TextStyle(fontSize: 14),
+          decoration: _inputDecoration(),
           validator: (value) => value == null || value.isEmpty ? "Verpligtend" : null,
         ),
       ],
+    );
+  }
+
+  InputDecoration _inputDecoration() {
+    return InputDecoration(
+      filled: true,
+      fillColor: Colors.grey[50],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 

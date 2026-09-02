@@ -1,27 +1,62 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
+import { IoTrashOutline } from "react-icons/io5";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
+import { useToast } from '../components/Toast/useToast';
+import useColumnSort from "../hooks/useColumnSort";
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Ticket.css";
-import { useLogout } from './Page.jsx';
-import Sidebar from '../components/Sidebar';
-import UserProfileHeader from '../components/UserProfileHeader';
+import { buildFlatLocationOptions } from './locationSearchUtils';
+import useColumnVisibility from "../hooks/useColumnVisibility";
+import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import useColumnWidths from "../hooks/useColumnWidths";
+import ResizableTh from "../components/ResizableTh";
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
+import ImportExportModal from "../components/DataTransfer/ImportExportModal";
+import useCascadeMenu from "../hooks/useCascadeMenu";
+import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+
 
 function TicketPage() {
-  // Haal admin-status vir beheer-opsies
-  const { isAdmin } = useCurrentUser();
-  const logout = useLogout();
+  const { showToast } = useToast();
+  const { confirm, dialog } = useConfirmDialog();
+  const { user, hasRight } = useCurrentUser();
   const navigate = useNavigate();
+  const MAX_TICKET_IMAGES = 3;
+  const [showImportWizard, setShowImportWizard] = useState(false);
   
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const [sortBy, setSortBy] = useState("default");
-  const [sortDirection, setSortDirection] = useState("asc");
+  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const TICKET_COLUMNS = [
+    { key: 'id', label: 'ID', render: (t) => t.fault_id, sortKey: 'id', defaultVisible: true },
+    { key: 'title', label: 'Titel', render: (t) => extractTitle(t.fault_description), sortKey: 'title', defaultVisible: true },
+    { key: 'category', label: 'Kategorie', render: (t) => t.fault_type || '-', sortKey: 'category', defaultVisible: true },
+    { key: 'priority', label: 'Prioriteit', render: (t) => t.fault_priority || '-', sortKey: 'priority', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (t) => translateStatus(t.fault_status), sortKey: 'status', defaultVisible: true },
+    { key: 'asset_id', label: 'Bate ID', render: (t) => t.asset_id || '-', sortKey: 'asset_id', defaultVisible: false },
+    { key: 'room_id', label: 'Lokaal ID', render: (t) => t.room_id || '-', sortKey: 'room_id', defaultVisible: false },
+    { key: 'building_id', label: 'Gebou ID', render: (t) => t.building_id || '-', sortKey: 'building_id', defaultVisible: false },
+    { key: 'location_id', label: 'Terrein ID', render: (t) => t.location_id || '-', sortKey: 'location_id', defaultVisible: false },
+    { key: 'reported', label: 'Datum', render: (t) => t.fault_reportdatetime ? new Date(t.fault_reportdatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'reported', defaultVisible: false },
+    { key: 'updated', label: 'Opgedateer', render: (t) => t.fault_updatedatetime ? new Date(t.fault_updatedatetime).toLocaleDateString('af-ZA') : '-', sortKey: 'updated', defaultVisible: false },
+  ];
+  const colVis = useColumnVisibility('ticket-page', TICKET_COLUMNS);
+  const colWidths = useColumnWidths('ticket-page', TICKET_COLUMNS);
+  const colPickerRef = useRef(null);
+  const [terrainFilter, setTerrainFilter] = useState("");
+  const [buildingFilter, setBuildingFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
+  const filterCascade = useCascadeMenu();
+  const modalCascadeMenu = useCascadeMenu();
   
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
@@ -33,6 +68,13 @@ function TicketPage() {
   const [assets, setAssets] = useState([]);
   const [selectedImageFiles, setSelectedImageFiles] = useState([]);
   const [selectedImagePreviewUrls, setSelectedImagePreviewUrls] = useState([]);
+  const [ticketImages, setTicketImages] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [activeImageViewer, setActiveImageViewer] = useState(null);
+  const [cascadeToast, setCascadeToast] = useState(null);
+  const [invalidFields, setInvalidFields] = useState({});
+  const fieldRefs = useRef({});
+  const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   
   // Vorm-data vir foutkaartjie
   const [newTicket, setNewTicket] = useState({
@@ -45,15 +87,35 @@ function TicketPage() {
     building_id: "",
     room_id: "",
     asset_id: "",
-    image_id: "",
-    image_id_2: "",
-    image_id_3: "",
   });
+
+  // AI-veldvoorstelle: kategorie/prioriteit uit titel+beskrywing (reëls).
+  // Die vorm se vertoonwaardes is Afrikaans — map die enjin se EN-enum hier.
+  const FAULT_TYPE_EN_AF = { REPAIR: 'Herstel', MAINTENANCE: 'Onderhoud', INSPECTION: 'Inspeksie', INSTALLATION: 'Installasie' };
+  const FAULT_PRIO_EN_AF = { LOW: 'Laag', MEDIUM: 'Medium', HIGH: 'Hoog' };
+  const aiSuggestions = useAiSuggestions({
+    context: 'fault',
+    values: {
+      title: newTicket.title,
+      description: newTicket.description,
+      fault_type: newTicket.category,
+      fault_priority: newTicket.priority,
+    },
+  });
+  const { suggestions: faultSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
 
   // Haal foutkaartjies wanneer blad laai
   useEffect(() => {
     Promise.all([fetchTickets(), fetchTerrains(), fetchBuildings(), fetchRooms(), fetchAssets()]);
   }, []);
+
+  useEffect(() => {
+    if (user?.role_id === 2 && user?.location_id) {
+      setTerrainFilter(String(user.location_id));
+    } else {
+      setTerrainFilter("");
+    }
+  }, [user]);
 
   // Haal alle foutkaartjies van backend
   const fetchTickets = async () => {
@@ -64,7 +126,7 @@ function TicketPage() {
       setTickets(response.data || []);
     } catch (error) {
       console.error("Error fetching tickets:", error);
-      alert("Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message));
+      showToast({ type: 'error', title: 'Fout', message: "Fout by laai van foutkaartjies: " + (error.response?.data?.detail || error.message) });
     } finally {
       setLoading(false);
     }
@@ -103,6 +165,21 @@ function TicketPage() {
       setAssets(response.data || []);
     } catch (error) {
       console.error("Fout by laai bates:", error);
+    }
+  };
+
+  const fetchTicketImages = async (ticketId) => {
+    if (!ticketId) {
+      setTicketImages([]);
+      return;
+    }
+
+    try {
+      const response = await apiClient.image.getByParent("ticket", ticketId);
+      setTicketImages(response.data || []);
+    } catch (error) {
+      console.error("Fout by laai van beeld-metadata:", error);
+      setTicketImages([]);
     }
   };
 
@@ -151,9 +228,6 @@ function TicketPage() {
       building_id: detectedBuildingId ? String(detectedBuildingId) : "",
       room_id: detectedRoomId ? String(detectedRoomId) : "",
       asset_id: ticket.asset_id ? String(ticket.asset_id) : "",
-      image_id: ticket.image_id ? String(ticket.image_id) : "",
-      image_id_2: ticket.image_id_2 ? String(ticket.image_id_2) : "",
-      image_id_3: ticket.image_id_3 ? String(ticket.image_id_3) : "",
     }));
   };
 
@@ -163,25 +237,69 @@ function TicketPage() {
   };
 
   const handleImageFilesChange = (event) => {
-    const files = Array.from(event.target.files || []).slice(0, 3);
-    setSelectedImageFiles(files);
-    const previewUrls = files.map((file) => URL.createObjectURL(file));
-    setSelectedImagePreviewUrls(previewUrls);
+    const files = Array.from(event.target.files || []);
+    const remainingSlots = Math.max(0, MAX_TICKET_IMAGES - (selectedImageFiles.length + ticketImages.length));
+    const incomingFiles = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      showToast({ type: 'warning', title: 'Waarskuwing', message: `Jy kan maksimaal ${MAX_TICKET_IMAGES} beelde per foutkaartjie oplaai.` });
+    }
+
+    if (incomingFiles.length === 0) {
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrls = incomingFiles.map((file) => URL.createObjectURL(file));
+    setSelectedImageFiles((prev) => [...prev, ...incomingFiles]);
+    setSelectedImagePreviewUrls((prev) => [...prev, ...previewUrls]);
+    event.target.value = "";
+  };
+
+  const handleRemoveSelectedPreview = async (index) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
+
+    setSelectedImageFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    setSelectedImagePreviewUrls((prev) => {
+      const urlToRevoke = prev[index];
+      if (urlToRevoke) {
+        URL.revokeObjectURL(urlToRevoke);
+      }
+      return prev.filter((_, itemIndex) => itemIndex !== index);
+    });
+  };
+
+  const handleDeleteExistingImage = async (imageId) => {
+    const confirmed = await confirm({ message: "Is jy seker jy wil hierdie beeld verwyder?", variant: 'danger', confirmLabel: 'Verwyder', cancelLabel: 'Kanselleer' });
+    if (!confirmed) return;
+
+    setTicketImages((prev) => prev.filter((image) => image.image_id !== imageId));
+    setImagesToDelete((prev) => (prev.includes(imageId) ? prev : [...prev, imageId]));
   };
 
   useEffect(() => {
     return () => {
       selectedImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [selectedImagePreviewUrls]);
+  }, []);
 
   // Hanteer toevoeging van nuwe foutkaartjie of redigering van bestaande
   const handleAddTicket = async () => {
     try {
-      if (!newTicket.title && !newTicket.description) {
-        alert("Voer asseblief 'n titel of beskrywing vir die foutkaartjie in.");
+      const errors = {};
+      if (!newTicket.title?.trim()) errors.title = true;
+      if (!newTicket.category) errors.category = true;
+      if (!newTicket.location_id) errors.location_id = true;
+      if (!newTicket.description?.trim()) errors.description = true;
+      if (Object.keys(errors).length > 0) {
+        setInvalidFields(errors);
+        const firstKey = Object.keys(errors)[0];
+        fieldRefs.current[firstKey]?.scrollIntoView({ behavior: "smooth", block: "center" });
+        fieldRefs.current[firstKey]?.focus();
         return;
       }
+      setInvalidFields({});
 
       const payload = {
         fault_description: newTicket.title
@@ -191,43 +309,34 @@ function TicketPage() {
         fault_status: newTicket.status,
         fault_priority: newTicket.priority,
         room_id: newTicket.room_id ? Number(newTicket.room_id) : null,
-        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
+        asset_id: newTicket.asset_id ? Number(newTicket.asset_id) : null,
+        building_id: newTicket.building_id ? Number(newTicket.building_id) : null,
         location_id: newTicket.location_id ? Number(newTicket.location_id) : null,
       };
 
-      if (newTicket.image_id) {
-        payload.image_id = Number(newTicket.image_id);
-      }
-      if (newTicket.image_id_2) {
-        payload.image_id_2 = Number(newTicket.image_id_2);
-      }
-      if (newTicket.image_id_3) {
-        payload.image_id_3 = Number(newTicket.image_id_3);
-      }
-
-      if (selectedImageFiles.length > 0) {
-        const uploadedIds = [];
-        for (const file of selectedImageFiles.slice(0, 3)) {
-          const imageFormData = new FormData();
-          imageFormData.append('file', file);
-          const imageResponse = await apiClient.image.upload(imageFormData);
-          if (imageResponse?.data?.image_id) {
-            uploadedIds.push(imageResponse.data.image_id);
-          }
-        }
-        if (uploadedIds.length > 0) {
-          payload.image_id = uploadedIds[0] || payload.image_id;
-          payload.image_id_2 = uploadedIds[1] || payload.image_id_2;
-          payload.image_id_3 = uploadedIds[2] || payload.image_id_3;
-        }
-      }
+      let ticketId = editingId;
 
       if (isEditing) {
         await apiClient.tickets.update(editingId, payload);
-        alert("Foutkaartjie suksesvol opgedateer!");
+        showToast({ type: 'success', title: 'Sukses', message: "Foutkaartjie suksesvol opgedateer!" });
       } else {
-        await apiClient.tickets.create(payload);
-        alert("Foutkaartjie suksesvol geskep!");
+        const response = await apiClient.tickets.create(payload);
+        ticketId = response?.data?.fault_id ?? response?.data?.id ?? null;
+        showToast({ type: 'success', title: 'Sukses', message: "Foutkaartjie suksesvol geskep!" });
+      }
+
+      if (isEditing) {
+        for (const imageId of imagesToDelete) {
+          await apiClient.image.delete(imageId);
+        }
+      }
+
+      if (ticketId && selectedImageFiles.length > 0) {
+        for (const file of selectedImageFiles.slice(0, MAX_TICKET_IMAGES)) {
+          const imageFormData = new FormData();
+          imageFormData.append('file', file);
+          await apiClient.image.uploadForParent(ticketId, 'ticket', imageFormData);
+        }
       }
       handleCloseModal();
       fetchTickets();
@@ -237,7 +346,7 @@ function TicketPage() {
       const errorMsg = Array.isArray(errorDetail) 
         ? errorDetail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join('\n')
         : errorDetail || error.message;
-      alert("Fout by besparing van foutkaartjie:\n" + errorMsg);
+      showToast({ type: 'error', title: 'Fout', message: "Fout by besparing van foutkaartjie:\n" + errorMsg });
     }
   };
 
@@ -255,7 +364,10 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
+    setTicketImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
   };
 
   const handleNewTicket = () => {
@@ -263,21 +375,43 @@ function TicketPage() {
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
-    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "", image_id: "", image_id_2: "", image_id_3: "" });
+    setTicketImages([]);
+    setImagesToDelete([]);
+    setActiveImageViewer(null);
+    setNewTicket({ title: "", description: "", category: "", status: "Oop", priority: "Medium", location_id: "", building_id: "", room_id: "", asset_id: "" });
     setShowModal(true);
   };
 
   const handleDeleteTicket = async (ticketId) => {
-    if (!window.confirm("Is jy seker jy wil hierdie foutkaartjie verwyder?")) {
-      return;
-    }
+    const confirmed = await confirmCascade(confirm, { entityLabel: "foutkaartjie", childrenLabel: "werkopdragte" });
+    if (!confirmed) return;
     try {
       await apiClient.tickets.delete(ticketId);
       fetchTickets();
     } catch (error) {
       console.error("Error deleting ticket:", error);
-      alert("Fout tydens verwydering van foutkaartjie.");
+      showToast({ type: 'error', title: 'Fout', message: getDeleteErrorMessage(error, "Fout tydens verwydering van foutkaartjie.") });
     }
+  };
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const toggleAll = () => {
+    setSelectedIds(allSelected ? [] : filteredTickets.map((x) => x.fault_id));
+  };
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+  const handleDeleteSelected = () => {
+    batchDelete({
+      ids: selectedIds,
+      apiDelete: apiClient.tickets.delete,
+      confirm,
+      showToast,
+      entityLabel: "foutkaartjies",
+      childrenLabel: "werkopdragte",
+      refresh: fetchTickets,
+      errorFallback: "Fout tydens verwydering van foutkaartjie.",
+    }).then(() => setSelectedIds([]));
   };
 
   const handleCreateWorkOrder = (ticket) => {
@@ -307,6 +441,9 @@ function TicketPage() {
 
   const filteredTickets = [...tickets]
     .filter((ticket) => {
+      if (terrainFilter && String(ticket.location_id) !== String(terrainFilter)) return false;
+      if (buildingFilter && String(ticket.building_id) !== String(buildingFilter)) return false;
+      if (roomFilter && String(ticket.room_id) !== String(roomFilter)) return false;
       const query = searchTerm.trim().toLowerCase();
       const description = ticket.fault_description || "";
       if (!query) return true;
@@ -326,13 +463,16 @@ function TicketPage() {
         : String(values[filterColumn] || '').toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      if (sortBy === 'default') return 0;
-      const direction = sortDirection === 'asc' ? 1 : -1;
-      if (sortBy === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * direction;
-      if (sortBy === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * direction;
-      if (sortBy === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * direction;
+      if (!sortKey) return 0;
+      const dir = sortDirection === 'asc' ? 1 : -1;
+      if (sortKey === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
+      if (sortKey === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'priority') return String(a.fault_priority || '').localeCompare(String(b.fault_priority || ''), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'category') return String(a.fault_type || '').localeCompare(String(b.fault_type || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
+  const allSelected = filteredTickets.length > 0 && selectedIds.length === filteredTickets.length;
 
   const getStatusClass = (status) => {
     switch (String(status).toLowerCase()) {
@@ -353,123 +493,211 @@ function TicketPage() {
       if (currentTicket) {
         applyTicketLocationSelection(currentTicket);
       }
+      fetchTicketImages(editingId);
+    } else if (!showModal) {
+      setTicketImages([]);
     }
   }, [showModal, isEditing, editingId, tickets, assets, rooms, buildings, terrains]);
 
-  const terrainOptions = (terrains || []).map((terrain) => ({
-    value: String(terrain.location_id),
-    label: terrain.location_name || terrain.location_desc || `Terrein ${terrain.location_id}`,
-  }));
-
-  const buildingOptions = (buildings || [])
-    .filter((building) => !newTicket.location_id || String(building.location_id) === String(newTicket.location_id))
-    .map((building) => ({
-      value: String(building.building_id),
-      label: building.building_name || `Gebou ${building.building_id}`,
-    }));
-
-  const roomOptions = (rooms || [])
-    .filter((room) => !newTicket.building_id || String(room.building_id) === String(newTicket.building_id))
-    .map((room) => ({
-      value: String(room.room_id),
-      label: room.room_name || room.room_number || room.room_desc || `Lokaal ${room.room_id}`,
-    }));
-
-  const assetOptions = (assets || [])
-    .filter((asset) => !newTicket.room_id || String(asset.room_id) === String(newTicket.room_id))
-    .map((asset) => ({
-      value: String(asset.asset_id),
-      label: `${asset.asset_id} - ${asset.asset_name || "Bate"}`,
-    }));
-
   return (
-    <div style={{ display: "flex" }}>
-      <Sidebar currentPath="/fault-tickets" isAdmin={isAdmin} onLogout={logout} />
-
-      <div className="main">
-        <div className="navbar">
-          <h3>Foutkaartjies Bestuur</h3>
-          <UserProfileHeader />
-        </div>
-
-        <div className="content">
+    <div className="main">
+      <div className="content">
           <div className="controls">
             <div className="controls-left">
-              <input
-                type="text"
-                placeholder="Soek..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+              <div className="control-input-shell">
+                <input
+                  type="text"
+                  placeholder="Soek..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select
+                className="react-select-container"
+                classNamePrefix="react-select"
+                value={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
+                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
+                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
+                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
+                ].find((option) => option.value === filterColumn)}
+                onChange={(selected) => setFilterColumn(selected?.value || "all")}
+                options={[
+                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
+                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
+                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
+                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
+                ]}
+                isSearchable={false}
               />
-              <select value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)}>
-                <option value="all">Alle kolomme</option>
-                <option value="id">ID</option>
-                <option value="title">Titel</option><option value="asset_id">Bate ID</option>
-                <option value="room_id">Lokaal ID</option>
-                <option value="building_id">Gebou ID</option>
-                <option value="location_id">Terrein ID</option>
-                <option value="category">Kategorie</option>
-                <option value="priority">Prioriteit</option>
-                <option value="status">Status</option>
-              </select>
+              {(() => {
+                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
+                const currentDisplayValue = cascadeCount === 0 ? null
+                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
+                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
+                  : null;
+                const clearFromLevel = (levelIndex) => {
+                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
+                  else if (levelIndex === 2) { setRoomFilter(''); }
+                };
+                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
+                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
+                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
+                 return (
+                   <div className="control-cascade-stack" ref={filterCascade.containerRef}>
+                     <div className="control-cascade-breadcrumb">
+                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
+                     </div>
+                     <Select
+                      className="react-select-container"
+                      classNamePrefix="react-select"
+                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                       isClearable
+                       isDisabled={cascadeCount >= 3}
+                       closeMenuOnSelect={false}
+                       menuIsOpen={filterCascade.menuIsOpen}
+                       onMenuOpen={filterCascade.onMenuOpen}
+                       onMenuClose={filterCascade.onMenuClose}
+                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      styles={{
+                        container: (base) => ({ ...base, minWidth: '260px' }),
+                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                      }}
+                      options={allLocationOptions}
+                      filterOption={(option, rawInput) => {
+                        if (rawInput) {
+                          if (cascadeCount === 0)
+                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 1)
+                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 2)
+                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          if (cascadeCount === 3)
+                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                        }
+                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
+                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
+                        return false;
+                      }}
+                      value={currentDisplayValue}
+                      onChange={(selectedOption) => {
+                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
+                        const f = selectedOption._fields;
+                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
+                      }}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="controls-right">
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="default">Standaard</option>
-                <option value="id">ID</option>
-                <option value="title">Titel</option>
-                <option value="status">Status</option>
-              </select>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('asc')} style={{ minWidth: '40px', background: sortDirection === 'asc' ? '#935e28' : undefined }}>▲</button>
-                <button type="button" className="btn-add" onClick={() => setSortDirection('desc')} style={{ minWidth: '40px', background: sortDirection === 'desc' ? '#935e28' : undefined }}>▼</button>
-              </div>
+              {hasRight('faults.manage') && (
+                <button
+                  type="button"
+                  className="btn-add"
+                  style={{ marginLeft: '0.5rem' }}
+                  onClick={() => setShowImportWizard(true)}
+                >
+                  ⇅ Invoer / Uitvoer rekords
+                </button>
+              )}
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={TICKET_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
+              {selectedIds.length > 0 && (
+                <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
+                  Verwyder Geselekteerde ({selectedIds.length})
+                </button>
+              )}
+              {hasRight('faults.manage') && (
+                <ImportExportModal
+                  isOpen={showImportWizard}
+                  onClose={() => setShowImportWizard(false)}
+                  defaultEntity="fault"
+                  onImported={fetchTickets}
+                />
+              )}
             </div>
           </div>
 
           <table className="standard-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Titel</th>
-                <th>Bate ID</th>
-                <th>Lokaal ID</th>
-                <th>Gebou ID</th>
-                <th>Terrein ID</th>
-                <th>Kategorie</th>
-                <th>Prioriteit</th>
-                <th>Status</th>
-                <th>Aksies</th>
+                <th style={{ width: '36px', textAlign: 'center' }}>
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
+                </th>
+                {colVis.visibleColumns.map((col) => (
+                  <ResizableTh
+                    key={col.key}
+                    col={col}
+                    colWidths={colWidths}
+                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
+                    onClick={() => col.sortKey && handleSort(col.sortKey)}
+                    onContextMenu={(e) => colPickerRef.current?.openAt(e)}
+                  >
+                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                  </ResizableTh>
+                ))}
+                <th style={{ width: '250px' }}>Aksies</th>
               </tr>
             </thead>
             <tbody>
-              {filteredTickets.map((ticket) => (
-                <tr key={ticket.fault_id}>
-                  <td>{ticket.fault_id}</td>
-                  <td>{extractTitle(ticket.fault_description)}</td>
-                  <td>{ticket.asset_id}</td>
-                  <td>{ticket.room_id}</td>
-                  <td>{ticket.building_id}</td>
-                  <td>{ticket.location_id}</td>
-                  <td>{translateCategory(ticket.fault_type)}</td>
-                  <td>{translatePriority(ticket.fault_priority)}</td>
-                  <td>
-                    <span className={`status ${getStatusClass(ticket.fault_status)}`}>
-                      {translateStatus(ticket.fault_status)}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
-                    <button className="btn-edit" onClick={() => handleEditTicket(ticket)}>Wysig</button>
-                    <button className="btn-delete" onClick={() => handleDeleteTicket(ticket.fault_id)}>Verwyder</button>
-                  </td>
-                </tr>
-              ))}
+              {filteredTickets.length === 0 ? (
+                <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen foutkaartjies gevind</td></tr>
+              ) : (
+                filteredTickets.map((ticket) => (
+                  <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
+                    <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(ticket.fault_id)} onChange={() => toggleOne(ticket.fault_id)} />
+                    </td>
+                    {colVis.visibleColumns.map((col) => (
+                      <td key={col.key}>{col.render(ticket)}</td>
+                    ))}
+                    <td onClick={e => e.stopPropagation()}>
+                      <button className="btn-add" onClick={() => handleCreateWorkOrder(ticket)} style={{ marginRight: '0.25rem' }}>Skep Werkopdrag</button>
+                      <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteTicket(ticket.fault_id)}><IoTrashOutline size={18} /></button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
-      </div>
+
+      {activeImageViewer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+          <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
+            <span className="close" onClick={() => setActiveImageViewer(null)} style={{ position: 'absolute', top: '0.75rem', right: '0.75rem', cursor: 'pointer' }}>&times;</span>
+            <img src={activeImageViewer.src} alt="Vergrote beeld" style={{ width: '100%', maxHeight: '75vh', objectFit: 'contain', display: 'block', marginTop: '2rem' }} />
+            <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+              {activeImageViewer.type === 'preview' ? (
+                <button type="button" className="btn-delete" onClick={() => {
+                  handleRemoveSelectedPreview(activeImageViewer.index);
+                  setActiveImageViewer(null);
+                }}>Verwyder</button>
+              ) : (
+                <button type="button" className="btn-delete" onClick={() => {
+                  handleDeleteExistingImage(activeImageViewer.imageId);
+                  setActiveImageViewer(null);
+                }}>Verwyder</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal" style={{ display: "flex" }}>
@@ -480,16 +708,17 @@ function TicketPage() {
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Titel</label>
-                <input type="text" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} />
+                <label>Titel *</label>
+                <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} />
               </div>
               <div className="input-group">
-                <label>Kategorie</label>
-                <select value={newTicket.category} onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })}>
+                <label>Kategorie *</label>
+                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }}>
                   <option value="">Kies kategorie</option>
-                  <option value="Instandhouding">Onderhoud</option>
-                  <option value="Herstelwerk">Herstel</option>
-                  <option value="Opgradering">Opgradeer</option>
+                  <option value="Onderhoud">Onderhoud</option>
+                  <option value="Herstel">Herstel</option>
+                  <option value="Inspeksie">Inspeksie</option>
+                  <option value="Installasie">Installasie</option>
                 </select>
               </div>
             </div>
@@ -505,89 +734,159 @@ function TicketPage() {
             </div>
             
             <div className="input-row">
-              <div className="input-group">
-                <label>Terrein</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder="Kies terrein..."
-                  isSearchable
-                  options={terrainOptions}
-                  value={terrainOptions.find((option) => String(option.value) === String(newTicket.location_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, location_id: selected ? String(selected.value) : "", building_id: "", room_id: "", asset_id: "" })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Gebou</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.location_id ? "Kies eers terrein" : "Kies gebou..."}
-                  isSearchable
-                  isDisabled={!newTicket.location_id}
-                  options={buildingOptions}
-                  value={buildingOptions.find((option) => String(option.value) === String(newTicket.building_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, building_id: selected ? String(selected.value) : "", room_id: "", asset_id: "" })}
-                />
+              <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
+                <label>Ligging *</label>
+                {(() => {
+                  const cascadeCount = [newTicket.location_id, newTicket.building_id, newTicket.room_id, newTicket.asset_id].filter(Boolean).length;
+                  const currentDisplayValue = cascadeCount === 0 ? null
+                    : cascadeCount === 1 && newTicket.location_id ? { value: newTicket.location_id, label: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id }
+                    : cascadeCount === 2 && newTicket.building_id ? { value: newTicket.building_id, label: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id }
+                    : cascadeCount === 3 && newTicket.room_id ? { value: newTicket.room_id, label: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id }
+                    : cascadeCount === 4 && newTicket.asset_id ? { value: newTicket.asset_id, label: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id }
+                    : null;
+                  const clearFromLevel = (levelIndex) => {
+                    if (levelIndex <= 0) setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""}));
+                    else if (levelIndex === 1) setNewTicket(p => ({...p, building_id: "", room_id: "", asset_id: ""}));
+                    else if (levelIndex === 2) setNewTicket(p => ({...p, room_id: "", asset_id: ""}));
+                    else if (levelIndex === 3) setNewTicket(p => ({...p, asset_id: ""}));
+                  };
+                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                  if (newTicket.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id });
+                  if (newTicket.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id });
+                  if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
+                  if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
+                   return (
+                     <div ref={modalCascadeMenu.containerRef}>
+                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px" })}
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder={
+                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                        }
+                        isClearable
+                        isDisabled={cascadeCount >= 4}
+                        closeMenuOnSelect={false}
+                        menuIsOpen={modalCascadeMenu.menuIsOpen}
+                        onMenuOpen={modalCascadeMenu.onMenuOpen}
+                        onMenuClose={modalCascadeMenu.onMenuClose}
+                        components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        options={allLocationOptions}
+                        styles={{
+                          container: (base) => ({ ...base, minWidth: '260px' }),
+                          control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                          valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                          singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                        }}
+                        filterOption={(option, rawInput) => {
+                          if (rawInput) {
+                            if (cascadeCount === 0)
+                              return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 1)
+                              return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(newTicket.location_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 2)
+                              return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(newTicket.building_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                            if (cascadeCount === 3)
+                              return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(newTicket.room_id) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                          }
+                          if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                          if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(newTicket.location_id);
+                          if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(newTicket.building_id);
+                          if (cascadeCount === 3) return option.data._cascadeLevel === 3 && String(option.data._parentId) === String(newTicket.room_id);
+                          return false;
+                        }}
+                        value={currentDisplayValue}
+                        onChange={(selectedOption) => {
+                          if (!selectedOption) { setNewTicket(p => ({...p, location_id: "", building_id: "", room_id: "", asset_id: ""})); return; }
+                          setNewTicket(p => ({...p, ...selectedOption._fields}));
+                          setInvalidFields(prev => { const next = {...prev}; delete next.location_id; return next; });
+                          const labels = ["Terrein","Gebou","Lokaal","Bate"];
+                          const label = labels[selectedOption._cascadeLevel] || "";
+                          setCascadeToast(`✓ ${label} suksesvol geselekteer`);
+                          setTimeout(() => setCascadeToast(null), 2000);
+                        }}
+/>
+                     </div>
+                   );
+                 })()}
+                {cascadeToast && (
+                  <div style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    background: "#16a34a",
+                    color: "#fff",
+                    padding: "10px 24px",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                    zIndex: 10,
+                    textAlign: "center",
+                    pointerEvents: "none",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {cascadeToast}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="input-row">
               <div className="input-group">
-                <label>Lokaal</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.building_id ? "Kies eers gebou" : "Kies lokaal..."}
-                  isSearchable
-                  isDisabled={!newTicket.building_id}
-                  options={roomOptions}
-                  value={roomOptions.find((option) => String(option.value) === String(newTicket.room_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, room_id: selected ? String(selected.value) : "", asset_id: "" })}
-                />
-              </div>
-              <div className="input-group">
-                <label>Bate</label>
-                <Select
-                  className="basic-single"
-                  classNamePrefix="select"
-                  placeholder={!newTicket.room_id ? "Kies eers lokaal" : "Kies bate..."}
-                  isSearchable
-                  isDisabled={!newTicket.room_id}
-                  options={assetOptions}
-                  value={assetOptions.find((option) => String(option.value) === String(newTicket.asset_id)) || null}
-                  onChange={(selected) => setNewTicket({ ...newTicket, asset_id: selected ? String(selected.value) : "" })}
-                />
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className="input-group">
-                <label>Beelde (maksimum 3)</label>
+                <label>Beelde (Maksimum {MAX_TICKET_IMAGES})</label>
                 <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+
                 {selectedImagePreviewUrls.length > 0 && (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {selectedImagePreviewUrls.map((url, index) => (
-                      <img key={index} src={url} alt={`Voorbeeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
-                    ))}
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Nuwe seleksies</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {selectedImagePreviewUrls.map((url, index) => (
+                        <div key={`${url}-${index}`} className="record-image-card" style={{ textAlign: 'center' }}>
+                          <img
+                            src={url}
+                            alt={`Voorbeeld ${index + 1}`}
+                            className="ticket-image-thumb"
+                            onClick={() => setActiveImageViewer({ type: 'preview', src: url, index })}
+                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          />
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <button type="button" className="btn-delete" onClick={() => handleRemoveSelectedPreview(index)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-                {selectedImagePreviewUrls.length === 0 && (
-                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {[newTicket.image_id, newTicket.image_id_2, newTicket.image_id_3].filter(Boolean).map((id, index) => (
-                      <div key={index} style={{ textAlign: 'center' }}>
-                        <p style={{ margin: 0, fontSize: '0.9rem' }}>Huidige beeld {index + 1}</p>
-                        <img src={getTicketImageUrl(id)} alt={`Huidige beeld ${index + 1}`} style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px' }} />
-                      </div>
-                    ))}
+
+                {ticketImages.length > 0 && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.9rem', fontWeight: 600 }}>Bestaande beelde</p>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {ticketImages.map((image, index) => (
+                        <div key={image.image_id ?? index} className="record-image-card" style={{ textAlign: 'center' }}>
+                          <img
+                            src={getTicketImageUrl(image.image_id)}
+                            alt={`Huidige beeld ${index + 1}`}
+                            className="ticket-image-thumb"
+                            onClick={() => setActiveImageViewer({ type: 'existing', src: getTicketImageUrl(image.image_id), imageId: image.image_id, index })}
+                            style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
+                          />
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <button type="button" className="btn-delete" onClick={() => handleDeleteExistingImage(image.image_id)} style={{ marginLeft: '0.25rem' }}>Verwyder</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
             <div className="input-row">
               <div className="input-group">
-                <label>Beskrywing</label>
-                <textarea value={newTicket.description} onChange={(e) => setNewTicket({ ...newTicket, description: e.target.value })} />
+                <label>Beskrywing *</label>
+                <textarea value={newTicket.description} ref={el => fieldRefs.current.description = el} className={invalidFields.description ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, description: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.description; return next; }); }} />
               </div>
               <div className="input-group">
                 <label>Status</label>
@@ -605,9 +904,26 @@ function TicketPage() {
               <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
             </div>
+            <AiSuggestPanel
+              suggestions={faultSuggestions}
+              loading={aiLoading}
+              filled={aiFilled}
+              error={aiError}
+              labels={{ fault_type: 'Kategorie', fault_priority: 'Prioriteit' }}
+              onUse={(key, s) => {
+                if (key === 'fault_type') {
+                  const af = FAULT_TYPE_EN_AF[s.value] || s.value;
+                  setNewTicket(p => ({ ...p, category: af }));
+                  setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; });
+                } else if (key === 'fault_priority') {
+                  setNewTicket(p => ({ ...p, priority: FAULT_PRIO_EN_AF[s.value] || s.value }));
+                }
+              }}
+            />
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

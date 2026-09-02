@@ -9,6 +9,7 @@ import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
 import 'edit_asset_page.dart';
+import '../room_checklist/room_checklist_page.dart';
 
 class AssetDetailPage extends StatefulWidget {
   final Asset asset;
@@ -44,25 +45,37 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         foregroundColor: Colors.white,
         title: Text(_currentAsset.name.toUpperCase()),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await Navigator.push(
+          if (UserSession.can('assets.manage') && _currentAsset.location != '1')
+            IconButton(
+              icon: const Icon(Icons.checklist, color: Colors.white),
+              tooltip: "Kontroleer lokaal",
+              onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
-              );
-              if (result == true && mounted) {
-                setState(() {
-                  final updated = AssetService.assetsNotifier.value.firstWhere(
-                    (a) => a.id == _currentAsset.id,
-                    orElse: () => _currentAsset,
-                  );
-                  _currentAsset = updated;
-                });
-              }
-            },
-          ),
-          if (UserSession.hasAdminPrivileges)
+                MaterialPageRoute(
+                  builder: (_) => RoomChecklistPage(roomId: int.parse(_currentAsset.location)),
+                ),
+              ),
+            ),
+          if (UserSession.can('assets.manage'))
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
+                );
+                if (result == true && mounted) {
+                  setState(() {
+                    final updated = AssetService.assetsNotifier.value.firstWhere(
+                      (a) => a.id == _currentAsset.id,
+                      orElse: () => _currentAsset,
+                    );
+                    _currentAsset = updated;
+                  });
+                }
+              },
+            ),
+          if (UserSession.can('assets.manage'))
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
               onPressed: () => _confirmDelete(context),
