@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
-import { buildingsAPI, locationAPI } from "../services/api";
+import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
@@ -12,17 +13,21 @@ import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { openMoveChildren, moveChildrenDialog } = useMoveChildren();
   const navigate = useNavigate();
   const { hasRight } = useCurrentUser();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -63,6 +68,9 @@ function TerrainsPage({ embedded = false }) {
   useEffect(() => {
     fetchTerrains();
     fetchBuildings();
+    fetchRooms();
+    fetchAssets();
+    fetchStock();
   }, []);
 
   const fetchTerrains = async () => {
@@ -82,6 +90,33 @@ function TerrainsPage({ embedded = false }) {
       setBuildings(response.data || []);
     } catch (error) {
       console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const response = await roomsAPI.getAll();
+      setRooms(response.data || []);
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchAssets = async () => {
+    try {
+      const response = await assetsAPI.getAll();
+      setAssets(response.data || []);
+    } catch (error) {
+      console.error("Error fetching assets:", error);
+    }
+  };
+
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data || []);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
     }
   };
 
@@ -131,9 +166,97 @@ function TerrainsPage({ embedded = false }) {
   };
 
   const handleDeleteTerrain = async (id) => {
-    const confirmed = await confirmCascade(confirm, { entityLabel: "terrein", childrenLabel: "geboue" });
-    if (!confirmed) return;
+    const children = getBuildingsForTerrain(id);
+    const buildingIds = new Set(children.map((b) => b.building_id));
+    const roomsInTerrain = rooms.filter((r) => buildingIds.has(r.building_id));
+    const roomIds = new Set(roomsInTerrain.map((r) => r.room_id));
+    const assetsInSubtree = assets.filter((a) => roomIds.has(a.room_id));
+    const stockInSubtree = stock.filter((s) => roomIds.has(s.room_id));
+    const hasContent = assetsInSubtree.length + stockInSubtree.length > 0;
+    const strategy = await chooseDeleteStrategy(confirm, {
+      entityLabel: "terrein",
+      childrenLabel: "geboue",
+      hasChildren: children.length > 0,
+      hasContent,
+    });
+    if (!strategy) return;
+
     try {
+      if (strategy === 'move') {
+        const targetOptions = terrains
+          .filter((t) => t.location_id !== id)
+          .map((t) => ({ value: t.location_id, label: t.location_name }));
+        const assignments = await openMoveChildren({
+          mode: 'individual',
+          title: `Skuif geboue van "${terrains.find((t) => t.location_id === id)?.location_name || ''}"`,
+          children: children.map((b) => ({ id: b.building_id, label: b.building_name })),
+          parentOptions: targetOptions,
+          parentLabel: 'verwyder',
+          confirmLabel: 'Skuif en verwyder terrein',
+        });
+        if (assignments === false) return;
+        for (const child of children) {
+          const target = assignments[child.building_id];
+          if (target != null) {
+            await buildingsAPI.update(child.building_id, { location_id: Number(target) });
+          }
+        }
+      } else if (strategy === 'moveContent') {
+        const targetRooms = rooms.filter((r) => !roomIds.has(r.room_id));
+        const parentOptions = targetRooms.map((r) => {
+          const b = buildings.find((bb) => bb.building_id === r.building_id);
+          const label = b ? `${r.room_name} — ${b.building_name}` : r.room_name;
+          return { value: r.room_id, label };
+        });
+        const groups = [];
+        const lookup = {};
+        for (const room of roomsInTerrain) {
+          const batesInRoom = assets.filter((a) => a.room_id === room.room_id);
+          const stockInRoom = stock.filter((s) => s.room_id === room.room_id);
+          if (batesInRoom.length === 0 && stockInRoom.length === 0) continue;
+          const building = buildings.find((bb) => bb.building_id === room.building_id);
+          const items = [];
+          for (const a of batesInRoom) {
+            const sid = `a_${a.asset_id}`;
+            items.push({ id: sid, label: `Bate: ${a.asset_name || a.asset_serial || `Bate #${a.asset_id}`}` });
+            lookup[sid] = { kind: 'asset', realId: a.asset_id };
+          }
+          for (const s of stockInRoom) {
+            const sid = `s_${s.stock_id}`;
+            items.push({ id: sid, label: `Voorraad: ${s.stock_name || s.stock_type || `Voorraad #${s.stock_id}`}` });
+            lookup[sid] = { kind: 'stock', realId: s.stock_id };
+          }
+          groups.push({
+            id: `room_${room.room_id}`,
+            label: room.room_name,
+            buildingId: room.building_id,
+            buildingLabel: building ? building.building_name : `Gebou ${room.building_id}`,
+            items,
+          });
+        }
+        if (groups.length > 0) {
+          const assignments = await openMoveChildren({
+            mode: 'grouped',
+            title: `Skuif bates en voorraad van "${terrains.find((t) => t.location_id === id)?.location_name || ''}"`,
+            groups,
+            parentOptions,
+            parentLabel: 'verwyder',
+            childrenHeader: 'Bates en voorraad volgens lokaal/gebou (sleep per lokaal)',
+            confirmLabel: 'Skuif en verwyder terrein',
+          });
+          if (assignments === false) return;
+          for (const [syntheticId, target] of Object.entries(assignments)) {
+            if (target == null) continue;
+            const rec = lookup[syntheticId];
+            if (!rec) continue;
+            if (rec.kind === 'asset') {
+              await assetsAPI.update(rec.realId, { room_id: Number(target) });
+            } else {
+              await stockAPI.update(rec.realId, { room_id: Number(target) });
+            }
+          }
+        }
+      }
       await locationAPI.delete(id);
       fetchTerrains();
     } catch (error) {
@@ -518,6 +641,7 @@ function TerrainsPage({ embedded = false }) {
           </div>
         )}
       {dialog}
+      {moveChildrenDialog}
       </>
     );
   }
@@ -562,6 +686,7 @@ function TerrainsPage({ embedded = false }) {
         </div>
       )}
       {dialog}
+      {moveChildrenDialog}
     </div>
   );
 }

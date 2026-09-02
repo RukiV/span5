@@ -22,6 +22,49 @@ export function getApiErrorMessage(error, fallback) {
   return fallback;
 }
 
+// Bied die gebruiker die keuse wanneer 'n ouer kinders het:
+//  - `'delete'`: verwyder alles daaronder (destruktiewe kaskade).
+//  - `'move'`: skuif direkte kinders individueel na nuwe ouers, dan verwyder.
+//  - `'moveContent'`: skuif bates en voorraad in die subboom individueel na nuwe lokale (gebou/terrein).
+//  - `false`: gekanselleer.
+// As daar GEEN kinders en GEEN inhoud is nie, word slegs 'n eenvoudige bevestiging gewys.
+export async function chooseDeleteStrategy(confirm, { entityLabel, childrenLabel, hasChildren, hasContent = false }) {
+  if (!hasChildren && !hasContent) {
+    const ok = await confirm({
+      title: `Verwyder ${entityLabel}?`,
+      message: `Is jy seker jy wil die ${entityLabel} permanent verwyder?`,
+      confirmLabel: 'Ja, verwyder',
+      cancelLabel: 'Kanselleer',
+      variant: 'danger',
+    });
+    return ok ? 'delete' : false;
+  }
+  const actions = [
+    { key: 'delete', label: 'Verwyder alles daaronder', variant: 'danger' },
+  ];
+  if (hasChildren) {
+    actions.push({ key: 'move', label: 'Skuif kinders na nuwe ouers', variant: 'info' });
+  }
+  if (hasContent) {
+    actions.push({ key: 'moveContent', label: 'Skuif bates en voorraad', variant: 'info' });
+  }
+  let message = `Die ${entityLabel} het ${childrenLabel} wat gekoppel is.`;
+  if (hasContent && hasChildren) {
+    message = `Die ${entityLabel} het ${childrenLabel} en bates/voorraad wat gekoppel is.`;
+  } else if (hasContent && !hasChildren) {
+    message = `Die ${entityLabel} het bates en voorraad wat gekoppel is.`;
+  }
+  return confirm({
+    title: `Verwyder ${entityLabel}?`,
+    message,
+    actions,
+    cancelLabel: 'Kanselleer',
+    size: 'md',
+    variant: 'danger',
+    cascade: true,
+  });
+}
+
 // Wys die groot rooi kaskade-waarskuwing. Gebruik dit wanneer 'n rekord
 // kinders het wat saam permanent verwyder sal word.
 export async function confirmCascade(confirm, { entityLabel, childrenLabel }) {

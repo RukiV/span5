@@ -39,6 +39,6 @@ def patchLocation(locationID: int, locationIn: LocationUpdate, session: Session 
 
 @router.delete("/{locationID}", status_code=status.HTTP_204_NO_CONTENT)
 def removeLocation(locationID: int, session: Session = Depends(getSession), user: User = Depends(require_right("locations.manage"))):
-    if not location_service.delete(session, locationID):
+    if not location_service.delete(session, locationID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Location not found")
     return None
