@@ -4,10 +4,11 @@ import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
+import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -17,12 +18,13 @@ import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { openMoveChildren, moveChildrenDialog } = useMoveChildren();
   const { user, rights } = useCurrentUser();
   const hasRight = (right) => (rights || []).includes(right);
   const navigate = useNavigate();
@@ -32,6 +34,7 @@ function RoomsPage({ embedded = false }) {
   const [rooms, setRooms] = useState([]);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +83,7 @@ function RoomsPage({ embedded = false }) {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchRooms(), fetchAssets(), fetchTerrains(), fetchBuildings()]);
+      await Promise.all([fetchRooms(), fetchAssets(), fetchStock(), fetchTerrains(), fetchBuildings()]);
     };
     loadData();
   }, []);
@@ -118,6 +121,15 @@ function RoomsPage({ embedded = false }) {
       setAssets(response.data || []);
     } catch (error) {
       console.error("Error fetching assets:", error);
+    }
+  };
+
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data || []);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
     }
   };
 
@@ -206,9 +218,66 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    const confirmed = await confirmCascade(confirm, { entityLabel: "lokaal", childrenLabel: "bates/voorraad/kaartjies" });
-    if (!confirmed) return;
+    const assetsInRoom = getAssetsForRoom(roomId);
+    const stockInRoom = getStockForRoom(roomId);
+    const strategy = await chooseDeleteStrategy(confirm, {
+      entityLabel: "lokaal",
+      childrenLabel: "bates/voorraad/kaartjies",
+      hasChildren: assetsInRoom.length + stockInRoom.length > 0,
+    });
+    if (!strategy) return;
     try {
+      if (strategy === 'move') {
+        const targetOptions = rooms
+          .filter((r) => r.room_id !== roomId)
+          .map((r) => {
+            const b = buildings.find((bb) => bb.building_id === r.building_id);
+            return { value: r.room_id, label: b ? `${r.room_name} — ${b.building_name}` : r.room_name };
+          });
+        const roomName = rooms.find((r) => r.room_id === roomId)?.room_name || `Lokaal ${roomId}`;
+        const building = buildings.find((b) => b.building_id === rooms.find((r) => r.room_id === roomId)?.building_id);
+        const items = [];
+        const lookup = {};
+        for (const a of assetsInRoom) {
+          const sid = `a_${a.asset_id}`;
+          items.push({ id: sid, label: `Bate: ${a.asset_name || a.asset_serial || `Bate #${a.asset_id}`}` });
+          lookup[sid] = { kind: 'asset', realId: a.asset_id };
+        }
+        for (const s of stockInRoom) {
+          const sid = `s_${s.stock_id}`;
+          items.push({ id: sid, label: `Voorraad: ${s.stock_name || s.stock_type || `Voorraad #${s.stock_id}`}` });
+          lookup[sid] = { kind: 'stock', realId: s.stock_id };
+        }
+        const groups = [
+          {
+            id: `room_${roomId}`,
+            label: roomName,
+            buildingId: building?.building_id || null,
+            buildingLabel: building ? building.building_name : null,
+            items,
+          },
+        ];
+        const assignments = await openMoveChildren({
+          mode: 'grouped',
+          title: `Skuif bates en voorraad van "${roomName}"`,
+          groups,
+          parentOptions: targetOptions,
+          parentLabel: 'verwyder',
+          childrenHeader: 'Bates en voorraad volgens lokaal (sleep per lokaal of individueel)',
+          confirmLabel: 'Skuif en verwyder lokaal',
+        });
+        if (assignments === false) return;
+        for (const [syntheticId, target] of Object.entries(assignments)) {
+          if (target == null) continue;
+          const rec = lookup[syntheticId];
+          if (!rec) continue;
+          if (rec.kind === 'asset') {
+            await assetsAPI.update(rec.realId, { room_id: Number(target) });
+          } else {
+            await stockAPI.update(rec.realId, { room_id: Number(target) });
+          }
+        }
+      }
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
@@ -274,6 +343,7 @@ function RoomsPage({ embedded = false }) {
   };
 
   const getAssetsForRoom = (roomId) => assets.filter((asset) => asset.room_id === roomId);
+  const getStockForRoom = (roomId) => stock.filter((s) => s.room_id === roomId);
 
   const handleViewHistory = async (room) => {
     setSelectedRoom(room);
@@ -776,6 +846,7 @@ function RoomsPage({ embedded = false }) {
 
         {historyModalContent}
       {dialog}
+      {moveChildrenDialog}
       </>
     );
   }
@@ -827,6 +898,7 @@ function RoomsPage({ embedded = false }) {
 
         {historyModalContent}
       {dialog}
+      {moveChildrenDialog}
     </div>
   );
 }
