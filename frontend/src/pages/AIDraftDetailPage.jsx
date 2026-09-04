@@ -154,7 +154,7 @@ function AIDraftDetailPage() {
     <div className="main">
       <div className="content">
         {/* Header */}
-        <div className="controls">
+        <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <h3 style={{ margin: 0 }}>{draft.title || 'AI Foutkonsep'} #{draft.draft_id}</h3>
           </div>

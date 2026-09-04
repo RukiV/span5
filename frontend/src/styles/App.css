@@ -177,6 +177,22 @@
   margin-bottom: 20px;
 }
 
+.controls--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: var(--wit);
+  margin: -10px -25px 16px -25px;
+  padding: 12px 25px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: visible;
+}
+
+.controls--with-tabs {
+  top: 42px;
+}
+
 .controls-left .control-input-shell {
   display: flex;
   align-items: center;
@@ -525,7 +541,7 @@ select:not([class*="cascade"]):focus {
 /* --- Algemene Inhoud --- */
 .content {
     padding: 10px 25px 25px 25px;
-    overflow-y: auto;
+    overflow: visible;
     background-color: var(--wit);
     flex: 1;
     width: 100%;
@@ -705,20 +721,28 @@ select:not([class*="cascade"]):focus {
 }
 
 .dropdown-content, .dropdown-content2{
-  display: none;
+  display: block;
   text-align: left;
   z-index: 1;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  border-left: 3px solid transparent;
+  transition: max-height 0.28s ease, opacity 0.22s ease, border-color 0.22s ease;
 }
 
 .dropdown-content a,.dropdown-content2 a {
   display: block;
-  padding-left: 32px;
+  padding-left: 52px;
   border-radius: 0;
   background: transparent;
 }
 
-.dropdown:hover .dropdown-content, .dropdown:hover .dropdown-content2  {display: block;}
-.dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {display: block;}
+.dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {
+  max-height: 500px;
+  opacity: 1;
+  border-left-color: var(--bruin);
+}
 
 /* Kode vir arrow vir dropdown*/
 .sidebar ul li.dropdown .dropdown-trigger {
@@ -731,28 +755,28 @@ select:not([class*="cascade"]):focus {
   text-decoration: none;
   cursor: pointer;
   box-sizing: border-box;
+  position: relative;
+  border-radius: 5px;
 }
 
 .sidebar ul li.dropdown .dropdown-trigger::after {
   content: '›';               
   color: white;
-  font-size: 18px;
+  font-size: 36px;
   font-weight: bold;
   line-height: 1;
   display: inline-block;
-  transition: transform 0.2s ease; 
-  transform: rotate(0deg);
+  transition: transform 0.22s ease; 
+  transform: translateY(-50%) rotate(0deg);
   opacity: 1;
-}
-
-.sidebar ul li.dropdown:hover .dropdown-trigger::after {
-  transform: rotate(90deg);    
-  opacity: 1;                  
-  color: var(--wit);        
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  pointer-events: none;
 }
 
 .sidebar ul li.dropdown.open .dropdown-trigger::after {
-  transform: rotate(90deg);    
+  transform: translateY(-50%) rotate(90deg);
   opacity: 1;                  
   color: var(--wit);        
 }

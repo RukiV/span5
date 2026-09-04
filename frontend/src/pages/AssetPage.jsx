@@ -6,9 +6,11 @@ import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAP
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
+import usePagination from "../hooks/usePagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import Pagination from "../components/Pagination/Pagination";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
@@ -433,9 +435,6 @@ function AssetPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredItems.map((x) => x.asset_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -666,7 +665,18 @@ function AssetPage({ embedded = false }) {
       if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
       return 0;
     });
-  const allSelected = filteredItems.length > 0 && selectedIds.length === filteredItems.length;
+  const { currentPage, totalPages, paginatedData: paginatedItems, goToPage } = usePagination(filteredItems, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedItems.length > 0 && paginatedItems.every((x) => selectedIds.includes(x.asset_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedItems.map((x) => x.asset_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedItems.map((x) => x.asset_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -707,7 +717,7 @@ function AssetPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -881,7 +891,7 @@ function AssetPage({ embedded = false }) {
           {filteredItems.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
-            filteredItems.map((item) => (
+            paginatedItems.map((item) => (
               <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
@@ -898,6 +908,7 @@ function AssetPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredItems.length} pageSize={100} />
     </>
   );
 

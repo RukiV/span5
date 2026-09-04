@@ -14,6 +14,8 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
@@ -395,9 +397,6 @@ function TicketPage() {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredTickets.map((x) => x.fault_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -472,7 +471,18 @@ function TicketPage() {
       if (sortKey === 'category') return String(a.fault_type || '').localeCompare(String(b.fault_type || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredTickets.length > 0 && selectedIds.length === filteredTickets.length;
+    const { currentPage, totalPages, paginatedData: paginatedTickets, goToPage } = usePagination(filteredTickets, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedTickets.length > 0 && paginatedTickets.every((x) => selectedIds.includes(x.fault_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedTickets.map((x) => x.fault_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedTickets.map((x) => x.fault_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const getStatusClass = (status) => {
     switch (String(status).toLowerCase()) {
@@ -502,7 +512,7 @@ function TicketPage() {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -658,7 +668,7 @@ function TicketPage() {
               {filteredTickets.length === 0 ? (
                 <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen foutkaartjies gevind</td></tr>
               ) : (
-                filteredTickets.map((ticket) => (
+                paginatedTickets.map((ticket) => (
                   <tr key={ticket.fault_id} onClick={() => handleEditTicket(ticket)} style={{ cursor: "pointer" }}>
                     <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.includes(ticket.fault_id)} onChange={() => toggleOne(ticket.fault_id)} />
@@ -675,6 +685,7 @@ function TicketPage() {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredTickets.length} pageSize={100} />
         </div>
 
       {activeImageViewer && (

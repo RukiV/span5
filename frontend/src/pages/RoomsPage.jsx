@@ -4,7 +4,7 @@ import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI } from "../services/api";
+import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -16,6 +16,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
@@ -35,6 +37,8 @@ function RoomsPage({ embedded = false }) {
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [assets, setAssets] = useState([]);
   const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,7 +87,7 @@ function RoomsPage({ embedded = false }) {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchRooms(), fetchAssets(), fetchStock(), fetchTerrains(), fetchBuildings()]);
+      await Promise.all([fetchRooms(), fetchAssets(), fetchStock(), fetchFaults(), fetchJobs(), fetchTerrains(), fetchBuildings()]);
     };
     loadData();
   }, []);
@@ -130,6 +134,24 @@ function RoomsPage({ embedded = false }) {
       setStock(response.data || []);
     } catch (error) {
       console.error("Error fetching stock:", error);
+    }
+  };
+
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
     }
   };
 
@@ -220,10 +242,22 @@ function RoomsPage({ embedded = false }) {
   const handleDeleteRoom = async (roomId) => {
     const assetsInRoom = getAssetsForRoom(roomId);
     const stockInRoom = getStockForRoom(roomId);
+    const assetIds = new Set(assetsInRoom.map((a) => a.asset_id));
+    const faultsInRoom = faults.filter((f) => f.room_id === roomId || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInRoom.map((f) => f.fault_id));
+    const jobsInRoom = jobs.filter((j) => j.room_id === roomId || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
     const strategy = await chooseDeleteStrategy(confirm, {
       entityLabel: "lokaal",
       childrenLabel: "bates/voorraad/kaartjies",
       hasChildren: assetsInRoom.length + stockInRoom.length > 0,
+      counts: {
+        bates: assetsInRoom.length,
+        voorraad: stockInRoom.length,
+        foutkaartjies: faultsInRoom.length,
+        werksopdragte: jobsInRoom.length,
+      },
+      directChildrenLabel: 'bates en voorraad',
+      parentLevelLabel: 'lokaal',
     });
     if (!strategy) return;
     try {
@@ -288,9 +322,6 @@ function RoomsPage({ embedded = false }) {
 
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
 
-  const toggleAllRooms = () => {
-    setSelectedRoomIds(allRoomsSelected ? [] : filteredRooms.map((r) => r.room_id));
-  };
   const toggleRoom = (id) => {
     setSelectedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -399,7 +430,18 @@ function RoomsPage({ embedded = false }) {
       if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
       return 0;
     });
-  const allRoomsSelected = filteredRooms.length > 0 && selectedRoomIds.length === filteredRooms.length;
+    const { currentPage, totalPages, paginatedData: paginatedRooms, goToPage } = usePagination(filteredRooms, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  const allRoomsSelected = paginatedRooms.length > 0 && paginatedRooms.every((x) => selectedRoomIds.includes(x.room_id));
+  const toggleAllRooms = () => {
+    if (allRoomsSelected) {
+      const pageIds = new Set(paginatedRooms.map((x) => x.room_id));
+      setSelectedRoomIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedRooms.map((x) => x.room_id);
+      setSelectedRoomIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -435,7 +477,7 @@ function RoomsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -566,7 +608,7 @@ function RoomsPage({ embedded = false }) {
           {filteredRooms.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
           ) : (
-            filteredRooms.map((room) => (
+            paginatedRooms.map((room) => (
               <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedRoomIds.includes(room.room_id)} onChange={() => toggleRoom(room.room_id)} />
@@ -587,6 +629,7 @@ function RoomsPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredRooms.length} pageSize={100} />
     </>
   );
 

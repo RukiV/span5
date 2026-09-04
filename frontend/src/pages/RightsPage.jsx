@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -81,6 +83,8 @@ function RightsPage({ embedded = false }) {
       ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
       : String(values[filterColumn] || '').toLowerCase().includes(query);
   });
+  const { currentPage, totalPages, paginatedData: paginatedRights, goToPage } = usePagination(filteredRights, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, goToPage]);
 
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
@@ -89,7 +93,7 @@ function RightsPage({ embedded = false }) {
 
       {view === 'list' ? (
         <>
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -114,7 +118,7 @@ function RightsPage({ embedded = false }) {
               {filteredRights.length === 0 ? (
                 <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Geen regte gevind nie</td></tr>
               ) : (
-                filteredRights.map(right => (
+                paginatedRights.map(right => (
                   <tr key={right.right_id}>
                     <td>{right.right_name}</td>
                     <td>{right.right_description}</td>
@@ -134,6 +138,7 @@ function RightsPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredRights.length} pageSize={100} />
         </>
       ) : (
         <div>

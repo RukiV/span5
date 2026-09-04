@@ -27,22 +27,22 @@ function ConfirmDialog({
   // As daar aksie-knoppies verskaf word, gebruik daardie in plaas van die
   // standaard Kanselleer/Bevestig-paar. Elke aksie roep onAction(key).
   const footer = actions && actions.length > 0 ? (
-    <>
-      <button className="btn-cancel" onClick={onClose}>{cancelLabel}</button>
+    <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <button className="btn-cancel" onClick={onClose} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{cancelLabel}</button>
       {actions.map((a) => {
         const aStyle = VARIANT_STYLES[a.variant] || style;
         return (
           <button
             key={a.key}
             className="btn-add"
-            style={{ background: aStyle.background, marginLeft: '0.5rem' }}
+            style={{ background: aStyle.background, flexShrink: 0, whiteSpace: 'nowrap' }}
             onClick={() => { onAction?.(a.key); onClose(); }}
           >
             {a.label}
           </button>
         );
       })}
-    </>
+    </div>
   ) : (
     <>
       <button className="btn-cancel" onClick={onClose}>{cancelLabel}</button>
