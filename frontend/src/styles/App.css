@@ -131,8 +131,11 @@
 }
 
 .sidebar ul li.dropdown .dropdown-trigger.active-link {
-  background: #935e28;
+  background: transparent;
   color: white;
+  border-bottom: 3px solid var(--bruin);
+  border-radius: 0;
+  padding-bottom: 17px;
 }
 
 .sidebar ul li a.active-link:hover {
@@ -182,8 +185,8 @@
   top: 0;
   z-index: 15;
   background: var(--wit);
-  margin: -10px -25px 16px -25px;
-  padding: 12px 25px;
+  margin: 0 -25px 16px -25px;
+  padding: 30px 25px 12px 25px;
   border-bottom: 1px solid var(--border);
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   overflow: visible;
@@ -482,6 +485,15 @@ select:not([class*="cascade"]):focus {
   min-width: 0;
 }
 
+.main .main {
+  overflow: visible;
+  flex: none;
+}
+
+.main .main .content {
+  overflow: visible;
+}
+
 /* --- Foutkaartjies / AI Konsepte tab-strook --- */
 .fault-tabs {
   position: sticky;
@@ -540,7 +552,7 @@ select:not([class*="cascade"]):focus {
 
 /* --- Algemene Inhoud --- */
 .content {
-    padding: 10px 25px 25px 25px;
+    padding: 0 25px 25px 25px;
     overflow: visible;
     background-color: var(--wit);
     flex: 1;
@@ -727,13 +739,12 @@ select:not([class*="cascade"]):focus {
   max-height: 0;
   overflow: hidden;
   opacity: 0;
-  border-left: 3px solid transparent;
-  transition: max-height 0.28s ease, opacity 0.22s ease, border-color 0.22s ease;
+  transition: max-height 0.28s ease, opacity 0.22s ease;
 }
 
 .dropdown-content a,.dropdown-content2 a {
   display: block;
-  padding-left: 52px;
+  padding-left: 84px;
   border-radius: 0;
   background: transparent;
 }
@@ -741,7 +752,11 @@ select:not([class*="cascade"]):focus {
 .dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {
   max-height: 500px;
   opacity: 1;
-  border-left-color: var(--bruin);
+}
+
+.dropdown.open .dropdown-content li:last-child,
+.dropdown.open .dropdown-content2 li:last-child {
+  border-bottom: 3px solid var(--bruin);
 }
 
 /* Kode vir arrow vir dropdown*/
