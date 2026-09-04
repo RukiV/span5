@@ -9,6 +9,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -289,9 +291,6 @@ function StockPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredStock.map((x) => x.stock_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -424,7 +423,18 @@ function StockPage({ embedded = false }) {
       if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredStock.length > 0 && selectedIds.length === filteredStock.length;
+    const { currentPage, totalPages, paginatedData: paginatedStock, goToPage } = usePagination(filteredStock, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => selectedIds.includes(x.stock_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedStock.map((x) => x.stock_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedStock.map((x) => x.stock_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -432,7 +442,7 @@ function StockPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -595,7 +605,7 @@ function StockPage({ embedded = false }) {
           </tr>
         </thead>
         <tbody>
-          {filteredStock.map((item) => (
+          {paginatedStock.map((item) => (
             <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
               <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -610,6 +620,7 @@ function StockPage({ embedded = false }) {
           ))}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
     </>
   );
 
@@ -845,7 +856,7 @@ function StockPage({ embedded = false }) {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -1001,7 +1012,7 @@ function StockPage({ embedded = false }) {
               {filteredStock.length === 0 ? (
                 <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
               ) : (
-                filteredStock.map((item) => (
+                paginatedStock.map((item) => (
                   <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
                     <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -1017,6 +1028,7 @@ function StockPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
         </div>
 
       {showModal && modalContent}

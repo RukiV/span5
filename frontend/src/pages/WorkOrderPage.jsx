@@ -17,6 +17,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
@@ -1320,6 +1322,8 @@ function WorkOrderPage() {
           return (Number(a.jobcard_id || 0) - Number(b.jobcard_id || 0)) * dir;
       }
     });
+  const { currentPage, totalPages, paginatedData: paginatedWorkOrders, goToPage } = usePagination(filteredWorkOrders, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
 
   const translateStatus = (status) => {
     return status || "-";
@@ -1383,7 +1387,7 @@ function WorkOrderPage() {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky controls--with-tabs">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -1547,7 +1551,7 @@ function WorkOrderPage() {
                   <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
                 </tr>
               ) : (
-                filteredWorkOrders.map((order) => (
+                paginatedWorkOrders.map((order) => (
                   <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
                     {colVis.visibleColumns.map((col) => (
                       <td key={col.key}>{col.render(order)}</td>
@@ -1567,6 +1571,7 @@ function WorkOrderPage() {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredWorkOrders.length} pageSize={100} />
         </div>
 {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (

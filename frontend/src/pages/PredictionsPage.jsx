@@ -8,6 +8,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { cachedFetch } from '../utils/cache';
 import '../styles/App.css';
@@ -177,6 +179,8 @@ const colPickerRef = useRef(null);
     }
     return 0;
   });
+  const { currentPage, totalPages, paginatedData: paginatedPredictions, goToPage } = usePagination(filteredPredictions, 100);
+  useEffect(() => { goToPage(1); }, [terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
 
   const needsAttention = filteredPredictions.filter(
     (p) => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested
@@ -196,7 +200,7 @@ const colPickerRef = useRef(null);
       <div className="content">
           {error ? <div className="pred-empty-state">{error}</div> : null}
 
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               {(() => {
                 const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
@@ -336,7 +340,7 @@ const colPickerRef = useRef(null);
                 </tr>
               </thead>
               <tbody>
-                {filteredPredictions.map((pred) => {
+                {paginatedPredictions.map((pred) => {
                   const isExpanded = expandedId === pred.asset_id;
 
                   return (
@@ -409,6 +413,7 @@ const colPickerRef = useRef(null);
                 })}
               </tbody>
             </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredPredictions.length} pageSize={100} />
           </div>
         </div>
       </div>

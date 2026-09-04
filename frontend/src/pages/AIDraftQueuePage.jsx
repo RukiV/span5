@@ -7,6 +7,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import '../styles/App.css';
 
@@ -103,6 +105,8 @@ function AIDraftQueuePage() {
       default: return 0;
     }
   });
+  const { currentPage, totalPages, paginatedData: paginatedDrafts, goToPage } = usePagination(sortedDrafts, 100);
+  useEffect(() => { goToPage(1); }, [statusFilter, sortKey, sortDirection, goToPage]);
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -111,7 +115,7 @@ function AIDraftQueuePage() {
   return (
     <div className="main">
       <div className="content">
-        <div className="controls">
+        <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />
           </div>
@@ -151,7 +155,7 @@ function AIDraftQueuePage() {
             {sortedDrafts.length === 0 ? (
               <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen AI-konsepte gevind nie</td></tr>
             ) : (
-              sortedDrafts.map((draft) => (
+              paginatedDrafts.map((draft) => (
                 <tr key={draft.draft_id} style={{ cursor: "pointer" }} onClick={() => navigate(`/ai-drafts/${draft.draft_id}`)}>
                   {colVis.visibleColumns.map((col) => (
                     <td key={col.key}>{col.render(draft)}</td>
@@ -164,6 +168,7 @@ function AIDraftQueuePage() {
             )}
           </tbody>
         </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={sortedDrafts.length} pageSize={100} />
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
-import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI } from "../services/api";
+import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import { useMoveChildren } from '../components/Modal/useMoveChildren';
@@ -10,6 +10,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
@@ -28,6 +30,8 @@ function TerrainsPage({ embedded = false }) {
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
   const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -71,6 +75,8 @@ function TerrainsPage({ embedded = false }) {
     fetchRooms();
     fetchAssets();
     fetchStock();
+    fetchFaults();
+    fetchJobs();
   }, []);
 
   const fetchTerrains = async () => {
@@ -117,6 +123,24 @@ function TerrainsPage({ embedded = false }) {
       setStock(response.data || []);
     } catch (error) {
       console.error("Error fetching stock:", error);
+    }
+  };
+
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
     }
   };
 
@@ -172,12 +196,26 @@ function TerrainsPage({ embedded = false }) {
     const roomIds = new Set(roomsInTerrain.map((r) => r.room_id));
     const assetsInSubtree = assets.filter((a) => roomIds.has(a.room_id));
     const stockInSubtree = stock.filter((s) => roomIds.has(s.room_id));
+    const assetIds = new Set(assetsInSubtree.map((a) => a.asset_id));
+    const faultsInSubtree = faults.filter((f) => f.location_id === id || buildingIds.has(f.building_id) || roomIds.has(f.room_id) || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInSubtree.map((f) => f.fault_id));
+    const jobsInSubtree = jobs.filter((j) => j.location_id === id || buildingIds.has(j.building_id) || roomIds.has(j.room_id) || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
     const hasContent = assetsInSubtree.length + stockInSubtree.length > 0;
     const strategy = await chooseDeleteStrategy(confirm, {
       entityLabel: "terrein",
       childrenLabel: "geboue",
       hasChildren: children.length > 0,
       hasContent,
+      counts: {
+        geboue: children.length,
+        lokale: roomsInTerrain.length,
+        bates: assetsInSubtree.length,
+        voorraad: stockInSubtree.length,
+        foutkaartjies: faultsInSubtree.length,
+        werksopdragte: jobsInSubtree.length,
+      },
+      directChildrenLabel: 'geboue',
+      parentLevelLabel: 'terrein',
     });
     if (!strategy) return;
 
@@ -266,9 +304,6 @@ function TerrainsPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredTerrains.map((x) => x.location_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -362,7 +397,18 @@ function TerrainsPage({ embedded = false }) {
       if (sortKey === 'province') return String(a.location_province || '').localeCompare(String(b.location_province || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredTerrains.length > 0 && selectedIds.length === filteredTerrains.length;
+    const { currentPage, totalPages, paginatedData: paginatedTerrains, goToPage } = usePagination(filteredTerrains, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedTerrains.length > 0 && paginatedTerrains.every((x) => selectedIds.includes(x.location_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedTerrains.map((x) => x.location_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedTerrains.map((x) => x.location_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -370,7 +416,7 @@ function TerrainsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -454,7 +500,7 @@ function TerrainsPage({ embedded = false }) {
               </td>
             </tr>
           ) : (
-            filteredTerrains.map((terrain) => (
+            paginatedTerrains.map((terrain) => (
               <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(terrain.location_id)} onChange={() => toggleOne(terrain.location_id)} />
@@ -471,6 +517,7 @@ function TerrainsPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredTerrains.length} pageSize={100} />
     </>
   );
 

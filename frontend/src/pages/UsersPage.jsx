@@ -10,6 +10,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { getApiErrorMessage, getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
 
@@ -236,9 +238,6 @@ function UsersPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredUsers.map((x) => x.user_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -323,7 +322,18 @@ function UsersPage({ embedded = false }) {
       }
       return 0;
     });
-  const allSelected = filteredUsers.length > 0 && selectedIds.length === filteredUsers.length;
+    const { currentPage, totalPages, paginatedData: paginatedUsers, goToPage } = usePagination(filteredUsers, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filter, filterColumn, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedUsers.length > 0 && paginatedUsers.every((x) => selectedIds.includes(x.user_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedUsers.map((x) => x.user_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedUsers.map((x) => x.user_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
@@ -343,7 +353,7 @@ function UsersPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -400,7 +410,7 @@ function UsersPage({ embedded = false }) {
           {filteredUsers.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen gebruikers gevind</td></tr>
           ) : (
-            filteredUsers.map(user => (
+            paginatedUsers.map(user => (
               <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(user.user_id)} onChange={() => toggleOne(user.user_id)} />
@@ -416,6 +426,7 @@ function UsersPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredUsers.length} pageSize={100} />
     </>
   );
 

@@ -4,12 +4,14 @@ import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI } from "../services/api";
+import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -30,6 +32,8 @@ function BuildingsPage({ embedded = false }) {
   const [rooms, setRooms] = useState([]);
   const [assets, setAssets] = useState([]);
   const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -78,7 +82,7 @@ function BuildingsPage({ embedded = false }) {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchBuildings(), fetchTerrains(), fetchRooms(), fetchAssets(), fetchStock()]);
+      await Promise.all([fetchBuildings(), fetchTerrains(), fetchRooms(), fetchAssets(), fetchStock(), fetchFaults(), fetchJobs()]);
     };
     loadData();
   }, []);
@@ -146,6 +150,24 @@ function BuildingsPage({ embedded = false }) {
     }
   };
 
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    }
+  };
+
   const getTerrainName = (locationId) => {
     const terrain = terrains.find((t) => t.location_id === locationId);
     return terrain ? terrain.location_name : "-";
@@ -201,12 +223,25 @@ function BuildingsPage({ embedded = false }) {
     const roomIds = new Set(children.map((r) => r.room_id));
     const assetsInSubtree = assets.filter((a) => roomIds.has(a.room_id));
     const stockInSubtree = stock.filter((s) => roomIds.has(s.room_id));
+    const assetIds = new Set(assetsInSubtree.map((a) => a.asset_id));
+    const faultsInSubtree = faults.filter((f) => f.building_id === id || roomIds.has(f.room_id) || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInSubtree.map((f) => f.fault_id));
+    const jobsInSubtree = jobs.filter((j) => j.building_id === id || roomIds.has(j.room_id) || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
     const hasContent = assetsInSubtree.length + stockInSubtree.length > 0;
     const strategy = await chooseDeleteStrategy(confirm, {
       entityLabel: "gebou",
       childrenLabel: "lokale",
       hasChildren: children.length > 0,
       hasContent,
+      counts: {
+        lokale: children.length,
+        bates: assetsInSubtree.length,
+        voorraad: stockInSubtree.length,
+        foutkaartjies: faultsInSubtree.length,
+        werksopdragte: jobsInSubtree.length,
+      },
+      directChildrenLabel: 'lokale',
+      parentLevelLabel: 'gebou',
     });
     if (!strategy) return;
 
@@ -295,9 +330,6 @@ function BuildingsPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredBuildings.map((x) => x.building_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -369,7 +401,18 @@ function BuildingsPage({ embedded = false }) {
       if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
+    const { currentPage, totalPages, paginatedData: paginatedBuildings, goToPage } = usePagination(filteredBuildings, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedBuildings.length > 0 && paginatedBuildings.every((x) => selectedIds.includes(x.building_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedBuildings.map((x) => x.building_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedBuildings.map((x) => x.building_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -399,7 +442,7 @@ function BuildingsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -536,7 +579,7 @@ function BuildingsPage({ embedded = false }) {
           </tr>
         </thead>
         <tbody>
-          {filteredBuildings.map((building) => (
+          {paginatedBuildings.map((building) => (
             <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
               <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedIds.includes(building.building_id)} onChange={() => toggleOne(building.building_id)} />
@@ -552,6 +595,7 @@ function BuildingsPage({ embedded = false }) {
           ))}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredBuildings.length} pageSize={100} />
     </>
   );
 

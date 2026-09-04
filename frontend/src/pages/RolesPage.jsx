@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -87,6 +89,8 @@ function RolesPage({ embedded = false }) {
       ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
       : String(values[filterColumn] || '').toLowerCase().includes(query);
   });
+  const { currentPage, totalPages, paginatedData: paginatedRoles, goToPage } = usePagination(filteredRoles, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, goToPage]);
 
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
@@ -95,7 +99,7 @@ function RolesPage({ embedded = false }) {
 
       {view === 'list' ? (
         <>
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -120,7 +124,7 @@ function RolesPage({ embedded = false }) {
               {filteredRoles.length === 0 ? (
                 <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Geen rolle gevind nie</td></tr>
               ) : (
-                filteredRoles.map(role => (
+                paginatedRoles.map(role => (
                   <tr key={role.role_id}>
                     <td>{role.role_name}</td>
                     <td>{(role.right_ids || []).length}</td>
@@ -136,6 +140,7 @@ function RolesPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredRoles.length} pageSize={100} />
         </>
       ) : (
         <div>
