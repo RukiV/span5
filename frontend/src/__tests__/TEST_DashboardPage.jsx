@@ -34,6 +34,7 @@ jest.mock('../services/api', () => {
 jest.mock('react-chartjs-2', () => ({
   Line: () => <div data-testid="line-chart">Line Chart</div>,
   Doughnut: () => <div data-testid="doughnut-chart">Doughnut Chart</div>,
+  Bar: () => <div data-testid="bar-chart">Bar Chart</div>,
 }));
 
 jest.mock('chart.js', () => ({
@@ -42,28 +43,47 @@ jest.mock('chart.js', () => ({
   LinearScale: jest.fn(),
   PointElement: jest.fn(),
   LineElement: jest.fn(),
+  BarElement: jest.fn(),
   Title: jest.fn(),
   Tooltip: jest.fn(),
   Legend: jest.fn(),
   ArcElement: jest.fn(),
 }));
 
+jest.mock('../hooks/useCurrentUser', () => ({
+  useCurrentUser: () => ({ user: { user_name: 'Admin', role_id: 3 }, rights: [], isAdmin: true, loading: false, error: null }),
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGet.mockResolvedValue({ data: [] });
+  mockGet.mockImplementation((url) => {
+    if (typeof url === 'string' && url.includes('dashboard-summary')) {
+      return Promise.resolve({
+        data: {
+          kpis: { overdue_maintenance: 2, unassigned_high_faults: 1, overdue_jobs: 3, critical_stock: 1, replacement_suggested: 4, high_risk: 2, pending_jobs: 5, completed_jobs: 10 },
+          risk_distribution: { veilig: 10, monitor: 5, vervang: 3 },
+          faults_per_building: [{ building: 'Gebou A', count: 2 }],
+          trend: { labels: ['01 Jan', '08 Jan'], faults_per_week: [1, 2], jobs_completed_per_week: [2, 3] },
+          top_risk_assets: [],
+          critical_stock_list: [],
+          scope: 'all',
+        },
+      });
+    }
+    return Promise.resolve({ data: [] });
+  });
 });
 
 test('renders dashboard with all KPI cards', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('Totale Bates')).toBeInTheDocument();
-    expect(screen.getByText('Aktiewe Herstelwerk')).toBeInTheDocument();
-    expect(screen.getByText('Voltooide Foutkaartjies')).toBeInTheDocument();
-    expect(screen.getByText('Nuwe Foutkaartjies')).toBeInTheDocument();
-    expect(screen.getByText('Bate Voorspellings')).toBeInTheDocument();
-    expect(screen.getByText('Vervanging Voorgestel')).toBeInTheDocument();
     expect(screen.getByText('Onderhoud Agterstallig')).toBeInTheDocument();
+    expect(screen.getByText(/Hoë-prioriteit Foute/)).toBeInTheDocument();
+    expect(screen.getByText('Werksopdragte Oortyd')).toBeInTheDocument();
+    expect(screen.getByText('Kritieke Voorraad')).toBeInTheDocument();
+    expect(screen.getByText('Vervanging Voorgestel')).toBeInTheDocument();
+    expect(screen.getByText(/ML Hoë Risiko/)).toBeInTheDocument();
   });
 });
 
@@ -71,8 +91,12 @@ test('renders charts', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
+    expect(screen.getByText('Foute per Gebou (30 dae)')).toBeInTheDocument();
+    expect(screen.getByText('Bate Risiko-verdeling')).toBeInTheDocument();
+    expect(screen.getByText(/Tendens 8 Weke/)).toBeInTheDocument();
+    // Charts are mocked as bar/line
+    expect(screen.getAllByTestId('bar-chart').length).toBeGreaterThan(0);
     expect(screen.getByTestId('line-chart')).toBeInTheDocument();
-    expect(screen.getByTestId('doughnut-chart')).toBeInTheDocument();
   });
 });
 
@@ -97,7 +121,7 @@ test('prediction links point to /predictions', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
-    const links = screen.getAllByText(/Bekyk/i);
+    const links = screen.getAllByText(/Bekyk.*voorspellings/i);
     expect(links.length).toBeGreaterThan(0);
     links.forEach(l => expect(l.closest('a')).toHaveAttribute('href', '/predictions'));
   });

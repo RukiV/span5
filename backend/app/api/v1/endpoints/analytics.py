@@ -6,9 +6,17 @@ from ....db.database import getSession
 from ....auth.permissions import require_right
 from ....models.user import User
 from ....models.analytics import AnalyticsRequest, AnalyticsResponse, Suggestion
-from ....services.analytics_service import generate_insights, _execute_suggestion
+from ....services.analytics_service import generate_insights, _execute_suggestion, get_dashboard_summary
 
 router = APIRouter()
+
+
+@router.get("/analytics/dashboard-summary")
+def get_dashboard_summary_endpoint(
+    session: Session = Depends(getSession),
+    user: User = Depends(require_right("analytics.view")),
+):
+    return get_dashboard_summary(session, user)
 
 
 @router.post("/analytics/insights", response_model=AnalyticsResponse)
