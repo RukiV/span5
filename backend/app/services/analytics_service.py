@@ -662,6 +662,244 @@ def _gather_context(page: str, session,
     return ctx
 
 
+def get_dashboard_summary(session, user=None) -> dict:
+    """Usable dashboard metrics for FK/Admin — replaces vanity Totale Bates."""
+    from datetime import timedelta
+    from collections import Counter, defaultdict
+    from ..models.asset import Asset
+    from ..models.stock import Stock
+    from ..models.fault import Faultcard
+    from ..models.job import Jobcard
+    from ..models.location import Room, Building, Location
+    from ..services.prediction_service import PredictionService
+    from ..auth.rights_catalog import ROLE_FK
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    two_days_ago = now - timedelta(days=2)
+    thirty_days_ago = now - timedelta(days=30)
+
+    # ── FK scoping ──
+    allowed_building_ids = None
+    allowed_room_ids = None
+    user_location_id = getattr(user, "location_id", None) if user else None
+    is_fk_scoped = user and getattr(user, "role_id", None) == ROLE_FK and user_location_id is not None
+    if is_fk_scoped:
+        buildings = session.exec(select(Building).where(Building.location_id == user_location_id)).all()
+        allowed_building_ids = {b.building_id for b in buildings}
+        rooms = session.exec(select(Room)).all()
+        allowed_room_ids = {r.room_id for r in rooms if r.building_id in allowed_building_ids}
+    else:
+        buildings = session.exec(select(Building)).all()
+        rooms = session.exec(select(Room)).all()
+
+    building_map = {b.building_id: b.building_name for b in buildings}
+    room_map = {r.room_id: (r.room_name, r.building_id) for r in rooms}
+
+    def _in_scope_fault(f):
+        if not is_fk_scoped:
+            return True
+        if f.location_id == user_location_id:
+            return True
+        if f.building_id in allowed_building_ids:
+            return True
+        if f.room_id in allowed_room_ids:
+            return True
+        # also check via asset if present
+        if f.asset_id:
+            asset = session.get(Asset, f.asset_id)
+            if asset and asset.room_id in allowed_room_ids:
+                return True
+        return False
+
+    def _in_scope_job(j):
+        if not is_fk_scoped:
+            return True
+        if j.location_id == user_location_id:
+            return True
+        if j.building_id in allowed_building_ids:
+            return True
+        if j.room_id in allowed_room_ids:
+            return True
+        if j.asset_id:
+            asset = session.get(Asset, j.asset_id)
+            if asset and asset.room_id in allowed_room_ids:
+                return True
+        return False
+
+    def _in_scope_asset(a):
+        if not is_fk_scoped:
+            return True
+        return a.room_id in allowed_room_ids
+
+    def _in_scope_stock(s):
+        if not is_fk_scoped:
+            return True
+        return s.room_id in allowed_room_ids
+
+    # ── Predictions (rules + ML) ──
+    try:
+        preds = PredictionService().getPredictions(session)
+        if is_fk_scoped:
+            filtered = []
+            for p in preds:
+                a = session.get(Asset, p.asset_id)
+                if a and _in_scope_asset(a):
+                    filtered.append(p)
+            preds = filtered
+    except Exception:
+        preds = []
+
+    overdue_maintenance = sum(1 for p in preds if p.maintenance_overdue)
+    replacement_suggested = sum(1 for p in preds if p.replacement_suggested)
+    high_risk = sum(1 for p in preds if getattr(p, "survival_high_risk", False))
+    # Risk distribution
+    veilig = 0
+    monitor = 0
+    vervang = 0
+    for p in preds:
+        pct = getattr(p, "lifespan_pct_used", None)
+        is_high = getattr(p, "survival_high_risk", False) or p.replacement_suggested or p.lifespan_exceeded
+        if is_high or (pct is not None and pct >= 100):
+            vervang += 1
+        elif pct is not None and pct >= 80:
+            monitor += 1
+        else:
+            veilig += 1
+
+    # Top risk
+    def _risk_score(p):
+        prob = getattr(p, "survival_failure_prob_12mo", 0) or 0
+        pct = getattr(p, "lifespan_pct_used", 0) or 0
+        return (prob * 100) + (pct / 2) + (10 if p.replacement_suggested else 0)
+    top_risk = sorted(preds, key=_risk_score, reverse=True)[:5]
+    top_risk_list = [
+        {
+            "asset_id": p.asset_id,
+            "asset_name": p.asset_name,
+            "asset_serial": p.asset_serial,
+            "building": building_map.get(room_map.get(session.get(Asset, p.asset_id).room_id, (None, None))[1], "") if session.get(Asset, p.asset_id) and session.get(Asset, p.asset_id).room_id in room_map else "",
+            "lifespan_pct_used": getattr(p, "lifespan_pct_used", None),
+            "failure_prob": getattr(p, "survival_failure_prob_12mo", None),
+            "reason": (p.replacement_reason or "")[:120],
+            "replacement_suggested": p.replacement_suggested,
+            "maintenance_overdue": p.maintenance_overdue,
+        }
+        for p in top_risk
+    ]
+
+    # ── Faults actionable ──
+    faults = session.exec(select(Faultcard)).all()
+    faults = [f for f in faults if _in_scope_fault(f)]
+    # unassigned high priority >2 days old and still open
+    open_statuses = {"Oop", "Wag", "Bevestig", "Besig"}
+    unassigned_high = 0
+    for f in faults:
+        s = _enum_val(f.fault_status)
+        p = _enum_val(f.fault_priority)
+        if s in open_statuses and p == "Hoog":
+            rd = f.fault_reportdatetime
+            if rd and rd < two_days_ago:
+                unassigned_high += 1
+            elif not rd:
+                unassigned_high += 1
+
+    # faults per building last 30 days
+    recent_faults = [f for f in faults if f.fault_reportdatetime and f.fault_reportdatetime >= thirty_days_ago]
+    # try to resolve building for each fault (direct building_id else via room/asset)
+    def _fault_building_name(f):
+        if f.building_id and f.building_id in building_map:
+            return building_map[f.building_id]
+        if f.room_id and f.room_id in room_map:
+            bid = room_map[f.room_id][1]
+            return building_map.get(bid, "Onbekend")
+        if f.asset_id:
+            a = session.get(Asset, f.asset_id)
+            if a and a.room_id in room_map:
+                bid = room_map[a.room_id][1]
+                return building_map.get(bid, "Onbekend")
+        if f.location_id:
+            # fallback to location
+            loc = session.get(Location, f.location_id)
+            return loc.location_name if loc else "Onbekend"
+        return "Onbekend"
+    per_building = Counter(_fault_building_name(f) for f in recent_faults)
+    faults_per_building = [{"building": k, "count": v} for k, v in per_building.most_common(6)]
+
+    # trend last 8 weeks: faults created per week, jobs completed per week
+    jobs = session.exec(select(Jobcard)).all()
+    jobs = [j for j in jobs if _in_scope_job(j)]
+    # overdue jobs
+    overdue_jobs = 0
+    for j in jobs:
+        s = _enum_val(j.job_status)
+        if s not in ("Voltooid", "Gekanselleer"):
+            if j.job_scheduled_end_datetime and j.job_scheduled_end_datetime < now:
+                overdue_jobs += 1
+
+    # weekly buckets last 8 weeks
+    weeks = []
+    week_labels = []
+    for i in range(7, -1, -1):
+        ws = now - timedelta(weeks=i, days=now.weekday())
+        ws = ws.replace(hour=0, minute=0, second=0, microsecond=0)
+        we = ws + timedelta(days=7)
+        weeks.append((ws, we))
+        week_labels.append(ws.strftime("%d %b"))
+
+    faults_per_week = []
+    jobs_completed_per_week = []
+    for ws, we in weeks:
+        fc = sum(1 for f in faults if f.fault_reportdatetime and ws <= f.fault_reportdatetime < we)
+        jc = sum(1 for j in jobs if j.job_finisheddatetime and ws <= j.job_finisheddatetime < we and _enum_val(j.job_status) == "Voltooid")
+        faults_per_week.append(fc)
+        jobs_completed_per_week.append(jc)
+
+    # stock critical
+    stocks = session.exec(select(Stock)).all()
+    stocks = [s for s in stocks if _in_scope_stock(s)]
+    critical_stock = sum(1 for s in stocks if s.stock_amount is not None and s.stock_minimum is not None and s.stock_amount < s.stock_minimum)
+    # top low stock
+    low_sorted = sorted(
+        [s for s in stocks if s.stock_amount is not None and s.stock_minimum is not None],
+        key=lambda s: (s.stock_amount - s.stock_minimum)
+    )[:5]
+    critical_stock_list = [
+        {"stock_id": s.stock_id, "stock_name": s.stock_name, "amount": s.stock_amount, "minimum": s.stock_minimum, "room_id": s.room_id}
+        for s in low_sorted if s.stock_amount < s.stock_minimum
+    ]
+    # fallback if none critical, show lowest ratio
+    if not critical_stock_list:
+        critical_stock_list = [
+            {"stock_id": s.stock_id, "stock_name": s.stock_name, "amount": s.stock_amount, "minimum": s.stock_minimum, "room_id": s.room_id}
+            for s in low_sorted[:5]
+        ]
+
+    # jobs per status last 8 weeks (for stacked bar alternative) - also overall pending vs completed
+    status_counts = Counter(_enum_val(j.job_status) for j in jobs)
+    pending = sum(status_counts.get(s, 0) for s in ("Oop", "Wag", "Geskeduleer", "Besig"))
+    completed = status_counts.get("Voltooid", 0)
+
+    return {
+        "kpis": {
+            "overdue_maintenance": overdue_maintenance,
+            "unassigned_high_faults": unassigned_high,
+            "overdue_jobs": overdue_jobs,
+            "critical_stock": critical_stock,
+            "replacement_suggested": replacement_suggested,
+            "high_risk": high_risk,
+            "pending_jobs": pending,
+            "completed_jobs": completed,
+        },
+        "risk_distribution": {"veilig": veilig, "monitor": monitor, "vervang": vervang},
+        "faults_per_building": faults_per_building,
+        "trend": {"labels": week_labels, "faults_per_week": faults_per_week, "jobs_completed_per_week": jobs_completed_per_week},
+        "top_risk_assets": top_risk_list,
+        "critical_stock_list": critical_stock_list,
+        "scope": "fk" if is_fk_scoped else "all",
+        "location_name": session.get(Location, user_location_id).location_name if is_fk_scoped and user_location_id else None,
+    }
+
+
 def _count_by(session, model, group_field: str, label_field: str = None,
               date_field: str = None, date_from: datetime = None, date_to: datetime = None) -> dict:
     query = select(model)
