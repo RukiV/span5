@@ -88,6 +88,21 @@ class JobcardService {
   /// te voltooi. 'n Pending X-Idempotency-Key voorkom duplikaat-versoeke.
   static String? _pendingCompleteKey;
 
+  /// Verwyder 'n werksopdrag (jobs.manage). Gee true terug by sukses.
+  static Future<bool> deleteJob(int jobId) async {
+    try {
+      final response = await ApiClient().client.delete('/job/$jobId');
+      if (response.statusCode == 204 || response.statusCode == 200) {
+        _jobcards.removeWhere((j) => j.id == jobId);
+        jobcardsNotifier.value = List.from(_jobcards);
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Fout met verwydering van werksopdrag: $e");
+    }
+    return false;
+  }
+
   static Future<bool> requestCompletion(int jobId) async {
     _pendingCompleteKey ??= Idempotency.generate();
     try {

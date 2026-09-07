@@ -9,6 +9,8 @@ import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 import 'new_stock_page.dart';
 import 'edit_stock_page.dart';
 
@@ -36,6 +38,7 @@ class _StockPageState extends State<StockPage> {
     const ColumnDef(key: 'description', label: 'Beskrywing', defaultVisible: false),
     const ColumnDef(key: 'room', label: 'Lokaal', defaultVisible: false),
   ]);
+  final SelectionController<int> _selection = SelectionController<int>();
 
   @override
   void initState() {
@@ -155,30 +158,32 @@ class _StockPageState extends State<StockPage> {
                           delegate: SliverChildBuilderDelegate(
                             (context, index) {
                               final stock = filtered[index];
-                              return Column(
-                                children: [
-                                  InkWell(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => EditStockPage(stock: stock)),
-                                      );
-                                    },
-                                    child: Container(
-                                      color: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                                      child: Row(
-                                        children: _colVis.visibleColumns.map((col) {
-                                          return Expanded(
-                                            flex: _columnFlex(col.key),
-                                            child: _buildColumnContent(stock, col.key),
-                                          );
-                                        }).toList(),
-                                      ),
-                                    ),
-                                  ),
-                                  const Divider(height: 1),
-                                ],
+                              return CardDataRow(
+                                leading: _selection.isSelecting && stock.id != null
+                                    ? Checkbox(
+                                        value: _selection.isSelected(stock.id!),
+                                        onChanged: (_) => setState(() => _selection.toggle(stock.id!)),
+                                      )
+                                    : null,
+                                trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                                onTap: () {
+                                  if (_selection.isSelecting) {
+                                    if (stock.id != null) {
+                                      setState(() => _selection.toggle(stock.id!));
+                                    }
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(builder: (context) => EditStockPage(stock: stock)),
+                                    );
+                                  }
+                                },
+                                children: _colVis.visibleColumns.map((col) {
+                                  return Expanded(
+                                    flex: _columnFlex(col.key),
+                                    child: _buildColumnContent(stock, col.key),
+                                  );
+                                }).toList(),
                               );
                             },
                             childCount: filtered.length,
@@ -210,6 +215,30 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
+  Future<void> _bulkDeleteStock(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await StockService.deleteStock(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await StockService.fetchStocks();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok voorraad-item(s) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
+  }
+
   List<Widget> _buildHeaderActions() {
     final locationActive = _selectedCampusId != null ||
         _selectedBuildingId != null ||
@@ -232,6 +261,19 @@ class _StockPageState extends State<StockPage> {
           }),
         ),
       ),
+      if (UserSession.can('stock.manage')) ...[
+        SelectModeButton<int>(
+          controller: _selection,
+          onToggle: () => setState(() =>
+              _selection.isSelecting ? _selection.exit() : _selection.enter()),
+        ),
+        BulkDeleteAction<int>(
+          controller: _selection,
+          confirmTitle: 'Verwyder Voorraad',
+          confirmMessage: 'Wil jy ${_selection.count} geselekteerde voorraad-item(s) verwyder?',
+          onDelete: _bulkDeleteStock,
+        ),
+      ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
   }
