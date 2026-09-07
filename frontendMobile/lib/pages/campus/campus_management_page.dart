@@ -4,13 +4,16 @@ import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
-import 'campus_detail_page.dart';
+import 'edit_campus_page.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/fixed_page_header.dart';
 
 class CampusManagementPage extends StatefulWidget {
-  const CampusManagementPage({super.key});
+  final void Function(Campus campus) onCampusSelected;
+  const CampusManagementPage({super.key, required this.onCampusSelected});
 
   @override
   State<CampusManagementPage> createState() => _CampusManagementPageState();
@@ -24,6 +27,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
     const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
     const ColumnDef(key: 'buildings', label: 'Geboue'),
   ]);
+  final SelectionController<int> _selection = SelectionController<int>();
   String _query = "";
 
   @override
@@ -43,6 +47,66 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
     super.dispose();
   }
 
+  List<Widget> _buildCampusCells(Campus campus) {
+    return _colVis.visibleColumns.map((col) {
+      int flex = 2;
+      Widget child;
+      switch (col.key) {
+        case 'name':
+          flex = 3;
+          child = Text(
+            campus.name,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+          );
+          break;
+        case 'address':
+          flex = 3;
+          child = Text(
+            campus.address,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        case 'buildings':
+          flex = 2;
+          child = Text(
+            "${campus.buildings.length} Geboue",
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+          );
+          break;
+        default:
+          child = const SizedBox.shrink();
+      }
+      return Expanded(flex: flex, child: child);
+    }).toList();
+  }
+
+  Future<void> _bulkDeleteCampuses(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await CampusService.removeCampus(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await CampusService.fetchCampuses();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok terrein/terreine verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,21 +121,6 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (UserSession.can('locations.manage'))
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 20),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const AddCampusPage()),
-                          );
-                        },
-                        icon: const Icon(Icons.add),
-                        label: const Text("Voeg Terrein By"),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: Colors.white),
-                      ),
-                    ),
                   Icon(Icons.location_city_outlined, size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   const Text("Geen kampusse gevind nie."),
@@ -112,32 +161,23 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                 hintText: "Soek terreine...",
                 onChanged: (_) => setState(() {}),
                 actions: [
+                  if (UserSession.can('locations.manage')) ...[
+                    SelectModeButton<int>(
+                      controller: _selection,
+                      onToggle: () => setState(() =>
+                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
+                    ),
+                    BulkDeleteAction<int>(
+                      controller: _selection,
+                      confirmTitle: 'Verwyder Terreine',
+                      confirmMessage: 'Wil jy ${_selection.count} geselekteerde terrein/terreine verwyder?',
+                      childWarning: 'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                      onDelete: _bulkDeleteCampuses,
+                    ),
+                  ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
-              if (UserSession.can('locations.manage'))
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const AddCampusPage()),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("VOEG NUWE TERREIN BY"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                ),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => CampusService.fetchCampuses(),
@@ -155,38 +195,40 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                             delegate: SliverChildBuilderDelegate(
                               (context, index) {
                                 final campus = filtered[index];
-                                return Card(
-                                  elevation: 2,
-                                  margin: const EdgeInsets.only(bottom: 15),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  child: ListTile(
-                                    contentPadding: const EdgeInsets.all(15),
-                                    title: Text(
-                                      campus.name,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
-                                    ),
-                                    subtitle: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 5),
-                                        Text(campus.address, style: const TextStyle(fontSize: 13)),
-                                        const SizedBox(height: 5),
-                                        Text(
-                                          "${campus.buildings.length} Geboue",
-                                          style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+                                return CardDataRow(
+                                  leading: _selection.isSelecting
+                                      ? Checkbox(
+                                          value: _selection.isSelected(campus.id),
+                                          onChanged: (_) => setState(() => _selection.toggle(campus.id)),
+                                        )
+                                      : null,
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (!_selection.isSelecting && UserSession.can('locations.manage'))
+                                        IconButton(
+                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                          onPressed: () async {
+                                            final result = await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => EditCampusPage(campus: campus),
+                                              ),
+                                            );
+                                            if (result == true) CampusService.fetchCampuses();
+                                          },
                                         ),
-                                      ],
-                                    ),
-                                    trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => CampusDetailPage(campus: campus),
-                                        ),
-                                      );
-                                    },
+                                      const Icon(Icons.chevron_right, color: AppColors.gold),
+                                    ],
                                   ),
+                                  onTap: () {
+                                    if (_selection.isSelecting) {
+                                      setState(() => _selection.toggle(campus.id));
+                                    } else {
+                                      widget.onCampusSelected(campus);
+                                    }
+                                  },
+                                  children: _buildCampusCells(campus),
                                 );
                               },
                               childCount: filtered.length,
@@ -202,6 +244,21 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
           );
         },
       ),
+      floatingActionButton: UserSession.can('locations.manage')
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.gold,
+              elevation: 4,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text(
+                "Nuwe Terrein",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddCampusPage()),
+              ),
+            )
+          : null,
     );
   }
 }

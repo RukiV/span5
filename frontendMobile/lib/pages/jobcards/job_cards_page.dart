@@ -7,6 +7,8 @@ import '../../models/jobcard.dart';
 import '../../models/job_draft.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 import '../../widgets/fixed_page_header.dart';
 import 'jobcard_detail_page.dart';
 import '../ai/ai_draft_review_page.dart';
@@ -40,20 +42,11 @@ class _JobCardsPageState extends State<JobCardsPage>
     const ColumnDef(key: 'status', label: 'Status'),
     const ColumnDef(key: 'date', label: 'Datum', defaultVisible: false),
   ]);
+  final SelectionController<int> _selection = SelectionController<int>();
   String _searchQuery = "";
 
   // ── AI draft queue state ──
   String? _aiStatusFilter = 'draft';
-  final SortController _aiSortCtrl = SortController();
-  final ColumnVisibilityController _aiColVis = ColumnVisibilityController('ai_drafts', [
-    const ColumnDef(key: 'id', label: 'ID'),
-    const ColumnDef(key: 'title', label: 'TITEL'),
-    // Ligging by verstek sigbaar — meeste titels is eenders; die plek onderskei.
-    const ColumnDef(key: 'location', label: 'LIGGING'),
-    const ColumnDef(key: 'type', label: 'TIPE', defaultVisible: false),
-    const ColumnDef(key: 'status', label: 'STATUS'),
-    const ColumnDef(key: 'date', label: 'DATUM', defaultVisible: false),
-  ]);
 
   @override
   void initState() {
@@ -186,7 +179,8 @@ class _JobCardsPageState extends State<JobCardsPage>
                 j.status == "Geskeduleer" ||
                 j.status == "Voltooi" ||
                 j.status == "Oop" ||
-                j.status == "Wag")
+                j.status == "Wag" ||
+                j.status == "Gekanselleer")
             .toList();
 
         final filtered = activeJobs.where((j) {
@@ -255,8 +249,45 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   List<Widget> _buildJobHeaderActions() {
     return [
+      if (UserSession.can('jobs.manage')) ...[
+        SelectModeButton<int>(
+          controller: _selection,
+          onToggle: () => setState(() =>
+              _selection.isSelecting ? _selection.exit() : _selection.enter()),
+        ),
+        BulkDeleteAction<int>(
+          controller: _selection,
+          confirmTitle: 'Verwyder Werksopdragte',
+          confirmMessage: 'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
+          onDelete: _bulkDeleteJobs,
+        ),
+      ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  Future<void> _bulkDeleteJobs(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await JobcardService.deleteJob(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await JobcardService.fetchJobs();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok werksopdrag(te) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   Widget _buildEmptyState() {
@@ -290,72 +321,72 @@ class _JobCardsPageState extends State<JobCardsPage>
   }
 
   Widget _buildJobCard(Jobcard job) {
-    Color statusColor = _getStatusColor(job.status);
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _openJob(job),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "#${job.id}",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      job.status.toUpperCase(),
-                      style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                job.description,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.navy),
-              ),
-              if (job.type != null) ...[
-                const SizedBox(height: 4),
-                Text(job.type!, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-              ],
-              if (job.createdDatetime != null && UserSession.can('jobs.manage')) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.access_time, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    Text("Geskep: ${_formatDate(job.createdDatetime!)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                  ],
-                ),
-              ],
-              const Divider(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildStatusChip(job.status),
-                  const Icon(Icons.chevron_right, color: AppColors.gold),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+    return CardDataRow(
+      leading: _selection.isSelecting
+          ? Checkbox(
+              value: _selection.isSelected(job.id),
+              onChanged: (_) => setState(() => _selection.toggle(job.id)),
+            )
+          : null,
+      trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+      onTap: () {
+        if (_selection.isSelecting) {
+          setState(() => _selection.toggle(job.id));
+        } else {
+          _openJob(job);
+        }
+      },
+      children: _buildJobCells(job),
     );
+  }
+
+  List<Widget> _buildJobCells(Jobcard job) {
+    return _colVis.visibleColumns.map((col) {
+      int flex = 2;
+      Widget child;
+      switch (col.key) {
+        case 'id':
+          flex = 1;
+          child = Text(
+            "#${job.id}",
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12),
+          );
+          break;
+        case 'description':
+          flex = 3;
+          child = Text(
+            job.description,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+          );
+          break;
+        case 'type':
+          flex = 2;
+          child = Text(
+            job.type ?? '',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        case 'status':
+          flex = 2;
+          child = _buildStatusChip(job.status);
+          break;
+        case 'date':
+          flex = 2;
+          child = Text(
+            job.createdDatetime != null ? _formatDate(job.createdDatetime!) : '-',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        default:
+          child = const SizedBox.shrink();
+      }
+      return Expanded(flex: flex, child: child);
+    }).toList();
   }
 
   void _openJob(Jobcard job) {
@@ -671,3 +702,4 @@ class _AiBadge extends StatelessWidget {
     );
   }
 }
+

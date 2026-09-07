@@ -12,6 +12,8 @@ import 'edit_building_page.dart';
 import '../rooms/manage_rooms_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 
 class BuildingsListPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -31,6 +33,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     const ColumnDef(key: 'rooms', label: 'Lokale'),
     const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
   ]);
+  final SelectionController<int> _selection = SelectionController<int>();
 
   @override
   void initState() {
@@ -73,28 +76,62 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     setState(() {});
   }
 
-  Future<void> _deleteBuilding(Building building) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Verwyder Gebou"),
-        content: Text("Is jy seker jy wil '${building.name}' verwyder?"),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("KANSELLEER")),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("VERWYDER", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-    if (confirm == true && mounted) {
-      final success = await CampusService.removeBuilding(building.id);
-      if (!mounted) return;
+  List<Widget> _buildBuildingCells(Building b) {
+    final roomCount = b.rooms?.length ?? 0;
+    return _colVis.visibleColumns.map((col) {
+      int flex = 2;
+      Widget child;
+      switch (col.key) {
+        case 'name':
+          flex = 3;
+          child = Text(
+            b.name,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+          );
+          break;
+        case 'rooms':
+          flex = 2;
+          child = Text(
+            "$roomCount Lokale",
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+          );
+          break;
+        case 'address':
+          flex = 3;
+          child = Text(
+            b.address,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          );
+          break;
+        default:
+          child = const SizedBox.shrink();
+      }
+      return Expanded(flex: flex, child: child);
+    }).toList();
+  }
+
+  Future<void> _bulkDeleteBuildings(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await CampusService.removeBuilding(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await CampusService.fetchCampuses();
+    if (context.mounted) {
+      setState(() => _selection.exit());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? "Gebou verwyder." : "Kon nie die gebou verwyder nie."),
-          backgroundColor: success ? Colors.green : Colors.red,
+          content: Text(fail == 0
+              ? "$ok gebou/geboue verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -167,6 +204,20 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                       },
                     ),
                   ),
+                  if (UserSession.can('buildings.manage')) ...[
+                    SelectModeButton<int>(
+                      controller: _selection,
+                      onToggle: () => setState(() =>
+                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
+                    ),
+                    BulkDeleteAction<int>(
+                      controller: _selection,
+                      confirmTitle: 'Verwyder Geboue',
+                      confirmMessage: 'Wil jy ${_selection.count} geselekteerde gebou/geboue verwyder?',
+                      childWarning: 'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                      onDelete: _bulkDeleteBuildings,
+                    ),
+                  ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
@@ -209,96 +260,49 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final b = filtered[index];
-                            final roomCount = b.rooms?.length ?? 0;
-                          return Card(
-                            elevation: 2,
-                            margin: const EdgeInsets.only(bottom: 15),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            child: Column(
+                          return CardDataRow(
+                            leading: _selection.isSelecting
+                                ? Checkbox(
+                                    value: _selection.isSelected(b.id),
+                                    onChanged: (_) => setState(() => _selection.toggle(b.id)),
+                                  )
+                                : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                ListTile(
-                                  contentPadding: const EdgeInsets.all(15),
-                                  title: Text(
-                                    b.name,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (b.address.isNotEmpty) ...[
-                                        const SizedBox(height: 4),
-                                        Text(b.address, style: const TextStyle(fontSize: 13)),
-                                      ],
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "$roomCount Lokale",
-                                        style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (UserSession.can('buildings.manage')) ...[
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                          onPressed: () async {
-                                            final result = await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => EditBuildingPage(building: b),
-                                              ),
-                                            );
-                                            if (result == true) setState(() {});
-                                          },
+                                if (!_selection.isSelecting && UserSession.can('buildings.manage'))
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                    onPressed: () async {
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EditBuildingPage(building: b),
                                         ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                          onPressed: () => _deleteBuilding(b),
-                                        ),
-                                      ],
-                                      const Icon(Icons.chevron_right, color: AppColors.gold),
-                                    ],
+                                      );
+                                      if (result == true) setState(() {});
+                                    },
                                   ),
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => ManageRoomsPage(
-                                          initialCampus: _selectedCampus,
-                                          initialBuilding: b,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                if (roomCount > 0 && UserSession.can('buildings.manage'))
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(15, 0, 15, 10),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: TextButton(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) => ManageRoomsPage(
-                                                initialCampus: _selectedCampus,
-                                                initialBuilding: b,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                        child: const Text(
-                                          "BESIGTIG LOKALE",
-                                          style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                                const Icon(Icons.chevron_right, color: AppColors.gold),
                               ],
                             ),
-                            );
+                            onTap: () {
+                              if (_selection.isSelecting) {
+                                setState(() => _selection.toggle(b.id));
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ManageRoomsPage(
+                                      initialCampus: _selectedCampus,
+                                      initialBuilding: b,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            children: _buildBuildingCells(b),
+                          );
                         },
                       ),
                     ),
