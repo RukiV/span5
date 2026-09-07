@@ -7,6 +7,7 @@ import '../../core/app_colors.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
 import '../../services/outlook_token_manager.dart';
+import '../settings/server_config_page.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
 /// Dit ondersteun e-pos/wagwoord-aanmelding, Microsoft Outlook SSO,
@@ -365,6 +366,22 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(width: 10),
                             const Text("Teken in met Microsoft", style: TextStyle(color: Colors.black87)),
                           ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ServerConfigPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.dns, size: 16, color: Colors.grey),
+                        label: const Text(
+                          "Bediener-instellings",
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
                         ),
                       ),
                     ],

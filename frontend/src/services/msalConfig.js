@@ -5,7 +5,7 @@ export const msalConfig = {
     clientId: process.env.REACT_APP_MICROSOFT_CLIENT_ID || "your_client_id_here",
 
     authority: `https://login.microsoftonline.com/${process.env.REACT_APP_MICROSOFT_TENANT_ID || "common"}`,
-    redirectUri: process.env.REACT_APP_REDIRECT_URI || "http://localhost:3000/auth/callback"
+    redirectUri: process.env.REACT_APP_REDIRECT_URI || (typeof window !== "undefined" ? window.location.origin + "/auth/callback" : undefined)
   },
   cache: {
     cacheLocation: "sessionStorage",

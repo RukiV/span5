@@ -5,6 +5,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_session.dart';
 import 'navigation.dart';
 
+/// API-pad wat agter die bediener-oorsprong aangeheg word (bv. /api/v1).
+const apiPath = '/api/v1';
+
 /// ApiClient: Centralized network engine for the Akademia Facility Management System.
 ///
 /// Enforces HTTPS and prevents common security pitfalls:
@@ -22,10 +25,10 @@ class ApiClient {
   factory ApiClient() => _instance;
 
   ApiClient._internal() {
-    // Emulator-friendly default: use local network IP so emulator can reach host machine.
-    // Override with API_URL in .env for production or CI.
-    // Campus WiFi fallback (use .env API_URL to point at your personal network).
-    // Precedence: --dart-define=API_URL=... > .env API_URL > hardcoded fallback.
+    // Valbak-URL. Opstart lees die gestoorde bediener-URL (eerste-launch/
+    // instellings) en pas dit asynchronies toe via setBaseUrl() sodat 'n enkele
+    // APK met enige bediener (LAN-IP, tunnel-URL of domein) kan verbind.
+    // Precedence op opstart: --dart-define=API_URL=... > .env API_URL > gestoorde URL > hardcoded.
     const dartDefineUrl = String.fromEnvironment('API_URL');
     final baseUrl = dartDefineUrl.isNotEmpty
         ? dartDefineUrl
@@ -122,6 +125,26 @@ class ApiClient {
 
   /// Returns the configured Dio instance.
   Dio get client => _dio;
+
+  /// Current base URL (server origin + API path).
+  String get baseUrl => _dio.options.baseUrl;
+
+  /// Updates the server base URL and persists it in secure storage so the
+  /// app connects to whichever server the user configured (LAN IP, tunnel URL,
+  /// or domain) on the next launch too.
+  Future<void> setBaseUrl(String url) async {
+    final normalized = url.trim().replaceAll(RegExp(r'/+$'), '');
+    if (normalized.isEmpty) return;
+    _dio.options.baseUrl = normalized.endsWith(apiPath)
+        ? normalized
+        : '$normalized$apiPath';
+    await _storage.write(key: 'server_url', value: _dio.options.baseUrl);
+  }
+
+  /// Reads the stored server URL (set via the first-launch / settings screen).
+  static Future<String?> getStoredServerUrl() async {
+    return const FlutterSecureStorage().read(key: 'server_url');
+  }
 
   /// Stores the authentication token securely.
   Future<void> saveToken(String token) async {

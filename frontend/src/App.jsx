@@ -12,6 +12,7 @@ import DragHandle from './components/DragHandle';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
 import LoginPage from './pages/LoginPage';
+import DownloadPage from './pages/DownloadPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
@@ -245,6 +246,7 @@ function App() {
       <div className="app">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/download" element={<DownloadPage />} />
           <Route path="/*" element={
             <AnalyticsProvider>
               <ToastProvider>

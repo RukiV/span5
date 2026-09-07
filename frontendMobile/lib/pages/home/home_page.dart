@@ -24,6 +24,7 @@ import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/outlook_token_manager.dart';
 import '../room_checklist/room_check_session_page.dart';
+import '../settings/server_config_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -323,6 +324,18 @@ class _HomePageState extends State<HomePage> {
             ),
 
             const Divider(color: Colors.white24),
+
+            ListTile(
+              leading: const Icon(Icons.dns, color: Colors.white70),
+              title: const Text("Bediener-instellings", style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ServerConfigPage()),
+                );
+              },
+            ),
 
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
