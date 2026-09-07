@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -135,7 +135,7 @@ const DashboardPage = () => {
     };
 
     fetchData();
-    const interval = window.setInterval(fetchData, 30000);
+    const interval = window.setInterval(fetchData, 3600000);
     const onFocus = () => fetchData();
     window.addEventListener('focus', onFocus);
     return () => {
@@ -227,6 +227,20 @@ const DashboardPage = () => {
 
   const hasData = (arr) => arr && arr.some((v) => v > 0);
 
+  const aiCharts = summary?.ai_charts || {};
+  // Herorden volgens belangrikste eerste: kritieke risiko/impak, SLA, pareto, gesondheid, volume, MTTR, lading, ouderdom, strategie
+  const aiOrder = [
+    'criticality_matrix',
+    'sla_compliance',
+    'failure_pareto',
+    'health_status',
+    'ticket_volume_backlog',
+    'mttr_mtbf',
+    'technician_load',
+    'lifecycle_age',
+    'strategy_mix',
+  ];
+
   return (
     <div className="main">
       <div className="content">
@@ -236,13 +250,13 @@ const DashboardPage = () => {
           </div>
         )}
 
-        {/* ── Aksie-KPI's ── */}
+        {/* ── RY 0: Kristieke Aksie-KPI's — herorden volgens urgentheid: Oortyd > Hoë foute > Agterstallig > Voorraad ── */}
         <div className="stats-grid">
-          <Link to="/predictions" className="stat-card" style={{ borderLeft: '5px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
+          <Link to="/work-orders" className="stat-card" style={{ borderLeft: '5px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
-              <h4>Onderhoud Agterstallig</h4>
-              <div className="stat-number" style={{ color: (kpis.overdue_maintenance || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_maintenance ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_maintenance > 0 ? 'Benodig skedulering' : 'Geen agterstallig'}</div>
+              <h4>Werksopdragte Oortyd</h4>
+              <div className="stat-number" style={{ color: (kpis.overdue_jobs || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_jobs ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_jobs > 0 ? 'Oor skedule' : 'Geen oortyd'}</div>
             </div>
           </Link>
           <Link to="/fault-tickets?priority=Hoog" className="stat-card" style={{ borderLeft: '5px solid #c97c3c', textDecoration: 'none', color: 'inherit' }}>
@@ -252,11 +266,11 @@ const DashboardPage = () => {
               <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.unassigned_high_faults > 0 ? 'Wag vir toewysing' : 'Geen oop hoë-pri'}</div>
             </div>
           </Link>
-          <Link to="/work-orders" className="stat-card" style={{ borderLeft: '5px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
+          <Link to="/predictions" className="stat-card" style={{ borderLeft: '5px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
-              <h4>Werksopdragte Oortyd</h4>
-              <div className="stat-number" style={{ color: (kpis.overdue_jobs || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_jobs ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_jobs > 0 ? 'Oor skedule' : 'Geen oortyd'}</div>
+              <h4>Onderhoud Agterstallig</h4>
+              <div className="stat-number" style={{ color: (kpis.overdue_maintenance || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_maintenance ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_maintenance > 0 ? 'Benodig skedulering' : 'Geen agterstallig'}</div>
             </div>
           </Link>
           <Link to="/stock" className="stat-card" style={{ borderLeft: '5px solid #f59e0b', textDecoration: 'none', color: 'inherit' }}>
@@ -268,20 +282,20 @@ const DashboardPage = () => {
           </Link>
         </div>
 
-        {/* ── Sekondêre KPI (vervanging / risiko) ── */}
+        {/* ── RY 1: Sekondêre risiko-KPI's — herorden: ML Hoë Risiko > Vervanging > Hangende/Voltooi ── */}
         <div className="stats-grid" style={{ marginBottom: '20px' }}>
-          <div className="stat-card" style={{ borderLeft: '4px solid #935e28' }}>
-            <div style={{ flex: 1 }}>
-              <h4>Vervanging Voorgestel</h4>
-              <div className="stat-number">{kpis.replacement_suggested ?? 0}</div>
-              <Link to="/predictions" className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>Bekyk voorspellings →</Link>
-            </div>
-          </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #b91c1c' }}>
             <div style={{ flex: 1 }}>
               <h4>ML Hoë Risiko (&gt;50% 12md)</h4>
               <div className="stat-number" style={{ color: (kpis.high_risk || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.high_risk ?? 0}</div>
               <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.high_risk > 0 ? 'Faalkans binne jaar' : 'Geen hoë ML-risiko'}</div>
+            </div>
+          </div>
+          <div className="stat-card" style={{ borderLeft: '4px solid #935e28' }}>
+            <div style={{ flex: 1 }}>
+              <h4>Vervanging Voorgestel</h4>
+              <div className="stat-number">{kpis.replacement_suggested ?? 0}</div>
+              <Link to="/predictions" className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>Bekyk voorspellings →</Link>
             </div>
           </div>
           <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
@@ -293,98 +307,8 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        {/* ── Charts ry 1 ── */}
-        <div className="charts-container">
-          <div className="data-panel">
-            <div className="panel-header">
-              <h3>Foute per Gebou (30 dae)</h3>
-              <Link to="/fault-tickets" className="view-all">Bekyk foute →</Link>
-            </div>
-            <div className="chart-container" style={{ height: '260px' }}>
-              <Bar
-                data={faultsPerBuildingData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                }}
-              />
-            </div>
-            {!hasData(faultsPerBuildingData.datasets[0].data) && (
-              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>Geen foute laaste 30 dae — stabiele terrein.</div>
-            )}
-          </div>
-          <div className="data-panel">
-            <div className="panel-header">
-              <h3>Bate Risiko-verdeling</h3>
-              <Link to="/predictions" className="view-all">Bekyk besonderhede →</Link>
-            </div>
-            <div className="chart-container" style={{ height: '260px' }}>
-              <Bar
-                data={riskData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  indexAxis: 'y',
-                  plugins: { legend: { display: false } },
-                  scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
-                }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#10b981', borderRadius: '2px', marginRight: '4px' }}></span>Veilig &lt;80%</span>
-              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#f59e0b', borderRadius: '2px', marginRight: '4px' }}></span>Monitor 80-99%</span>
-              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', marginRight: '4px' }}></span>Vervang ≥100%/ML</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Charts ry 2 ── */}
-        <div className="charts-container" style={{ marginTop: '20px' }}>
-          <div className="data-panel">
-            <div className="panel-header">
-              <h3>Tendens 8 Weke — Foute vs Herstel</h3>
-            </div>
-            <div className="chart-container" style={{ height: '260px' }}>
-              <Line
-                data={trendData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { position: 'bottom' } },
-                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                }}
-              />
-            </div>
-            <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', marginTop: '6px' }}>
-              Gap groei = agterstand neem toe. Geskep vs voltooi per week.
-            </div>
-          </div>
-          <div className="data-panel">
-            <div className="panel-header">
-              <h3>Kritieke Voorraad — Hoeveelheid vs Minimum</h3>
-              <Link to="/stock" className="view-all">Bestuur voorraad →</Link>
-            </div>
-            <div className="chart-container" style={{ height: '260px' }}>
-              <Bar
-                data={stockData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: { legend: { position: 'bottom' } },
-                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-                }}
-              />
-            </div>
-            {criticalStockList.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#10b981', fontSize: '13px', marginTop: '6px' }}>Geen kritieke items — voorraad OK.</div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Top risiko tabel ── */}
-        <div className="data-panel" style={{ marginTop: '20px' }}>
+        {/* ── RY 2: Top risiko tabel — skuif op voor grafieke (belangrikste aksie-lys) ── */}
+        <div className="data-panel" style={{ marginBottom: '20px' }}>
           <div className="panel-header">
             <h3>Top 5 Vervangings-kandidate (aksie benodig)</h3>
             <Link to="/predictions" className="view-all">Alle voorspellings →</Link>
@@ -440,7 +364,163 @@ const DashboardPage = () => {
           )}
         </div>
 
-        {/* ── Onlangse werk + aktiwiteit ── */}
+        {/* ── RY 3: Hoof-grafieke — herorden: Risiko + Kritieke voorraad eerste (aksie), dan Tendens + Foute per Gebou ── */}
+        <div className="charts-container">
+          <div className="data-panel">
+            <div className="panel-header">
+              <h3>Bate Risiko-verdeling</h3>
+              <Link to="/predictions" className="view-all">Bekyk besonderhede →</Link>
+            </div>
+            <div className="chart-container" style={{ height: '260px' }}>
+              <Bar
+                data={riskData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  indexAxis: 'y',
+                  plugins: { legend: { display: false } },
+                  scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#10b981', borderRadius: '2px', marginRight: '4px' }}></span>Veilig &lt;80%</span>
+              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#f59e0b', borderRadius: '2px', marginRight: '4px' }}></span>Monitor 80-99%</span>
+              <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', marginRight: '4px' }}></span>Vervang ≥100%/ML</span>
+            </div>
+          </div>
+          <div className="data-panel">
+            <div className="panel-header">
+              <h3>Kritieke Voorraad — Hoeveelheid vs Minimum</h3>
+              <Link to="/stock" className="view-all">Bestuur voorraad →</Link>
+            </div>
+            <div className="chart-container" style={{ height: '260px' }}>
+              <Bar
+                data={stockData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: 'bottom' } },
+                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                }}
+              />
+            </div>
+            {criticalStockList.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#10b981', fontSize: '13px', marginTop: '6px' }}>Geen kritieke items — voorraad OK.</div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RY 4: Tendens + Foute per Gebou ── */}
+        <div className="charts-container" style={{ marginTop: '20px' }}>
+          <div className="data-panel">
+            <div className="panel-header">
+              <h3>Tendens 8 Weke — Foute vs Herstel</h3>
+            </div>
+            <div className="chart-container" style={{ height: '260px' }}>
+              <Line
+                data={trendData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { position: 'bottom' } },
+                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                }}
+              />
+            </div>
+            <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', marginTop: '6px' }}>
+              Gap groei = agterstand neem toe. Geskep vs voltooi per week.
+            </div>
+          </div>
+          <div className="data-panel">
+            <div className="panel-header">
+              <h3>Foute per Gebou (30 dae)</h3>
+              <Link to="/fault-tickets" className="view-all">Bekyk foute →</Link>
+            </div>
+            <div className="chart-container" style={{ height: '260px' }}>
+              <Bar
+                data={faultsPerBuildingData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                }}
+              />
+            </div>
+            {!hasData(faultsPerBuildingData.datasets[0].data) && (
+              <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>Geen foute laaste 30 dae — stabiele terrein.</div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RY 5: AI 9 Visuals — herorden volgens belangrikste eerste (kritieke matrix, SLA, pareto ...) ── */}
+        {Object.keys(aiCharts).length > 0 && (
+          <>
+            <div style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <h2 style={{ margin: 0, color: '#0e1e3b', fontSize: '18px' }}>AI Asset & Werkopdrag Analise</h2>
+              <span style={{ background: '#d4edda', color: '#155724', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>AI gegenereer • elke run vars</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+              {aiOrder.filter((k) => aiCharts[k]).map((key) => {
+                const chart = aiCharts[key];
+                const labels = chart.labels || [];
+                const datasets = (chart.datasets || []).map((ds, i) => ({
+                  label: ds.label,
+                  data: ds.data,
+                  backgroundColor: chart.type === 'doughnut'
+                    ? ['#935e28', '#b8863c', '#d4a357', '#e8c49a', '#f0dcc8', '#10b981', '#f59e0b', '#ef4444'].slice(0, (ds.data||[]).length)
+                    : ds.backgroundColor || ['#935e28', '#b8863c', '#d4a357', '#10b981', '#f59e0b', '#ef4444'][i % 6],
+                  borderColor: chart.type === 'line' ? '#935e28' : undefined,
+                  borderWidth: chart.type === 'line' ? 2 : 0,
+                  fill: chart.type === 'line' ? false : true,
+                  tension: 0.3,
+                }));
+                const data = { labels, datasets };
+                const opts = {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { position: chart.type === 'doughnut' ? 'bottom' : 'bottom' },
+                    title: { display: false },
+                  },
+                  scales: chart.type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45 } } },
+                };
+                // Special cards for MTTR
+                const cards = chart.cards;
+                return (
+                  <div key={key} className="data-panel">
+                    <div className="panel-header">
+                      <h3 style={{ fontSize: '14px' }}>{chart.title || key}</h3>
+                    </div>
+                    {cards && (
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                        <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#065f46' }}>MTTR</div>
+                          <div style={{ fontSize: '18px', fontWeight: 800, color: '#065f46' }}>{cards.mttr}h</div>
+                        </div>
+                        <div style={{ flex: 1, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '11px', color: '#1e40af' }}>MTBF</div>
+                          <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e40af' }}>{cards.mtbf_days}d</div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="chart-container" style={{ height: '260px' }}>
+                      {chart.type === 'line' ? <Line data={data} options={opts} /> : chart.type === 'doughnut' ? <Doughnut data={data} options={opts} /> : <Bar data={data} options={opts} />}
+                    </div>
+                    {chart.insights && chart.insights.length > 0 && (
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                        {chart.insights.slice(0, 2).map((ins, idx) => <div key={idx}>• {ins}</div>)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* ── RY 6: Onlangse werk + aktiwiteit (onderste, historiese inligting) ── */}
         <div className="dashboard-grid">
           <div className="data-panel">
             <h3>Onlangse Herstelwerk</h3>
