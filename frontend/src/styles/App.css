@@ -503,11 +503,17 @@ select:not([class*="cascade"]):focus {
 
 .main .main {
   overflow: visible;
-  flex: none;
+  flex: 1;
 }
 
 .main .main .content {
   overflow: visible;
+}
+
+.main .content:has(.pagination) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 /* --- Foutkaartjies / AI Konsepte tab-strook --- */
@@ -758,11 +764,34 @@ select:not([class*="cascade"]):focus {
   transition: max-height 0.28s ease, opacity 0.22s ease;
 }
 
-.dropdown-content a,.dropdown-content2 a {
+.sidebar ul li .dropdown-content a,
+.sidebar ul li .dropdown-content2 a {
   display: block;
-  padding-left: 84px;
+  padding: 20px 20px 20px 50px;
   border-radius: 0;
   background: transparent;
+}
+
+.sidebar ul li .dropdown-content a.active-link,
+.sidebar ul li .dropdown-content2 a.active-link {
+  background: #935e28;
+  color: white;
+  border-radius: 5px;
+}
+
+.sidebar .dropdown-content li:first-child a.active-link,
+.sidebar .dropdown-content2 li:first-child a.active-link {
+  border-radius: 0 0 5px 5px;
+}
+
+.sidebar .dropdown-content li:last-child a.active-link,
+.sidebar .dropdown-content2 li:last-child a.active-link {
+  border-radius: 5px 5px 0 0;
+}
+
+.sidebar .dropdown-content li:first-child:last-child a.active-link,
+.sidebar .dropdown-content2 li:first-child:last-child a.active-link {
+  border-radius: 0;
 }
 
 .dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {
