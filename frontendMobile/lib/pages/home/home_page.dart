@@ -18,6 +18,7 @@ import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
+import '../../models/campus.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
@@ -34,6 +35,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String _selectedTitle = "Paneelbord";
   final Map<String, bool> _expandedStates = {};
+  Campus? _pendingCampus;
 
   @override
   void initState() {
@@ -119,10 +121,21 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
     }
     if (can('locations.view')) {
-      facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
+      facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': CampusManagementPage(onCampusSelected: (campus) {
+        setState(() {
+          _selectedTitle = 'Geboue';
+          _pendingCampus = campus;
+        });
+        // Skakel die eenmalige kampus-filter uit sodra die Geboue-bladsy dit
+        // opgetel het; 'n latere handmatige keuse van Geboue wys weer die
+        // verstek-kampus.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _pendingCampus = null);
+        });
+      })});
     }
     if (can('buildings.view')) {
-      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
+      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': BuildingsListPage(initialCampus: _pendingCampus)});
     }
     if (can('rooms.view')) {
       facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});

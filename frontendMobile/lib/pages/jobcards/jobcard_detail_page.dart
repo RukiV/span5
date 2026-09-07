@@ -3,10 +3,14 @@ import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
 import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
+import '../../services/asset_service.dart';
+import '../../services/campus_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
 import '../../services/jobcard_service.dart';
+import '../../services/report_service.dart';
 import '../../services/user_service.dart';
+import '../reporting/report_detail_page.dart';
 
 /// Kontrakteur-aansig van 'n werksopdrag: leesbare Besonderhede (insluitend die
 /// foutkaartjie se fotos) plus 'n Kontrakteur Werknotas-blad waar werknotas en
@@ -41,6 +45,20 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     _tabController = TabController(length: 2, vsync: this);
     _notesController = TextEditingController(text: widget.job.jobNotes ?? '');
     _loadImages();
+    _ensureContext();
+  }
+
+  /// Maak seker die kampus-/bouings- en bate-lyste is gelaai sodat die
+  /// ligging- en bate-velde op die besonderhede-blad korrek wys.
+  Future<void> _ensureContext() async {
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      await CampusService.fetchCampuses();
+    }
+    if (AssetService.assetsNotifier.value.isEmpty) {
+      await AssetService.fetchAssets();
+    }
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -164,6 +182,42 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
   bool get _isTerminal =>
       widget.job.status == "Voltooi" || widget.job.status == "Gekanselleer";
 
+  String get _campusLabel =>
+      widget.job.locationId != null ? CampusService.getCampusName(widget.job.locationId!) : "";
+  String get _buildingLabel =>
+      widget.job.buildingId != null ? CampusService.getBuildingName(widget.job.buildingId!) : "";
+  String get _roomLabel =>
+      widget.job.roomId != null ? CampusService.getRoomName(widget.job.roomId.toString()) : "";
+
+  String get _assetLabel {
+    final id = widget.job.assetId;
+    if (id == null) return "-";
+    final asset = AssetService.assetsNotifier.value
+        .where((a) => int.tryParse(a.id) == id)
+        .firstOrNull;
+    return asset?.name ?? id.toString();
+  }
+
+  Future<void> _openFault() async {
+    final faultId = widget.job.faultId;
+    if (faultId == null) return;
+    if (ReportService.reportsNotifier.value.isEmpty) {
+      await ReportService.fetchReports();
+    }
+    if (!mounted) return;
+    final report = ReportService.reportsNotifier.value
+        .where((r) => r.id == faultId.toString())
+        .firstOrNull;
+    if (report == null) {
+      _showSnack("Foutkaartjie nie gevind nie.", error: true);
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ReportDetailPage(report: report)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -171,6 +225,15 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
         title: Text("Werksopdrag #${widget.job.id}"),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
+        actions: UserSession.can('jobs.manage')
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.white),
+                  tooltip: "Verwyder",
+                  onPressed: () => _showDeleteDialog(context),
+                ),
+              ]
+            : null,
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppColors.gold,
@@ -280,6 +343,17 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
                   _infoRow("Voltooi op", _formatDateTime(job.finishedDatetime!)),
                 _infoRow("Verantwoordelike personeellid", _assignedLabel),
                 if (job.contractorId != null) _infoRow("Kontrakteur", _contractorLabel),
+                if (_campusLabel.isNotEmpty) _infoRow("Kampus", _campusLabel),
+                if (_buildingLabel.isNotEmpty) _infoRow("Gebou", _buildingLabel),
+                if (_roomLabel.isNotEmpty) _infoRow("Lokaal", _roomLabel),
+                if (job.assetId != null) _infoRow("Bate", _assetLabel),
+                if (job.faultId != null) ...[
+                  const Divider(height: 20),
+                  InkWell(
+                    onTap: _openFault,
+                    child: _infoRow("Gekoppel aan Foutkaartjie", "#${job.faultId}"),
+                  ),
+                ],
               ],
             ),
           ),
@@ -510,6 +584,62 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
   String _formatDateTime(DateTime dt) {
     String two(int n) => n.toString().padLeft(2, '0');
     return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    bool isDeleting = false;
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Verwyder Werksopdrag",
+            style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
+        content: const Text(
+            "Is jy seker jy wil hierdie werksopdrag permanent verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text("KANSELLEER"),
+          ),
+          StatefulBuilder(
+            builder: (builderContext, setInnerState) => ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+              onPressed: isDeleting
+                  ? null
+                  : () async {
+                      setInnerState(() => isDeleting = true);
+                      final messenger = ScaffoldMessenger.of(context);
+                      final success = await JobcardService.deleteJob(widget.job.id);
+                      if (!mounted) return;
+                      if (success) {
+                        Navigator.pop(dialogContext);
+                        Navigator.pop(context);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text("Werksopdrag verwyder"),
+                            backgroundColor: AppColors.errorRed,
+                          ),
+                        );
+                      } else {
+                        setInnerState(() => isDeleting = false);
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text("Kon nie werksopdrag verwyder nie. Probeer weer."),
+                            backgroundColor: AppColors.errorRed,
+                          ),
+                        );
+                      }
+                    },
+              child: isDeleting
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text("VERWYDER", style: TextStyle(color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnack(String message, {bool error = false}) {

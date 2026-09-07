@@ -8,9 +8,12 @@ import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/report.dart';
+import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/selection_manager.dart';
+import '../../widgets/card_data_row.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';
 
@@ -39,6 +42,7 @@ class _ReportingPageState extends State<ReportingPage> {
     const ColumnDef(key: 'phase', label: 'FASE'),
     const ColumnDef(key: 'timestamp', label: 'Datum', defaultVisible: false),
   ]);
+  final SelectionController<String> _selection = SelectionController<String>();
 
   @override
   void initState() {
@@ -75,6 +79,37 @@ class _ReportingPageState extends State<ReportingPage> {
         _tryAutoSelectCampus();
       });
     }
+  }
+
+  /// Lei die kampus-/gebou-ID af vanaf die lokaal-ID wanneer die verslag se
+  /// eie location_id/building_id null is (bv. as die skewende gebruiker nie
+  /// 'n kampus kon oplos nie). Soek andersins in die gelaai kampusboom.
+  int? _campusIdForReport(Report r) {
+    if (r.locationId != null) return r.locationId;
+    final roomId = int.tryParse(r.location);
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((room) => room.id == roomId)) {
+          return c.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  int? _buildingIdForReport(Report r) {
+    if (r.buildingId != null) return r.buildingId;
+    final roomId = int.tryParse(r.location);
+    if (roomId == null) return null;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        if ((b.rooms ?? const <Room>[]).any((room) => room.id == roomId)) {
+          return b.id;
+        }
+      }
+    }
+    return null;
   }
 
   @override
@@ -120,8 +155,8 @@ class _ReportingPageState extends State<ReportingPage> {
               r.title.toLowerCase().contains(query) ||
               r.location.toLowerCase().contains(query);
           final matchesStatus = _statusFilter == "Alles" || (r.phase == _statusFilter);
-          final matchesCampus = _selectedCampusId == null || r.locationId == _selectedCampusId;
-          final matchesBuilding = _selectedBuildingId == null || r.buildingId == _selectedBuildingId;
+          final matchesCampus = _selectedCampusId == null || _campusIdForReport(r) == _selectedCampusId;
+          final matchesBuilding = _selectedBuildingId == null || _buildingIdForReport(r) == _selectedBuildingId;
           return matchesSearch && matchesStatus && matchesCampus && matchesBuilding;
         }).toList();
 
@@ -153,30 +188,30 @@ class _ReportingPageState extends State<ReportingPage> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final r = filtered[index];
-                      return Column(
-                        children: [
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => ReportDetailPage(report: r)),
-                              );
-                            },
-                            child: Container(
-                              color: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 20),
-                              child: Row(
-                                children: _colVis.visibleColumns.map((col) {
-                                  return Expanded(
-                                    flex: _columnFlex(col.key),
-                                    child: _buildColumnContent(r, col.key),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                          ),
-                          const Divider(height: 1),
-                        ],
+                      return CardDataRow(
+                        leading: _selection.isSelecting
+                            ? Checkbox(
+                                value: _selection.isSelected(r.id),
+                                onChanged: (_) => setState(() => _selection.toggle(r.id)),
+                              )
+                            : null,
+                        trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                        onTap: () {
+                          if (_selection.isSelecting) {
+                            setState(() => _selection.toggle(r.id));
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => ReportDetailPage(report: r)),
+                            );
+                          }
+                        },
+                        children: _colVis.visibleColumns.map((col) {
+                          return Expanded(
+                            flex: _columnFlex(col.key),
+                            child: _buildColumnContent(r, col.key),
+                          );
+                        }).toList(),
                       );
                     },
                     childCount: filtered.length,
@@ -222,8 +257,45 @@ class _ReportingPageState extends State<ReportingPage> {
           onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
         ),
       ),
+      if (UserSession.can('faults.manage')) ...[
+        SelectModeButton<String>(
+          controller: _selection,
+          onToggle: () => setState(() =>
+              _selection.isSelecting ? _selection.exit() : _selection.enter()),
+        ),
+        BulkDeleteAction<String>(
+          controller: _selection,
+          confirmTitle: 'Verwyder Foutkaartjies',
+          confirmMessage: 'Wil jy ${_selection.count} geselekteerde foutkaartjie(s) verwyder?',
+          onDelete: _bulkDeleteFaults,
+        ),
+      ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  Future<void> _bulkDeleteFaults(BuildContext context, Set<String> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await ReportService.deleteReport(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await ReportService.fetchReports();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok foutkaartjie(s) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════

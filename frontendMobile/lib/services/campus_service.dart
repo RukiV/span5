@@ -69,7 +69,7 @@ class CampusService {
         }
       }
     }
-    return "Room $roomId";
+    return "";
   }
 
   static String getBuildingNameByRoomId(String roomId) {
@@ -82,7 +82,7 @@ class CampusService {
         }
       }
     }
-    return "Onbekende Gebou";
+    return "";
   }
 
   static String getCampusNameByRoomId(String roomId) {
@@ -95,7 +95,23 @@ class CampusService {
         }
       }
     }
-    return "Onbekende Kampus";
+    return "";
+  }
+
+  static String getCampusName(int campusId) {
+    for (var campus in _campuses) {
+      if (campus.id == campusId) return campus.name;
+    }
+    return "";
+  }
+
+  static String getBuildingName(int buildingId) {
+    for (var campus in _campuses) {
+      for (var building in campus.buildings) {
+        if (building.id == buildingId) return building.name;
+      }
+    }
+    return "";
   }
 
   static Campus? getCampusByName(String name) {
