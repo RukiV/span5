@@ -40,13 +40,13 @@ function Sidebar({ currentPath, onLogout }) {
             >
               <span><IoBusinessOutline style={ic} />Fasiliteite</span>
             </span>
-            <div className="dropdown-content2">
+            <ul className="dropdown-content2">
               {showAssets && <li><Link to="/assets" className={isActive('/assets')}><IoCubeOutline style={ic} />Bates</Link></li>}
               {showStock && <li><Link to="/stock" className={isActive('/stock')}><IoConstructOutline style={ic} />Voorraad</Link></li>}
               {showRooms && <li><Link to="/rooms" className={isActive('/rooms')}><IoLocationOutline style={ic} />Lokale</Link></li>}
               {showBuildings && <li><Link to="/buildings" className={isActive('/buildings')}><IoBusinessOutline style={ic} />Geboue</Link></li>}
               {showTerrains && <li><Link to="/terrains" className={isActive('/terrains')}><IoMapOutline style={ic} />Terreine</Link></li>}
-            </div>
+            </ul>
           </li>
         )}
 
@@ -63,11 +63,11 @@ function Sidebar({ currentPath, onLogout }) {
             >
               <span><IoPeopleOutline style={ic} />Gebruikers</span>
             </span>
-            <div className="dropdown-content">
+            <ul className="dropdown-content">
               <li><Link to="/users" className={isActive('/users')}><IoPeopleOutline style={ic} />Gebruikers</Link></li>
               <li><Link to="/users/roles" className={isActive('/users/roles')}><IoShieldOutline style={ic} />Rolle</Link></li>
               <li><Link to="/users/rights" className={isActive('/users/rights')}><IoKeyOutline style={ic} />Regte</Link></li>
-            </div>
+            </ul>
           </li>
         )}
       </ul>
