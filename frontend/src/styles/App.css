@@ -944,6 +944,83 @@ select:not([class*="cascade"]):focus {
   transform: scale(1.05);
 }
 
+/* ── Android-app-aflaai-bladsy (openbaar) ────────────────────────────── */
+.download-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--grys-agtergrond);
+  padding: 20px;
+}
+
+.download-card {
+  max-width: 460px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e8d8c4;
+  border-radius: 14px;
+  padding: 36px 30px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.download-card h1 {
+  color: var(--blou);
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+
+.download-card p {
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 22px;
+}
+
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  font-size: 15px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.download-note {
+  margin-top: 20px;
+  padding: 12px 14px;
+  background: #fff7eb;
+  border: 1px solid #e8d8c4;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6b3f1d;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.download-note strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.download-footer {
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.download-footer a {
+  color: var(--bruin);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.download-footer a:hover {
+  text-decoration: underline;
+}
+
 /* ── Sortable column headers ───────────────────────────────────── */
 .standard-table th.sortable {
   cursor: pointer;
