@@ -51,8 +51,12 @@ jest.mock('chart.js', () => ({
 }));
 
 jest.mock('../hooks/useCurrentUser', () => ({
-  useCurrentUser: () => ({ user: { user_name: 'Admin', role_id: 3 }, rights: [], isAdmin: true, loading: false, error: null }),
+  useCurrentUser: () => ({ user: { user_name: 'Admin', role_id: 3 }, rights: ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view'], hasRight: (r) => ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view'].includes(r), isAdmin: true, loading: false, error: null }),
 }));
+
+jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
+jest.mock('../components/Modal/useConfirmDialog', () => ({ useConfirmDialog: () => ({ confirm: jest.fn(() => Promise.resolve(false)), dialog: null }) }));
+jest.mock('../services/analyticsAPI', () => ({ analyticsAPI: { getInsights: jest.fn(() => Promise.resolve({ data: {} })), executeSuggestion: jest.fn(() => Promise.resolve({ data: { message: 'Aksie uitgevoer' } })) } }));
 
 beforeEach(() => {
   jest.clearAllMocks();

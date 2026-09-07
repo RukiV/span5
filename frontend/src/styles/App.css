@@ -39,29 +39,42 @@
 }
 
 .app-content.panel-open {
-  /* Size the panel's grid track (not the item) so the percentage resolves
-     against the container, matching DragHandle's calc. A percentage width on
-     the item itself would resolve against the auto track -> cyclic sizing
-     that squishes the panel. */
-  grid-template-columns: 1fr auto var(--analytics-width, 33.33%);
+  /* Keep main full-width; panel is fixed overlay below navbar+controls so
+     controls never shift/reflow when the panel toggles. */
 }
 
 .app-content.panel-open .drag-handle {
-  grid-column: 2;
-  grid-row: 2;
+  position: fixed;
+  top: var(--analytics-panel-top, 140px);
+  right: calc(var(--analytics-width, 33.33%));
+  height: calc(100vh - var(--analytics-panel-top, 140px));
+  width: 6px;
+  z-index: 11;
+  grid-column: auto;
+  grid-row: auto;
 }
 
 .app-content.panel-open .analytics-inline-panel {
-  grid-column: 3;
-  grid-row: 2;
-  width: 100%;
-  max-width: 100%;
+  position: fixed;
+  top: var(--analytics-panel-top, 140px);
+  right: 0;
+  width: var(--analytics-width, 33.33%);
+  max-width: 50%;
+  min-width: 25%;
+  height: calc(100vh - var(--analytics-panel-top, 140px));
+  height: calc(100dvh - var(--analytics-panel-top, 140px));
   overflow-y: auto;
+  overflow-x: hidden;
   border-left: 1px solid #e8d8c4;
   background: #f4f7fc;
-  height: 100%;
+  z-index: 10;
   padding: unset;
   margin: unset;
+  grid-column: auto;
+  grid-row: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-inner.panel-open .drag-handle {
@@ -77,6 +90,9 @@
     --blou-lig: #1a2e54;
     --grys-agtergrond: #f8fafc;
     --border: #e2e8f0;
+    /* Offset for analytics panel so it starts below navbar + controls.
+       Updated at runtime from AppContent via JS (reads actual controls height). */
+    --analytics-panel-top: 140px;
 }
 
 
