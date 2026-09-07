@@ -37,8 +37,8 @@ export const EXAMPLE_ROWS = {
       'Vervangingsdrempel',
     ],
     rows: [
-      ['Rekenaar', '60', '48', '84', '12', '80'],
-      ['Projektor', '72', '60', '96', '6', '85'],
+      ['IT Toerusting', '48', '24', '72', '12', '3'],
+      ['Meubels', '120', '60', '180', '24', '2'],
     ],
     refs: [false, false, false, false, false, false],
   },
@@ -59,12 +59,13 @@ export const EXAMPLE_ROWS = {
     refs: [false, false, false, false, false, false, false, true],
   },
   user: {
-    columns: ['Voornaam', 'Van', 'E-pos', 'Selnommer', 'Status'],
+    columns: ['Voornaam', 'Van', 'E-pos', 'Selnommer', 'Status', 'Rol'],
     rows: [
-      ['Pieter', 'Botha', 'pieter@kampus.ac.za', '0821234567', 'Aktief'],
-      ['Daan', 'Smit', 'daan@kampus.co.za', '', 'Aktief'],
+      ['Pieter', 'Botha', 'pieter@kampus.ac.za', '0821234567', 'Aktief', 'User'],
+      ['Lize', 'Pretorius', 'lize@kampus.ac.za', '0821234570', 'Aktief', 'Dosent'],
+      ['Kobus', 'Botha', 'kobus@bouers.co.za', '0821234571', 'Aktief', 'Kontrakteur'],
     ],
-    refs: [false, false, false, false, false],
+    refs: [false, false, false, false, false, false],
   },
   fault: {
     columns: [
@@ -110,4 +111,6 @@ export const EXAMPLE_NOTES = [
   'Verwysings (⟶) word volgens naam / kode / e-pos opgesoek soos hierbo getoon.',
   'Kwotasies op \'n werksopdrag: "datum;kontrakteur-e-pos" per kwotasie, geskei met |.',
   'Een werkboek mag verskeie bladsye hê — elke blad kan na \'n ander tabel wys.',
+  'Rol: slegs User / Dosent / Kontrakteur via import (FK/Admin bly seed); onbekend → User, net FK het Terrein (via seed).',
+  'Vervangingsdrempel: 1-10 (nie 80 nie), en Min ≤ Gemiddeld ≤ Maks.',
 ];
