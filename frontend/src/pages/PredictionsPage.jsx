@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from 'chart.js';
 import { authAPI } from "../services/api";
 import { apiClient, assetsAPI, locationAPI, buildingsAPI, roomsAPI } from "../services/api";
+import { workOrdersAPI, ticketsAPI } from "../services/api";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -17,6 +32,11 @@ import '../styles/Predictions.css';
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { analyticsAPI } from '../services/analyticsAPI';
+import { useToast } from '../components/Toast/useToast';
+import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -62,6 +82,16 @@ function PredictionsPage() {
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
 
+  // ── Grafieke (geskuif vanaf Paneelbord) ──
+  const [summary, setSummary] = useState(null);
+  const [allJobs, setAllJobs] = useState([]);
+  const [allFaults, setAllFaults] = useState([]);
+  const [executing, setExecuting] = useState({});
+  const { rights } = useCurrentUser();
+  const { showToast } = useToast();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  const can = (r) => (rights || []).includes(r);
+
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
   const filterCascade = useCascadeMenu();
 const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
@@ -92,11 +122,17 @@ const colPickerRef = useRef(null);
         await authAPI.me();
         // Cache predictions for 10 minutes to avoid repeated backend scans
         const predRes = await cachedFetch('predictions-all', () => apiClient.get('/predictions'));
-        const [assetsRes, terrainsRes, buildingsRes, roomsRes] = await Promise.all([
+        const [assetsRes, terrainsRes, buildingsRes, roomsRes, summaryRes, jobsRes, faultsRes] = await Promise.all([
           assetsAPI.getAll(),
           locationAPI.getAll(),
           buildingsAPI.getAll(),
           roomsAPI.getAll(),
+          Promise.resolve(apiClient.get('/analytics/dashboard-summary')).catch((e) => {
+            console.warn('dashboard-summary failed, using fallback', e?.response?.status);
+            return null;
+          }),
+          Promise.resolve(workOrdersAPI.getAll()).catch(() => ({ data: [] })),
+          Promise.resolve(ticketsAPI.getAll()).catch(() => ({ data: [] })),
         ]);
         if (!mounted) return;
         setPredictions(predRes.data || []);
@@ -104,6 +140,21 @@ const colPickerRef = useRef(null);
         setTerrains(terrainsRes.data || []);
         setBuildings(buildingsRes.data || []);
         setRooms(roomsRes.data || []);
+        if (summaryRes?.data) {
+          setSummary(summaryRes.data);
+        } else {
+          setSummary({
+            kpis: { overdue_maintenance: 0, unassigned_high_faults: 0, overdue_jobs: 0, critical_stock: 0, replacement_suggested: 0, high_risk: 0 },
+            risk_distribution: { veilig: 0, monitor: 0, vervang: 0 },
+            faults_per_building: [],
+            trend: { labels: ['Geen data'], faults_per_week: [0], jobs_completed_per_week: [0] },
+            top_risk_assets: [],
+            critical_stock_list: [],
+            scope: 'all',
+          });
+        }
+        setAllJobs(Array.isArray(jobsRes?.data) ? jobsRes.data : []);
+        setAllFaults(Array.isArray(faultsRes?.data) ? faultsRes.data : []);
       } catch (err) {
         if (!mounted) return;
         setError('Kon voorspellingsdata nie laai nie.');
@@ -188,6 +239,152 @@ const colPickerRef = useRef(null);
 
   const mlModelAvailable = filteredPredictions.some((p) => p.survival_model_available);
   const mlRiskCount = mlModelAvailable ? filteredPredictions.filter((p) => p.survival_high_risk).length : '—';
+
+  // ── Grafieke data-voorbereiding (van Paneelbord) ──
+  const summaryData = summary || {};
+  const risk = summaryData.risk_distribution || { veilig: 0, monitor: 0, vervang: 0 };
+  const faultsPerBuilding = summaryData.faults_per_building || [];
+  const trend = summaryData.trend || { labels: [], faults_per_week: [], jobs_completed_per_week: [] };
+  const topRisk = summaryData.top_risk_assets || [];
+  const criticalStockList = summaryData.critical_stock_list || [];
+
+  const faultsPerBuildingData = {
+    labels: faultsPerBuilding.length ? faultsPerBuilding.map((x) => x.building) : ['Geen foute 30d'],
+    datasets: [
+      {
+        label: 'Foute 30 dae',
+        data: faultsPerBuilding.length ? faultsPerBuilding.map((x) => x.count) : [0],
+        backgroundColor: '#c97c3c',
+        borderColor: '#935e28',
+        borderWidth: 1,
+      },
+    ],
+  };
+
+  const riskData = {
+    labels: ['Veilig', 'Monitor', 'Vervang'],
+    datasets: [
+      {
+        label: 'Bates',
+        data: [risk.veilig || 0, risk.monitor || 0, risk.vervang || 0],
+        backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+        borderWidth: 0,
+      },
+    ],
+  };
+
+  const trendData = {
+    labels: trend.labels || [],
+    datasets: [
+      {
+        label: 'Foute geskep',
+        data: trend.faults_per_week || [],
+        borderColor: '#b91c1c',
+        backgroundColor: 'rgba(185,28,28,0.08)',
+        fill: false,
+        tension: 0.3,
+      },
+      {
+        label: 'Werksopdragte voltooi',
+        data: trend.jobs_completed_per_week || [],
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.12)',
+        fill: true,
+        tension: 0.3,
+      },
+    ],
+  };
+
+  const stockData = {
+    labels: criticalStockList.length ? criticalStockList.map((s) => s.stock_name) : ['Geen kritieke voorraad'],
+    datasets: [
+      {
+        label: 'Hoeveelheid',
+        data: criticalStockList.length ? criticalStockList.map((s) => s.amount) : [0],
+        backgroundColor: criticalStockList.length ? criticalStockList.map((s) => (s.amount < s.minimum ? '#ef4444' : '#d4a357')) : ['#94a3b8'],
+        borderWidth: 0,
+      },
+      {
+        label: 'Minimum',
+        data: criticalStockList.length ? criticalStockList.map((s) => s.minimum) : [0],
+        backgroundColor: 'rgba(148,163,184,0.35)',
+        borderColor: '#64748b',
+        borderWidth: 1,
+        type: 'bar',
+      },
+    ],
+  };
+
+  const hasData = (arr) => arr && arr.some((v) => v > 0);
+
+  const aiCharts = summaryData.ai_charts || {};
+  const aiOrder = [
+    'criticality_matrix',
+    'sla_compliance',
+    'failure_pareto',
+    'health_status',
+    'ticket_volume_backlog',
+    'mttr_mtbf',
+    'technician_load',
+    'lifecycle_age',
+    'strategy_mix',
+  ];
+
+  // Helpers vir direkte aksies gebaseer op lewendige data
+  const firstOverdueJob = allJobs.find((j) => {
+    const s = String(j.job_status || '').toLowerCase();
+    if (['voltooid','gekanselleer','completed','cancelled'].includes(s)) return false;
+    if (!j.job_scheduled_end_datetime) return false;
+    return new Date(j.job_scheduled_end_datetime) < new Date();
+  }) || null;
+  const highFaults = allFaults.filter((f) => {
+    const pri = String(f.fault_priority || '').toLowerCase();
+    const stat = String(f.fault_status || '').toLowerCase();
+    return (pri === 'hoog' || pri === 'high' || pri === 'dringend') && ['oop','open','wag','wait','bevestig'].includes(stat);
+  });
+  const firstHighFault = highFaults[0] || null;
+  const firstCriticalStock = criticalStockList[0] || null;
+  const firstTopRisk = topRisk[0] || null;
+  const unassignedJob = allJobs.find((j) => !j.assigned_to && String(j.job_status||'').toLowerCase() !== 'voltooid') || null;
+
+  const aiLinkMap = {
+    criticality_matrix: '/predictions',
+    sla_compliance: '/fault-tickets',
+    failure_pareto: '/assets',
+    health_status: '/assets',
+    ticket_volume_backlog: '/fault-tickets',
+    mttr_mtbf: '/work-orders',
+    technician_load: '/work-orders',
+    lifecycle_age: '/predictions',
+    strategy_mix: '/work-orders',
+  };
+
+  const handleExecute = useMemo(() => async (suggestion, key) => {
+    const needsStock = suggestion.type === 'reorder_stock';
+    const requiredRight = needsStock ? 'stock.manage' : 'jobs.manage';
+    if (!can(requiredRight)) {
+      showToast({ type: 'error', title: 'Geen reg', message: 'Geen reg — vra Admin' });
+      return;
+    }
+    const ok = await confirm({
+      title: 'Bevestig aksie',
+      message: `${suggestion.label}${suggestion.description ? ' — ' + suggestion.description : ''}`,
+      confirmLabel: 'Uitvoer',
+      cancelLabel: 'Kanselleer',
+      variant: 'info',
+    });
+    if (!ok) return;
+    setExecuting((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await analyticsAPI.executeSuggestion(suggestion);
+      showToast({ type: 'success', title: res.data?.message || 'Aksie uitgevoer' });
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || 'Kon nie aksie uitvoer nie';
+      showToast({ type: 'error', title: 'Fout', message: String(msg) });
+    } finally {
+      setExecuting((prev) => ({ ...prev, [key]: false }));
+    }
+  }, [can, confirm, showToast]);
 
   if (loading) {
     return (
@@ -415,7 +612,201 @@ const colPickerRef = useRef(null);
             </table>
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredPredictions.length} pageSize={100} />
           </div>
+
+          {/* ── Grafieke (geskuif vanaf Paneelbord) ── */}
+          <div className="charts-container" style={{ marginTop: '25px' }}>
+            <div className="data-panel">
+              <div className="panel-header">
+                <h3>Bate Risiko-verdeling</h3>
+                <Link to="/predictions" className="view-all">Bekyk besonderhede →</Link>
+              </div>
+              <div className="chart-container" style={{ height: '260px' }}>
+                <Bar
+                  data={riskData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+                <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#10b981', borderRadius: '2px', marginRight: '4px' }}></span>Veilig &lt;80%</span>
+                <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#f59e0b', borderRadius: '2px', marginRight: '4px' }}></span>Monitor 80-99%</span>
+                <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', marginRight: '4px' }}></span>Vervang ≥100%/ML</span>
+              </div>
+            </div>
+            <div className="data-panel">
+              <div className="panel-header">
+                <h3>Kritieke Voorraad — Hoeveelheid vs Minimum</h3>
+                <Link to="/stock" className="view-all">Bestuur voorraad →</Link>
+              </div>
+              <div className="chart-container" style={{ height: '260px' }}>
+                <Bar
+                  data={stockData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                  }}
+                />
+              </div>
+              {criticalStockList.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#10b981', fontSize: '13px', marginTop: '6px' }}>Geen kritieke items — voorraad OK.</div>
+              )}
+              {firstCriticalStock && (
+                <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                  <button
+                    className="dash-action-btn"
+                    disabled={executing['stock-chart'] || !can('stock.manage')}
+                    title={!can('stock.manage') ? 'Geen reg — vra Admin' : `Hervul ${firstCriticalStock.stock_name}`}
+                    onClick={() => handleExecute({ type: 'reorder_stock', label: `Hervul ${firstCriticalStock.stock_name}`, description: `${firstCriticalStock.stock_name} (${firstCriticalStock.amount}/${firstCriticalStock.minimum})`, params: { stock_id: firstCriticalStock.stock_id, amount: (firstCriticalStock.minimum||10)*2 } }, 'stock-chart')}
+                  >
+                    {executing['stock-chart'] ? 'Besig...' : `Hervul ${firstCriticalStock.stock_name}`}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── RY 4: Tendens + Foute per Gebou ── */}
+          <div className="charts-container" style={{ marginTop: '20px' }}>
+            <div className="data-panel">
+              <div className="panel-header">
+                <h3>Tendens 8 Weke — Foute vs Herstel</h3>
+                <Link to="/work-orders" className="view-all">Bekyk agterstand →</Link>
+              </div>
+              <div className="chart-container" style={{ height: '260px' }}>
+                <Line
+                  data={trendData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                  }}
+                />
+              </div>
+              <div style={{ color: '#6b7280', fontSize: '12px', textAlign: 'center', marginTop: '6px' }}>
+                Gap groei = agterstand neem toe. Geskep vs voltooi per week.
+              </div>
+            </div>
+            <div className="data-panel">
+              <div className="panel-header">
+                <h3>Foute per Gebou (30 dae)</h3>
+                <Link to="/fault-tickets" className="view-all">Bekyk foute →</Link>
+              </div>
+              <div className="chart-container" style={{ height: '260px' }}>
+                <Bar
+                  data={faultsPerBuildingData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                  }}
+                />
+              </div>
+              {!hasData(faultsPerBuildingData.datasets[0].data) && (
+                <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: '13px', marginTop: '6px' }}>Geen foute laaste 30 dae — stabiele terrein.</div>
+              )}
+            </div>
+          </div>
+
+          {/* ── RY 5: AI 9 Visuals ── */}
+          {Object.keys(aiCharts).length > 0 && (
+            <>
+              <div style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <h2 style={{ margin: 0, color: '#0e1e3b', fontSize: '18px' }}>AI Asset & Werksopdrag Analise</h2>
+                <span style={{ background: '#d4edda', color: '#155724', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>AI gegenereer • elke run vars</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
+                {aiOrder.filter((k) => aiCharts[k]).map((key) => {
+                  const chart = aiCharts[key];
+                  const labels = chart.labels || [];
+                  const datasets = (chart.datasets || []).map((ds, i) => ({
+                    label: ds.label,
+                    data: ds.data,
+                    backgroundColor: chart.type === 'doughnut'
+                      ? ['#935e28', '#b8863c', '#d4a357', '#e8c49a', '#f0dcc8', '#10b981', '#f59e0b', '#ef4444'].slice(0, (ds.data||[]).length)
+                      : ds.backgroundColor || ['#935e28', '#b8863c', '#d4a357', '#10b981', '#f59e0b', '#ef4444'][i % 6],
+                    borderColor: chart.type === 'line' ? '#935e28' : undefined,
+                    borderWidth: chart.type === 'line' ? 2 : 0,
+                    fill: chart.type === 'line' ? false : true,
+                    tension: 0.3,
+                  }));
+                  const data = { labels, datasets };
+                  const opts = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { position: chart.type === 'doughnut' ? 'bottom' : 'bottom' },
+                      title: { display: false },
+                    },
+                    scales: chart.type === 'doughnut' ? {} : { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { maxRotation: 45 } } },
+                  };
+                  const cards = chart.cards;
+                  const hasDirectAction = ['criticality_matrix','sla_compliance','failure_pareto','technician_load'].includes(key);
+                  const aiSuggestion = (() => {
+                    if (key === 'criticality_matrix' && firstTopRisk) return { type: 'create_work_order', label: `Werksopdrag vir ${firstTopRisk.asset_name} (Hoog/ Hoog)`, description: firstTopRisk.reason || 'Kritieke risiko/impak', params: { asset_id: firstTopRisk.asset_id, job_desc: `Kritiek: ${firstTopRisk.asset_name}`, job_priority: 'Dringend' } };
+                    if (key === 'sla_compliance' && firstHighFault) return { type: 'create_work_order', label: `Werksopdrag vir SLA-oortreding fout #${firstHighFault.fault_id}`, description: String(firstHighFault.fault_description||'').slice(0,80), params: { fault_id: firstHighFault.fault_id, job_desc: String(firstHighFault.fault_description||''), room_id: firstHighFault.room_id, job_priority: 'Dringend' } };
+                    if (key === 'failure_pareto' && firstTopRisk) return { type: 'create_work_order', label: `Werksopdrag vir pareto-bate ${firstTopRisk.asset_name}`, description: 'Top faling klas', params: { asset_id: firstTopRisk.asset_id, job_desc: `Pareto opvolg: ${firstTopRisk.asset_name}`, job_priority: 'Hoog' } };
+                    if (key === 'technician_load' && unassignedJob) return { type: 'assign_job', label: `Ken werksopdrag #${unassignedJob.jobcard_id} aan my toe`, description: String(unassignedJob.job_desc||'').slice(0,80), params: { jobcard_id: unassignedJob.jobcard_id } };
+                    return null;
+                  })();
+                  const viewLink = aiLinkMap[key] || '/predictions';
+                  return (
+                    <div key={key} className="data-panel">
+                      <div className="panel-header">
+                        <h3 style={{ fontSize: '14px' }}>{chart.title || key}</h3>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <Link to={viewLink} className="view-all">Bekyk →</Link>
+                          {hasDirectAction && aiSuggestion && (
+                            <button
+                              className="dash-action-btn dash-action-btn--small"
+                              disabled={!!executing[`ai-${key}`] || (aiSuggestion.type==='reorder_stock' ? !can('stock.manage') : !can('jobs.manage'))}
+                              title={(aiSuggestion.type==='reorder_stock' ? !can('stock.manage') : !can('jobs.manage')) ? 'Geen reg — vra Admin' : aiSuggestion.label}
+                              onClick={() => handleExecute(aiSuggestion, `ai-${key}`)}
+                            >
+                              {executing[`ai-${key}`] ? 'Besig...' : 'Uitvoer'}
+                            </button>
+                          )}
+                          {hasDirectAction && !aiSuggestion && (
+                            <button className="dash-action-btn dash-action-btn--small" disabled title="Geen aksie benodig tans" style={{ opacity: 0.45 }}>Uitvoer</button>
+                          )}
+                        </div>
+                      </div>
+                      {cards && (
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                          <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '11px', color: '#065f46' }}>MTTR</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#065f46' }}>{cards.mttr}h</div>
+                          </div>
+                          <div style={{ flex: 1, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '8px', textAlign: 'center' }}>
+                            <div style={{ fontSize: '11px', color: '#1e40af' }}>MTBF</div>
+                            <div style={{ fontSize: '18px', fontWeight: 800, color: '#1e40af' }}>{cards.mtbf_days}d</div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="chart-container" style={{ height: '260px' }}>
+                        {chart.type === 'line' ? <Line data={data} options={opts} /> : chart.type === 'doughnut' ? <Doughnut data={data} options={opts} /> : <Bar data={data} options={opts} />}
+                      </div>
+                      {chart.insights && chart.insights.length > 0 && (
+                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                          {chart.insights.slice(0, 2).map((ins, idx) => <div key={idx}>• {ins}</div>)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
+      {confirmDialog}
       </div>
   );
 }

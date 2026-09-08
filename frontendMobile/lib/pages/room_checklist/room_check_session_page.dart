@@ -8,7 +8,7 @@ import 'room_checklist_page.dart';
 import 'room_check_history_page.dart';
 
 class RoomCheckSessionPage extends StatefulWidget {
-  /// true = "Kontrole Skedules" (FK/Admin — sien en bestuur almal).
+  /// true = "Lokaal Kontrole" (FK/Admin — sien en bestuur almal).
   /// false = "My Kontroles" (Dosent — sien en voltooi slegs eie skedules).
   final bool manageMode;
 
@@ -52,7 +52,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) {
           return AlertDialog(
-            title: const Text("Wysig Kontrole Skedule"),
+            title: const Text("Wysig Lokaal Kontrole"),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -210,7 +210,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: Text(widget.manageMode ? "Kontrole Skedules" : "My Kontroles"),
+        title: Text(widget.manageMode ? "Lokaal Kontrole" : "My Kontroles"),
         actions: [
           if (widget.manageMode && _canManage)
             IconButton(
@@ -230,7 +230,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (sessions.isEmpty) {
-            return const Center(child: Text("Geen kontrole-skedules nie."));
+            return const Center(child: Text("Geen lokaal-kontroles nie."));
           }
           return RefreshIndicator(
             onRefresh: _load,

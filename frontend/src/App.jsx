@@ -18,7 +18,6 @@ import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
 import PredictionsPage from './pages/PredictionsPage';
-import CalendarPage from './pages/CalendarPage';
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
@@ -177,7 +176,6 @@ function AppContent() {
             <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
             <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
             <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
-            <Route path="/calendar" element={<RightProtectedRoute requiredRight="calendar.view"><CalendarPage /></RightProtectedRoute>} />
             <Route path="/ai-drafts" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftQueuePage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/new" element={<RightProtectedRoute requiredRight="ai.use"><JobTabs><AIDraftNewPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/:id" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftDetailPage /></JobTabs></RightProtectedRoute>} />
@@ -198,7 +196,34 @@ function AppContent() {
 }
 
 /* =========================================================
-   2. JOU OPGBEDATEERDE APP-ROETES EN DOCKER KONTROLE
+   2. APP-DOP MET LOGIN-AGTERGROND
+   Die agtergrond sit op .app-vlak (nie op die login-blad self nie),
+   sodat dit die hele bladsy vul. Slegs op /login aktief.
+   ========================================================= */
+function AppShell() {
+  const location = useLocation();
+  const isLogin = location.pathname === '/login';
+  return (
+    <div className={isLogin ? 'app app-login' : 'app'}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/download" element={<DownloadPage />} />
+        <Route path="/*" element={
+          <AnalyticsProvider>
+            <ToastProvider>
+              <NotificationProvider>
+                <AppContent />
+              </NotificationProvider>
+            </ToastProvider>
+          </AnalyticsProvider>
+        } />
+      </Routes>
+    </div>
+  );
+}
+
+/* =========================================================
+   3. JOU OPGBEDATEERDE APP-ROETES EN DOCKER KONTROLE
    ========================================================= */
 function App() {
   useEffect(() => {
@@ -243,21 +268,7 @@ function App() {
 
   return (
     <Router>
-      <div className="app">
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/download" element={<DownloadPage />} />
-          <Route path="/*" element={
-            <AnalyticsProvider>
-              <ToastProvider>
-                <NotificationProvider>
-                  <AppContent />
-                </NotificationProvider>
-              </ToastProvider>
-            </AnalyticsProvider>
-          } />
-        </Routes>
-      </div>
+      <AppShell />
     </Router>
   );
 }

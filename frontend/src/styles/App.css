@@ -5,6 +5,15 @@
   font-family: Arial, sans-serif;
 }
 
+/* Volblad-agtergrond op .app-vlak — slegs op die login-roete aktief
+   (AppShell sit die klas; die login-blad self is deursigtig). */
+.app-login {
+  background-image: url('../assets/background.jpg');
+  background-size: cover;
+  background-position: top center;
+  background-repeat: no-repeat;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -516,7 +525,7 @@ select:not([class*="cascade"]):focus {
   flex: 1;
 }
 
-/* --- Foutkaartjies / AI Konsepte tab-strook --- */
+/* --- Foutkaartjies / Voorgestelde Werksopdragte tab-strook --- */
 .fault-tabs {
   position: sticky;
   top: 0;

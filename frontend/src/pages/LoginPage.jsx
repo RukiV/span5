@@ -5,6 +5,7 @@ import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
 import '../styles/App.css';
 import '../styles/Login.css';
+import logo from '../assets/logo.jpg';
 import { clearAuthSession, markUserActivity } from '../authSession';
 
 function LoginPage() {
@@ -117,6 +118,8 @@ function LoginPage() {
   return (
     <div className="page login-page">
       <div className="login-card">
+        <img src={logo} alt="FBS Logo" className="login-logo" />
+        <h1 className="login-system">FBS - Fasiliteitsbestuurstelsel</h1>
         <h2>Teken In</h2>
         <form onSubmit={handleSubmit} className="login-form">
           {error && <div className="error-message">{error}</div>}

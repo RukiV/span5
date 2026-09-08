@@ -30,10 +30,11 @@ test('renders stock table headers', async () => {
   const StockPage = require('../pages/StockPage').default;
   render(<MemoryRouter><StockPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('ID Voorraad')).toBeInTheDocument();
+    const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers).not.toContain('ID Voorraad');
     const names = screen.getAllByText('Naam');
     expect(names.length).toBeGreaterThanOrEqual(1);
-    const merke = screen.getAllByText('Merk');
+    const merke = screen.getAllByText('Handelsmerk');
     expect(merke.length).toBeGreaterThanOrEqual(1);
     const hoeveelhede = screen.getAllByText('Hoeveelheid');
     expect(hoeveelhede.length).toBeGreaterThanOrEqual(1);

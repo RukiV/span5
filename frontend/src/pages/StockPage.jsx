@@ -38,9 +38,9 @@ function StockPage({ embedded = false }) {
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
   const STOCK_COLUMNS = [
-    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (s) => s.stock_name, sortKey: 'name', defaultVisible: true },
-    { key: 'brand', label: 'Merk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
+    { key: 'brand', label: 'Handelsmerk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
     { key: 'type', label: 'Tipe', render: (s) => s.stock_type, sortKey: 'type', defaultVisible: true },
     { key: 'amount', label: 'Hoeveelheid', render: (s) => s.stock_amount, sortKey: 'amount', defaultVisible: true },
     { key: 'minimum', label: 'Minimum', render: (s) => s.stock_minimum, sortKey: 'minimum', defaultVisible: true },
@@ -459,7 +459,7 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
+              { value: "brand", label: "Handelsmerk" },
               { value: "type", label: "Tipe" },
               { value: "amount", label: "Hoeveelheid" },
               { value: "minimum", label: "Minimum" },
@@ -472,7 +472,7 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
+              { value: "brand", label: "Handelsmerk" },
               { value: "type", label: "Tipe" },
               { value: "amount", label: "Hoeveelheid" },
               { value: "minimum", label: "Minimum" },
@@ -643,7 +643,7 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
             />
           </div>
           <div className="input-group">
-            <label>Merk *</label>
+            <label>Handelsmerk *</label>
             <input
               type="text"
               value={newStock.stock_brand}
@@ -871,7 +871,7 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                 classNamePrefix="react-select"
                 value={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
@@ -879,7 +879,7 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                 onChange={(selected) => setFilterColumn(selected?.value || "all")}
                 options={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },

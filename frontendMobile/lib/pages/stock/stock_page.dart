@@ -30,7 +30,7 @@ class _StockPageState extends State<StockPage> {
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('stock', [
     const ColumnDef(key: 'name', label: 'NAAM'),
-    const ColumnDef(key: 'brand', label: 'MERK'),
+    const ColumnDef(key: 'brand', label: 'HANDELSMERK'),
     const ColumnDef(key: 'type', label: 'TIPE'),
     const ColumnDef(key: 'amount', label: 'HVH'),
     const ColumnDef(key: 'minimum', label: 'Minimum', defaultVisible: false),

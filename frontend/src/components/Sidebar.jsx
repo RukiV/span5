@@ -4,7 +4,7 @@ import { useCurrentUser } from '../hooks/useCurrentUser';
 import {
   IoGridOutline, IoBusinessOutline, IoCubeOutline, IoConstructOutline,
   IoMapOutline, IoLocationOutline, IoWarningOutline, IoDocumentTextOutline,
-  IoCalendarOutline, IoBarChartOutline, IoPeopleOutline,
+  IoBarChartOutline, IoPeopleOutline,
   IoShieldOutline, IoKeyOutline, IoLogOutOutline, IoCheckboxOutline,
 } from "react-icons/io5";
 
@@ -52,8 +52,7 @@ function Sidebar({ currentPath, onLogout }) {
 
         {can('faults.view') && <li><Link to="/fault-tickets" className={isActive('/fault-tickets')}><IoWarningOutline style={ic} />Foutkaartjies</Link></li>}
         {can('jobs.manage') && <li><Link to="/work-orders" className={isInGroup(['/work-orders', '/ai-drafts'])}><IoDocumentTextOutline style={ic} />Werksopdragte</Link></li>}
-        {can('room_checks.manage') && <li><Link to="/room-checks-schedules" className={isActive('/room-checks-schedules')}><IoCheckboxOutline style={ic} />Kontrole Skedules</Link></li>}
-        {can('calendar.view') && <li><Link to="/calendar" className={isActive('/calendar')}><IoCalendarOutline style={ic} />Kalender</Link></li>}
+        {can('room_checks.manage') && <li><Link to="/room-checks-schedules" className={isActive('/room-checks-schedules')}><IoCheckboxOutline style={ic} />Lokaal Kontrole</Link></li>}
         {can('predictions.view') && <li><Link to="/predictions" className={isActive('/predictions')}><IoBarChartOutline style={ic} />Voorspellings</Link></li>}
         {can('users.manage') && (
           <li className={`dropdown ${openUsers ? 'open' : ''}`}>

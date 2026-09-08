@@ -44,7 +44,7 @@ test('renders asset table with all column headers', async () => {
   render(<MemoryRouter><AssetPage /></MemoryRouter>);
   await waitFor(() => {
     expect(screen.getByText('Naam')).toBeInTheDocument();
-    expect(screen.getByText('Merk')).toBeInTheDocument();
+    expect(screen.getByText('Handelsmerk')).toBeInTheDocument();
     expect(screen.getByText('Serienommer')).toBeInTheDocument();
     expect(screen.getByText('Lokaal')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();

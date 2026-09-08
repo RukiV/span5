@@ -23,35 +23,28 @@ jest.mock('../services/api', () => {
     default: { get: mockGet, post: jest.fn(), patch: jest.fn(), delete: jest.fn(),
                defaults: { baseURL: '' }, assets: { getStatusSummary: jest.fn().mockResolvedValue({ data: [] }) } },
     auditsAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }) },
-    workOrdersAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }), getRecent: jest.fn() },
+    workOrdersAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }), getRecent: jest.fn(), update: jest.fn() },
     assetsAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }), getStatusSummary: jest.fn().mockResolvedValue({ data: [] }) },
     ticketsAPI: { getAll: jest.fn().mockResolvedValue({ data: [] }) },
+    authAPI: { me: jest.fn().mockResolvedValue({}) },
+    calendarEventsAPI: {
+      getRange: jest.fn().mockResolvedValue({ data: [] }),
+      create: jest.fn().mockResolvedValue({ data: {} }),
+      update: jest.fn().mockResolvedValue({ data: {} }),
+      delete: jest.fn().mockResolvedValue({}),
+    },
     apiClient: { get: mockGet, post: jest.fn(), defaults: { baseURL: '' },
                  assets: { getStatusSummary: jest.fn().mockResolvedValue({ data: [] }) } },
   };
 });
 
-jest.mock('react-chartjs-2', () => ({
-  Line: () => <div data-testid="line-chart">Line Chart</div>,
-  Doughnut: () => <div data-testid="doughnut-chart">Doughnut Chart</div>,
-  Bar: () => <div data-testid="bar-chart">Bar Chart</div>,
+jest.mock('@azure/msal-react', () => ({
+  useMsal: () => ({ instance: { getActiveAccount: () => null, acquireTokenSilent: jest.fn() } }),
 }));
-
-jest.mock('chart.js', () => ({
-  Chart: { register: jest.fn() },
-  CategoryScale: jest.fn(),
-  LinearScale: jest.fn(),
-  PointElement: jest.fn(),
-  LineElement: jest.fn(),
-  BarElement: jest.fn(),
-  Title: jest.fn(),
-  Tooltip: jest.fn(),
-  Legend: jest.fn(),
-  ArcElement: jest.fn(),
-}));
+jest.mock('../services/msalConfig', () => ({ loginRequest: {} }));
 
 jest.mock('../hooks/useCurrentUser', () => ({
-  useCurrentUser: () => ({ user: { user_name: 'Admin', role_id: 3 }, rights: ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view'], hasRight: (r) => ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view'].includes(r), isAdmin: true, loading: false, error: null }),
+  useCurrentUser: () => ({ user: { user_name: 'Admin', role_id: 3 }, rights: ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view','calendar.view'], hasRight: (r) => ['jobs.manage','stock.manage','predictions.view','faults.view','analytics.view','calendar.view'].includes(r), isAdmin: true, loading: false, error: null }),
 }));
 
 jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
@@ -91,33 +84,19 @@ test('renders dashboard with all KPI cards', async () => {
   });
 });
 
-test('renders charts', async () => {
+test('renders activity log', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('Foute per Gebou (30 dae)')).toBeInTheDocument();
-    expect(screen.getByText('Bate Risiko-verdeling')).toBeInTheDocument();
-    expect(screen.getByText(/Tendens 8 Weke/)).toBeInTheDocument();
-    // Charts are mocked as bar/line
-    expect(screen.getAllByTestId('bar-chart').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('line-chart')).toBeInTheDocument();
-  });
-});
-
-test('renders recent repairs table and activity log', async () => {
-  const DashboardPage = require('../pages/DashboardPage').default;
-  render(<MemoryRouter><DashboardPage /></MemoryRouter>);
-  await waitFor(() => {
-    expect(screen.getByText('Onlangse Herstelwerk')).toBeInTheDocument();
     expect(screen.getByText('Aktiwiteit Log')).toBeInTheDocument();
   });
 });
 
-test('shows empty state for recent repairs', async () => {
+test('shows empty state for activity log', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText(/Geen onlangse herstelwerk beskikbaar nie/i)).toBeInTheDocument();
+    expect(screen.getByText(/Geen aktiwiteite om te vertoon nie/i)).toBeInTheDocument();
   });
 });
 
@@ -128,5 +107,13 @@ test('prediction links point to /predictions', async () => {
     const links = screen.getAllByText(/Bekyk.*voorspellings/i);
     expect(links.length).toBeGreaterThan(0);
     links.forEach(l => expect(l.closest('a')).toHaveAttribute('href', '/predictions'));
+  });
+});
+
+test('renders calendar section for users with calendar.view', async () => {
+  const DashboardPage = require('../pages/DashboardPage').default;
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(screen.getByText('Kalender')).toBeInTheDocument();
   });
 });

@@ -127,7 +127,7 @@ function NotificationHistory({ onNavigate }) {
   // --- Kliek op 'n kennisgewing: merk as gelees + navigeer na verwysing ---
   const handleClick = (notif) => {
     if (!notif.is_read) markAsRead(notif.notification_id);
-    const refMap = { fault: '/fault-tickets', job: '/work-orders', stock: '/stock', asset: '/assets', calendar: '/calendar' };
+    const refMap = { fault: '/fault-tickets', job: '/work-orders', stock: '/stock', asset: '/assets', calendar: '/dashboard' };
     const path = refMap[notif.reference_type];
     if (path && onNavigate) onNavigate(path);
   };

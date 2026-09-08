@@ -239,7 +239,7 @@ class _NewReportPageState extends State<NewReportPage> {
   }
 
   /// Skep 'n AI-konsep vanaf die huidige beskrywingstek. Die gebruiker bly op
-  /// die vorm — die konsep wag daarna in die AI Konsepte-goedkeuringsry.
+  /// die vorm — die konsep wag daarna in die Voorgestelde-Werksopdragte-goedkeuringsry.
   Future<void> _handleAiDraft() async {
     final desc = descController.text.trim();
     if (desc.isEmpty) {
@@ -266,7 +266,7 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("AI-konsep geskep — wag op goedkeuring in AI Konsepte."),
+        content: Text("AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
         backgroundColor: AppColors.successGreen,
       ),
     );

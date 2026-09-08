@@ -13,7 +13,7 @@ import ResizableTh from "../components/ResizableTh";
 import '../styles/App.css';
 
 const DRAFT_COLUMNS = [
-  { key: 'id', label: 'ID', render: (d) => d.draft_id, sortKey: 'id', defaultVisible: true },
+  { key: 'id', label: 'ID', render: (d) => d.draft_id, sortKey: 'id', defaultVisible: false },
   {
     key: 'title', label: 'Titel',
     render: (d) => d.title || (d.description ? d.description.substring(0, 80) + (d.description.length > 80 ? '...' : '') : '-'),
@@ -80,7 +80,7 @@ function AIDraftQueuePage() {
       setDrafts(response.data || []);
     } catch (error) {
       console.error("Error fetching AI drafts:", error);
-      showToast({ type: 'error', title: 'Fout', message: "Fout by laai van AI-konsepte: " + (error.response?.data?.detail || error.message) });
+      showToast({ type: 'error', title: 'Fout', message: "Fout by laai van voorgestelde werksopdragte: " + (error.response?.data?.detail || error.message) });
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ function AIDraftQueuePage() {
             <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />
           </div>
           <div className="controls-right">
-            <button className="btn-add" onClick={() => navigate('/ai-drafts/new')}>+ Nuwe AI Konsep</button>
+            <button className="btn-add" onClick={() => navigate('/ai-drafts/new')}>+ Nuwe Voorgestelde Werksopdrag</button>
             <button className="btn-edit" onClick={fetchDrafts} style={{ marginLeft: '0.5rem' }}>Vernuwe</button>
             <ColumnPicker
               ref={colPickerRef}
@@ -153,7 +153,7 @@ function AIDraftQueuePage() {
           </thead>
           <tbody>
             {sortedDrafts.length === 0 ? (
-              <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen AI-konsepte gevind nie</td></tr>
+              <tr><td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: 'center', padding: '20px' }}>Geen voorgestelde werksopdragte gevind nie</td></tr>
             ) : (
               paginatedDrafts.map((draft) => (
                 <tr key={draft.draft_id} style={{ cursor: "pointer" }} onClick={() => navigate(`/ai-drafts/${draft.draft_id}`)}>

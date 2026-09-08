@@ -161,7 +161,7 @@ class _NewStockPageState extends State<NewStockPage> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _buildField("Merk", (v) => brand = v),
+                      child: _buildField("Handelsmerk", (v) => brand = v),
                     ),
                   ],
                 ),

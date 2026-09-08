@@ -30,9 +30,8 @@ const RIGHTS_MAP = {
   'buildings.manage':    { sidebar: 'Geboue',           route: '/buildings',         group: 'Fasiliteite' },
   'locations.manage':    { sidebar: 'Terreine',         route: '/terrains',          group: 'Fasiliteite' },
   'faults.view':         { sidebar: 'Foutkaartjies',    route: '/fault-tickets' },
-  'room_checks.manage':  { sidebar: 'Kontrole Skedules', route: '/room-checks-schedules' },
+  'room_checks.manage':  { sidebar: 'Lokaal Kontrole', route: '/room-checks-schedules' },
   'jobs.manage':         { sidebar: 'Werksopdragte',    route: '/work-orders' },
-  'calendar.view':       { sidebar: 'Kalender',         route: '/calendar' },
   'predictions.view':    { sidebar: 'Voorspellings',    route: '/predictions' },
   'users.manage':        { sidebar: 'Gebruikers',       route: '/users' },
 };
@@ -72,7 +71,7 @@ describe('Reg-per-reg Sidebar-verifikasie', () => {
     expect(screen.queryByText('Kalender')).not.toBeInTheDocument();
     expect(screen.queryByText('Voorspellings')).not.toBeInTheDocument();
     expect(screen.queryByText('Gebruikers')).not.toBeInTheDocument();
-    expect(screen.queryByText('Kontrole Skedules')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lokaal Kontrole')).not.toBeInTheDocument();
   });
 
   test('Fasiliteite dropdown verskyn met ENIGE facility-reg', () => {
@@ -93,9 +92,8 @@ describe('Reg-per-reg Sidebar-verifikasie', () => {
     expect(screen.getByText('Paneelbord')).toBeInTheDocument();
     expect(screen.getByText('Fasiliteite')).toBeInTheDocument();
     expect(screen.getByText('Foutkaartjies')).toBeInTheDocument();
-    expect(screen.getByText('Kontrole Skedules')).toBeInTheDocument();
+    expect(screen.getByText('Lokaal Kontrole')).toBeInTheDocument();
     expect(screen.getByText('Werksopdragte')).toBeInTheDocument();
-    expect(screen.getByText('Kalender')).toBeInTheDocument();
     expect(screen.getByText('Voorspellings')).toBeInTheDocument();
     expect(screen.getAllByText('Gebruikers').length).toBeGreaterThanOrEqual(1);
   });

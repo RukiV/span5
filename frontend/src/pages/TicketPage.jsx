@@ -39,7 +39,7 @@ function TicketPage() {
   const [filterColumn, setFilterColumn] = useState("all");
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const TICKET_COLUMNS = [
-    { key: 'id', label: 'ID', render: (t) => t.fault_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID', render: (t) => t.fault_id, sortKey: 'id', defaultVisible: false },
     { key: 'title', label: 'Titel', render: (t) => extractTitle(t.fault_description), sortKey: 'title', defaultVisible: true },
     { key: 'category', label: 'Kategorie', render: (t) => t.fault_type || '-', sortKey: 'category', defaultVisible: true },
     { key: 'priority', label: 'Prioriteit', render: (t) => t.fault_priority || '-', sortKey: 'priority', defaultVisible: true },

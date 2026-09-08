@@ -110,7 +110,7 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
-                      'AI Voorstelle${entries.isNotEmpty ? ' (${entries.length})' : ''}',
+                      'Voorgestelde Werksopdragte${entries.isNotEmpty ? ' (${entries.length})' : ''}',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
