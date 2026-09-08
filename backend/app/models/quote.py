@@ -13,9 +13,10 @@ class QuoteBase(SQLModel):
     quote_date: date
     quote_status: str = Field(max_length=50)
     contractor_id: Optional[int] = Field(default=None, foreign_key="user.user_id")
+    contractor_name: Optional[str] = Field(default=None, max_length=100)
     quote_selection_reason: Optional[str] = None
 
-    @field_validator('quote_status', 'quote_selection_reason', mode='before')
+    @field_validator('quote_status', 'quote_selection_reason', 'contractor_name', mode='before')
     @classmethod
     def _sanitize_strings(cls, v, info):
         return sanitize_text(v)
@@ -53,5 +54,6 @@ class QuoteUpdate(SQLModel):
     quote_status: Optional[str] = None
     quote_selection_reason: Optional[str] = None
     contractor_id: Optional[int] = None
+    contractor_name: Optional[str] = None
     image_id: Optional[int] = None
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Select from 'react-select';
-import { IoTrashOutline } from 'react-icons/io5';
+import { IoTrashOutline, IoPencil } from 'react-icons/io5';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
@@ -60,6 +60,7 @@ function UsersPage({ embedded = false }) {
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [formUser, setFormUser] = useState({
     user_name: '',
     user_surname: '',
@@ -211,6 +212,7 @@ function UsersPage({ embedded = false }) {
 
   const handleEditUser = (user) => {
     resetFieldStatus();
+    setIsViewMode(true);
     setEditingUser(user);
     setFormUser({
       user_name: user.user_name,
@@ -256,6 +258,7 @@ function UsersPage({ embedded = false }) {
 
   // Sluit modal en stel vorm terug
   const handleCloseModal = () => {
+    setIsViewMode(false);
     setShowModal(false);
     setEditingUser(null);
     resetFieldStatus();
@@ -376,7 +379,7 @@ function UsersPage({ embedded = false }) {
             resetVisibility={colVis.resetVisibility}
             onResetWidths={colWidths.resetWidths}
           />
-          <button className="btn-add" onClick={() => { resetFieldStatus(); setShowModal(true); }}>+ Nuwe Gebruiker</button>
+          <button className="btn-add" onClick={() => { resetFieldStatus(); setIsViewMode(false); setShowModal(true); }}>+ Nuwe Gebruiker</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
               Verwyder Geselekteerde ({selectedIds.length})
@@ -431,11 +434,16 @@ function UsersPage({ embedded = false }) {
   );
 
   const modalContent = showModal && (
-    <div className="modal">
+    <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? 'Bekyk' : editingUser ? 'Wysig' : 'Nuwe'} Gebruiker</h3>
+          <div className="modal-header-actions">
+            {editingUser && isViewMode && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
 
         <div className="form-group">
@@ -445,6 +453,7 @@ function UsersPage({ embedded = false }) {
             type="text"
             className={invalidFields.user_name ? "field-invalid" : ""}
             value={formUser.user_name}
+            disabled={isViewMode}
             onChange={(e) => {
               setFormUser({ ...formUser, user_name: e.target.value });
               setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
@@ -458,6 +467,7 @@ function UsersPage({ embedded = false }) {
             type="text"
             className={invalidFields.user_surname ? "field-invalid" : ""}
             value={formUser.user_surname}
+            disabled={isViewMode}
             onChange={(e) => {
               setFormUser({ ...formUser, user_surname: e.target.value });
               setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
@@ -471,6 +481,7 @@ function UsersPage({ embedded = false }) {
             type="email"
             className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
             value={formUser.user_email}
+            disabled={isViewMode}
             onChange={(e) => {
               const value = e.target.value;
               setFormUser({ ...formUser, user_email: value });
@@ -487,6 +498,7 @@ function UsersPage({ embedded = false }) {
               type="password"
               className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
               value={formUser.user_password}
+              disabled={isViewMode}
               onChange={(e) => {
                 const value = e.target.value;
                 setFormUser({ ...formUser, user_password: value });
@@ -505,6 +517,7 @@ function UsersPage({ embedded = false }) {
             ref={el => fieldRefs.current.role_id = el}
             className={invalidFields.role_id ? "field-invalid" : ""}
             value={formUser.role_id}
+            disabled={isViewMode}
             onChange={(e) => {
               setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
               setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
@@ -519,6 +532,7 @@ function UsersPage({ embedded = false }) {
           <label>Terrein (slegs vir FK)</label>
           <select
             value={formUser.location_id || ''}
+            disabled={isViewMode}
             onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
           >
             <option value="">Geen terrein</option>
@@ -533,6 +547,7 @@ function UsersPage({ embedded = false }) {
             ref={el => fieldRefs.current.user_status = el}
             className={invalidFields.user_status ? "field-invalid" : ""}
             value={formUser.user_status}
+            disabled={isViewMode}
             onChange={(e) => {
               setFormUser({ ...formUser, user_status: e.target.value });
               setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
@@ -542,10 +557,12 @@ function UsersPage({ embedded = false }) {
             <option value="inactive">Onaktief</option>
           </select>
         </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleAddUser}>Stoor</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleAddUser}>Stoor</button>
+          </div>
+        )}
       </div>
     </div>
   );

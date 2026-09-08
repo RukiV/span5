@@ -8,7 +8,7 @@ from .validators import sanitize_text, validate_positive_int
 class StockBase(SQLModel):
     """Base model for stock data."""
     stock_name: Optional[str] = Field(max_length=100)
-    stock_brand: str = Field(max_length=100)
+    stock_brand: Optional[str] = Field(default=None, max_length=100)
     stock_amount: int = Field(default=0)
     stock_minimum: int = Field(default=0)
     stock_boxTotal: int = Field(default=0)

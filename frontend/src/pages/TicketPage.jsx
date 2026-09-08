@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -64,6 +64,7 @@ function TicketPage() {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -355,6 +356,7 @@ function TicketPage() {
   // Laai foutkaartjie-data in vorm vir redigering
   const handleEditTicket = (ticket) => {
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(ticket.fault_id);
     applyTicketLocationSelection(ticket);
     setShowModal(true);
@@ -363,6 +365,7 @@ function TicketPage() {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -374,6 +377,7 @@ function TicketPage() {
 
   const handleNewTicket = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -711,20 +715,25 @@ function TicketPage() {
       )}
 
       {showModal && (
-        <div className="modal" style={{ display: "flex" }}>
+        <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content">
             <div className="modal-header">
-              <h3>{isEditing ? "Wysig" : "Nuwe"} Foutkaartjie</h3>
-              <span className="close" onClick={handleCloseModal}>&times;</span>
+              <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Foutkaartjie</h3>
+              <div className="modal-header-actions">
+                {isEditing && isViewMode && hasRight('faults.manage') && (
+                  <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                )}
+                <span className="close" onClick={handleCloseModal}>&times;</span>
+              </div>
             </div>
             <div className="input-row">
               <div className="input-group">
                 <label>Titel *</label>
-                <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} />
+                <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} disabled={isViewMode} />
               </div>
               <div className="input-group">
                 <label>Kategorie *</label>
-                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }}>
+                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }} disabled={isViewMode}>
                   <option value="">Kies kategorie</option>
                   <option value="Onderhoud">Onderhoud</option>
                   <option value="Herstel">Herstel</option>
@@ -736,7 +745,7 @@ function TicketPage() {
             <div className="input-row">
               <div className="input-group">
                 <label>Prioriteit</label>
-                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })}>
+                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} disabled={isViewMode}>
                   <option value="Laag">Laag</option>
                   <option value="Medium">Medium</option>
                   <option value="Hoog">Hoog</option>
@@ -768,20 +777,20 @@ function TicketPage() {
                   if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
                    return (
                      <div ref={modalCascadeMenu.containerRef}>
-                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px" })}
-                      <Select
-                        className="react-select-container"
-                        classNamePrefix="react-select"
-                        placeholder={
-                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
-                        }
-                        isClearable
-                        isDisabled={cascadeCount >= 4}
-                        closeMenuOnSelect={false}
-                        menuIsOpen={modalCascadeMenu.menuIsOpen}
-                        onMenuOpen={modalCascadeMenu.onMenuOpen}
-                        onMenuClose={modalCascadeMenu.onMenuClose}
-                        components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+{renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                       <Select
+                         className="react-select-container"
+                         classNamePrefix="react-select"
+                         placeholder={
+                           ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                         }
+                         isClearable
+                         isDisabled={isViewMode || cascadeCount >= 4}
+                         closeMenuOnSelect={false}
+                         menuIsOpen={modalCascadeMenu.menuIsOpen}
+                         onMenuOpen={modalCascadeMenu.onMenuOpen}
+                         onMenuClose={modalCascadeMenu.onMenuClose}
+                         components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
                         styles={{
                           container: (base) => ({ ...base, minWidth: '260px' }),
@@ -847,7 +856,7 @@ function TicketPage() {
             <div className="input-row">
               <div className="input-group">
                 <label>Beelde (Maksimum {MAX_TICKET_IMAGES})</label>
-                <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} disabled={isViewMode} />
 
                 {selectedImagePreviewUrls.length > 0 && (
                   <div style={{ marginTop: '0.75rem' }}>
@@ -897,11 +906,11 @@ function TicketPage() {
             <div className="input-row">
               <div className="input-group">
                 <label>Beskrywing *</label>
-                <textarea value={newTicket.description} ref={el => fieldRefs.current.description = el} className={invalidFields.description ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, description: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.description; return next; }); }} />
+                <textarea value={newTicket.description} ref={el => fieldRefs.current.description = el} className={invalidFields.description ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, description: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.description; return next; }); }} disabled={isViewMode} />
               </div>
               <div className="input-group">
                 <label>Status</label>
-                <select value={newTicket.status} onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })}>
+                <select value={newTicket.status} onChange={(e) => setNewTicket({ ...newTicket, status: e.target.value })} disabled={isViewMode}>
                   <option value="Wag">Wag</option>
                   <option value="Oop">Oop</option>
                   <option value="Bevestig">Bevestig</option>
@@ -911,10 +920,12 @@ function TicketPage() {
                 </select>
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-              <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
-            </div>
+            {!isViewMode && (
+              <div className="modal-footer">
+                <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+                <button className="btn-add" onClick={handleAddTicket}>{isEditing ? "Opdateer" : "Stoor"}</button>
+              </div>
+            )}
             <AiSuggestPanel
               suggestions={faultSuggestions}
               loading={aiLoading}

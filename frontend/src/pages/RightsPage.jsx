@@ -32,17 +32,12 @@ function RightsPage({ embedded = false }) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  const openNewRight = () => { setRightForm({ id: null, name: '', description: '', isBuiltin: false }); setView('rightForm'); };
   const openEditRight = (right) => { setRightForm({ id: right.right_id, name: right.right_name, description: right.right_description || '', isBuiltin: right.is_builtin }); setView('rightForm'); };
 
   const saveRight = async () => {
     if (!rightForm.name.trim()) { showToast({ type: 'error', message: 'Regnaam is verpligtend.' }); return; }
     try {
-      if (rightForm.id) {
-        await apiClient.rights.update(rightForm.id, { right_name: rightForm.name.trim(), right_description: rightForm.description });
-      } else {
-        await apiClient.rights.create({ right_name: rightForm.name.trim(), right_description: rightForm.description });
-      }
+      await apiClient.rights.update(rightForm.id, { right_name: rightForm.name.trim(), right_description: rightForm.description });
       await refetch();
       setView('list'); showToast({ type: 'success', message: 'Reg gestoor.' });
     } catch (err) {
@@ -106,7 +101,6 @@ function RightsPage({ embedded = false }) {
               <Select className="react-select-container" classNamePrefix="react-select" value={FILTER_COLUMNS.find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={FILTER_COLUMNS} isSearchable={false} />
             </div>
             <div className="controls-right">
-              <button type="button" className="btn-add" onClick={openNewRight}>+ Nuwe Reg</button>
             </div>
           </div>
 

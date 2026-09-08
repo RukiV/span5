@@ -405,6 +405,15 @@ select:not([class*="cascade"]):focus {
   font-weight: 600;
 }
 
+.breadcrumb-btn:disabled {
+  cursor: default;
+}
+
+.breadcrumb-btn:disabled:hover {
+  background: transparent;
+  color: #111827;
+}
+
 .breadcrumb-arrow {
   color: #9ca3af;
   line-height: 1;
@@ -651,6 +660,22 @@ select:not([class*="cascade"]):focus {
     color: #999; 
 }
 .close:hover { color: white }
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-edit-btn {
+  color: #999;
+  cursor: pointer;
+  font-size: 20px;
+  transition: color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+.modal-edit-btn:hover { color: white; }
 
 
 /* Forms */

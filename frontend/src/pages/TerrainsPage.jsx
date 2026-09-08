@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -56,6 +56,7 @@ function TerrainsPage({ embedded = false }) {
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [newTerrain, setNewTerrain] = useState({
     location_name: "",
     location_type: "",
@@ -340,6 +341,7 @@ function TerrainsPage({ embedded = false }) {
 
   const handleEditTerrain = (item) => {
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.location_id);
     setNewTerrain({
       location_name: item.location_name || "",
@@ -357,12 +359,14 @@ function TerrainsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
   };
 
   const handleNewTerrain = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
     setShowModal(true);
@@ -522,11 +526,16 @@ function TerrainsPage({ embedded = false }) {
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('locations.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -534,6 +543,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_name = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_name ? "field-invalid" : ""}
               value={newTerrain.location_name}
               onChange={(e) => {
@@ -547,6 +557,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_type = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_type ? "field-invalid" : ""}
               value={newTerrain.location_type}
               onChange={(e) => {
@@ -562,6 +573,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_streetnum = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_streetnum ? "field-invalid" : ""}
               value={newTerrain.location_streetnum}
               onChange={(e) => {
@@ -575,6 +587,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_streetname = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_streetname ? "field-invalid" : ""}
               value={newTerrain.location_streetname}
               onChange={(e) => {
@@ -590,6 +603,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_suburb = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_suburb ? "field-invalid" : ""}
               value={newTerrain.location_suburb}
               onChange={(e) => {
@@ -603,6 +617,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_city = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_city ? "field-invalid" : ""}
               value={newTerrain.location_city}
               onChange={(e) => {
@@ -618,6 +633,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_province = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_province ? "field-invalid" : ""}
               value={newTerrain.location_province}
               onChange={(e) => {
@@ -631,6 +647,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_country = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_country ? "field-invalid" : ""}
               value={newTerrain.location_country}
               onChange={(e) => {
@@ -640,10 +657,12 @@ function TerrainsPage({ embedded = false }) {
             />
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
       </div>
     </div>
   );

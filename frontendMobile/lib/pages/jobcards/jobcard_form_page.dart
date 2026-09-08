@@ -31,6 +31,7 @@ class _QuoteDraft {
   int? quoteId;
   final int tempId;
   int? contractorId;
+  String? contractorName;
   File? pdfFile;
   final List<QuoteDocument> existingDocs = [];
   String? selectionReason;
@@ -39,6 +40,196 @@ class _QuoteDraft {
   _QuoteDraft(this.tempId);
 
   bool get hasPdf => pdfFile != null || existingDocs.isNotEmpty;
+
+  bool get hasContractor =>
+      contractorId != null || (contractorName ?? '').trim().isNotEmpty;
+}
+
+class _QuoteDialogResult {
+  final int? contractorId;
+  final String? contractorName;
+  final File pdfFile;
+
+  const _QuoteDialogResult({
+    required this.contractorId,
+    required this.contractorName,
+    required this.pdfFile,
+  });
+}
+
+class _AddQuoteDialog extends StatefulWidget {
+  final List<User> contractors;
+
+  const _AddQuoteDialog({required this.contractors});
+
+  @override
+  State<_AddQuoteDialog> createState() => _AddQuoteDialogState();
+}
+
+class _AddQuoteDialogState extends State<_AddQuoteDialog> {
+  int? _contractorId;
+  String _contractorName = '';
+  File? _pdfFile;
+  bool _isNewContractor = false;
+
+  Future<void> _pickQuotePdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      withData: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.single.path;
+    if (path == null) return;
+    setState(() => _pdfFile = File(path));
+  }
+
+  void _submit() {
+    if (!_isNewContractor && _contractorId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kies 'n kontrakteur vir die kwotasie."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    if (_pdfFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Laai 'n PDF op vir die kwotasie (verpligtend)."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    final selectedUser =
+        widget.contractors.where((u) => u.id == _contractorId).firstOrNull;
+    Navigator.pop(
+      context,
+      _QuoteDialogResult(
+        contractorId: _isNewContractor ? null : _contractorId,
+        contractorName:
+            _isNewContractor ? _contractorName.trim() : selectedUser?.displayName,
+        pdfFile: _pdfFile!,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Voeg Kwotasie By",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Text("Kontrakteur",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              children: [
+                ChoiceChip(
+                  label: const Text("Bestaande kontrakteur", style: TextStyle(fontSize: 12)),
+                  selected: !_isNewContractor,
+                  onSelected: (_) =>
+                      setState(() => _isNewContractor = false),
+                ),
+                ChoiceChip(
+                  label: const Text("Nuwe kontrakteur", style: TextStyle(fontSize: 12)),
+                  selected: _isNewContractor,
+                  onSelected: (_) => setState(() => _isNewContractor = true),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (_isNewContractor)
+              TextFormField(
+                key: const ValueKey('new_contractor_name'),
+                initialValue: _contractorName,
+                decoration: const InputDecoration(
+                  labelText: "Kontrakteur Naam",
+                  hintText: "Tik die kontrakteur se naam",
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => _contractorName = v,
+              )
+            else
+              SearchableDropdown<int?>(
+                label: "Kies kontrakteur",
+                hint: "Kies Kontrakteur",
+                value: _contractorId,
+                items: widget.contractors
+                    .map((u) => SearchableDropdownItem<int?>(
+                        value: u.id, label: u.displayName))
+                    .toList(),
+                onChanged: (v) => setState(() => _contractorId = v),
+              ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickQuotePdf,
+                    icon: const Icon(Icons.picture_as_pdf, color: AppColors.errorRed),
+                    label: Text(
+                      _pdfFile != null
+                          ? _pdfFile!.path.split('/').last
+                          : "Laai PDF op (verpligtend)",
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                if (_pdfFile != null)
+                  IconButton(
+                    onPressed: () => setState(() => _pdfFile = null),
+                    icon: const Icon(Icons.close, color: AppColors.errorRed),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                    shape:
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _submit,
+                  child: const Text("Voeg By", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class JobcardFormPage extends StatefulWidget {
@@ -242,6 +433,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final draft = _QuoteDraft(_newTempId())
         ..quoteId = quote.id
         ..contractorId = quote.contractorId
+        ..contractorName = quote.contractorName
         ..selectionReason = quote.selectionReason
         ..selectionSaved =
             (quote.selectionReason ?? '').trim().isNotEmpty;
@@ -487,13 +679,22 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle("Voeg Nuwe Kwotasie By"),
-          const SizedBox(height: 12),
           ValueListenableBuilder<List<User>>(
             valueListenable: UserService.usersNotifier,
             builder: (context, users, _) {
               final contractors = users.where((u) => u.roleId == 4).toList();
-              return _buildAddQuoteForm(contractors);
+              return SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _showAddQuoteDialog(contractors),
+                  icon: const Icon(Icons.add),
+                  label: const Text("Voeg Kwotasie By"),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              );
             },
           ),
           const SizedBox(height: 20),
@@ -518,98 +719,26 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     );
   }
 
-  Widget _buildAddQuoteForm(List<User> contractors) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SearchableDropdown<int?>(
-            label: "Kontrakteur",
-            hint: "Kies Kontrakteur",
-            value: _quoteContractorId,
-            items: contractors
-                .map((u) => SearchableDropdownItem<int?>(value: u.id, label: u.displayName))
-                .toList(),
-            onChanged: (v) => setState(() => _quoteContractorId = v),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _pickQuotePdf,
-                  icon: const Icon(Icons.picture_as_pdf, color: AppColors.errorRed),
-                  label: Text(
-                    _quotePdfFile != null ? _quotePdfFile!.path.split('/').last : "Laai PDF op (verpligtend)",
-                    style: const TextStyle(fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-              if (_quotePdfFile != null)
-                IconButton(
-                  onPressed: () => setState(() => _quotePdfFile = null),
-                  icon: const Icon(Icons.close, color: AppColors.errorRed),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _addQuote,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy),
-              child: const Text("Voeg Kwotasie By",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
+  Future<void> _showAddQuoteDialog(List<User> contractors) async {
+    final result = await showDialog<_QuoteDialogResult>(
+      context: context,
+      builder: (dialogContext) =>
+          _AddQuoteDialog(contractors: contractors),
     );
-  }
-
-  int? _quoteContractorId;
-  File? _quotePdfFile;
-
-  Future<void> _pickQuotePdf() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      withData: false,
-    );
-    if (result == null || result.files.isEmpty) return;
-    final path = result.files.single.path;
-    if (path == null) return;
-    setState(() => _quotePdfFile = File(path));
-  }
-
-  void _addQuote() {
-    if (_quoteContractorId == null) {
-      _showSnack("Kies 'n kontrakteur vir die kwotasie.", error: true);
-      return;
-    }
-    if (_quotePdfFile == null) {
-      _showSnack("Laai 'n PDF op vir die kwotasie (verpligtend).", error: true);
-      return;
-    }
+    if (result == null || !mounted) return;
     setState(() {
       _quotes.add(_QuoteDraft(_newTempId())
-        ..contractorId = _quoteContractorId
-        ..pdfFile = _quotePdfFile);
-      _quoteContractorId = null;
-      _quotePdfFile = null;
+        ..contractorId = result.contractorId
+        ..contractorName = result.contractorName
+        ..pdfFile = result.pdfFile);
     });
   }
 
   Widget _buildQuoteCard(_QuoteDraft quote) {
     final isSelected = quote.tempId == _selectedQuoteTempId;
-    final contractorName = UserService.nameFor(quote.contractorId);
+    final contractorName = (quote.contractorName ?? '').trim().isNotEmpty
+        ? quote.contractorName!.trim()
+        : UserService.nameFor(quote.contractorId);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -633,6 +762,18 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               if (quote.quoteId != null)
                 Text("#${quote.quoteId}", style: TextStyle(color: Colors.grey[500], fontSize: 12)),
             ],
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            key: ValueKey('quote_contractor_${quote.tempId}'),
+            decoration: const InputDecoration(
+              labelText: "Kontrakteur Naam",
+              hintText: "Tik die kontrakteur se naam",
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            initialValue: quote.contractorName ?? "",
+            onChanged: (v) => quote.contractorName = v,
           ),
           const SizedBox(height: 8),
           Row(
@@ -770,8 +911,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   /// (indien nog 'n konsep), laai die PDF op, stoor die seleksierede en koppel
   /// die gekose kwotasie aan die werksopdrag (as dit al bestaan).
   Future<void> _saveQuoteSelection(_QuoteDraft quote) async {
-    if (quote.contractorId == null || !quote.hasPdf) {
-      _showSnack("Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê.", error: true);
+    if (!quote.hasContractor || !quote.hasPdf) {
+      _showSnack("Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
       return;
     }
     final reason = (quote.selectionReason ?? '').trim();
@@ -784,6 +925,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       if (quote.quoteId == null) {
         final created = await QuoteService.addQuote(Quote(
           contractorId: quote.contractorId,
+          contractorName: quote.contractorName,
           date: DateTime.now(),
           status: 'Pending',
           selectionReason: reason,
@@ -799,6 +941,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           Quote(
             id: quote.quoteId!,
             contractorId: quote.contractorId,
+            contractorName: quote.contractorName,
             date: DateTime.now(),
             status: 'Pending',
             selectionReason: reason,
@@ -1191,14 +1334,19 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       return;
     }
     for (final q in _quotes) {
-      if (q.contractorId == null || !q.hasPdf) {
-        _showSnack("Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê.", error: true);
+      if (!q.hasPdf) {
+        _showSnack("Elke kwotasie moet 'n PDF-dokument hê.", error: true);
         _tabController.animateTo(1);
         return;
       }
     }
     if (_selectedQuoteTempId != null) {
       final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
+      if (selected != null && !selected.hasContractor) {
+        _showSnack("Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
+        _tabController.animateTo(1);
+        return;
+      }
       if (selected != null && (selected.selectionReason == null || selected.selectionReason!.trim().isEmpty)) {
         _showSnack("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
         _tabController.animateTo(1);
@@ -1260,6 +1408,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           final quoteToSave = Quote(
             id: q.quoteId ?? 0,
             contractorId: q.contractorId,
+            contractorName: q.contractorName,
             date: DateTime.now(),
             status: 'Pending',
             selectionReason:

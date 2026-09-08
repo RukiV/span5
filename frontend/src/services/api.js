@@ -201,7 +201,6 @@ export const rolesAPI = {
 export const rightsAPI = {
   getAll: () => apiClient.get('/rights'),
   getById: (id) => apiClient.get(`/rights/${id}`),
-  create: (data) => apiClient.post('/rights', data),
   update: (id, data) => apiClient.patch(`/rights/${id}`, data),
   delete: (id) => apiClient.delete(`/rights/${id}`),
 };
