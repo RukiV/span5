@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
@@ -59,6 +59,7 @@ function BuildingsPage({ embedded = false }) {
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
@@ -348,6 +349,7 @@ function BuildingsPage({ embedded = false }) {
 
   const handleEditBuilding = (item) => {
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
@@ -360,12 +362,14 @@ function BuildingsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
     setShowModal(true);
@@ -600,11 +604,16 @@ function BuildingsPage({ embedded = false }) {
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('buildings.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -614,6 +623,7 @@ function BuildingsPage({ embedded = false }) {
               ref={el => fieldRefs.current.building_name = el}
               className={invalidFields.building_name ? "field-invalid" : ""}
               value={newBuilding.building_name}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewBuilding({ ...newBuilding, building_name: e.target.value });
                 if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
@@ -629,6 +639,7 @@ function BuildingsPage({ embedded = false }) {
               onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
               options={buildingTypeOptions}
               isSearchable={false}
+              isDisabled={isViewMode}
               styles={{
                 control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                 valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -652,18 +663,18 @@ function BuildingsPage({ embedded = false }) {
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
                return (
                  <div ref={modalCascadeMenu.containerRef}>
-                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px" })}
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
                     placeholder={["Kies Terrein...","Ligging voltooi"][cascadeCount]}
                     isClearable
-                    isDisabled={cascadeCount >= 1}
+                    isDisabled={isViewMode || cascadeCount >= 1}
                     closeMenuOnSelect={false}
                     menuIsOpen={modalCascadeMenu.menuIsOpen}
                     onMenuOpen={modalCascadeMenu.onMenuOpen}
                     onMenuClose={modalCascadeMenu.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -689,10 +700,12 @@ function BuildingsPage({ embedded = false }) {
             })()}
           </div>
         </div>
+        {!isViewMode && (
         <div className="modal-footer">
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        )}
       </div>
     </div>
   );

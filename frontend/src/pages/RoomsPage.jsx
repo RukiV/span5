@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
@@ -64,6 +64,7 @@ function RoomsPage({ embedded = false }) {
   const [roomChecks, setRoomChecks] = useState([]);
   const [loadingChecks, setLoadingChecks] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
@@ -226,6 +227,7 @@ function RoomsPage({ embedded = false }) {
   const handleEditRoom = (room) => {
     const building = buildings.find((b) => b.building_id === room.building_id);
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(room.room_id);
     setNewRoom({
       room_name: room.room_name || "",
@@ -340,6 +342,7 @@ function RoomsPage({ embedded = false }) {
 
   const handleNewRoom = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewRoom({
       room_name: "",
@@ -356,6 +359,7 @@ function RoomsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewRoom({
       room_name: "",
@@ -634,11 +638,16 @@ function RoomsPage({ embedded = false }) {
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: 'flex' }}>
+    <div className="modal" style={{ display: 'flex' }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('rooms.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
 
         <div className="input-row">
@@ -649,6 +658,7 @@ function RoomsPage({ embedded = false }) {
               type="text"
               value={newRoom.room_name}
               className={invalidFields.room_name ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_name: e.target.value });
                 if (invalidFields.room_name) setInvalidFields(prev => { const n = {...prev}; delete n.room_name; return n; });
@@ -663,6 +673,7 @@ function RoomsPage({ embedded = false }) {
               placeholder="Bv. L10"
               value={newRoom.room_code}
               className={invalidFields.room_code ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_code: e.target.value });
                 if (invalidFields.room_code) setInvalidFields(prev => { const n = {...prev}; delete n.room_code; return n; });
@@ -679,6 +690,7 @@ function RoomsPage({ embedded = false }) {
               type="number"
               value={newRoom.room_capacity}
               className={invalidFields.room_capacity ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_capacity: e.target.value });
                 if (invalidFields.room_capacity) setInvalidFields(prev => { const n = {...prev}; delete n.room_capacity; return n; });
@@ -693,6 +705,7 @@ function RoomsPage({ embedded = false }) {
               value={roomTypeOptions.find(o => o.value === newRoom.room_type)}
               onChange={(selected) => setNewRoom({ ...newRoom, room_type: selected ? selected.value : "" })}
               options={roomTypeOptions}
+              isDisabled={isViewMode}
               isSearchable={false}
             />
           </div>
@@ -704,6 +717,7 @@ function RoomsPage({ embedded = false }) {
               value={roomStatusOptions.find(option => option.value === newRoom.room_status)}
               onChange={(selectedOption) => setNewRoom({ ...newRoom, room_status: selectedOption ? selectedOption.value : "Operasioneel" })}
               options={roomStatusOptions}
+              isDisabled={isViewMode}
               isSearchable={false}
             />
           </div>
@@ -727,18 +741,18 @@ function RoomsPage({ embedded = false }) {
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px" })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
                       placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
                       isClearable
-                      isDisabled={cascadeCount >= 2}
+                      isDisabled={isViewMode || cascadeCount >= 2}
                       closeMenuOnSelect={false}
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -773,10 +787,12 @@ function RoomsPage({ embedded = false }) {
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
       </div>
     </div>
   );

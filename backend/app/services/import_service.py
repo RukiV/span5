@@ -261,7 +261,7 @@ TABLES: dict[str, TableSpec] = {
         fields=(
             FieldSpec("asset_name", "Naam", required=True,
                       aliases=("naam", "asset naam", "name")),
-            FieldSpec("asset_brand", "Merk", required=True,
+            FieldSpec("asset_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand", "make", "vervaardiger")),
             FieldSpec("asset_serial", "Serienommer",
                       aliases=("serienommer", "serial", "serial number", "sn")),
@@ -286,7 +286,7 @@ TABLES: dict[str, TableSpec] = {
         sheet_aliases=("voorraad", "stock", "items"),
         fields=(
             FieldSpec("stock_name", "Naam", aliases=("naam", "item", "name")),
-            FieldSpec("stock_brand", "Merk", required=True,
+            FieldSpec("stock_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand")),
             FieldSpec("stock_amount", "Hoeveelheid", kind="int",
                       aliases=("hoeveelheid", "aantal", "amount", "qty", "quantity")),

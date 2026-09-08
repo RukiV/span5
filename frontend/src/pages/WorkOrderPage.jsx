@@ -2,7 +2,7 @@
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
-import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
+import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -76,14 +76,16 @@ function WorkOrderPage() {
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [pendingJobcardId, setPendingJobcardId] = useState(null);
   const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [newQuote, setNewQuote] = useState({ contractor_id: "" });
+  const [newQuote, setNewQuote] = useState({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
 
@@ -728,6 +730,7 @@ function WorkOrderPage() {
 
   // Hanteer redigering van werksopdrag
   async function handleEditWorkOrder(order) {
+    setIsViewMode(true);
     setIsEditing(true);
     setEditingId(order.jobcard_id);
 
@@ -818,7 +821,9 @@ function WorkOrderPage() {
               id: quoteData.quote_id,
               dbId: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
-              contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
+              contractor_name: String(quoteData.contractor_name || "").trim()
+                || (contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : ""),
+              contractor_mode: quoteData.contractor_id ? "existing" : "new",
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
               selection_reason: quoteData.quote_selection_reason || ""
             };
@@ -928,9 +933,17 @@ function WorkOrderPage() {
         workOrderId = savedWorkOrder?.jobcard_id || editingId;
       }
 
-      if (quotes.some((quote) => !quote.contractor_id || !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
-        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê." });
+      if (quotes.some((quote) => !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
+        showToast({ type: 'warning', title: "Elke kwotasie moet 'n PDF-dokument hê." });
         return;
+      }
+
+      if (selectedQuoteId) {
+        const selectedQuoteForCheck = quotes.find((q) => String(q.id) === String(selectedQuoteId));
+        if (selectedQuoteForCheck && !(selectedQuoteForCheck.contractor_id || String(selectedQuoteForCheck.contractor_name || "").trim())) {
+          showToast({ type: 'warning', title: "Gee asseblief 'n kontrakteur vir die gekose kwotasie." });
+          return;
+        }
       }
 
       if (selectedQuoteId && !String(quoteSelectionReasons[selectedQuoteId] || "").trim()) {
@@ -948,6 +961,7 @@ function WorkOrderPage() {
           quote_status: "Pending",
           quote_selection_reason: quoteSelectionReasons[quote.id] || null,
           contractor_id: quote.contractor_id ? Number(quote.contractor_id) : null,
+          contractor_name: String(quote.contractor_name || "").trim() || null,
         };
 
         try {
@@ -1041,18 +1055,21 @@ function WorkOrderPage() {
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
-    if (!newQuote.contractor_id || !quotePdfFiles[quoteEditId || "new"]) {
-      showToast({ type: 'warning', title: "Kies 'n kontrakteur en laai 'n PDF op vir die kwotasie." });
+    if (!quotePdfFiles[quoteEditId || "new"]) {
+      showToast({ type: 'warning', title: "Laai 'n PDF-dokument op vir die kwotasie." });
       return;
     }
 
-    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const existingQuote = quoteEditId ? quotes.find((q) => q.id === quoteEditId) : null;
+    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const updatedQuote = {
       id: quoteEditId || Date.now(),
       dbId: existingQuote?.dbId ?? null,
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
-      contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
+      contractor_name: newQuote.contractor_mode === "new"
+        ? newQuote.contractor_name.trim()
+        : (contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : newQuote.contractor_name.trim()),
+      contractor_mode: newQuote.contractor_mode,
       createdAt: existingQuote?.createdAt || new Date().toLocaleDateString('af-ZA'),
       selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
@@ -1097,7 +1114,8 @@ function WorkOrderPage() {
       });
     }
 
-    setNewQuote({ contractor_id: "" });
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
+    setShowQuoteModal(false);
   };
 
   const handleStartEditQuote = (quoteId) => {
@@ -1105,9 +1123,23 @@ function WorkOrderPage() {
     if (!quoteToEdit) return;
 
     setNewQuote({
-      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : ""
+      contractor_mode: quoteToEdit.contractor_id ? "existing" : "new",
+      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : "",
+      contractor_name: quoteToEdit.contractor_name || ""
     });
     setQuoteEditId(quoteId);
+    setShowQuoteModal(true);
+  };
+
+  const openAddQuote = () => {
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
+    setQuoteEditId(null);
+    setShowQuoteModal(true);
+  };
+
+  const handleCloseQuoteModal = () => {
+    setShowQuoteModal(false);
+    handleCancelQuoteEdit();
   };
 
   const handleCancelQuoteEdit = () => {
@@ -1123,7 +1155,7 @@ function WorkOrderPage() {
       delete next["new"];
       return next;
     });
-    setNewQuote({ contractor_id: "" });
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
   };
 
   const handleDeleteQuote = (quoteId) => {
@@ -1164,6 +1196,7 @@ function WorkOrderPage() {
   };
 
   const handleCloseModal = () => {
+    setIsViewMode(false);
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
@@ -1218,6 +1251,7 @@ function WorkOrderPage() {
   };
 
   const handleNewWorkOrder = () => {
+    setIsViewMode(false);
     setIsEditing(false);
     setEditingId(null);
     setSelectedTerrein(null);
@@ -1575,12 +1609,21 @@ function WorkOrderPage() {
         </div>
 {/* MODAL: Werksopdrag-Kaart */}
       {showModal && (
-        <div className="modal">
+        <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content-workorder" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
                 <h3>Werksopdrag Kaart</h3>
-                {isEditing && (
+                {isViewMode ? (
+                  <div className="mri-job-no">
+                    <input 
+                      type="text" 
+                      className="inp-bold-large"
+                      value={editingId}
+                      readOnly
+                    />
+                  </div>
+                ) : isEditing && (
                   <div className="mri-job-no">
                     <input 
                       type="text" 
@@ -1590,7 +1633,12 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
-                <span className="close no-print" onClick={handleCloseModal}>&times;</span>
+                <div className="modal-header-actions">
+                  {isEditing && isViewMode && hasRight('jobs.manage') && (
+                    <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                  )}
+                  <span className="close no-print" onClick={handleCloseModal}>&times;</span>
+                </div>
             </div>
 
             {/* Tab Navbar */}
@@ -1631,6 +1679,7 @@ function WorkOrderPage() {
                   <div className="mri-cell w-50 border-r">
                     <div className="mri-fld"><span>Status *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_status = el}
                         className={invalidFields.job_status ? "field-invalid" : ""}
                         value={formData.job_status}
@@ -1669,6 +1718,7 @@ function WorkOrderPage() {
                   <div className="mri-cell w-50">
                     <div className="mri-fld"><span>Prioriteit *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_priority = el}
                         className={invalidFields.job_priority ? "field-invalid" : ""}
                         value={formData.job_priority}
@@ -1690,6 +1740,7 @@ function WorkOrderPage() {
                   <div className="mri-cell w-50 border-r">
                     <div className="mri-fld"><span>Aard *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.nature = el}
                         className={invalidFields.nature ? "field-invalid" : ""}
                         value={formData.nature}
@@ -1710,6 +1761,7 @@ function WorkOrderPage() {
                   <div className="mri-cell w-50">
                     <div className="mri-fld"><span>Werksoort *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_type = el}
                         className={invalidFields.job_type ? "field-invalid" : ""}
                         value={formData.job_type}
@@ -1732,6 +1784,7 @@ function WorkOrderPage() {
                 <div className="mri-fld" style={{ marginBottom: "24px" }}>
                   <span>Werksopdrag Beskrywing *</span>
                   <textarea
+                    disabled={isViewMode}
                     ref={el => fieldRefs.current.brief_description = el}
                     className={`mri-txt-area-large${invalidFields.brief_description ? " field-invalid" : ""}`}
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
@@ -1766,7 +1819,7 @@ function WorkOrderPage() {
                   if (formData.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id });
                   if (formData.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id });
                   const breadcrumbBaseStyle = {
-                    border: "none", cursor: "pointer",
+                    border: "none", cursor: isViewMode ? "default" : "pointer",
                     margin: "0",
                     color: "#111827", fontSize: "13px",
                     lineHeight: "1", display: "inline-flex", alignItems: "center",
@@ -1782,6 +1835,7 @@ function WorkOrderPage() {
                               type="button"
                               className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
+                              disabled={isViewMode}
                               style={{
                                 ...breadcrumbBaseStyle,
                                 fontWeight: isLast ? 700 : 600,
@@ -1801,7 +1855,7 @@ function WorkOrderPage() {
                    const CascadeControl = ({ children, ...props }) => (
                      <components.Control {...props}>
                        {children}
-                       {cascadeCount > 0 && (
+                       {!isViewMode && cascadeCount > 0 && (
                          <span
                            className="cascade-back-btn"
                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
@@ -1826,12 +1880,12 @@ function WorkOrderPage() {
                           ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
                         }
                         isClearable
-                        isDisabled={cascadeCount >= 4}
+                        isDisabled={isViewMode || cascadeCount >= 4}
                         closeMenuOnSelect={false}
                         menuIsOpen={modalCascadeMenu.menuIsOpen}
                         onMenuOpen={modalCascadeMenu.onMenuOpen}
                         onMenuClose={modalCascadeMenu.onMenuClose}
-                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -1897,7 +1951,8 @@ function WorkOrderPage() {
                         classNamePrefix="react-select"
                         placeholder="Soek/Kies Foutkaartjie..."
                         isClearable
-                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        isDisabled={isViewMode}
+                        components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                           valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1966,6 +2021,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruiker..."
                       isClearable
+                      isDisabled={isViewMode}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1994,6 +2050,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruikers om CC..."
                       isMulti
+                      isDisabled={isViewMode}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -2130,6 +2187,7 @@ function WorkOrderPage() {
                             <label style={{ fontSize: '11px', fontWeight: 600 }}>Begin-tyd</label>
                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <select size={3} value={tempSchedule.startH}
+                                disabled={isViewMode}
                                 onChange={e => setTempSchedule(p => ({ ...p, startH: e.target.value }))}
                                 style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
                                 {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
@@ -2138,6 +2196,7 @@ function WorkOrderPage() {
                               </select>
                               <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
                               <select size={3} value={`${tempSchedule.startTens}${tempSchedule.startOnes}`}
+                                disabled={isViewMode}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setTempSchedule(p => ({ ...p, startTens: v[0], startOnes: v[1] }));
@@ -2153,6 +2212,7 @@ function WorkOrderPage() {
                             <label style={{ fontSize: '11px', fontWeight: 600 }}>Eind-tyd</label>
                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <select size={3} value={tempSchedule.endH}
+                                disabled={isViewMode}
                                 onChange={e => setTempSchedule(p => ({ ...p, endH: e.target.value }))}
                                 style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
                                 {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
@@ -2161,6 +2221,7 @@ function WorkOrderPage() {
                               </select>
                               <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
                               <select size={3} value={`${tempSchedule.endTens}${tempSchedule.endOnes}`}
+                                disabled={isViewMode}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setTempSchedule(p => ({ ...p, endTens: v[0], endOnes: v[1] }));
@@ -2187,6 +2248,7 @@ function WorkOrderPage() {
                 <div className="mri-cell w-50">
                   <div className="mri-fld"><span>Herhaling</span> 
                     <select 
+                      disabled={isViewMode}
                       value={formData.job_schedule_type}
                       onChange={(e) => setFormData({...formData, job_schedule_type: e.target.value})}
                     >
@@ -2208,7 +2270,7 @@ function WorkOrderPage() {
               <div className="mri-border-box">
                 <div className="mri-fld">
                   <span>Beelde</span>
-                  <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                  <input disabled={isViewMode} type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
                   <div className="image-preview-grid" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                     {ticketImages.length > 0 && (
                       <div style={{ width: '100%' }}>
@@ -2260,6 +2322,7 @@ function WorkOrderPage() {
                 <div className="mri-fld">
                   <span>Kontrakteur Werknotas</span>
                   <textarea 
+                    disabled={isViewMode}
                     className="mri-txt-area-large"
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
                     value={formData.job_notes}
@@ -2275,70 +2338,16 @@ function WorkOrderPage() {
             {activeTab === "kwotasies" && (
               <div className="mri-border-box">
               <div className="quote-form">
-                <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
+                <h4 className="quote-form-title">Kwotasies</h4>
                 <div className="mri-row">
-                  <div className="mri-cell w-50">
-                    <div className="mri-fld">
-                      <span>Kontrakteur</span>
-                      <select
-                        value={newQuote.contractor_id}
-                        onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
-                        className="quote-input"
-                      >
-                        <option value="">Kies Kontrakteur</option>
-                        {users.filter(u => u.role_id === 4).map((user) => (
-                          <option key={user.user_id} value={user.user_id}>
-                            {user.user_name} {user.user_surname}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="mri-fld">
-                      <span>PDF Kwotasie</span>
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={(e) => handleQuotePdfSelect(quoteEditId || "new", e)}
-                        className="quote-input"
-                      />
-                      {(quotePdfFiles[quoteEditId || "new"] || quoteDocuments[quoteEditId]?.[0]) && (
-                        <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                          {quotePdfFiles[quoteEditId || "new"] ? (
-                            <>
-                              <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
-                              {quotePdfPreviewUrls[quoteEditId || "new"] && (
-                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                              )}
-                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
-                            </>
-                          ) : quoteDocuments[quoteEditId]?.[0] && (
-                            <>
-                              <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
-                              <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={handleAddQuote}
-                      className="btn-add"
-                    >
-                      {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
-                    </button>
-                    {quoteEditId && (
-                      <button
-                        type="button"
-                        className="btn-add"
-                        style={{ marginLeft: 8, background: '#6c757d' }}
-                        onClick={handleCancelQuoteEdit}
-                      >
-                        Kanselleer Wysiging
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    className="btn-add"
+                    disabled={isViewMode}
+                    onClick={openAddQuote}
+                  >
+                    + Voeg Kwotasie By
+                  </button>
                 </div>
               </div>
 
@@ -2380,6 +2389,7 @@ function WorkOrderPage() {
                           <td>{quote.createdAt}</td>
                           <td>
                             <input 
+                              disabled={isViewMode}
                               type="radio" 
                               className="selectedQuote"
                               checked={selectedQuoteId === quote.id}
@@ -2410,6 +2420,7 @@ function WorkOrderPage() {
                     <div className="quote-summary">
                       <div>✓ Gekose Kwotasie: {quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'}</div>
                       <textarea
+                        disabled={isViewMode}
                         className="quote-reason-textarea"
                         placeholder="Gee 'n rede waarom hierdie kwotasie gekies is"
                         value={quoteSelectionReasons[selectedQuoteId] || ""}
@@ -2427,6 +2438,112 @@ function WorkOrderPage() {
               </div>
             )}
 
+            {showQuoteModal && (
+              <div className="modal" style={{ zIndex: 1200 }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>{quoteEditId ? 'Wysig Kwotasie' : 'Voeg Kwotasie By'}</h3>
+                    <span className="close" onClick={handleCloseQuoteModal}>&times;</span>
+                  </div>
+                  <div className="form-group">
+                    <label>Kontrakteur *</label>
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="contractor_mode"
+                          checked={newQuote.contractor_mode === "existing"}
+                          onChange={() => setNewQuote({ ...newQuote, contractor_mode: "existing", contractor_id: "", contractor_name: "" })}
+                        />
+                        Bestaande kontrakteur
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="contractor_mode"
+                          checked={newQuote.contractor_mode !== "existing"}
+                          onChange={() => setNewQuote({ ...newQuote, contractor_mode: "new", contractor_id: "", contractor_name: "" })}
+                        />
+                        Nuwe kontrakteur
+                      </label>
+                    </div>
+                    {newQuote.contractor_mode !== "existing" ? (
+                      <input
+                        type="text"
+                        className="quote-input"
+                        placeholder="Tik die kontrakteur se naam"
+                        value={newQuote.contractor_name}
+                        onChange={(e) => setNewQuote({ ...newQuote, contractor_name: e.target.value })}
+                      />
+                    ) : (
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder="Soek en kies 'n kontrakteur"
+                        isSearchable
+                        isClearable
+                        options={users.filter(u => u.role_id === 4).map((user) => ({
+                          value: user.user_id,
+                          label: user.user_name + " " + user.user_surname
+                        }))}
+                        value={
+                          newQuote.contractor_id
+                            ? (() => {
+                                const u = users.find((x) => x.user_id === Number(newQuote.contractor_id));
+                                return u ? { value: u.user_id, label: u.user_name + " " + u.user_surname } : null;
+                              })()
+                            : null
+                        }
+                        onChange={(selected) => {
+                          const user = selected?.value ? users.find((u) => u.user_id === Number(selected.value)) : null;
+                          setNewQuote({
+                            ...newQuote,
+                            contractor_id: selected?.value ? String(selected.value) : "",
+                            contractor_name: user ? user.user_name + " " + user.user_surname : ""
+                          });
+                        }}
+                        noOptionsMessage={() => "Geen kontrakteurs nie"}
+                      />
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>PDF Kwotasie</label>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => handleQuotePdfSelect(quoteEditId || "new", e)}
+                      className="quote-input"
+                    />
+                    {(quotePdfFiles[quoteEditId || "new"] || quoteDocuments[quoteEditId]?.[0]) && (
+                      <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                        {quotePdfFiles[quoteEditId || "new"] ? (
+                          <>
+                            <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
+                            {quotePdfPreviewUrls[quoteEditId || "new"] && (
+                              <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
+                            )}
+                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                          </>
+                        ) : quoteDocuments[quoteEditId]?.[0] && (
+                          <>
+                            <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
+                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
+                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="modal-footer">
+                    <button className="btn-cancel" onClick={handleCloseQuoteModal}>Kanselleer</button>
+                    <button className="btn-add" onClick={handleAddQuote}>
+                      {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeImageViewer && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
                 <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
@@ -2437,6 +2554,7 @@ function WorkOrderPage() {
             )}
 
             {/* Knoppies */}
+            {!isViewMode && (
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
@@ -2444,6 +2562,7 @@ function WorkOrderPage() {
                 {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
               </button>
             </div>
+            )}
             <AiSuggestPanel
               suggestions={jobSuggestions}
               loading={aiLoading}
