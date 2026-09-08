@@ -13,11 +13,11 @@ import '../../widgets/fixed_page_header.dart';
 import 'jobcard_detail_page.dart';
 import '../ai/ai_draft_review_page.dart';
 
-/// JobCardsPage — Werkkaart-lys met gedeelde tab-balk vir AI Konsepte
-/// (spieël die web se JobTabs-patroon).
+/// JobCardsPage — Werkkaart-lys met gedeelde tab-balk vir Voorgestelde
+/// Werksopdragte (spieël die web se JobTabs-patroon).
 ///
 /// Tab 1: Werksopdragte (werkkaartlys)
-/// Tab 2: AI Konsepte (slegs met ai.approve-reg; toon wag-aantal badge)
+/// Tab 2: Voorgestelde Werksopdragte (slegs met ai.approve-reg; toon wag-aantal badge)
 class JobCardsPage extends StatefulWidget {
   const JobCardsPage({super.key});
 
@@ -36,7 +36,7 @@ class _JobCardsPageState extends State<JobCardsPage>
   final TextEditingController _searchController = TextEditingController();
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('jobcards', [
-    const ColumnDef(key: 'id', label: 'ID'),
+    const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
     const ColumnDef(key: 'description', label: 'Beskrywing'),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
     const ColumnDef(key: 'status', label: 'Status'),
@@ -106,7 +106,7 @@ class _JobCardsPageState extends State<JobCardsPage>
         children: [
           FixedPageHeader(
             controller: _searchController,
-            hintText: _tabController.index == 0 ? "Soek werkkaarte..." : "Soek AI-konsepte...",
+            hintText: _tabController.index == 0 ? "Soek werkkaarte..." : "Soek voorgestelde werksopdragte...",
             onChanged: (v) => setState(() {}),
             actions: _tabController.index == 0 ? _buildJobHeaderActions() : [],
           ),
@@ -142,7 +142,7 @@ class _JobCardsPageState extends State<JobCardsPage>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('AI Konsepte'),
+                const Text('Voorgestelde Werksopdragte'),
                 if (_pendingCount > 0) ...[
                   const SizedBox(width: 6),
                   Container(
@@ -442,7 +442,7 @@ class _JobCardsPageState extends State<JobCardsPage>
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // TAB 2 — AI KONSEPTE (geïntegreer, spieël web se JobTabs-badge)
+  // TAB 2 — VOORGESTELDE WERKSOPDRAGTE (geïntegreer, spieël web se JobTabs-badge)
   // ══════════════════════════════════════════════════════════════════════════
 
   Widget _buildAiDraftTab() {
@@ -469,7 +469,7 @@ class _JobCardsPageState extends State<JobCardsPage>
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: const [
                           SizedBox(height: 120),
-                          Center(child: Text("Geen AI-konsepte gevind nie.")),
+                          Center(child: Text("Geen voorgestelde werksopdragte gevind nie.")),
                         ],
                       ),
                     );
@@ -550,7 +550,7 @@ class _JobCardsPageState extends State<JobCardsPage>
             const Icon(Icons.cloud_off, color: AppColors.errorRed, size: 40),
             const SizedBox(height: 12),
             Text(
-              AiService.lastError ?? "Kon nie AI-konsepte laai nie.",
+              AiService.lastError ?? "Kon nie voorgestelde werksopdragte laai nie.",
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.errorRed),
             ),

@@ -47,13 +47,9 @@ test('leë ligging wys \'n streep i.p.v. crasht', async () => {
   await waitFor(() => expect(screen.getByText('Pyp lek in die toilet by die ingang')).toBeInTheDocument());
 });
 
-test('sorteer op ID wanneer die kolomkop geklik word', async () => {
-  const { fireEvent } = require('@testing-library/react');
+test('ID-kolom is by verstek weggesteek', async () => {
   renderPage();
   await waitFor(() => expect(screen.getByText('Projektor PLA-1')).toBeInTheDocument());
-  const idHeader = screen.getByText('ID');
-  fireEvent.click(idHeader.closest('th'));
-  const rows = screen.getAllByText(/^(1|2)$/);
-  // Na kliek (op) bly 2 eerste — sorteer stygend oor draft_id.
-  expect(rows[0]).toHaveTextContent('1');
+  const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+  expect(headers).not.toContain('ID');
 });

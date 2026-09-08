@@ -43,7 +43,7 @@ export const EXAMPLE_ROWS = {
     refs: [false, false, false, false, false, false],
   },
   asset: {
-    columns: ['Naam', 'Merk', 'Serienommer', 'Status', 'Buite', 'Geskep', 'Tipe', 'Lokaal'],
+    columns: ['Naam', 'Handelsmerk', 'Serienommer', 'Status', 'Buite', 'Geskep', 'Tipe', 'Lokaal'],
     rows: [
       ['HP EliteDesk', 'HP', 'SN001', 'Aktief', 'Nee', '2024-01-15 08:00:00', 'Rekenaar', 'A101'],
       ['Epson Projektor', 'Epson', 'SN002', 'Aktief', 'Nee', '2023-11-02 10:15:00', 'Projektor', 'Rekenaarlab 2'],
@@ -51,7 +51,7 @@ export const EXAMPLE_ROWS = {
     refs: [false, false, false, false, false, false, true, true],
   },
   stock: {
-    columns: ['Naam', 'Merk', 'Hoeveelheid', 'Minimum', 'Boks Totaal', 'Tipe', 'Beskrywing', 'Lokaal'],
+    columns: ['Naam', 'Handelsmerk', 'Hoeveelheid', 'Minimum', 'Boks Totaal', 'Tipe', 'Beskrywing', 'Lokaal'],
     rows: [
       ['Stofsuier', 'Bosch', '4', '1', '2', 'Toerusting', 'Industri\u00eble stofsuier', 'Rekenaarlab 2'],
       ['Skroewe M4', 'Bossard', '500', '100', '1000', 'Verbruiksmiddel', '', ''],

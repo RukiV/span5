@@ -19,7 +19,7 @@ import 'report_detail_page.dart';
 
 /// ReportingPage — Foutkaartjie-lys (rapporte).
 ///
-/// AI Konsepte het na Werksopdragte geskuif (JobCardsPage se tweede tab) —
+/// Voorgestelde Werksopdragte het na Werksopdragte geskuif (JobCardsPage se tweede tab) —
 /// hierdie bladsy is weer 'n skoon foutkaartjie-lys.
 class ReportingPage extends StatefulWidget {
   const ReportingPage({super.key});
@@ -36,7 +36,7 @@ class _ReportingPageState extends State<ReportingPage> {
   int? _selectedBuildingId;
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('reports', [
-    const ColumnDef(key: 'id', label: 'ID'),
+    const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
     const ColumnDef(key: 'title', label: 'TITEL'),
     const ColumnDef(key: 'location', label: 'Ligging', defaultVisible: false),
     const ColumnDef(key: 'phase', label: 'FASE'),

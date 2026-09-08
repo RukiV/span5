@@ -146,7 +146,7 @@ function RoomCheckSessionsPage() {
       setSessions(response.data || []);
     } catch (err) {
       console.error("Fout met laai van skedules:", err);
-      showToast({ type: "error", title: "Fout", message: "Kon nie kontrole-skedules laai nie." });
+      showToast({ type: "error", title: "Fout", message: "Kon nie lokaal-kontroles laai nie." });
     }
   };
 
@@ -529,7 +529,7 @@ function RoomCheckSessionsPage() {
       <div className="modal-overlay" onClick={() => setShowForm(false)}>
         <div className="modal-panel" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
           <div className="modal-panel-header">
-            <h3>{editing ? "Wysig Skedule" : "Nuwe Kontrole Skedule"}</h3>
+            <h3>{editing ? "Wysig Lokaal Kontrole" : "Nuwe Lokaal Kontrole"}</h3>
             <span className="modal-close" onClick={() => setShowForm(false)}>&times;</span>
           </div>
           <div className="modal-panel-body">

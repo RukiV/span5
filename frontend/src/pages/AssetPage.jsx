@@ -76,7 +76,7 @@ function AssetPage({ embedded = false }) {
   const ASSET_COLUMNS = [
     { key: 'id', label: 'ID', render: (a) => a.asset_id, sortKey: 'id', defaultVisible: false },
     { key: 'asset_name', label: 'Naam', render: (a) => a.asset_name, sortKey: 'asset_name', defaultVisible: true },
-    { key: 'asset_brand', label: 'Merk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
+    { key: 'asset_brand', label: 'Handelsmerk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
     { key: 'asset_serial', label: 'Serienommer', render: (a) => a.asset_serial, sortKey: 'asset_serial', defaultVisible: true },
     { key: 'assettype', label: 'Tipe', render: (a) => getAssettypeName(a), sortKey: 'assettype', defaultVisible: true },
     { key: 'isoutdoor', label: 'Buite', render: (a) => a.asset_isoutdoor ? 'Ja' : 'Nee', sortKey: 'isoutdoor', defaultVisible: false },
@@ -696,7 +696,7 @@ function AssetPage({ embedded = false }) {
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
     { value: "asset_name", label: "Naam" },
-    { value: "asset_brand", label: "Brand" },
+    { value: "asset_brand", label: "Handelsmerk" },
     { value: "asset_serial", label: "Serienommer" },
     { value: "asset_isoutdoor", label: "Buite" },
     { value: "room", label: "Lokaal" },
@@ -934,7 +934,7 @@ function AssetPage({ embedded = false }) {
             />
           </div>
           <div className="input-group">
-            <label>Brand *</label>
+            <label>Handelsmerk *</label>
             <input
               ref={el => fieldRefs.current.asset_brand = el}
               type="text"
@@ -1309,7 +1309,6 @@ function AssetPage({ embedded = false }) {
                   <table className="standard-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>Naam</th>
                         <th>Gem. Lewensduur</th>
                         <th>Diensinterval</th>
@@ -1320,7 +1319,6 @@ function AssetPage({ embedded = false }) {
                     <tbody>
                       {assettypes.map((at) => (
                         <tr key={at.assettype_id}>
-                          <td>{at.assettype_id}</td>
                           <td>{at.assettype_name}</td>
                           <td>{at.assettype_avg_lifespan != null ? `${at.assettype_avg_lifespan}m` : '-'}</td>
                           <td>{at.assettype_service_interval != null ? `${at.assettype_service_interval}m` : '-'}</td>

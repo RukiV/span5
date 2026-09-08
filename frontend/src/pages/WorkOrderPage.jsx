@@ -46,7 +46,7 @@ function WorkOrderPage() {
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
 
   const WORKORDER_COLUMNS = [
-    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: false },
     { key: 'description', label: 'Beskrywing', render: (o) => o.job_desc || '-', sortKey: 'description', defaultVisible: true },
     { key: 'type', label: 'Werksoort', render: (o) => o.job_type || '-', sortKey: 'type', defaultVisible: true },
     { key: 'priority', label: 'Prioriteit', render: (o) => o.job_priority || '-', sortKey: 'priority', defaultVisible: false },

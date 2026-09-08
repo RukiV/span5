@@ -8,7 +8,7 @@ import '../rooms/manage_rooms_page.dart';
 import '../building/buildings_list_page.dart';
 import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
-import 'calendar_page.dart';
+import 'voorspellings_page.dart';
 import 'works_assignments_page.dart';
 import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
@@ -98,10 +98,10 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    // Kontrole Skedules — FK/Admin bestuur skedules; Dosent sien eie.
+    // Lokaal Kontrole — FK/Admin bestuur skedules; Dosent sien eie.
     if (can('room_checks.manage')) {
       menu.add({
-        'title': 'Kontrole Skedules',
+        'title': 'Lokaal Kontrole',
         'icon': Icons.event_available_outlined,
         'page': const RoomCheckSessionPage(manageMode: true),
       });
@@ -155,7 +155,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
     }
 
-    // AI Konsepte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
+    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
     // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
@@ -165,9 +165,9 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Werksopdragte', 'icon': Icons.engineering_outlined, 'page': const JobCardsPage()});
     }
 
-    // Kalender — Admin/FK/Kontrakteur (calendar.view).
-    if (can('calendar.view')) {
-      menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
+    // Voorspellings — analise/grafieke-verdeling (predictions.view).
+    if (can('predictions.view')) {
+      menu.add({'title': 'Voorspellings', 'icon': Icons.show_chart_outlined, 'page': const VoorspellingsPage()});
     }
 
     // Gebruikers — Admin slegs (users.manage), laaste item in die navigasie.

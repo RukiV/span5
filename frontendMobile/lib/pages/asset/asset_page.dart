@@ -35,9 +35,9 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedRoomId;
   final SortController _sortCtrl = SortController();
   final ColumnVisibilityController _colVis = ColumnVisibilityController('assets', [
-    const ColumnDef(key: 'id', label: '#ID'),
+    const ColumnDef(key: 'id', label: '#ID', defaultVisible: false),
     const ColumnDef(key: 'name', label: 'Naam'),
-    const ColumnDef(key: 'brand', label: 'Merk', defaultVisible: false),
+    const ColumnDef(key: 'brand', label: 'Handelsmerk', defaultVisible: false),
     const ColumnDef(key: 'serial', label: 'Serienommer', defaultVisible: false),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
     const ColumnDef(key: 'isOutdoor', label: 'Buite', defaultVisible: false),

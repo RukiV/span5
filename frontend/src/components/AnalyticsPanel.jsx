@@ -27,7 +27,6 @@ const PAGE_MAP = {
   '/fault-tickets': 'fault-tickets',
   '/work-orders': 'work-orders',
   '/users': 'users',
-  '/calendar': 'calendar',
   '/predictions': 'predictions',
 };
 
