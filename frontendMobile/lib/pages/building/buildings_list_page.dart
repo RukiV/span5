@@ -205,11 +205,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                     ),
                   ),
                   if (UserSession.can('buildings.manage')) ...[
-                    SelectModeButton<int>(
-                      controller: _selection,
-                      onToggle: () => setState(() =>
-                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
-                    ),
                     BulkDeleteAction<int>(
                       controller: _selection,
                       confirmTitle: 'Verwyder Geboue',
@@ -300,6 +295,12 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                   ),
                                 );
                               }
+                            },
+                            onLongPress: () {
+                              setState(() {
+                                _selection.enter();
+                                _selection.toggle(b.id);
+                              });
                             },
                             children: _buildBuildingCells(b),
                           );

@@ -250,11 +250,6 @@ class _JobCardsPageState extends State<JobCardsPage>
   List<Widget> _buildJobHeaderActions() {
     return [
       if (UserSession.can('jobs.manage')) ...[
-        SelectModeButton<int>(
-          controller: _selection,
-          onToggle: () => setState(() =>
-              _selection.isSelecting ? _selection.exit() : _selection.enter()),
-        ),
         BulkDeleteAction<int>(
           controller: _selection,
           confirmTitle: 'Verwyder Werksopdragte',
@@ -335,6 +330,12 @@ class _JobCardsPageState extends State<JobCardsPage>
         } else {
           _openJob(job);
         }
+      },
+      onLongPress: () {
+        setState(() {
+          _selection.enter();
+          _selection.toggle(job.id);
+        });
       },
       children: _buildJobCells(job),
     );
