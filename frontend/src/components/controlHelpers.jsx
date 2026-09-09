@@ -33,10 +33,10 @@ export const NoCloseDropdownIndicator = (props) => (
   />
 );
 
-export const CascadeControl = ({ children, cascadeCount = 0, clearFromLevel, ...props }) => (
+export const CascadeControl = ({ children, cascadeCount = 0, clearFromLevel, disabled = false, ...props }) => (
   <components.Control {...props}>
     {children}
-    {cascadeCount > 0 && (
+    {!disabled && cascadeCount > 0 && (
       <span
         className="cascade-back-indicator"
         onMouseDown={(event) => {
@@ -61,11 +61,11 @@ export const NoCascadeClearIndicator = () => null;
 // so the x never disappears on completion and looks identical everywhere.
 // react-select's built-in clear indicator is suppressed via NoCascadeClearIndicator.
 export const CascadeIndicatorsContainer = (props) => {
-  const { hasValue, isClearable, clearValue, selectProps, children } = props;
+  const { hasValue, isClearable, clearValue, selectProps, disabled = false, children } = props;
   const isClearableOpt = selectProps?.isClearable;
   return (
     <components.IndicatorsContainer {...props}>
-      {hasValue && (isClearable ?? isClearableOpt) && (
+      {!disabled && hasValue && (isClearable ?? isClearableOpt) && (
         <span
           className="cascade-clear-indicator"
           onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); clearValue(); }}
@@ -79,7 +79,7 @@ export const CascadeIndicatorsContainer = (props) => {
   );
 };
 
-export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel = 2, marginTop = "6px", marginBottom = "6px" }) => (
+export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel = 2, marginTop = "6px", marginBottom = "6px", disabled = false }) => (
   <div className={`breadcrumb-list${marginTop === "6px" ? " breadcrumb-list-spaced" : ""}${marginBottom === "6px" ? " breadcrumb-list-bottom-spaced" : ""}`}>
     {breadcrumbData.map((item, index) => {
       const isLast = index === breadcrumbData.length - 1;
@@ -91,6 +91,8 @@ export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel,
             className="breadcrumb-btn"
             onClick={() => clearFromLevel(item.level + 1)}
             data-current={isLast ? "true" : "false"}
+            disabled={disabled}
+            title={disabled ? undefined : "Klik om vlak skoon te maak"}
           >
             {item.name}
           </button>

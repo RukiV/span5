@@ -145,7 +145,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
           const Divider(height: 24),
           _buildDetailRow("Kategorie", Text(_currentAsset.category, style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Merk", Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand, style: const TextStyle(fontWeight: FontWeight.bold))),
+          _buildDetailRow("Handelsmerk", Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand, style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
           _buildDetailRow("Status", StatusBadge(status: _currentAsset.status)),
         ],

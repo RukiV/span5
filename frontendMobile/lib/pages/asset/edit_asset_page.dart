@@ -254,7 +254,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
                 const SizedBox(height: 20),
                 TextFormField(
                   initialValue: brand,
-                  decoration: _inputDecoration("Merk"),
+                  decoration: _inputDecoration("Handelsmerk"),
                   onChanged: (v) => brand = v,
                 ),
                 const SizedBox(height: 20),

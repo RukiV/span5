@@ -30,7 +30,7 @@ function NotificationBell() {
       job: '/work-orders',
       stock: '/stock',
       asset: '/assets',
-      calendar: '/calendar',
+      calendar: '/dashboard',
     };
     const path = refMap[notif.reference_type];
     if (path) window.location.href = path;

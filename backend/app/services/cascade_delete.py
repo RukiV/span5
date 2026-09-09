@@ -8,7 +8,7 @@ toepassingslaag — binne die transaksie van die ouer se `delete()`.
 Rekursie volg die hiërargie:
     Terrein (Location) -> Geboue (Building) -> Lokale (Room)
         -> Bates (Asset), Voorraad (Stock), Lokale-kontroles (RoomCheck),
-           Kontrole-skedules (RoomCheckSession), Foutkaartjies (Faultcard),
+           Lokaal-kontroles (RoomCheckSession), Foutkaartjies (Faultcard),
            Werksopdragte (Jobcard), AI-konsepte (JobDraft)
 
 Elke rekord wat beelde/kaartliggings het, word skoongemaak voordat dit

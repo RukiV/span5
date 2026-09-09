@@ -5,6 +5,15 @@
   font-family: Arial, sans-serif;
 }
 
+/* Volblad-agtergrond op .app-vlak — slegs op die login-roete aktief
+   (AppShell sit die klas; die login-blad self is deursigtig). */
+.app-login {
+  background-image: url('../assets/background.jpg');
+  background-size: cover;
+  background-position: top center;
+  background-repeat: no-repeat;
+}
+
 .app-body {
   display: flex;
   flex: 1;
@@ -39,29 +48,42 @@
 }
 
 .app-content.panel-open {
-  /* Size the panel's grid track (not the item) so the percentage resolves
-     against the container, matching DragHandle's calc. A percentage width on
-     the item itself would resolve against the auto track -> cyclic sizing
-     that squishes the panel. */
-  grid-template-columns: 1fr auto var(--analytics-width, 33.33%);
+  /* Keep main full-width; panel is fixed overlay below navbar+controls so
+     controls never shift/reflow when the panel toggles. */
 }
 
 .app-content.panel-open .drag-handle {
-  grid-column: 2;
-  grid-row: 2;
+  position: fixed;
+  top: var(--analytics-panel-top, 140px);
+  right: calc(var(--analytics-width, 33.33%));
+  height: calc(100vh - var(--analytics-panel-top, 140px));
+  width: 6px;
+  z-index: 11;
+  grid-column: auto;
+  grid-row: auto;
 }
 
 .app-content.panel-open .analytics-inline-panel {
-  grid-column: 3;
-  grid-row: 2;
-  width: 100%;
-  max-width: 100%;
+  position: fixed;
+  top: var(--analytics-panel-top, 140px);
+  right: 0;
+  width: var(--analytics-width, 33.33%);
+  max-width: 50%;
+  min-width: 25%;
+  height: calc(100vh - var(--analytics-panel-top, 140px));
+  height: calc(100dvh - var(--analytics-panel-top, 140px));
   overflow-y: auto;
+  overflow-x: hidden;
   border-left: 1px solid #e8d8c4;
   background: #f4f7fc;
-  height: 100%;
+  z-index: 10;
   padding: unset;
   margin: unset;
+  grid-column: auto;
+  grid-row: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-inner.panel-open .drag-handle {
@@ -77,6 +99,9 @@
     --blou-lig: #1a2e54;
     --grys-agtergrond: #f8fafc;
     --border: #e2e8f0;
+    /* Offset for analytics panel so it starts below navbar + controls.
+       Updated at runtime from AppContent via JS (reads actual controls height). */
+    --analytics-panel-top: 140px;
 }
 
 
@@ -131,8 +156,11 @@
 }
 
 .sidebar ul li.dropdown .dropdown-trigger.active-link {
-  background: #935e28;
+  background: transparent;
   color: white;
+  border-bottom: 3px solid var(--bruin);
+  border-radius: 0;
+  padding-bottom: 17px;
 }
 
 .sidebar ul li a.active-link:hover {
@@ -175,6 +203,22 @@
   justify-content: space-between;
   margin-top: 20px;
   margin-bottom: 20px;
+}
+
+.controls--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  background: var(--wit);
+  margin: 0 -25px 16px -25px;
+  padding: 30px 25px 12px 25px;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  overflow: visible;
+}
+
+.controls--with-tabs {
+  top: 42px;
 }
 
 .controls-left .control-input-shell {
@@ -361,6 +405,15 @@ select:not([class*="cascade"]):focus {
   font-weight: 600;
 }
 
+.breadcrumb-btn:disabled {
+  cursor: default;
+}
+
+.breadcrumb-btn:disabled:hover {
+  background: transparent;
+  color: #111827;
+}
+
 .breadcrumb-arrow {
   color: #9ca3af;
   line-height: 1;
@@ -466,7 +519,22 @@ select:not([class*="cascade"]):focus {
   min-width: 0;
 }
 
-/* --- Foutkaartjies / AI Konsepte tab-strook --- */
+.main .main {
+  overflow: visible;
+  flex: 1;
+}
+
+.main .main .content {
+  overflow: visible;
+}
+
+.main .content:has(.pagination) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* --- Foutkaartjies / Voorgestelde Werksopdragte tab-strook --- */
 .fault-tabs {
   position: sticky;
   top: 0;
@@ -524,8 +592,8 @@ select:not([class*="cascade"]):focus {
 
 /* --- Algemene Inhoud --- */
 .content {
-    padding: 10px 25px 25px 25px;
-    overflow-y: auto;
+    padding: 0 25px 25px 25px;
+    overflow: visible;
     background-color: var(--wit);
     flex: 1;
     width: 100%;
@@ -592,6 +660,22 @@ select:not([class*="cascade"]):focus {
     color: #999; 
 }
 .close:hover { color: white }
+
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-edit-btn {
+  color: #999;
+  cursor: pointer;
+  font-size: 20px;
+  transition: color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+.modal-edit-btn:hover { color: white; }
 
 
 /* Forms */
@@ -705,20 +789,54 @@ select:not([class*="cascade"]):focus {
 }
 
 .dropdown-content, .dropdown-content2{
-  display: none;
+  display: block;
   text-align: left;
   z-index: 1;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.28s ease, opacity 0.22s ease;
 }
 
-.dropdown-content a,.dropdown-content2 a {
+.sidebar ul li .dropdown-content a,
+.sidebar ul li .dropdown-content2 a {
   display: block;
-  padding-left: 32px;
+  padding: 20px 20px 20px 50px;
   border-radius: 0;
   background: transparent;
 }
 
-.dropdown:hover .dropdown-content, .dropdown:hover .dropdown-content2  {display: block;}
-.dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {display: block;}
+.sidebar ul li .dropdown-content a.active-link,
+.sidebar ul li .dropdown-content2 a.active-link {
+  background: #935e28;
+  color: white;
+  border-radius: 5px;
+}
+
+.sidebar .dropdown-content li:first-child a.active-link,
+.sidebar .dropdown-content2 li:first-child a.active-link {
+  border-radius: 0 0 5px 5px;
+}
+
+.sidebar .dropdown-content li:last-child a.active-link,
+.sidebar .dropdown-content2 li:last-child a.active-link {
+  border-radius: 5px 5px 0 0;
+}
+
+.sidebar .dropdown-content li:first-child:last-child a.active-link,
+.sidebar .dropdown-content2 li:first-child:last-child a.active-link {
+  border-radius: 0;
+}
+
+.dropdown.open .dropdown-content, .dropdown.open .dropdown-content2  {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.dropdown.open .dropdown-content li:last-child,
+.dropdown.open .dropdown-content2 li:last-child {
+  border-bottom: 3px solid var(--bruin);
+}
 
 /* Kode vir arrow vir dropdown*/
 .sidebar ul li.dropdown .dropdown-trigger {
@@ -731,28 +849,28 @@ select:not([class*="cascade"]):focus {
   text-decoration: none;
   cursor: pointer;
   box-sizing: border-box;
+  position: relative;
+  border-radius: 5px;
 }
 
 .sidebar ul li.dropdown .dropdown-trigger::after {
   content: '›';               
   color: white;
-  font-size: 18px;
+  font-size: 36px;
   font-weight: bold;
   line-height: 1;
   display: inline-block;
-  transition: transform 0.2s ease; 
-  transform: rotate(0deg);
+  transition: transform 0.22s ease; 
+  transform: translateY(-50%) rotate(0deg);
   opacity: 1;
-}
-
-.sidebar ul li.dropdown:hover .dropdown-trigger::after {
-  transform: rotate(90deg);    
-  opacity: 1;                  
-  color: var(--wit);        
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  pointer-events: none;
 }
 
 .sidebar ul li.dropdown.open .dropdown-trigger::after {
-  transform: rotate(90deg);    
+  transform: translateY(-50%) rotate(90deg);
   opacity: 1;                  
   color: var(--wit);        
 }
@@ -887,6 +1005,83 @@ select:not([class*="cascade"]):focus {
 .analytics-fab:hover {
   background: #7a4d20;
   transform: scale(1.05);
+}
+
+/* ── Android-app-aflaai-bladsy (openbaar) ────────────────────────────── */
+.download-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--grys-agtergrond);
+  padding: 20px;
+}
+
+.download-card {
+  max-width: 460px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e8d8c4;
+  border-radius: 14px;
+  padding: 36px 30px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.download-card h1 {
+  color: var(--blou);
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+
+.download-card p {
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 22px;
+}
+
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  font-size: 15px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.download-note {
+  margin-top: 20px;
+  padding: 12px 14px;
+  background: #fff7eb;
+  border: 1px solid #e8d8c4;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6b3f1d;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.download-note strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.download-footer {
+  margin-top: 18px;
+  font-size: 13px;
+}
+
+.download-footer a {
+  color: var(--bruin);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.download-footer a:hover {
+  text-decoration: underline;
 }
 
 /* ── Sortable column headers ───────────────────────────────────── */

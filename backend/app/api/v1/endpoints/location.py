@@ -7,7 +7,6 @@ from ....db.database import getSession
 from ....models.location import LocationRead, LocationCreate, LocationUpdate
 from ....models.user import User
 from ....services.location_service import location_service
-from ....services.cascade_delete_service import delete_location_cascade
 
 router = APIRouter()
 
@@ -40,6 +39,6 @@ def patchLocation(locationID: int, locationIn: LocationUpdate, session: Session 
 
 @router.delete("/{locationID}", status_code=status.HTTP_204_NO_CONTENT)
 def removeLocation(locationID: int, session: Session = Depends(getSession), user: User = Depends(require_right("locations.manage"))):
-    if not delete_location_cascade(session, locationID, user_id=user.user_id):
+    if not location_service.delete(session, locationID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Location not found")
     return None

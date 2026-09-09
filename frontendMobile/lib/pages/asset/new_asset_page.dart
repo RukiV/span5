@@ -215,7 +215,7 @@ class _NewAssetPageState extends State<NewAssetPage> {
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
-                  decoration: _inputDecoration("Merk"),
+                  decoration: _inputDecoration("Handelsmerk"),
                   onChanged: (v) => brand = v,
                 ),
                 const SizedBox(height: 20),

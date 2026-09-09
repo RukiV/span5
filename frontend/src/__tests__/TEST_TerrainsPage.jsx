@@ -26,7 +26,8 @@ test('renders terrain table headers', async () => {
   const TerrainsPage = require('../pages/TerrainsPage').default;
   render(<MemoryRouter><TerrainsPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('ID Terrein')).toBeInTheDocument();
+    const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers).not.toContain('ID Terrein');
     const names = screen.getAllByText('Naam');
     expect(names.length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Stad')).toBeInTheDocument();

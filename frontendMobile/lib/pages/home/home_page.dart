@@ -8,7 +8,7 @@ import '../rooms/manage_rooms_page.dart';
 import '../building/buildings_list_page.dart';
 import '../jobcards/job_cards_page.dart';
 import 'dashboard_page.dart';
-import 'calendar_page.dart';
+import 'voorspellings_page.dart';
 import 'works_assignments_page.dart';
 import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
@@ -24,6 +24,7 @@ import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/outlook_token_manager.dart';
 import '../room_checklist/room_check_session_page.dart';
+import '../settings/server_config_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -97,10 +98,10 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    // Kontrole Skedules — FK/Admin bestuur skedules; Dosent sien eie.
+    // Lokaal Kontrole — FK/Admin bestuur skedules; Dosent sien eie.
     if (can('room_checks.manage')) {
       menu.add({
-        'title': 'Kontrole Skedules',
+        'title': 'Lokaal Kontrole',
         'icon': Icons.event_available_outlined,
         'page': const RoomCheckSessionPage(manageMode: true),
       });
@@ -154,7 +155,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
     }
 
-    // AI Konsepte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
+    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
     // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
@@ -164,9 +165,9 @@ class _HomePageState extends State<HomePage> {
       menu.add({'title': 'Werksopdragte', 'icon': Icons.engineering_outlined, 'page': const JobCardsPage()});
     }
 
-    // Kalender — Admin/FK/Kontrakteur (calendar.view).
-    if (can('calendar.view')) {
-      menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
+    // Voorspellings — analise/grafieke-verdeling (predictions.view).
+    if (can('predictions.view')) {
+      menu.add({'title': 'Voorspellings', 'icon': Icons.show_chart_outlined, 'page': const VoorspellingsPage()});
     }
 
     // Gebruikers — Admin slegs (users.manage), laaste item in die navigasie.
@@ -323,6 +324,18 @@ class _HomePageState extends State<HomePage> {
             ),
 
             const Divider(color: Colors.white24),
+
+            ListTile(
+              leading: const Icon(Icons.dns, color: Colors.white70),
+              title: const Text("Bediener-instellings", style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ServerConfigPage()),
+                );
+              },
+            ),
 
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),

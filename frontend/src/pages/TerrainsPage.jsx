@@ -1,34 +1,43 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
-import { buildingsAPI, locationAPI } from "../services/api";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
+import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { openMoveChildren, moveChildrenDialog } = useMoveChildren();
   const navigate = useNavigate();
   const { hasRight } = useCurrentUser();
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const TERRAIN_COLUMNS = [
-    { key: 'id', label: 'ID Terrein', render: (t) => t.location_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID Terrein', render: (t) => t.location_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (t) => t.location_name, sortKey: 'name', defaultVisible: true },
     { key: 'type', label: 'Tipe', render: (t) => t.location_type, sortKey: 'type', defaultVisible: true },
     { key: 'streetnum', label: 'Straatnommer', render: (t) => t.location_streetnum || '-', sortKey: 'streetnum', defaultVisible: true },
@@ -47,6 +56,7 @@ function TerrainsPage({ embedded = false }) {
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [newTerrain, setNewTerrain] = useState({
     location_name: "",
     location_type: "",
@@ -63,6 +73,11 @@ function TerrainsPage({ embedded = false }) {
   useEffect(() => {
     fetchTerrains();
     fetchBuildings();
+    fetchRooms();
+    fetchAssets();
+    fetchStock();
+    fetchFaults();
+    fetchJobs();
   }, []);
 
   const fetchTerrains = async () => {
@@ -82,6 +97,51 @@ function TerrainsPage({ embedded = false }) {
       setBuildings(response.data || []);
     } catch (error) {
       console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const response = await roomsAPI.getAll();
+      setRooms(response.data || []);
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchAssets = async () => {
+    try {
+      const response = await assetsAPI.getAll();
+      setAssets(response.data || []);
+    } catch (error) {
+      console.error("Error fetching assets:", error);
+    }
+  };
+
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data || []);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
+    }
+  };
+
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
     }
   };
 
@@ -131,9 +191,111 @@ function TerrainsPage({ embedded = false }) {
   };
 
   const handleDeleteTerrain = async (id) => {
-    const confirmed = await confirmCascade(confirm, { entityLabel: "terrein", childrenLabel: "geboue" });
-    if (!confirmed) return;
+    const children = getBuildingsForTerrain(id);
+    const buildingIds = new Set(children.map((b) => b.building_id));
+    const roomsInTerrain = rooms.filter((r) => buildingIds.has(r.building_id));
+    const roomIds = new Set(roomsInTerrain.map((r) => r.room_id));
+    const assetsInSubtree = assets.filter((a) => roomIds.has(a.room_id));
+    const stockInSubtree = stock.filter((s) => roomIds.has(s.room_id));
+    const assetIds = new Set(assetsInSubtree.map((a) => a.asset_id));
+    const faultsInSubtree = faults.filter((f) => f.location_id === id || buildingIds.has(f.building_id) || roomIds.has(f.room_id) || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInSubtree.map((f) => f.fault_id));
+    const jobsInSubtree = jobs.filter((j) => j.location_id === id || buildingIds.has(j.building_id) || roomIds.has(j.room_id) || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
+    const hasContent = assetsInSubtree.length + stockInSubtree.length > 0;
+    const strategy = await chooseDeleteStrategy(confirm, {
+      entityLabel: "terrein",
+      childrenLabel: "geboue",
+      hasChildren: children.length > 0,
+      hasContent,
+      counts: {
+        geboue: children.length,
+        lokale: roomsInTerrain.length,
+        bates: assetsInSubtree.length,
+        voorraad: stockInSubtree.length,
+        foutkaartjies: faultsInSubtree.length,
+        werksopdragte: jobsInSubtree.length,
+      },
+      directChildrenLabel: 'geboue',
+      parentLevelLabel: 'terrein',
+    });
+    if (!strategy) return;
+
     try {
+      if (strategy === 'move') {
+        const targetOptions = terrains
+          .filter((t) => t.location_id !== id)
+          .map((t) => ({ value: t.location_id, label: t.location_name }));
+        const assignments = await openMoveChildren({
+          mode: 'individual',
+          title: `Skuif geboue van "${terrains.find((t) => t.location_id === id)?.location_name || ''}"`,
+          children: children.map((b) => ({ id: b.building_id, label: b.building_name })),
+          parentOptions: targetOptions,
+          parentLabel: 'verwyder',
+          confirmLabel: 'Skuif en verwyder terrein',
+        });
+        if (assignments === false) return;
+        for (const child of children) {
+          const target = assignments[child.building_id];
+          if (target != null) {
+            await buildingsAPI.update(child.building_id, { location_id: Number(target) });
+          }
+        }
+      } else if (strategy === 'moveContent') {
+        const targetRooms = rooms.filter((r) => !roomIds.has(r.room_id));
+        const parentOptions = targetRooms.map((r) => {
+          const b = buildings.find((bb) => bb.building_id === r.building_id);
+          const label = b ? `${r.room_name} — ${b.building_name}` : r.room_name;
+          return { value: r.room_id, label };
+        });
+        const groups = [];
+        const lookup = {};
+        for (const room of roomsInTerrain) {
+          const batesInRoom = assets.filter((a) => a.room_id === room.room_id);
+          const stockInRoom = stock.filter((s) => s.room_id === room.room_id);
+          if (batesInRoom.length === 0 && stockInRoom.length === 0) continue;
+          const building = buildings.find((bb) => bb.building_id === room.building_id);
+          const items = [];
+          for (const a of batesInRoom) {
+            const sid = `a_${a.asset_id}`;
+            items.push({ id: sid, label: `Bate: ${a.asset_name || a.asset_serial || `Bate #${a.asset_id}`}` });
+            lookup[sid] = { kind: 'asset', realId: a.asset_id };
+          }
+          for (const s of stockInRoom) {
+            const sid = `s_${s.stock_id}`;
+            items.push({ id: sid, label: `Voorraad: ${s.stock_name || s.stock_type || `Voorraad #${s.stock_id}`}` });
+            lookup[sid] = { kind: 'stock', realId: s.stock_id };
+          }
+          groups.push({
+            id: `room_${room.room_id}`,
+            label: room.room_name,
+            buildingId: room.building_id,
+            buildingLabel: building ? building.building_name : `Gebou ${room.building_id}`,
+            items,
+          });
+        }
+        if (groups.length > 0) {
+          const assignments = await openMoveChildren({
+            mode: 'grouped',
+            title: `Skuif bates en voorraad van "${terrains.find((t) => t.location_id === id)?.location_name || ''}"`,
+            groups,
+            parentOptions,
+            parentLabel: 'verwyder',
+            childrenHeader: 'Bates en voorraad volgens lokaal/gebou (sleep per lokaal)',
+            confirmLabel: 'Skuif en verwyder terrein',
+          });
+          if (assignments === false) return;
+          for (const [syntheticId, target] of Object.entries(assignments)) {
+            if (target == null) continue;
+            const rec = lookup[syntheticId];
+            if (!rec) continue;
+            if (rec.kind === 'asset') {
+              await assetsAPI.update(rec.realId, { room_id: Number(target) });
+            } else {
+              await stockAPI.update(rec.realId, { room_id: Number(target) });
+            }
+          }
+        }
+      }
       await locationAPI.delete(id);
       fetchTerrains();
     } catch (error) {
@@ -143,9 +305,6 @@ function TerrainsPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredTerrains.map((x) => x.location_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -182,6 +341,7 @@ function TerrainsPage({ embedded = false }) {
 
   const handleEditTerrain = (item) => {
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.location_id);
     setNewTerrain({
       location_name: item.location_name || "",
@@ -199,12 +359,14 @@ function TerrainsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
   };
 
   const handleNewTerrain = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewTerrain({ location_name: "", location_type: "", location_streetnum: "", location_streetname: "", location_suburb: "", location_city: "", location_province: "", location_country: "" });
     setShowModal(true);
@@ -239,7 +401,18 @@ function TerrainsPage({ embedded = false }) {
       if (sortKey === 'province') return String(a.location_province || '').localeCompare(String(b.location_province || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredTerrains.length > 0 && selectedIds.length === filteredTerrains.length;
+    const { currentPage, totalPages, paginatedData: paginatedTerrains, goToPage } = usePagination(filteredTerrains, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedTerrains.length > 0 && paginatedTerrains.every((x) => selectedIds.includes(x.location_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedTerrains.map((x) => x.location_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedTerrains.map((x) => x.location_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -247,7 +420,7 @@ function TerrainsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -331,7 +504,7 @@ function TerrainsPage({ embedded = false }) {
               </td>
             </tr>
           ) : (
-            filteredTerrains.map((terrain) => (
+            paginatedTerrains.map((terrain) => (
               <tr key={terrain.location_id} onClick={() => handleEditTerrain(terrain)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(terrain.location_id)} onChange={() => toggleOne(terrain.location_id)} />
@@ -348,15 +521,21 @@ function TerrainsPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredTerrains.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Terrein {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('locations.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -364,6 +543,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_name = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_name ? "field-invalid" : ""}
               value={newTerrain.location_name}
               onChange={(e) => {
@@ -377,6 +557,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_type = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_type ? "field-invalid" : ""}
               value={newTerrain.location_type}
               onChange={(e) => {
@@ -392,6 +573,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_streetnum = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_streetnum ? "field-invalid" : ""}
               value={newTerrain.location_streetnum}
               onChange={(e) => {
@@ -405,6 +587,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_streetname = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_streetname ? "field-invalid" : ""}
               value={newTerrain.location_streetname}
               onChange={(e) => {
@@ -420,6 +603,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_suburb = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_suburb ? "field-invalid" : ""}
               value={newTerrain.location_suburb}
               onChange={(e) => {
@@ -433,6 +617,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_city = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_city ? "field-invalid" : ""}
               value={newTerrain.location_city}
               onChange={(e) => {
@@ -448,6 +633,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_province = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_province ? "field-invalid" : ""}
               value={newTerrain.location_province}
               onChange={(e) => {
@@ -461,6 +647,7 @@ function TerrainsPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.location_country = el}
               type="text"
+              disabled={isViewMode}
               className={invalidFields.location_country ? "field-invalid" : ""}
               value={newTerrain.location_country}
               onChange={(e) => {
@@ -470,10 +657,12 @@ function TerrainsPage({ embedded = false }) {
             />
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveTerrain}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -518,6 +707,7 @@ function TerrainsPage({ embedded = false }) {
           </div>
         )}
       {dialog}
+      {moveChildrenDialog}
       </>
     );
   }
@@ -562,6 +752,7 @@ function TerrainsPage({ embedded = false }) {
         </div>
       )}
       {dialog}
+      {moveChildrenDialog}
     </div>
   );
 }

@@ -6,7 +6,7 @@ from sqlmodel import Session
 from ....auth.permissions import require_right
 from ....auth.rights_catalog import BUILTIN_RIGHT_NAMES
 from ....db.database import getSession
-from ....models.role import Rights, RightsRead, RightsCreate, RightsUpdate
+from ....models.role import Rights, RightsRead, RightsUpdate
 from ....models.user import User
 from ....services.rights_service import rights_service
 
@@ -32,12 +32,6 @@ def readRight(rightID: int, session: Session = Depends(getSession), _user: User 
     right = rights_service.getByID(session, rightID)
     if not right:
         raise HTTPException(status_code=404, detail="Right not found")
-    return _to_manage_read(right)
-
-
-@router.post("", response_model=RightManageRead, status_code=status.HTTP_201_CREATED)
-def addRight(rightIn: RightsCreate, session: Session = Depends(getSession), current: User = Depends(require_right("rights.manage"))):
-    right = rights_service.create(session, rightIn, user_id=current.user_id)
     return _to_manage_read(right)
 
 

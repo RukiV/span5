@@ -37,8 +37,8 @@ test('renders ticket table with all column headers', async () => {
   const TicketPage = require('../pages/TicketPage').default;
   render(<MemoryRouter><TicketPage /></MemoryRouter>);
   await waitFor(() => {
-    const idHeaders = screen.getAllByText('ID');
-    expect(idHeaders.length).toBeGreaterThanOrEqual(1);
+    const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers).not.toContain('ID');
     const titels = screen.getAllByText('Titel');
     expect(titels.length).toBeGreaterThanOrEqual(1);
     const priorities = screen.getAllByText('Prioriteit');

@@ -1,8 +1,8 @@
-"""Milestone 2 — backend cascade delete for the location hierarchy.
+"""Cascade delete for the location hierarchy.
 
-Covers Issues 4 (room), 5 (building) and 6 (location): deleting a node cleans
-up its checklist history, unlinks (without deleting) dependent assets/stock/
-faults/jobs, and removes children all-or-nothing.
+Covers Issues 4 (room), 5 (building) and 6 (location): deleting a node
+recursively removes its entire subtree — assets, stock, faults, jobs,
+checklist history, images, quotes, mappoints, and job drafts.
 """
 
 import pytest
@@ -20,7 +20,7 @@ from app.models.room_check_session import RoomCheckSession
 @pytest.fixture(name="hierarchy")
 def hierarchy_fixture(engine, seeded):
     """Build a campus -> building -> room with every kind of dependent row,
-    plus faults/jobs attached directly at the building and campus level."""
+    plus faults attached directly at the building and campus level."""
     admin_id = seeded["ids"]["admin"]
     with Session(engine) as session:
         assettype = Assettype(assettype_name="Test")
@@ -82,35 +82,23 @@ def _get(session, model, id_field, id_value):
     return session.exec(select(model).where(getattr(model, id_field) == id_value)).first()
 
 
-def test_location_cascade_deletes_hierarchy_and_unlinks_dependents(engine, client, headers_for, hierarchy):
+def test_location_cascade_deletes_hierarchy(engine, client, headers_for, hierarchy):
     admin = headers_for("admin")
     resp = client.delete(f"/api/v1/location/{hierarchy['location_id']}", headers=admin)
     assert resp.status_code == 204
 
     with Session(engine) as session:
-        # Hierarchy removed.
         assert _get(session, Location, "location_id", hierarchy["location_id"]) is None
         assert _get(session, Building, "building_id", hierarchy["building_id"]) is None
         assert _get(session, Room, "room_id", hierarchy["room_id"]) is None
-        # Checklist history removed entirely.
         assert _get(session, RoomCheck, "room_check_id", hierarchy["rc_id"]) is None
         assert _get(session, RoomCheckSession, "session_id", hierarchy["rcs_id"]) is None
-        # Dependents still exist but unlinked (no FK points at the removed nodes).
-        asset = _get(session, Asset, "asset_id", hierarchy["asset_id"])
-        assert asset is not None and asset.room_id is None
-        stock = _get(session, Stock, "stock_id", hierarchy["stock_id"])
-        assert stock is not None and stock.room_id is None
-        room_fault = _get(session, Faultcard, "fault_id", hierarchy["room_fault_id"])
-        assert room_fault is not None and room_fault.room_id is None \
-            and room_fault.building_id is None and room_fault.location_id is None
-        room_job = _get(session, Jobcard, "jobcard_id", hierarchy["room_job_id"])
-        assert room_job is not None and room_job.room_id is None \
-            and room_job.building_id is None and room_job.location_id is None
-        # Building- and location-level dependents are unlinked, not deleted.
-        bld_fault = _get(session, Faultcard, "fault_id", hierarchy["bld_fault_id"])
-        assert bld_fault is not None and bld_fault.building_id is None
-        loc_fault = _get(session, Faultcard, "fault_id", hierarchy["loc_fault_id"])
-        assert loc_fault is not None and loc_fault.location_id is None
+        assert _get(session, Asset, "asset_id", hierarchy["asset_id"]) is None
+        assert _get(session, Stock, "stock_id", hierarchy["stock_id"]) is None
+        assert _get(session, Faultcard, "fault_id", hierarchy["room_fault_id"]) is None
+        assert _get(session, Jobcard, "jobcard_id", hierarchy["room_job_id"]) is None
+        assert _get(session, Faultcard, "fault_id", hierarchy["bld_fault_id"]) is None
+        assert _get(session, Faultcard, "fault_id", hierarchy["loc_fault_id"]) is None
 
 
 def test_missing_location_delete_returns_404(client, headers_for):
@@ -118,28 +106,22 @@ def test_missing_location_delete_returns_404(client, headers_for):
     assert resp.status_code == 404
 
 
-def test_building_cascade_deletes_rooms_and_unlinks(engine, client, headers_for, hierarchy):
+def test_building_cascade_deletes_rooms(engine, client, headers_for, hierarchy):
     admin = headers_for("admin")
     resp = client.delete(f"/api/v1/building/{hierarchy['building_id']}", headers=admin)
     assert resp.status_code == 204
 
     with Session(engine) as session:
-        # Building + its room + checklist history gone.
         assert _get(session, Building, "building_id", hierarchy["building_id"]) is None
         assert _get(session, Room, "room_id", hierarchy["room_id"]) is None
         assert _get(session, RoomCheck, "room_check_id", hierarchy["rc_id"]) is None
-        # Room-level dependents unlinked; building-level fault unlinked.
-        asset = _get(session, Asset, "asset_id", hierarchy["asset_id"])
-        assert asset is not None and asset.room_id is None
-        bld_fault = _get(session, Faultcard, "fault_id", hierarchy["bld_fault_id"])
-        assert bld_fault is not None and bld_fault.building_id is None
-        # The campus itself is untouched.
+        assert _get(session, Asset, "asset_id", hierarchy["asset_id"]) is None
+        assert _get(session, Faultcard, "fault_id", hierarchy["bld_fault_id"]) is None
         assert _get(session, Location, "location_id", hierarchy["location_id"]) is not None
-        loc_fault = _get(session, Faultcard, "fault_id", hierarchy["loc_fault_id"])
-        assert loc_fault is not None and loc_fault.location_id == hierarchy["location_id"]
+        assert _get(session, Faultcard, "fault_id", hierarchy["loc_fault_id"]) is not None
 
 
-def test_room_cascade_cleans_checklist_and_unlinks(engine, client, headers_for, hierarchy):
+def test_room_cascade_cleans_everything(engine, client, headers_for, hierarchy):
     admin = headers_for("admin")
     resp = client.delete(f"/api/v1/rooms/{hierarchy['room_id']}", headers=admin)
     assert resp.status_code == 204
@@ -147,7 +129,7 @@ def test_room_cascade_cleans_checklist_and_unlinks(engine, client, headers_for, 
     with Session(engine) as session:
         assert _get(session, Room, "room_id", hierarchy["room_id"]) is None
         assert _get(session, RoomCheck, "room_check_id", hierarchy["rc_id"]) is None
-        asset = _get(session, Asset, "asset_id", hierarchy["asset_id"])
-        assert asset is not None and asset.room_id is None
-        # Sibling building/campus remain.
+        assert _get(session, Asset, "asset_id", hierarchy["asset_id"]) is None
+        assert _get(session, Faultcard, "fault_id", hierarchy["room_fault_id"]) is None
+        assert _get(session, Jobcard, "jobcard_id", hierarchy["room_job_id"]) is None
         assert _get(session, Building, "building_id", hierarchy["building_id"]) is not None

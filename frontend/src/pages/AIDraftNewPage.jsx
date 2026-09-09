@@ -37,7 +37,7 @@ function AIDraftNewPage() {
   return (
     <div className="main">
       <div className="content">
-        <div className="controls">
+        <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <h3 style={{ margin: 0 }}>Nuwe AI Foutkonsep</h3>
           </div>

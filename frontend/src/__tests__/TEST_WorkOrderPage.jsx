@@ -37,8 +37,8 @@ test('renders work order table with key columns', async () => {
   const WorkOrderPage = require('../pages/WorkOrderPage').default;
   render(<MemoryRouter><WorkOrderPage /></MemoryRouter>);
   await waitFor(() => {
-    const idHeaders = screen.getAllByText('ID');
-    expect(idHeaders.length).toBeGreaterThanOrEqual(1);
+    const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+    expect(headers).not.toContain('ID');
     const beskrywings = screen.getAllByText('Beskrywing');
     expect(beskrywings.length).toBeGreaterThanOrEqual(1);
     const statusses = screen.getAllByText('Status');
