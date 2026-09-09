@@ -22,7 +22,8 @@ class CampusManagementPage extends StatefulWidget {
 class _CampusManagementPageState extends State<CampusManagementPage> {
   final TextEditingController _searchController = TextEditingController();
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('campuses', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('campuses', [
     const ColumnDef(key: 'name', label: 'Naam'),
     const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
     const ColumnDef(key: 'buildings', label: 'Geboue'),
@@ -57,7 +58,10 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
           child = Text(
             campus.name,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+                fontSize: 16),
           );
           break;
         case 'address':
@@ -73,7 +77,10 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
           child = Text(
             "${campus.buildings.length} Geboue",
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.gold,
+                fontWeight: FontWeight.bold),
           );
           break;
         default:
@@ -101,7 +108,8 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
           content: Text(fail == 0
               ? "$ok terrein/terreine verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -121,7 +129,8 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.location_city_outlined, size: 64, color: Colors.grey[400]),
+                  Icon(Icons.location_city_outlined,
+                      size: 64, color: Colors.grey[400]),
                   const SizedBox(height: 16),
                   const Text("Geen kampusse gevind nie."),
                   TextButton(
@@ -133,19 +142,24 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
             );
           }
 
-          final filtered = campuses.where((c) =>
-              c.name.toLowerCase().contains(_query) ||
-              c.address.toLowerCase().contains(_query)
-          ).toList();
+          final filtered = campuses
+              .where((c) =>
+                  c.name.toLowerCase().contains(_query) ||
+                  c.address.toLowerCase().contains(_query))
+              .toList();
 
           if (_sortCtrl.isActive) {
             filtered.sort((a, b) {
               final dir = _sortCtrl.direction;
               switch (_sortCtrl.sortKey) {
                 case 'name':
-                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
+                      dir;
                 case 'address':
-                  return a.address.toLowerCase().compareTo(b.address.toLowerCase()) * dir;
+                  return a.address
+                          .toLowerCase()
+                          .compareTo(b.address.toLowerCase()) *
+                      dir;
                 case 'buildings':
                   return a.buildings.length.compareTo(b.buildings.length) * dir;
                 default:
@@ -165,8 +179,10 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                     BulkDeleteAction<int>(
                       controller: _selection,
                       confirmTitle: 'Verwyder Terreine',
-                      confirmMessage: 'Wil jy ${_selection.count} geselekteerde terrein/terreine verwyder?',
-                      childWarning: 'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                      confirmMessage:
+                          'Wil jy ${_selection.count} geselekteerde terrein/terreine verwyder?',
+                      childWarning:
+                          'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
                       onDelete: _bulkDeleteCampuses,
                     ),
                   ],
@@ -181,7 +197,8 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                     slivers: [
                       if (filtered.isEmpty)
                         const SliverFillRemaining(
-                          child: Center(child: Text("Geen terreine gevind nie.")),
+                          child:
+                              Center(child: Text("Geen terreine gevind nie.")),
                         )
                       else
                         SliverPadding(
@@ -193,34 +210,42 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                                 return CardDataRow(
                                   leading: _selection.isSelecting
                                       ? Checkbox(
-                                          value: _selection.isSelected(campus.id),
-                                          onChanged: (_) => setState(() => _selection.toggle(campus.id)),
+                                          value:
+                                              _selection.isSelected(campus.id),
+                                          onChanged: (_) => setState(() =>
+                                              _selection.toggle(campus.id)),
                                         )
                                       : null,
                                   trailing: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      if (!_selection.isSelecting && UserSession.can('locations.manage'))
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                          onPressed: () async {
-                                            final result = await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => EditCampusPage(campus: campus),
-                                              ),
-                                            );
-                                            if (result == true) CampusService.fetchCampuses();
-                                          },
-                                        ),
-                                      const Icon(Icons.chevron_right, color: AppColors.gold),
+                                      IconButton(
+                                        icon: const Icon(Icons.chevron_right,
+                                            color: AppColors.gold),
+                                        tooltip: "Wys geboue van terrein",
+                                        onPressed: _selection.isSelecting
+                                            ? () => setState(() =>
+                                                _selection.toggle(campus.id))
+                                            : () =>
+                                                widget.onCampusSelected(campus),
+                                      ),
                                     ],
                                   ),
-                                  onTap: () {
+                                  onTap: () async {
                                     if (_selection.isSelecting) {
-                                      setState(() => _selection.toggle(campus.id));
+                                      setState(
+                                          () => _selection.toggle(campus.id));
                                     } else {
-                                      widget.onCampusSelected(campus);
+                                      final edited = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              EditCampusPage(campus: campus),
+                                        ),
+                                      );
+                                      if (edited == true) {
+                                        CampusService.fetchCampuses();
+                                      }
                                     }
                                   },
                                   onLongPress: () {
@@ -252,7 +277,10 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text(
                 "Nuwe Terrein",
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5),
               ),
               onPressed: () => Navigator.push(
                 context,

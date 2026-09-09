@@ -21,7 +21,12 @@ import '../../widgets/card_data_row.dart';
 
 class AssetsPage extends StatefulWidget {
   final String? filterRoomId;
-  const AssetsPage({super.key, this.filterRoomId});
+  final bool inShell;
+  const AssetsPage({
+    super.key,
+    this.filterRoomId,
+    this.inShell = false,
+  });
 
   @override
   State<AssetsPage> createState() => _AssetsPageState();
@@ -34,7 +39,8 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedBuildingId;
   int? _selectedRoomId;
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('assets', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('assets', [
     const ColumnDef(key: 'id', label: '#ID', defaultVisible: false),
     const ColumnDef(key: 'name', label: 'Naam'),
     const ColumnDef(key: 'brand', label: 'Handelsmerk', defaultVisible: false),
@@ -45,10 +51,12 @@ class _AssetsPageState extends State<AssetsPage> {
     const ColumnDef(key: 'created', label: 'Geskep', defaultVisible: false),
   ]);
   final SelectionController<String> _selection = SelectionController<String>();
+  late String? _activeRoomFilter;
 
   @override
   void initState() {
     super.initState();
+    _activeRoomFilter = widget.filterRoomId;
     AssetService.fetchAssets();
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     if (CampusService.campusesNotifier.value.isEmpty) {
@@ -57,6 +65,15 @@ class _AssetsPageState extends State<AssetsPage> {
     _searchController.addListener(() {
       setState(() {});
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant AssetsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.filterRoomId != null &&
+        widget.filterRoomId != _activeRoomFilter) {
+      _activeRoomFilter = widget.filterRoomId;
+    }
   }
 
   void _onCampusesChanged() {
@@ -84,11 +101,14 @@ class _AssetsPageState extends State<AssetsPage> {
         if (asset != null) {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)),
+            MaterialPageRoute(
+                builder: (context) => AssetDetailPage(asset: asset)),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Bate nie gevind nie."), backgroundColor: AppColors.errorRed),
+            const SnackBar(
+                content: Text("Bate nie gevind nie."),
+                backgroundColor: AppColors.errorRed),
           );
         }
       }
@@ -99,7 +119,7 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: widget.filterRoomId != null
+      appBar: !widget.inShell && _activeRoomFilter != null
           ? AppBar(
               title: const Text("Bates in Lokaal"),
               actions: [
@@ -109,7 +129,8 @@ class _AssetsPageState extends State<AssetsPage> {
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => RoomCheckHistoryPage(roomId: int.parse(widget.filterRoomId!)),
+                      builder: (_) => RoomCheckHistoryPage(
+                          roomId: int.parse(widget.filterRoomId!)),
                     ),
                   ),
                 ),
@@ -175,7 +196,8 @@ class _AssetsPageState extends State<AssetsPage> {
           items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
               .map((s) => SearchableDropdownItem(value: s, label: s))
               .toList(),
-          onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+          onSelected: (val) =>
+              setState(() => _statusFilter = val ?? _statusFilter),
         ),
       ),
       if (UserSession.can('assets.manage'))
@@ -191,7 +213,8 @@ class _AssetsPageState extends State<AssetsPage> {
         BulkDeleteAction<String>(
           controller: _selection,
           confirmTitle: 'Verwyder Bates',
-          confirmMessage: 'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
+          confirmMessage:
+              'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
           onDelete: _bulkDeleteAssets,
         ),
       ],
@@ -210,9 +233,9 @@ class _AssetsPageState extends State<AssetsPage> {
             ? campuses
                 .where((c) => c.id == _selectedCampusId)
                 .expand((c) => c.buildings)
-        .expand((b) => b.rooms ?? [])
-        .map((r) => r.id.toString())
-        .toSet()
+                .expand((b) => b.rooms ?? [])
+                .map((r) => r.id.toString())
+                .toSet()
             : null;
         final buildingRoomIds = _selectedBuildingId != null
             ? campuses
@@ -225,31 +248,41 @@ class _AssetsPageState extends State<AssetsPage> {
 
         final filtered = allAssets.where((a) {
           // Room filter from constructor
-          if (widget.filterRoomId != null && a.location != widget.filterRoomId) return false;
+          if (_activeRoomFilter != null && a.location != _activeRoomFilter) {
+            return false;
+          }
 
           // Campus filter
-          if (campusRoomIds != null && !campusRoomIds.contains(a.location)) return false;
+          if (campusRoomIds != null && !campusRoomIds.contains(a.location)) {
+            return false;
+          }
 
           // Building filter
-          if (buildingRoomIds != null && !buildingRoomIds.contains(a.location)) return false;
+          if (buildingRoomIds != null &&
+              !buildingRoomIds.contains(a.location)) {
+            return false;
+          }
 
           // Room filter
-          if (_selectedRoomId != null && a.location != _selectedRoomId.toString()) return false;
+          if (_selectedRoomId != null &&
+              a.location != _selectedRoomId.toString()) {
+            return false;
+          }
 
           // Status filter
           if (_statusFilter != "Almal") {
-             String mapped = "active";
-             if (_statusFilter == "Onderhoud") mapped = "maintenance";
-             if (_statusFilter == "Afgedank") mapped = "retired";
-             if (_statusFilter == "Onaktief") mapped = "inactive";
-             if (a.status.toLowerCase() != mapped) return false;
+            String mapped = "active";
+            if (_statusFilter == "Onderhoud") mapped = "maintenance";
+            if (_statusFilter == "Afgedank") mapped = "retired";
+            if (_statusFilter == "Onaktief") mapped = "inactive";
+            if (a.status.toLowerCase() != mapped) return false;
           }
 
           // Search query
           final q = _searchController.text.toLowerCase();
-          return a.name.toLowerCase().contains(q) || 
-                 a.serialCode.toLowerCase().contains(q) ||
-                 a.id.toLowerCase().contains(q);
+          return a.name.toLowerCase().contains(q) ||
+              a.serialCode.toLowerCase().contains(q) ||
+              a.id.toLowerCase().contains(q);
         }).toList();
 
         // Apply sorting
@@ -257,15 +290,36 @@ class _AssetsPageState extends State<AssetsPage> {
           filtered.sort((a, b) {
             final dir = _sortCtrl.direction;
             switch (_sortCtrl.sortKey) {
-              case 'id': return a.id.compareTo(b.id) * dir;
-              case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
-              case 'brand': return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) * dir;
-              case 'serial': return a.serialCode.toLowerCase().compareTo(b.serialCode.toLowerCase()) * dir;
-              case 'type': return a.category.toLowerCase().compareTo(b.category.toLowerCase()) * dir;
-              case 'isOutdoor': return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) * dir;
-              case 'status': return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
-              case 'created': return 0;
-              default: return 0;
+              case 'id':
+                return a.id.compareTo(b.id) * dir;
+              case 'name':
+                return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
+                    dir;
+              case 'brand':
+                return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) *
+                    dir;
+              case 'serial':
+                return a.serialCode
+                        .toLowerCase()
+                        .compareTo(b.serialCode.toLowerCase()) *
+                    dir;
+              case 'type':
+                return a.category
+                        .toLowerCase()
+                        .compareTo(b.category.toLowerCase()) *
+                    dir;
+              case 'isOutdoor':
+                return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) *
+                    dir;
+              case 'status':
+                return a.status
+                        .toLowerCase()
+                        .compareTo(b.status.toLowerCase()) *
+                    dir;
+              case 'created':
+                return 0;
+              default:
+                return 0;
             }
           });
         }
@@ -306,7 +360,10 @@ class _AssetsPageState extends State<AssetsPage> {
         if (_selection.isSelecting) {
           setState(() => _selection.toggle(asset.id));
         } else {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)));
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => AssetDetailPage(asset: asset)));
         }
       },
       onLongPress: () {
@@ -319,15 +376,50 @@ class _AssetsPageState extends State<AssetsPage> {
         int flex = 2;
         Widget child;
         switch (col.key) {
-          case 'id': flex = 1; child = Text("#${asset.id}", overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)); break;
-          case 'name': flex = 3; child = Text(asset.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)); break;
-          case 'brand': child = Text(asset.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-          case 'serial': child = Text(asset.serialCode, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-          case 'type': child = Text(asset.category, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-          case 'isOutdoor': child = Text(asset.isOutdoor ? 'Ja' : 'Nee', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-          case 'status': child = StatusBadge(status: asset.status, fontSize: 13); break;
-          case 'created': child = Text('-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)); break;
-          default: child = const Text(''); break;
+          case 'id':
+            flex = 1;
+            child = Text("#${asset.id}",
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold));
+            break;
+          case 'name':
+            flex = 3;
+            child = Text(asset.name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.bold));
+            break;
+          case 'brand':
+            child = Text(asset.brand,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12));
+            break;
+          case 'serial':
+            child = Text(asset.serialCode,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12));
+            break;
+          case 'type':
+            child = Text(asset.category,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12));
+            break;
+          case 'isOutdoor':
+            child = Text(asset.isOutdoor ? 'Ja' : 'Nee',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12));
+            break;
+          case 'status':
+            child = StatusBadge(status: asset.status, fontSize: 13);
+            break;
+          case 'created':
+            child = Text('-',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12));
+            break;
+          default:
+            child = const Text('');
+            break;
         }
         return Expanded(flex: flex, child: child);
       }).toList(),
@@ -352,7 +444,8 @@ class _AssetsPageState extends State<AssetsPage> {
           content: Text(fail == 0
               ? "$ok bate/bates verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -373,11 +466,16 @@ class _AssetsPageState extends State<AssetsPage> {
           const SizedBox(height: 12),
           FloatingActionButton.extended(
             heroTag: "addBtn",
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewAssetPage())),
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (context) => const NewAssetPage())),
             backgroundColor: AppColors.gold,
             elevation: 4,
             icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text("Nuwe Bate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            label: const Text("Nuwe Bate",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5)),
           ),
         ],
       ],
