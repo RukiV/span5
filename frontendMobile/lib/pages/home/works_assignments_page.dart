@@ -21,7 +21,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('works-assignments', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('works-assignments', [
     const ColumnDef(key: 'description', label: 'Beskrywing'),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
     const ColumnDef(key: 'status', label: 'Status'),
@@ -72,7 +73,11 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
           );
         },
         icon: const Icon(Icons.add),
-        label: const Text("Nuwe Werksopdrag", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+        label: const Text("Nuwe Werksopdrag",
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5)),
       ),
       body: Column(
         children: [
@@ -108,9 +113,18 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
               valueListenable: JobcardService.jobcardsNotifier,
               builder: (context, jobcards, child) {
                 final filtered = jobcards.where((job) {
-                  if (_selectedCampusId != null && job.locationId != _selectedCampusId) return false;
-                  if (_selectedBuildingId != null && job.buildingId != _selectedBuildingId) return false;
-                  if (_selectedRoomId != null && job.roomId != _selectedRoomId) return false;
+                  if (_selectedCampusId != null &&
+                      job.locationId != _selectedCampusId) {
+                    return false;
+                  }
+                  if (_selectedBuildingId != null &&
+                      job.buildingId != _selectedBuildingId) {
+                    return false;
+                  }
+                  if (_selectedRoomId != null &&
+                      job.roomId != _selectedRoomId) {
+                    return false;
+                  }
                   if (_query.isNotEmpty &&
                       !job.description.toLowerCase().contains(_query) &&
                       !(job.type?.toLowerCase().contains(_query) ?? false) &&
@@ -125,11 +139,20 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                     final dir = _sortCtrl.direction;
                     switch (_sortCtrl.sortKey) {
                       case 'description':
-                        return a.description.toLowerCase().compareTo(b.description.toLowerCase()) * dir;
+                        return a.description
+                                .toLowerCase()
+                                .compareTo(b.description.toLowerCase()) *
+                            dir;
                       case 'type':
-                        return (a.type ?? '').toLowerCase().compareTo((b.type ?? '').toLowerCase()) * dir;
+                        return (a.type ?? '')
+                                .toLowerCase()
+                                .compareTo((b.type ?? '').toLowerCase()) *
+                            dir;
                       case 'status':
-                        return a.status.toLowerCase().compareTo(b.status.toLowerCase()) * dir;
+                        return a.status
+                                .toLowerCase()
+                                .compareTo(b.status.toLowerCase()) *
+                            dir;
                       default:
                         return 0;
                     }
@@ -137,56 +160,82 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                 }
 
                 if (filtered.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      "Geen werksopdragte beskikbaar nie.",
-                      style: TextStyle(color: Colors.grey),
+                  return RefreshIndicator(
+                    onRefresh: () => JobcardService.fetchJobs(),
+                    color: AppColors.refreshSpinner,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.3),
+                        const Center(
+                          child: Text(
+                            "Geen werksopdragte beskikbaar nie.",
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    final job = filtered[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: CircleAvatar(
-                          backgroundColor: _getStatusColor(job.status).withValues(alpha: 0.2),
-                          child: Icon(Icons.assignment, color: _getStatusColor(job.status)),
+                return RefreshIndicator(
+                  onRefresh: () => JobcardService.fetchJobs(),
+                  color: AppColors.refreshSpinner,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final job = filtered[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          leading: CircleAvatar(
+                            backgroundColor: _getStatusColor(job.status)
+                                .withValues(alpha: 0.2),
+                            child: Icon(Icons.assignment,
+                                color: _getStatusColor(job.status)),
+                          ),
+                          title: Text(
+                            job.description,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.navy),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (job.type != null)
+                                Text(job.type!,
+                                    style: const TextStyle(fontSize: 12)),
+                              const SizedBox(height: 4),
+                              _buildStatusBadge(job.status),
+                            ],
+                          ),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: AppColors.gold),
+                          onTap: () async {
+                            final changed = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    JobcardFormPage(jobcard: job),
+                              ),
+                            );
+                            if (changed == true) {
+                              await JobcardService.fetchJobs();
+                            }
+                          },
                         ),
-                        title: Text(
-                          job.description,
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (job.type != null) Text(job.type!, style: const TextStyle(fontSize: 12)),
-                            const SizedBox(height: 4),
-                            _buildStatusBadge(job.status),
-                          ],
-                        ),
-                        trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
-                        onTap: () async {
-                          final changed = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => JobcardFormPage(jobcard: job),
-                            ),
-                          );
-                          if (changed == true) {
-                            await JobcardService.fetchJobs();
-                          }
-                        },
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -226,7 +275,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
       ),
       child: Text(
         status,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }

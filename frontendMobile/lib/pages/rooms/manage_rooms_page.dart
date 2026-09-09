@@ -378,6 +378,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                     }
                     return RefreshIndicator(
                       onRefresh: () => CampusService.fetchCampuses(),
+                      color: AppColors.refreshSpinner,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.only(bottom: 90),

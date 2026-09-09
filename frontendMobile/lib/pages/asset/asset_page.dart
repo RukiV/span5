@@ -148,6 +148,7 @@ class _AssetsPageState extends State<AssetsPage> {
           Expanded(
             child: RefreshIndicator(
               onRefresh: () => AssetService.fetchAssets(),
+              color: AppColors.refreshSpinner,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [

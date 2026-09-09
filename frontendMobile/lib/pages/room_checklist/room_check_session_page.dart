@@ -63,7 +63,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Herroewys aan", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Herroewys aan",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<int>(
                     initialValue: session.assignedUserId,
@@ -78,19 +79,23 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                         if (u.roleId != 5) return false;
                         return true;
                       }))
-                        DropdownMenuItem(value: u.id, child: Text(u.displayName)),
+                        DropdownMenuItem(
+                            value: u.id, child: Text(u.displayName)),
                     ],
-                    onChanged: (val) => setDialogState(() => assignedUserId = val),
+                    onChanged: (val) =>
+                        setDialogState(() => assignedUserId = val),
                   ),
                   const SizedBox(height: 16),
-                  const Text("Datum en tyd", style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text("Datum en tyd",
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   InkWell(
                     onTap: () async {
                       final now = DateTime.now();
                       final date = await showDatePicker(
                         context: dialogContext,
-                        initialDate: scheduled ?? session.scheduledDatetime ?? now,
+                        initialDate:
+                            scheduled ?? session.scheduledDatetime ?? now,
                         firstDate: DateTime(now.year, now.month, now.day),
                         lastDate: DateTime(now.year + 5),
                       );
@@ -103,8 +108,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                       );
                       if (time == null) return;
                       if (!dialogContext.mounted) return;
-                      setDialogState(() => scheduled = DateTime(
-                        date.year, date.month, date.day, time.hour, time.minute));
+                      setDialogState(() => scheduled = DateTime(date.year,
+                          date.month, date.day, time.hour, time.minute));
                     },
                     child: Container(
                       width: double.infinity,
@@ -115,9 +120,11 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                       ),
                       child: Text(
                         scheduled?.toString() ??
-                            (session.scheduledDatetime?.toString() ?? "Kies datum en tyd"),
+                            (session.scheduledDatetime?.toString() ??
+                                "Kies datum en tyd"),
                         style: TextStyle(
-                          color: scheduled == null && session.scheduledDatetime == null
+                          color: scheduled == null &&
+                                  session.scheduledDatetime == null
                               ? Colors.grey
                               : Colors.black,
                         ),
@@ -199,7 +206,9 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 
@@ -218,7 +227,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
               tooltip: "Nuwe skedule",
               onPressed: () => Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const NewRoomCheckSessionPage()),
+                MaterialPageRoute(
+                    builder: (_) => const NewRoomCheckSessionPage()),
               ),
             ),
         ],
@@ -226,7 +236,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
       body: ValueListenableBuilder<List<RoomCheckSession>>(
         valueListenable: RoomCheckSessionService.sessionsNotifier,
         builder: (context, sessions, _) {
-          if (RoomCheckSessionService.loadingNotifier.value && sessions.isEmpty) {
+          if (RoomCheckSessionService.loadingNotifier.value &&
+              sessions.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
           if (sessions.isEmpty) {
@@ -234,6 +245,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
           }
           return RefreshIndicator(
             onRefresh: _load,
+            color: AppColors.refreshSpinner,
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: sessions.length,
@@ -246,7 +258,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
@@ -257,7 +270,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                             Expanded(
                               child: Text(
                                 session.roomName ?? "Lokaal #${session.roomId}",
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                             ),
                             _statusBadge(session.status),
@@ -266,20 +280,26 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.event, size: 16, color: Colors.grey),
+                            const Icon(Icons.event,
+                                size: 16, color: Colors.grey),
                             const SizedBox(width: 6),
-                            Text(dateStr, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                            Text(dateStr,
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[700])),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.person_outline, size: 16, color: Colors.grey),
+                            const Icon(Icons.person_outline,
+                                size: 16, color: Colors.grey),
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                session.assignedUserName ?? "Gebruiker #${session.assignedUserId}",
-                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                session.assignedUserName ??
+                                    "Gebruiker #${session.assignedUserId}",
+                                style: TextStyle(
+                                    fontSize: 12, color: Colors.grey[700]),
                               ),
                             ),
                           ],
@@ -292,14 +312,17 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                               if (widget.manageMode && _canManage) ...[
                                 TextButton.icon(
                                   onPressed: () => _openEditDialog(session),
-                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  icon:
+                                      const Icon(Icons.edit_outlined, size: 18),
                                   label: const Text("Herroewys"),
                                 ),
                                 TextButton.icon(
                                   onPressed: () => _confirmDelete(session),
-                                  icon: const Icon(Icons.delete_outline, size: 18),
+                                  icon: const Icon(Icons.delete_outline,
+                                      size: 18),
                                   label: const Text("Verwyder"),
-                                  style: TextButton.styleFrom(foregroundColor: AppColors.errorRed),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.errorRed),
                                 ),
                               ],
                               FilledButton.tonal(
@@ -307,12 +330,14 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                                   final result = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => RoomChecklistPage(roomId: session.roomId),
+                                      builder: (_) => RoomChecklistPage(
+                                          roomId: session.roomId),
                                     ),
                                   );
                                   if (result == true && mounted) _load();
                                 },
-                                style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
+                                style: FilledButton.styleFrom(
+                                    backgroundColor: AppColors.gold),
                                 child: const Text("Voltooi"),
                               ),
                             ],
@@ -328,7 +353,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => RoomCheckHistoryPage(roomId: session.roomId),
+                                      builder: (_) => RoomCheckHistoryPage(
+                                          roomId: session.roomId),
                                     ),
                                   );
                                 },

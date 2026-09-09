@@ -223,6 +223,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                             style: TextStyle(color: Colors.grey)))
                     : RefreshIndicator(
                         onRefresh: () => CampusService.fetchCampuses(),
+                        color: AppColors.refreshSpinner,
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(15, 15, 15, 90),
