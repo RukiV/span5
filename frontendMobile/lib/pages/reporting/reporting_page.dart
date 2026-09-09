@@ -132,7 +132,7 @@ class _ReportingPageState extends State<ReportingPage> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.gold,
         elevation: 4,
-        icon: const Icon(Icons.add_a_photo, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("Nuwe Foutkaartjie",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
         onPressed: () => _handleNewReport(context),

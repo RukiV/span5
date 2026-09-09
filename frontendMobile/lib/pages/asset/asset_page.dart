@@ -372,6 +372,7 @@ class _AssetsPageState extends State<AssetsPage> {
   Widget _buildFab() {
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         FloatingActionButton(
           heroTag: "scanBtn",
@@ -381,11 +382,13 @@ class _AssetsPageState extends State<AssetsPage> {
         ),
         if (UserSession.can('assets.manage')) ...[
           const SizedBox(height: 12),
-          FloatingActionButton(
+          FloatingActionButton.extended(
             heroTag: "addBtn",
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewAssetPage())),
             backgroundColor: AppColors.gold,
-            child: const Icon(Icons.add, color: Colors.white),
+            elevation: 4,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text("Nuwe Bate", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
           ),
         ],
       ],

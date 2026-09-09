@@ -73,17 +73,18 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.gold,
         foregroundColor: Colors.white,
+        elevation: 4,
         onPressed: () async {
           await Navigator.push<bool>(
             context,
             MaterialPageRoute(builder: (_) => const JobcardFormPage()),
           );
         },
-        child: const Icon(Icons.add),
-      
+        icon: const Icon(Icons.add),
+        label: const Text("Nuwe Werksopdrag", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
       ),
       body: Column(
         children: [
@@ -157,7 +158,7 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final job = filtered[index];
