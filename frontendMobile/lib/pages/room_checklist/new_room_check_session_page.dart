@@ -7,7 +7,7 @@ import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 
-/// Volblad-skepping van 'n nuwe "Kontrole Skedule" (room check session).
+/// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
 ///
 /// Vervang die ou pop-op (AlertDialog) wat die [LocationCascadePicker] sonder
 /// gelaaide kampusdata vertoon het en binne 'n dialog gebreek het. Hier word
@@ -81,7 +81,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: const Text("Nuwe Kontrole Skedule"),
+        title: const Text("Nuwe Lokaal Kontrole"),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

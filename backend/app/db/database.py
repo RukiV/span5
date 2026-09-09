@@ -71,6 +71,8 @@ def createDBandTables():
             columns = {column["name"] for column in inspector.get_columns("quote")}
             if "contractor_id" not in columns:
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS contractor_id INTEGER"))
+            if "contractor_name" not in columns:
+                connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS contractor_name VARCHAR(100)"))
             if "quote_selection_reason" not in columns:
                 connection.execute(text("ALTER TABLE quote ADD COLUMN IF NOT EXISTS quote_selection_reason TEXT"))
             connection.execute(text("ALTER TABLE quote DROP COLUMN IF EXISTS quote_price"))

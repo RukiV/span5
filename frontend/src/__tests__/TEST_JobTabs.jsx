@@ -46,14 +46,14 @@ beforeEach(() => {
 test('renders both tabs with Werksopdragte active on /work-orders', async () => {
   renderWithTabs('/work-orders');
   const jobs = screen.getByText('Werksopdragte');
-  const ai = screen.getByText('AI Konsepte');
+  const ai = screen.getByText('Voorgestelde Werksopdragte');
   expect(jobs.closest('a')).toHaveClass('active');
   expect(ai.closest('a')).not.toHaveClass('active');
 });
 
-test('marks AI Konsepte active on /ai-drafts routes', async () => {
+test('marks Voorgestelde Werksopdragte active on /ai-drafts routes', async () => {
   renderWithTabs('/ai-drafts/42');
-  expect(screen.getByText('AI Konsepte').closest('a')).toHaveClass('active');
+  expect(screen.getByText('Voorgestelde Werksopdragte').closest('a')).toHaveClass('active');
   expect(screen.getByText('Werksopdragte').closest('a')).not.toHaveClass('active');
 });
 
@@ -69,7 +69,7 @@ test('hides the tab bar entirely when the user lacks ai.approve', async () => {
   mockHasRight = () => false;
   renderWithTabs('/work-orders');
   expect(screen.queryByText('Werksopdragte')).not.toBeInTheDocument();
-  expect(screen.queryByText('AI Konsepte')).not.toBeInTheDocument();
+  expect(screen.queryByText('Voorgestelde Werksopdragte')).not.toBeInTheDocument();
   // child content still renders
   expect(screen.getByText('Inhoud')).toBeInTheDocument();
 });

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -30,17 +32,12 @@ function RightsPage({ embedded = false }) {
 
   useEffect(() => { refetch(); }, [refetch]);
 
-  const openNewRight = () => { setRightForm({ id: null, name: '', description: '', isBuiltin: false }); setView('rightForm'); };
   const openEditRight = (right) => { setRightForm({ id: right.right_id, name: right.right_name, description: right.right_description || '', isBuiltin: right.is_builtin }); setView('rightForm'); };
 
   const saveRight = async () => {
     if (!rightForm.name.trim()) { showToast({ type: 'error', message: 'Regnaam is verpligtend.' }); return; }
     try {
-      if (rightForm.id) {
-        await apiClient.rights.update(rightForm.id, { right_name: rightForm.name.trim(), right_description: rightForm.description });
-      } else {
-        await apiClient.rights.create({ right_name: rightForm.name.trim(), right_description: rightForm.description });
-      }
+      await apiClient.rights.update(rightForm.id, { right_name: rightForm.name.trim(), right_description: rightForm.description });
       await refetch();
       setView('list'); showToast({ type: 'success', message: 'Reg gestoor.' });
     } catch (err) {
@@ -81,6 +78,8 @@ function RightsPage({ embedded = false }) {
       ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
       : String(values[filterColumn] || '').toLowerCase().includes(query);
   });
+  const { currentPage, totalPages, paginatedData: paginatedRights, goToPage } = usePagination(filteredRights, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, goToPage]);
 
   if (loading) return <div className="main"><div className="content">Besig om te laai...</div></div>;
 
@@ -89,7 +88,7 @@ function RightsPage({ embedded = false }) {
 
       {view === 'list' ? (
         <>
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -102,7 +101,6 @@ function RightsPage({ embedded = false }) {
               <Select className="react-select-container" classNamePrefix="react-select" value={FILTER_COLUMNS.find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={FILTER_COLUMNS} isSearchable={false} />
             </div>
             <div className="controls-right">
-              <button type="button" className="btn-add" onClick={openNewRight}>+ Nuwe Reg</button>
             </div>
           </div>
 
@@ -114,7 +112,7 @@ function RightsPage({ embedded = false }) {
               {filteredRights.length === 0 ? (
                 <tr><td colSpan={4} style={{ textAlign: 'center', padding: '20px' }}>Geen regte gevind nie</td></tr>
               ) : (
-                filteredRights.map(right => (
+                paginatedRights.map(right => (
                   <tr key={right.right_id}>
                     <td>{right.right_name}</td>
                     <td>{right.right_description}</td>
@@ -134,6 +132,7 @@ function RightsPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredRights.length} pageSize={100} />
         </>
       ) : (
         <div>

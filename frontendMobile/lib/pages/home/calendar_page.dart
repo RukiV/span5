@@ -455,90 +455,110 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+    if (_loading) {
+      return const Card(
+        margin: EdgeInsets.symmetric(vertical: 8),
+        elevation: 1,
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
               children: [
-                Card(
-                  margin: const EdgeInsets.all(12.0),
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: TableCalendar(
-                    locale: 'af_ZA',
-                    firstDay: DateTime.utc(2024, 1, 1),
-                    lastDay: DateTime.utc(2028, 12, 31),
-                    focusedDay: _focusedDay,
-                    calendarFormat: _calendarFormat,
-                    availableCalendarFormats: const {
-                      CalendarFormat.month: 'Maand',
-                    },
-                    headerVisible: true,
-                    headerStyle: const HeaderStyle(
-                      formatButtonVisible: false,
-                      titleCentered: true,
-                      titleTextStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.navy),
-                      leftChevronIcon: Icon(Icons.chevron_left, color: AppColors.gold),
-                      rightChevronIcon: Icon(Icons.chevron_right, color: AppColors.gold),
-                    ),
-                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                    },
-                    onPageChanged: (focusedDay) {
-                      _focusedDay = focusedDay;
-                      _loadEvents();
-                    },
-                    eventLoader: (day) => _getEventsForDay(day),
-                    calendarStyle: CalendarStyle(
-                      todayDecoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.3),
-                        shape: BoxShape.circle,
-                      ),
-                      selectedDecoration: const BoxDecoration(
-                        color: AppColors.gold,
-                        shape: BoxShape.circle,
-                      ),
-                      markerDecoration: const BoxDecoration(
-                        color: AppColors.terracotta,
-                        shape: BoxShape.circle,
-                      ),
-                      markersMaxCount: 1,
-                      outsideDaysVisible: false,
-                    ),
+                const Expanded(
+                  child: Text(
+                    "Kalender",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
                   ),
                 ),
-                if (_selectedDay != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.event, size: 18, color: AppColors.navy),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "Gebeure vir ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}",
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
-                          ),
-                        ),
-                        ColumnVisibilityButton(controller: _colVis),
-                      ],
-                    ),
+                if (UserSession.can('calendar.manage'))
+                  TextButton.icon(
+                    onPressed: _showAddEventDialog,
+                    icon: const Icon(Icons.add, size: 18, color: AppColors.gold),
+                    label: const Text("Nuwe Afspraak", style: TextStyle(color: AppColors.gold, fontSize: 13)),
                   ),
-                Expanded(child: _buildEventList()),
               ],
             ),
-      floatingActionButton: UserSession.can('calendar.manage')
-          ? FloatingActionButton(
-              onPressed: _showAddEventDialog,
-              backgroundColor: AppColors.gold,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+            TableCalendar(
+              locale: 'af_ZA',
+              firstDay: DateTime.utc(2024, 1, 1),
+              lastDay: DateTime.utc(2028, 12, 31),
+              focusedDay: _focusedDay,
+              calendarFormat: _calendarFormat,
+              availableCalendarFormats: const {
+                CalendarFormat.month: 'Maand',
+              },
+              headerVisible: true,
+              headerStyle: const HeaderStyle(
+                formatButtonVisible: false,
+                titleCentered: true,
+                titleTextStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.navy),
+                leftChevronIcon: Icon(Icons.chevron_left, color: AppColors.gold),
+                rightChevronIcon: Icon(Icons.chevron_right, color: AppColors.gold),
+              ),
+              selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                });
+              },
+              onPageChanged: (focusedDay) {
+                _focusedDay = focusedDay;
+                _loadEvents();
+              },
+              eventLoader: (day) => _getEventsForDay(day),
+              calendarStyle: CalendarStyle(
+                todayDecoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.3),
+                  shape: BoxShape.circle,
+                ),
+                selectedDecoration: const BoxDecoration(
+                  color: AppColors.gold,
+                  shape: BoxShape.circle,
+                ),
+                markerDecoration: const BoxDecoration(
+                  color: AppColors.terracotta,
+                  shape: BoxShape.circle,
+                ),
+                markersMaxCount: 1,
+                outsideDaysVisible: false,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.event, size: 18, color: AppColors.navy),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Gebeure vir ${_selectedDay!.day}/${_selectedDay!.month}/${_selectedDay!.year}",
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+                    ),
+                  ),
+                  ColumnVisibilityButton(controller: _colVis),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 300,
+              child: _buildEventList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -119,6 +119,29 @@ origins = [
     "http://127.0.0.1",
 ]
 
+# Wanneer `PUBLIC_ORIGIN` gestel is (bv. https://fbs.example.com) word dit by
+# die toegelate oorspronge ingesluit sodat die publieke domein die API kan bereik.
+_public_origin = os.getenv("PUBLIC_ORIGIN", "").strip().rstrip("/")
+if _public_origin:
+    origins.append(_public_origin)
+
+# Aanvaar slegs versoeke wat van `HOST`/`ORIGIN` kom wat ons verwag. Dit keer
+# DNS-rewiring / host-header-aanvalle wanneer die API publiek blootgestel word.
+# In produksie moet jy jou publieke hostname by allowed_hosts voeg.
+_allowed_hosts = ["localhost", "127.0.0.1", "backend", "frontend", "0.0.0.0"]
+if _public_origin:
+    _parsed_origin = _public_origin.split("://", 1)[-1].split("/", 1)[0]
+    _allowed_hosts.append(_parsed_origin)
+    _allowed_hosts.append(_parsed_origin.split(":", 1)[0])
+if os.getenv("ALLOWED_HOSTS"):
+    _allowed_hosts.extend(
+        h.strip() for h in os.getenv("ALLOWED_HOSTS").split(",") if h.strip()
+    )
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=_allowed_hosts if _is_prod else ["*"],
+)
+
 # =============================================================================
 # MIDDLEWARE STACK (outermost runs first on incoming requests):
 #

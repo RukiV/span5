@@ -38,7 +38,7 @@ test('renders AI draft queue with Afrikaans title and draft rows', async () => {
   const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
   render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('+ Nuwe AI Konsep')).toBeInTheDocument();
+    expect(screen.getByText('+ Nuwe Voorgestelde Werksopdrag')).toBeInTheDocument();
     expect(screen.getByText('Gebroke venster')).toBeInTheDocument();
     expect(screen.getByText('Onderhoud pyp')).toBeInTheDocument();
     expect(screen.getByText('Outomaties')).toBeInTheDocument();
@@ -51,9 +51,10 @@ test('handles API error without crashing', async () => {
   const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
   render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('+ Nuwe AI Konsep')).toBeInTheDocument();
+    expect(screen.getByText('+ Nuwe Voorgestelde Werksopdrag')).toBeInTheDocument();
     // Should still render the page controls even when data fetch fails
-    expect(screen.getByText('Alle')).toBeInTheDocument();
+    // (default filter is "Konsepte", i.e. draft status)
+    expect(screen.getByText('Konsepte')).toBeInTheDocument();
   });
 });
 

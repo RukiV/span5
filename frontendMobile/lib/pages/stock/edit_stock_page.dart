@@ -180,7 +180,7 @@ class _EditStockPageState extends State<EditStockPage> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _buildField("Merk", (v) => brand = v, initialValue: brand),
+                      child: _buildField("Handelsmerk", (v) => brand = v, initialValue: brand),
                     ),
                   ],
                 ),

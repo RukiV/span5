@@ -1,14 +1,16 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
-import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
+import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
+import usePagination from "../hooks/usePagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import Pagination from "../components/Pagination/Pagination";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
@@ -74,7 +76,7 @@ function AssetPage({ embedded = false }) {
   const ASSET_COLUMNS = [
     { key: 'id', label: 'ID', render: (a) => a.asset_id, sortKey: 'id', defaultVisible: false },
     { key: 'asset_name', label: 'Naam', render: (a) => a.asset_name, sortKey: 'asset_name', defaultVisible: true },
-    { key: 'asset_brand', label: 'Merk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
+    { key: 'asset_brand', label: 'Handelsmerk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
     { key: 'asset_serial', label: 'Serienommer', render: (a) => a.asset_serial, sortKey: 'asset_serial', defaultVisible: true },
     { key: 'assettype', label: 'Tipe', render: (a) => getAssettypeName(a), sortKey: 'assettype', defaultVisible: true },
     { key: 'isoutdoor', label: 'Buite', render: (a) => a.asset_isoutdoor ? 'Ja' : 'Nee', sortKey: 'isoutdoor', defaultVisible: false },
@@ -87,6 +89,7 @@ function AssetPage({ embedded = false }) {
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
@@ -340,7 +343,6 @@ function AssetPage({ embedded = false }) {
     try {
       const errors = {};
       if (!newAsset.asset_name.trim()) errors.asset_name = true;
-      if (!newAsset.asset_brand.trim()) errors.asset_brand = true;
       const cleanedSerial = newAsset.asset_serial.trim();
       const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
@@ -433,9 +435,6 @@ function AssetPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredItems.map((x) => x.asset_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -457,6 +456,7 @@ function AssetPage({ embedded = false }) {
     const building = room ? buildings.find((b) => b.building_id === room.building_id) : null;
     
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.asset_id);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -480,6 +480,7 @@ function AssetPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -491,6 +492,7 @@ function AssetPage({ embedded = false }) {
 
   const handleNewAsset = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -666,7 +668,18 @@ function AssetPage({ embedded = false }) {
       if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
       return 0;
     });
-  const allSelected = filteredItems.length > 0 && selectedIds.length === filteredItems.length;
+  const { currentPage, totalPages, paginatedData: paginatedItems, goToPage } = usePagination(filteredItems, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedItems.length > 0 && paginatedItems.every((x) => selectedIds.includes(x.asset_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedItems.map((x) => x.asset_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedItems.map((x) => x.asset_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -686,7 +699,7 @@ function AssetPage({ embedded = false }) {
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
     { value: "asset_name", label: "Naam" },
-    { value: "asset_brand", label: "Brand" },
+    { value: "asset_brand", label: "Handelsmerk" },
     { value: "asset_serial", label: "Serienommer" },
     { value: "asset_isoutdoor", label: "Buite" },
     { value: "room", label: "Lokaal" },
@@ -707,7 +720,7 @@ function AssetPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -786,14 +799,14 @@ function AssetPage({ embedded = false }) {
                      closeMenuOnSelect={false}
                      menuIsOpen={filterCascade.menuIsOpen}
                      onMenuOpen={filterCascade.onMenuOpen}
-                     onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    styles={{
-                      container: (base) => ({ ...base, minWidth: '260px' }),
-                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                    }}
+onMenuClose={filterCascade.onMenuClose}
+                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                     styles={{
+                       container: (base) => ({ ...base, minWidth: '260px' }),
+                       control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                       valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+               singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                     }}
                     options={allLocationOptions}
                     filterOption={(option, rawInput) => {
                       if (rawInput) {
@@ -881,7 +894,7 @@ function AssetPage({ embedded = false }) {
           {filteredItems.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
-            filteredItems.map((item) => (
+            paginatedItems.map((item) => (
               <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
@@ -898,15 +911,21 @@ function AssetPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredItems.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('assets.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -916,6 +935,7 @@ function AssetPage({ embedded = false }) {
               type="text"
               className={invalidFields.asset_name ? "field-invalid" : ""}
               value={newAsset.asset_name}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewAsset({ ...newAsset, asset_name: e.target.value });
                 if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
@@ -923,12 +943,13 @@ function AssetPage({ embedded = false }) {
             />
           </div>
           <div className="input-group">
-            <label>Brand *</label>
+            <label>Handelsmerk</label>
             <input
               ref={el => fieldRefs.current.asset_brand = el}
               type="text"
               className={invalidFields.asset_brand ? "field-invalid" : ""}
               value={newAsset.asset_brand}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewAsset({ ...newAsset, asset_brand: e.target.value });
                 if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
@@ -941,6 +962,7 @@ function AssetPage({ embedded = false }) {
               type="text"
               value={newAsset.asset_serial}
               onChange={handleSerialChange}
+              disabled={isViewMode}
               placeholder="bv. AK MT000001"
             />
           </div>
@@ -951,6 +973,7 @@ function AssetPage({ embedded = false }) {
               <input
                 type="checkbox"
                 checked={newAsset.asset_isoutdoor}
+                disabled={isViewMode}
                 onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
               />
               Buite
@@ -963,6 +986,7 @@ function AssetPage({ embedded = false }) {
               classNamePrefix="select"
               placeholder="Kies 'n tipe..."
               isSearchable={true}
+              isDisabled={isViewMode}
               components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
               options={assettypeOptions}
               value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
@@ -1005,7 +1029,7 @@ function AssetPage({ embedded = false }) {
                     const showArrow = isLast ? cascadeCount < 3 : true;
                     return (
                       <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} disabled={isViewMode} style={{ border: "none", cursor: isViewMode ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                         {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                       </React.Fragment>
                     );
@@ -1016,7 +1040,7 @@ function AssetPage({ embedded = false }) {
                const CascadeControl = ({ children, ...props }) => (
                  <components.Control {...props}>
                    {children}
-                   {cascadeCount > 0 && (
+                   {!isViewMode && cascadeCount > 0 && (
                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
                        <IoReturnUpBack size={24} />
                      </span>
@@ -1031,12 +1055,12 @@ function AssetPage({ embedded = false }) {
                        classNamePrefix="react-select"
                        placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                        isClearable
-                       isDisabled={cascadeCount >= 3}
+                       isDisabled={isViewMode || cascadeCount >= 3}
                        closeMenuOnSelect={false}
                        menuIsOpen={modalCascadeMenu.menuIsOpen}
                        onMenuOpen={modalCascadeMenu.onMenuOpen}
-                       onMenuClose={modalCascadeMenu.onMenuClose}
-                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+onMenuClose={modalCascadeMenu.onMenuClose}
+                      components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1088,6 +1112,7 @@ function AssetPage({ embedded = false }) {
               onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
               options={statusOptions}
               isSearchable={false}
+              isDisabled={isViewMode}
               components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
               styles={{
                 control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -1101,7 +1126,7 @@ function AssetPage({ embedded = false }) {
         <div className="input-row">
           <div className="input-group" style={{ width: "100%" }}>
             <label>Beelde</label>
-            <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+            <input type="file" accept="image/*" multiple disabled={isViewMode} onChange={handleImageFilesChange} />
             <div className="image-preview-grid">
               {assetImages.map((image) => (
                 <div key={image.image_id} className="record-image-card">
@@ -1127,10 +1152,12 @@ function AssetPage({ embedded = false }) {
             </div>
           </div>
         </div>
+        {!isViewMode && (
         <div className="modal-footer">
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        )}
         <AiSuggestPanel
           suggestions={aiSuggestions}
           loading={aiLoading}
@@ -1298,7 +1325,6 @@ function AssetPage({ embedded = false }) {
                   <table className="standard-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>Naam</th>
                         <th>Gem. Lewensduur</th>
                         <th>Diensinterval</th>
@@ -1309,7 +1335,6 @@ function AssetPage({ embedded = false }) {
                     <tbody>
                       {assettypes.map((at) => (
                         <tr key={at.assettype_id}>
-                          <td>{at.assettype_id}</td>
                           <td>{at.assettype_name}</td>
                           <td>{at.assettype_avg_lifespan != null ? `${at.assettype_avg_lifespan}m` : '-'}</td>
                           <td>{at.assettype_service_interval != null ? `${at.assettype_service_interval}m` : '-'}</td>

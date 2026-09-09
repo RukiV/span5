@@ -41,6 +41,7 @@ services:
       dockerfile: Dockerfile
     profiles: ["web"]
     ports:
+      - "80:80"
       - "443:443"
     volumes:
       - ./frontend:/app
@@ -49,14 +50,35 @@ services:
     environment:
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
-      - REACT_APP_API_URL=https://localhost
+      # Relatiewe API-pad: nginx proxie /api/ na die backend, so dieselfde
+      # geboude bundel werk by localhost, LAN-IP en die publieke domein.
+      - REACT_APP_API_URL=/api
+      # MSAL-herleiding is nou dinamies (window.location.origin), maar hierdie
+      # kan nog oorheers word as jy 'n spesifieke publieke URL wil afdwing.
+      # - REACT_APP_REDIRECT_URI=https://YOUR_DOMAIN/auth/callback
       - REACT_APP_MICROSOFT_CLIENT_ID=${MICROSOFT_CLIENT_ID:-your_client_id_here}
       - REACT_APP_MICROSOFT_TENANT_ID=common
-      - REACT_APP_REDIRECT_URI=https://localhost/auth/callback
     stdin_open: true
     tty: true
     depends_on:
       - backend
+
+  # Cloudflare Tunnel: expose die on-prem web/API aan die publieke web sonder
+  # router-port-forward. Outbound-only, so dit werk agter NAT/CGNAT. Data bly
+  # op die on-prem toestel. Stel CF_TUNNEL_TOKEN of gebruik 'n config.yml.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    profiles: ["public"]
+    environment:
+      - TUNNEL_TOKEN=${CF_TUNNEL_TOKEN:-}
+      # Alternatief vir quickstart sonder token:
+      # - TUNNEL_ID=${CF_TUNNEL_ID:-}
+    volumes:
+      - ./cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - frontend
 
 volumes:
   postgres_data:

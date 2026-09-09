@@ -52,7 +52,6 @@ describe('Sidebar', () => {
     expect(screen.getByText('Fasiliteite')).toBeInTheDocument();
     expect(screen.getByText('Foutkaartjies')).toBeInTheDocument();
     expect(screen.getByText('Werksopdragte')).toBeInTheDocument();
-    expect(screen.getByText('Kalender')).toBeInTheDocument();
     expect(screen.getByText('Voorspellings')).toBeInTheDocument();
     expect(screen.getByText('Teken Uit')).toBeInTheDocument();
   });

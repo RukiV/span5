@@ -11,6 +11,8 @@ import { useConfirmDialog } from "../components/Modal/useConfirmDialog";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import ResizableTh from "../components/ResizableTh";
 import { buildFlatLocationOptions } from "./locationSearchUtils";
@@ -144,7 +146,7 @@ function RoomCheckSessionsPage() {
       setSessions(response.data || []);
     } catch (err) {
       console.error("Fout met laai van skedules:", err);
-      showToast({ type: "error", title: "Fout", message: "Kon nie kontrole-skedules laai nie." });
+      showToast({ type: "error", title: "Fout", message: "Kon nie lokaal-kontroles laai nie." });
     }
   };
 
@@ -223,9 +225,6 @@ function RoomCheckSessionsPage() {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredSessions.map((x) => x.session_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -322,7 +321,18 @@ function RoomCheckSessionsPage() {
       if (sortKey === "id") return (a.session_id - b.session_id) * dir;
       return 0;
     });
-  const allSelected = filteredSessions.length > 0 && selectedIds.length === filteredSessions.length;
+    const { currentPage, totalPages, paginatedData: paginatedSessions, goToPage } = usePagination(filteredSessions, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedSessions.length > 0 && paginatedSessions.every((x) => selectedIds.includes(x.session_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedSessions.map((x) => x.session_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedSessions.map((x) => x.session_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -338,7 +348,7 @@ function RoomCheckSessionsPage() {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -470,7 +480,7 @@ function RoomCheckSessionsPage() {
           {filteredSessions.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: "center", padding: "20px" }}>Geen skedules gevind nie.</td></tr>
           ) : (
-            filteredSessions.map((s) => (
+            paginatedSessions.map((s) => (
               <tr key={s.session_id} onClick={() => canManage && openEdit(s)} style={{ cursor: canManage ? "pointer" : "default" }}>
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(s.session_id)} onChange={() => toggleOne(s.session_id)} />
@@ -494,6 +504,7 @@ function RoomCheckSessionsPage() {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredSessions.length} pageSize={100} />
     </>
   );
 
@@ -518,7 +529,7 @@ function RoomCheckSessionsPage() {
       <div className="modal-overlay" onClick={() => setShowForm(false)}>
         <div className="modal-panel" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
           <div className="modal-panel-header">
-            <h3>{editing ? "Wysig Skedule" : "Nuwe Kontrole Skedule"}</h3>
+            <h3>{editing ? "Wysig Lokaal Kontrole" : "Nuwe Lokaal Kontrole"}</h3>
             <span className="modal-close" onClick={() => setShowForm(false)}>&times;</span>
           </div>
           <div className="modal-panel-body">
