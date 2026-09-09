@@ -51,9 +51,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     if (widget.initialBuilding != null) {
       _selectedBuilding = widget.initialBuilding;
     }
-    if (_selectedCampus == null) {
-      _loadInitialCampus();
-    }
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -68,23 +65,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _loadInitialCampus() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (UserSession.isManager && UserSession.locationId != null) {
-      _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-    }
-    if (_selectedCampus == null) {
-      if (UserSession.hasAdminPrivileges) {
-        if (campuses.isNotEmpty) {
-          _selectedCampus = campuses.first;
-        }
-      } else {
-        _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
-      }
-    }
-    setState(() {});
   }
 
   void _showAddRoomDialog(BuildContext context) {
@@ -491,21 +471,17 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
           Campus? selectedCampus = _selectedCampus != null
               ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
               : null;
-          if (selectedCampus == null) {
-            if (UserSession.isManager && UserSession.locationId != null) {
-              selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-            }
-            if (selectedCampus == null && UserSession.hasAdminPrivileges) {
-              selectedCampus = campuses.isNotEmpty ? campuses.first : null;
-            }
-          }
           _selectedCampus = selectedCampus;
 
           Building? selectedBuilding;
-          if (_selectedBuilding != null && selectedCampus != null) {
-            selectedBuilding = selectedCampus.buildings
-                .where((b) => b.id == _selectedBuilding!.id)
-                .firstOrNull;
+          if (_selectedBuilding != null) {
+            for (final c in campuses) {
+              final match = c.buildings.where((b) => b.id == _selectedBuilding!.id).firstOrNull;
+              if (match != null) {
+                selectedBuilding = match;
+                break;
+              }
+            }
           }
           _selectedBuilding = selectedBuilding;
 

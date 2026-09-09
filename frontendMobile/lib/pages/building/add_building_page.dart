@@ -6,8 +6,8 @@ import '../../models/building.dart';
 import '../../widgets/searchable_dropdown.dart';
 
 class AddBuildingPage extends StatefulWidget {
-  final Campus campus;
-  const AddBuildingPage({super.key, required this.campus});
+  final Campus? campus;
+  const AddBuildingPage({super.key, this.campus});
 
   @override
   State<AddBuildingPage> createState() => _AddBuildingPageState();
@@ -18,6 +18,13 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
   final _nameController = TextEditingController();
   String _type = 'other';
   bool _isLoading = false;
+  Campus? _selectedCampus;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCampus = widget.campus;
+  }
 
   final List<Map<String, String>> _types = [
     {'value': 'admin', 'label': 'Administrasie'},
@@ -84,8 +91,16 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Terrein: ${widget.campus.name}", style: const TextStyle(fontSize: 14, color: Colors.grey)),
-                  const SizedBox(height: 16),
+                  SearchableDropdown<Campus>(
+                    label: "Terrein",
+                    hint: "Kies Terrein",
+                    value: _selectedCampus,
+                    items: CampusService.campusesNotifier.value
+                        .map((c) => SearchableDropdownItem<Campus>(value: c, label: c.name))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedCampus = v),
+                  ),
+                  const SizedBox(height: 20),
 
                   const Text("Naam", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
@@ -119,12 +134,18 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                       ElevatedButton(
                         onPressed: _isLoading ? null : () async {
                           if (_formKey.currentState!.validate()) {
+                            if (_selectedCampus == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Kies 'n Terrein"), backgroundColor: AppColors.errorRed),
+                              );
+                              return;
+                            }
                             setState(() => _isLoading = true);
                             final building = Building(
                               id: 0,
                               name: _nameController.text,
                               type: _type,
-                              locationId: widget.campus.id,
+                              locationId: _selectedCampus!.id,
                             );
                             final success = await CampusService.addBuilding(building);
                             if (!mounted) return;
