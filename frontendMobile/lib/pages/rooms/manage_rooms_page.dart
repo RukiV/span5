@@ -527,11 +527,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                     ),
                   ),
                   if (UserSession.can('rooms.manage')) ...[
-                    SelectModeButton<int>(
-                      controller: _selection,
-                      onToggle: () => setState(() =>
-                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
-                    ),
                     BulkDeleteAction<int>(
                       controller: _selection,
                       confirmTitle: 'Verwyder Lokale',
@@ -664,6 +659,12 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                         ),
                                       );
                                     }
+                                  },
+                                  onLongPress: () {
+                                    setState(() {
+                                      _selection.enter();
+                                      _selection.toggle(room.id);
+                                    });
                                   },
                                   children: _buildRoomCells(room),
                                 );

@@ -199,11 +199,6 @@ class _AssetsPageState extends State<AssetsPage> {
           ),
         ),
       if (UserSession.can('assets.manage')) ...[
-        SelectModeButton<String>(
-          controller: _selection,
-          onToggle: () => setState(() =>
-              _selection.isSelecting ? _selection.exit() : _selection.enter()),
-        ),
         BulkDeleteAction<String>(
           controller: _selection,
           confirmTitle: 'Verwyder Bates',
@@ -324,6 +319,12 @@ class _AssetsPageState extends State<AssetsPage> {
         } else {
           Navigator.push(context, MaterialPageRoute(builder: (context) => AssetDetailPage(asset: asset)));
         }
+      },
+      onLongPress: () {
+        setState(() {
+          _selection.enter();
+          _selection.toggle(asset.id);
+        });
       },
       children: _colVis.visibleColumns.map((col) {
         int flex = 2;

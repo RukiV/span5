@@ -178,6 +178,14 @@ class _StockPageState extends State<StockPage> {
                                     );
                                   }
                                 },
+                                onLongPress: () {
+                                  if (stock.id != null) {
+                                    setState(() {
+                                      _selection.enter();
+                                      _selection.toggle(stock.id!);
+                                    });
+                                  }
+                                },
                                 children: _colVis.visibleColumns.map((col) {
                                   return Expanded(
                                     flex: _columnFlex(col.key),
@@ -262,11 +270,6 @@ class _StockPageState extends State<StockPage> {
         ),
       ),
       if (UserSession.can('stock.manage')) ...[
-        SelectModeButton<int>(
-          controller: _selection,
-          onToggle: () => setState(() =>
-              _selection.isSelecting ? _selection.exit() : _selection.enter()),
-        ),
         BulkDeleteAction<int>(
           controller: _selection,
           confirmTitle: 'Verwyder Voorraad',

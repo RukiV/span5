@@ -121,6 +121,12 @@ class _HomePageState extends State<HomePage> {
     if (can('stock.view')) {
       facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
     }
+    if (can('rooms.view')) {
+      facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
+    }
+    if (can('buildings.view')) {
+      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': BuildingsListPage(initialCampus: _pendingCampus)});
+    }
     if (can('locations.view')) {
       facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': CampusManagementPage(onCampusSelected: (campus) {
         setState(() {
@@ -134,12 +140,6 @@ class _HomePageState extends State<HomePage> {
           if (mounted) setState(() => _pendingCampus = null);
         });
       })});
-    }
-    if (can('buildings.view')) {
-      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': BuildingsListPage(initialCampus: _pendingCampus)});
-    }
-    if (can('rooms.view')) {
-      facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
     }
     if (facilitiesChildren.isNotEmpty) {
       menu.add({

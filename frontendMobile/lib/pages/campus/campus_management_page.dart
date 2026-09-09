@@ -162,11 +162,6 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                 onChanged: (_) => setState(() {}),
                 actions: [
                   if (UserSession.can('locations.manage')) ...[
-                    SelectModeButton<int>(
-                      controller: _selection,
-                      onToggle: () => setState(() =>
-                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
-                    ),
                     BulkDeleteAction<int>(
                       controller: _selection,
                       confirmTitle: 'Verwyder Terreine',
@@ -227,6 +222,12 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                                     } else {
                                       widget.onCampusSelected(campus);
                                     }
+                                  },
+                                  onLongPress: () {
+                                    setState(() {
+                                      _selection.enter();
+                                      _selection.toggle(campus.id);
+                                    });
                                   },
                                   children: _buildCampusCells(campus),
                                 );
