@@ -10,12 +10,16 @@ import axios from 'axios';
 // API-pad vir alle versoeke
 const API_PATH = '/api/v1';
 
-// Haal backend-URL van omgewings-veranderlikes (default localhost:8000)
-const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const normalizedApiUrl = rawApiUrl.replace(/\/+$/, '');
-const baseURL = normalizedApiUrl.endsWith(API_PATH)
-  ? normalizedApiUrl
-  : `${normalizedApiUrl}${API_PATH}`;
+// Backend-URL: verstek is 'n RELATIEWE pad sodat dieselfde geboude bundel by enige
+// hostname werk (localhost, LAN-IP of publieke domein). nginx proxy /api/ na die
+// backend, so dieselfde oorsprong word gebruik en CORS word heeltemal vermy.
+// Oorheers slegs met REACT_APP_API_URL wanneer jy 'n grootliks aparte API wil hê.
+const customApiUrl = process.env.REACT_APP_API_URL;
+const baseURL = customApiUrl
+  ? customApiUrl.replace(/\/+$/, '').endsWith(API_PATH)
+    ? customApiUrl.replace(/\/+$/, '')
+    : `${customApiUrl.replace(/\/+$/, '')}${API_PATH}`
+  : API_PATH;
 
 // Skep Axios-klien met basis-konfigurasie
 const apiClient = axios.create({
@@ -197,7 +201,6 @@ export const rolesAPI = {
 export const rightsAPI = {
   getAll: () => apiClient.get('/rights'),
   getById: (id) => apiClient.get(`/rights/${id}`),
-  create: (data) => apiClient.post('/rights', data),
   update: (id, data) => apiClient.patch(`/rights/${id}`, data),
   delete: (id) => apiClient.delete(`/rights/${id}`),
 };

@@ -537,7 +537,7 @@ def test_dosent_calendar_shows_only_own_assigned_events(client, headers_for, eng
     assert ("calendar_event", own_id) in sources
     assert ("calendar_event", other_id) not in sources
 
-    # Die Dosent se toegewysde kontrole-skedule verskyn op sy eie kalender.
+    # Die Dosent se toegewysde lokaal-kontrole verskyn op sy eie kalender.
     created = client.post(
         f"{API}/room-checks/sessions",
         json={"room_id": room_id, "assigned_user_id": seeded["ids"]["dosent"], "scheduled_datetime": "2025-06-14T09:00:00Z"},

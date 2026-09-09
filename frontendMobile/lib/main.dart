@@ -8,6 +8,7 @@ import 'services/notification_service.dart' as svc;
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
 import 'pages/reporting/location_page.dart';
+import 'pages/settings/server_config_page.dart';
 import 'core/app_colors.dart';
 import 'core/api_client.dart';
 import 'core/navigation.dart';
@@ -108,6 +109,14 @@ void main() async {
     debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
   }
   _initFirebase();
+
+  // Pas enige gestoorde bediener-URL (eerste-launch/instellings) toe sodat die
+  // app by die korrekte bediener uitkom, selfs al verskil dit van die valbak.
+  final storedUrl = await ApiClient.getStoredServerUrl();
+  if (storedUrl != null && storedUrl.isNotEmpty) {
+    await ApiClient().setBaseUrl(storedUrl);
+  }
+
   runApp(const MyApp());
 }
 
@@ -162,13 +171,18 @@ class MyApp extends StatelessWidget {
         ),
       ),
 
+      // Eerste-launch-hek: as geen bediener-URL gestoor is nie, wys eers die
+      // bediener-instelling-skerm voordat daar na die aanmeldskerm gegaan word.
       initialRoute: '/',
       onGenerateRoute: (settings) {
         Widget page;
         // Route management
         switch (settings.name) {
           case '/':
-            page = const LoginPage();
+            page = const StartupGate();
+            break;
+          case '/setup':
+            page = const ServerConfigPage(firstLaunch: true);
             break;
           case '/home':
             page = const HomePage();
@@ -178,7 +192,7 @@ class MyApp extends StatelessWidget {
             page = LocationPage(autoConfirm: args?['autoConfirm'] ?? false);
             break;
           default:
-            page = const LoginPage();
+            page = const StartupGate();
         }
 
         // Custom Smooth Fade Transition between screens
@@ -201,5 +215,51 @@ class MyApp extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// StartupGate: Kies die eerste skerm. Wanneer die gebruiker nog nie 'n
+/// bediener-URL gestoor het nie (eerste keer dat die APK oopgemaak word), word
+/// die bediener-instellingskerm gewys sodat hulle by hul eie bediener kan uitkom.
+/// Daarna word die normale aanmeldskerm getoon.
+class StartupGate extends StatefulWidget {
+  const StartupGate({super.key});
+
+  @override
+  State<StartupGate> createState() => _StartupGateState();
+}
+
+class _StartupGateState extends State<StartupGate> {
+  bool _ready = false;
+  bool _needsSetup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final storedUrl = await ApiClient.getStoredServerUrl();
+    if (!mounted) return;
+    setState(() {
+      _needsSetup = storedUrl == null || storedUrl.isEmpty;
+      _ready = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready) {
+      return const Scaffold(
+        backgroundColor: AppColors.navy,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.gold),
+        ),
+      );
+    }
+    return _needsSetup
+        ? const ServerConfigPage(firstLaunch: true)
+        : const LoginPage();
   }
 }

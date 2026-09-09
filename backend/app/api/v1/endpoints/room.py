@@ -9,7 +9,6 @@ from ....db.database import getSession
 from ....models.location import Room, Building, RoomRead, RoomWithPathRead, RoomCreate, RoomUpdate
 from ....models.user import User
 from ....services.room_service import room_service
-from ....services.cascade_delete_service import delete_room_cascade
 
 router = APIRouter()
 
@@ -77,8 +76,8 @@ def patchRoom(roomID: int, roomIn: RoomUpdate, session: Session = Depends(getSes
 
 @router.delete("/{roomID}", status_code=status.HTTP_204_NO_CONTENT)
 def removeRoom(roomID: int, session: Session = Depends(getSession), user: User = Depends(require_right("rooms.manage"))):
-    #Delete room (cascade: clean checklist history, unlink dependents)
-    if not delete_room_cascade(session, roomID, user_id=user.user_id):
+    #Delete room
+    if not room_service.delete(session, roomID, user_id=user.user_id):
         raise HTTPException(status_code=404, detail="Room not found")
 
     return None

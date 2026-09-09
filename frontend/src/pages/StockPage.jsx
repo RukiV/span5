@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
@@ -9,6 +9,8 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
@@ -36,9 +38,9 @@ function StockPage({ embedded = false }) {
   const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
   const STOCK_COLUMNS = [
-    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (s) => s.stock_name, sortKey: 'name', defaultVisible: true },
-    { key: 'brand', label: 'Merk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
+    { key: 'brand', label: 'Handelsmerk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
     { key: 'type', label: 'Tipe', render: (s) => s.stock_type, sortKey: 'type', defaultVisible: true },
     { key: 'amount', label: 'Hoeveelheid', render: (s) => s.stock_amount, sortKey: 'amount', defaultVisible: true },
     { key: 'minimum', label: 'Minimum', render: (s) => s.stock_minimum, sortKey: 'minimum', defaultVisible: true },
@@ -65,6 +67,7 @@ function StockPage({ embedded = false }) {
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
@@ -215,7 +218,6 @@ function StockPage({ embedded = false }) {
     try {
       const errors = {};
       if (!newStock.stock_name.trim()) errors.stock_name = true;
-      if (!newStock.stock_brand.trim()) errors.stock_brand = true;
       if (!newStock.stock_type.trim()) errors.stock_type = true;
       if (!newStock.stock_minimum || Number(newStock.stock_minimum) <= 0) errors.stock_minimum = true;
       if (!newStock.stock_boxTotal || Number(newStock.stock_boxTotal) <= 0) errors.stock_boxTotal = true;
@@ -289,9 +291,6 @@ function StockPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredStock.map((x) => x.stock_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -314,6 +313,7 @@ function StockPage({ embedded = false }) {
     const building = room ? buildings.find((b) => b.building_id === room.building_id) : null;
 
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.stock_id);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -338,6 +338,7 @@ function StockPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -349,6 +350,7 @@ function StockPage({ embedded = false }) {
 
   const handleNewStock = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -424,7 +426,18 @@ function StockPage({ embedded = false }) {
       if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredStock.length > 0 && selectedIds.length === filteredStock.length;
+    const { currentPage, totalPages, paginatedData: paginatedStock, goToPage } = usePagination(filteredStock, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => selectedIds.includes(x.stock_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedStock.map((x) => x.stock_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedStock.map((x) => x.stock_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -432,7 +445,7 @@ function StockPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -449,7 +462,7 @@ function StockPage({ embedded = false }) {
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
+              { value: "brand", label: "Handelsmerk" },
               { value: "type", label: "Tipe" },
               { value: "amount", label: "Hoeveelheid" },
               { value: "minimum", label: "Minimum" },
@@ -462,7 +475,7 @@ function StockPage({ embedded = false }) {
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
+              { value: "brand", label: "Handelsmerk" },
               { value: "type", label: "Tipe" },
               { value: "amount", label: "Hoeveelheid" },
               { value: "minimum", label: "Minimum" },
@@ -595,7 +608,7 @@ function StockPage({ embedded = false }) {
           </tr>
         </thead>
         <tbody>
-          {filteredStock.map((item) => (
+          {paginatedStock.map((item) => (
             <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
               <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -610,15 +623,21 @@ function StockPage({ embedded = false }) {
           ))}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Voorraad {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Voorraad {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('stock.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -627,16 +646,18 @@ function StockPage({ embedded = false }) {
               type="text"
               value={newStock.stock_name}
               ref={el => fieldRefs.current.stock_name = el}
+              disabled={isViewMode}
               className={invalidFields.stock_name ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_name: e.target.value }); if (invalidFields.stock_name) setInvalidFields(prev => { const n = {...prev}; delete n.stock_name; return n; }); }}
             />
           </div>
           <div className="input-group">
-            <label>Merk *</label>
+            <label>Handelsmerk</label>
             <input
               type="text"
               value={newStock.stock_brand}
               ref={el => fieldRefs.current.stock_brand = el}
+              disabled={isViewMode}
               className={invalidFields.stock_brand ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
             />
@@ -649,6 +670,7 @@ function StockPage({ embedded = false }) {
               type="text"
               value={newStock.stock_type}
               ref={el => fieldRefs.current.stock_type = el}
+              disabled={isViewMode}
               className={invalidFields.stock_type ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
             />
@@ -658,6 +680,7 @@ function StockPage({ embedded = false }) {
             <input
               type="number"
               value={newStock.stock_amount}
+              disabled={isViewMode}
               onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
             />
           </div>
@@ -669,6 +692,7 @@ function StockPage({ embedded = false }) {
               type="number"
               value={newStock.stock_minimum}
               ref={el => fieldRefs.current.stock_minimum = el}
+              disabled={isViewMode}
               className={invalidFields.stock_minimum ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_minimum: e.target.value }); if (invalidFields.stock_minimum) setInvalidFields(prev => { const n = {...prev}; delete n.stock_minimum; return n; }); }}
             />
@@ -679,6 +703,7 @@ function StockPage({ embedded = false }) {
               type="number"
               value={newStock.stock_boxTotal}
               ref={el => fieldRefs.current.stock_boxTotal = el}
+              disabled={isViewMode}
               className={invalidFields.stock_boxTotal ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_boxTotal: e.target.value }); if (invalidFields.stock_boxTotal) setInvalidFields(prev => { const n = {...prev}; delete n.stock_boxTotal; return n; }); }}
             />
@@ -706,18 +731,18 @@ function StockPage({ embedded = false }) {
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                       isClearable
-                      isDisabled={cascadeCount >= 3}
+                      isDisabled={isViewMode || cascadeCount >= 3}
                       closeMenuOnSelect={false}
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       styles={{
                         container: (base) => ({ ...base, minWidth: '260px' }),
@@ -768,6 +793,7 @@ function StockPage({ embedded = false }) {
             <textarea
               value={newStock.stock_desc}
               ref={el => fieldRefs.current.stock_desc = el}
+              disabled={isViewMode}
               className={invalidFields.stock_desc ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_desc: e.target.value }); if (invalidFields.stock_desc) setInvalidFields(prev => { const n = {...prev}; delete n.stock_desc; return n; }); }}
             />
@@ -777,7 +803,7 @@ function StockPage({ embedded = false }) {
         <div className="input-row">
           <div className="input-group" style={{ width: "100%" }}>
             <label>Beelde</label>
-            <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+            <input type="file" accept="image/*" multiple disabled={isViewMode} onChange={handleImageFilesChange} />
             <div className="image-preview-grid">
               {stockImages.map((image) => (
                 <div key={image.image_id} className="record-image-card">
@@ -803,10 +829,12 @@ function StockPage({ embedded = false }) {
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
         <AiSuggestPanel
           suggestions={aiSuggestions}
           loading={aiLoading}
@@ -845,7 +873,7 @@ function StockPage({ embedded = false }) {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -860,7 +888,7 @@ function StockPage({ embedded = false }) {
                 classNamePrefix="react-select"
                 value={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
@@ -868,7 +896,7 @@ function StockPage({ embedded = false }) {
                 onChange={(selected) => setFilterColumn(selected?.value || "all")}
                 options={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
@@ -1001,7 +1029,7 @@ function StockPage({ embedded = false }) {
               {filteredStock.length === 0 ? (
                 <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
               ) : (
-                filteredStock.map((item) => (
+                paginatedStock.map((item) => (
                   <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
                     <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -1017,6 +1045,7 @@ function StockPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
         </div>
 
       {showModal && modalContent}

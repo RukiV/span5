@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI } from "../services/api";
+import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -15,14 +16,17 @@ import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 
 
 function RoomsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { openMoveChildren, moveChildrenDialog } = useMoveChildren();
   const { user, rights } = useCurrentUser();
   const hasRight = (right) => (rights || []).includes(right);
   const navigate = useNavigate();
@@ -32,6 +36,9 @@ function RoomsPage({ embedded = false }) {
   const [rooms, setRooms] = useState([]);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +64,7 @@ function RoomsPage({ embedded = false }) {
   const [roomChecks, setRoomChecks] = useState([]);
   const [loadingChecks, setLoadingChecks] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [terrainFilter, setTerrainFilter] = useState("");
@@ -80,7 +88,7 @@ function RoomsPage({ embedded = false }) {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchRooms(), fetchAssets(), fetchTerrains(), fetchBuildings()]);
+      await Promise.all([fetchRooms(), fetchAssets(), fetchStock(), fetchFaults(), fetchJobs(), fetchTerrains(), fetchBuildings()]);
     };
     loadData();
   }, []);
@@ -118,6 +126,33 @@ function RoomsPage({ embedded = false }) {
       setAssets(response.data || []);
     } catch (error) {
       console.error("Error fetching assets:", error);
+    }
+  };
+
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data || []);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
+    }
+  };
+
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
     }
   };
 
@@ -192,6 +227,7 @@ function RoomsPage({ embedded = false }) {
   const handleEditRoom = (room) => {
     const building = buildings.find((b) => b.building_id === room.building_id);
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(room.room_id);
     setNewRoom({
       room_name: room.room_name || "",
@@ -206,9 +242,78 @@ function RoomsPage({ embedded = false }) {
   };
 
   const handleDeleteRoom = async (roomId) => {
-    const confirmed = await confirmCascade(confirm, { entityLabel: "lokaal", childrenLabel: "bates/voorraad/kaartjies" });
-    if (!confirmed) return;
+    const assetsInRoom = getAssetsForRoom(roomId);
+    const stockInRoom = getStockForRoom(roomId);
+    const assetIds = new Set(assetsInRoom.map((a) => a.asset_id));
+    const faultsInRoom = faults.filter((f) => f.room_id === roomId || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInRoom.map((f) => f.fault_id));
+    const jobsInRoom = jobs.filter((j) => j.room_id === roomId || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
+    const strategy = await chooseDeleteStrategy(confirm, {
+      entityLabel: "lokaal",
+      childrenLabel: "bates/voorraad/kaartjies",
+      hasChildren: assetsInRoom.length + stockInRoom.length > 0,
+      counts: {
+        bates: assetsInRoom.length,
+        voorraad: stockInRoom.length,
+        foutkaartjies: faultsInRoom.length,
+        werksopdragte: jobsInRoom.length,
+      },
+      directChildrenLabel: 'bates en voorraad',
+      parentLevelLabel: 'lokaal',
+    });
+    if (!strategy) return;
     try {
+      if (strategy === 'move') {
+        const targetOptions = rooms
+          .filter((r) => r.room_id !== roomId)
+          .map((r) => {
+            const b = buildings.find((bb) => bb.building_id === r.building_id);
+            return { value: r.room_id, label: b ? `${r.room_name} — ${b.building_name}` : r.room_name };
+          });
+        const roomName = rooms.find((r) => r.room_id === roomId)?.room_name || `Lokaal ${roomId}`;
+        const building = buildings.find((b) => b.building_id === rooms.find((r) => r.room_id === roomId)?.building_id);
+        const items = [];
+        const lookup = {};
+        for (const a of assetsInRoom) {
+          const sid = `a_${a.asset_id}`;
+          items.push({ id: sid, label: `Bate: ${a.asset_name || a.asset_serial || `Bate #${a.asset_id}`}` });
+          lookup[sid] = { kind: 'asset', realId: a.asset_id };
+        }
+        for (const s of stockInRoom) {
+          const sid = `s_${s.stock_id}`;
+          items.push({ id: sid, label: `Voorraad: ${s.stock_name || s.stock_type || `Voorraad #${s.stock_id}`}` });
+          lookup[sid] = { kind: 'stock', realId: s.stock_id };
+        }
+        const groups = [
+          {
+            id: `room_${roomId}`,
+            label: roomName,
+            buildingId: building?.building_id || null,
+            buildingLabel: building ? building.building_name : null,
+            items,
+          },
+        ];
+        const assignments = await openMoveChildren({
+          mode: 'grouped',
+          title: `Skuif bates en voorraad van "${roomName}"`,
+          groups,
+          parentOptions: targetOptions,
+          parentLabel: 'verwyder',
+          childrenHeader: 'Bates en voorraad volgens lokaal (sleep per lokaal of individueel)',
+          confirmLabel: 'Skuif en verwyder lokaal',
+        });
+        if (assignments === false) return;
+        for (const [syntheticId, target] of Object.entries(assignments)) {
+          if (target == null) continue;
+          const rec = lookup[syntheticId];
+          if (!rec) continue;
+          if (rec.kind === 'asset') {
+            await assetsAPI.update(rec.realId, { room_id: Number(target) });
+          } else {
+            await stockAPI.update(rec.realId, { room_id: Number(target) });
+          }
+        }
+      }
       await roomsAPI.delete(roomId);
       await fetchRooms();
     } catch (error) {
@@ -219,9 +324,6 @@ function RoomsPage({ embedded = false }) {
 
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
 
-  const toggleAllRooms = () => {
-    setSelectedRoomIds(allRoomsSelected ? [] : filteredRooms.map((r) => r.room_id));
-  };
   const toggleRoom = (id) => {
     setSelectedRoomIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -240,6 +342,7 @@ function RoomsPage({ embedded = false }) {
 
   const handleNewRoom = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewRoom({
       room_name: "",
@@ -256,6 +359,7 @@ function RoomsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewRoom({
       room_name: "",
@@ -274,6 +378,7 @@ function RoomsPage({ embedded = false }) {
   };
 
   const getAssetsForRoom = (roomId) => assets.filter((asset) => asset.room_id === roomId);
+  const getStockForRoom = (roomId) => stock.filter((s) => s.room_id === roomId);
 
   const handleViewHistory = async (room) => {
     setSelectedRoom(room);
@@ -329,7 +434,18 @@ function RoomsPage({ embedded = false }) {
       if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
       return 0;
     });
-  const allRoomsSelected = filteredRooms.length > 0 && selectedRoomIds.length === filteredRooms.length;
+    const { currentPage, totalPages, paginatedData: paginatedRooms, goToPage } = usePagination(filteredRooms, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  const allRoomsSelected = paginatedRooms.length > 0 && paginatedRooms.every((x) => selectedRoomIds.includes(x.room_id));
+  const toggleAllRooms = () => {
+    if (allRoomsSelected) {
+      const pageIds = new Set(paginatedRooms.map((x) => x.room_id));
+      setSelectedRoomIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedRooms.map((x) => x.room_id);
+      setSelectedRoomIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
@@ -365,7 +481,7 @@ function RoomsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -496,7 +612,7 @@ function RoomsPage({ embedded = false }) {
           {filteredRooms.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen lokale gevind</td></tr>
           ) : (
-            filteredRooms.map((room) => (
+            paginatedRooms.map((room) => (
               <tr key={room.room_id} onClick={() => handleEditRoom(room)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedRoomIds.includes(room.room_id)} onChange={() => toggleRoom(room.room_id)} />
@@ -517,15 +633,21 @@ function RoomsPage({ embedded = false }) {
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredRooms.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: 'flex' }}>
+    <div className="modal" style={{ display: 'flex' }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} lokaal {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('rooms.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
 
         <div className="input-row">
@@ -536,6 +658,7 @@ function RoomsPage({ embedded = false }) {
               type="text"
               value={newRoom.room_name}
               className={invalidFields.room_name ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_name: e.target.value });
                 if (invalidFields.room_name) setInvalidFields(prev => { const n = {...prev}; delete n.room_name; return n; });
@@ -550,6 +673,7 @@ function RoomsPage({ embedded = false }) {
               placeholder="Bv. L10"
               value={newRoom.room_code}
               className={invalidFields.room_code ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_code: e.target.value });
                 if (invalidFields.room_code) setInvalidFields(prev => { const n = {...prev}; delete n.room_code; return n; });
@@ -566,6 +690,7 @@ function RoomsPage({ embedded = false }) {
               type="number"
               value={newRoom.room_capacity}
               className={invalidFields.room_capacity ? "field-invalid" : ""}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewRoom({ ...newRoom, room_capacity: e.target.value });
                 if (invalidFields.room_capacity) setInvalidFields(prev => { const n = {...prev}; delete n.room_capacity; return n; });
@@ -580,6 +705,7 @@ function RoomsPage({ embedded = false }) {
               value={roomTypeOptions.find(o => o.value === newRoom.room_type)}
               onChange={(selected) => setNewRoom({ ...newRoom, room_type: selected ? selected.value : "" })}
               options={roomTypeOptions}
+              isDisabled={isViewMode}
               isSearchable={false}
             />
           </div>
@@ -591,6 +717,7 @@ function RoomsPage({ embedded = false }) {
               value={roomStatusOptions.find(option => option.value === newRoom.room_status)}
               onChange={(selectedOption) => setNewRoom({ ...newRoom, room_status: selectedOption ? selectedOption.value : "Operasioneel" })}
               options={roomStatusOptions}
+              isDisabled={isViewMode}
               isSearchable={false}
             />
           </div>
@@ -614,18 +741,18 @@ function RoomsPage({ embedded = false }) {
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px" })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
                       placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
                       isClearable
-                      isDisabled={cascadeCount >= 2}
+                      isDisabled={isViewMode || cascadeCount >= 2}
                       closeMenuOnSelect={false}
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
                         if (rawInput) {
@@ -660,10 +787,12 @@ function RoomsPage({ embedded = false }) {
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -776,6 +905,7 @@ function RoomsPage({ embedded = false }) {
 
         {historyModalContent}
       {dialog}
+      {moveChildrenDialog}
       </>
     );
   }
@@ -827,6 +957,7 @@ function RoomsPage({ embedded = false }) {
 
         {historyModalContent}
       {dialog}
+      {moveChildrenDialog}
     </div>
   );
 }

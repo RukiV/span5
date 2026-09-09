@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import { buildingsAPI, locationAPI, roomsAPI } from "../services/api";
+import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
-import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
@@ -22,10 +25,15 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 function BuildingsPage({ embedded = false }) {
   const { showToast } = useToast();
   const { confirm, dialog } = useConfirmDialog();
+  const { openMoveChildren, moveChildrenDialog } = useMoveChildren();
   const { user, hasRight } = useCurrentUser();
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]);
   const [rooms, setRooms] = useState([]);
+  const [assets, setAssets] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [faults, setFaults] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
@@ -51,6 +59,7 @@ function BuildingsPage({ embedded = false }) {
   const [showRoomsModal, setShowRoomsModal] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [newBuilding, setNewBuilding] = useState({
     building_name: "",
@@ -74,7 +83,7 @@ function BuildingsPage({ embedded = false }) {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchBuildings(), fetchTerrains(), fetchRooms()]);
+      await Promise.all([fetchBuildings(), fetchTerrains(), fetchRooms(), fetchAssets(), fetchStock(), fetchFaults(), fetchJobs()]);
     };
     loadData();
   }, []);
@@ -121,6 +130,42 @@ function BuildingsPage({ embedded = false }) {
       setRooms(response.data || []);
     } catch (error) {
       console.error("Error fetching rooms:", error);
+    }
+  };
+
+  const fetchAssets = async () => {
+    try {
+      const response = await assetsAPI.getAll();
+      setAssets(response.data || []);
+    } catch (error) {
+      console.error("Error fetching assets:", error);
+    }
+  };
+
+  const fetchStock = async () => {
+    try {
+      const response = await stockAPI.getAll();
+      setStock(response.data || []);
+    } catch (error) {
+      console.error("Error fetching stock:", error);
+    }
+  };
+
+  const fetchFaults = async () => {
+    try {
+      const response = await ticketsAPI.getAll();
+      setFaults(response.data || []);
+    } catch (error) {
+      console.error("Error fetching faults:", error);
+    }
+  };
+
+  const fetchJobs = async () => {
+    try {
+      const response = await workOrdersAPI.getAll();
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
     }
   };
 
@@ -175,9 +220,108 @@ function BuildingsPage({ embedded = false }) {
   };
 
   const handleDeleteBuilding = async (id) => {
-    const confirmed = await confirmCascade(confirm, { entityLabel: "gebou", childrenLabel: "lokale" });
-    if (!confirmed) return;
+    const children = getRoomsForBuilding(id);
+    const roomIds = new Set(children.map((r) => r.room_id));
+    const assetsInSubtree = assets.filter((a) => roomIds.has(a.room_id));
+    const stockInSubtree = stock.filter((s) => roomIds.has(s.room_id));
+    const assetIds = new Set(assetsInSubtree.map((a) => a.asset_id));
+    const faultsInSubtree = faults.filter((f) => f.building_id === id || roomIds.has(f.room_id) || (f.asset_id && assetIds.has(f.asset_id)));
+    const faultIds = new Set(faultsInSubtree.map((f) => f.fault_id));
+    const jobsInSubtree = jobs.filter((j) => j.building_id === id || roomIds.has(j.room_id) || (j.asset_id && assetIds.has(j.asset_id)) || (j.fault_id && faultIds.has(j.fault_id)));
+    const hasContent = assetsInSubtree.length + stockInSubtree.length > 0;
+    const strategy = await chooseDeleteStrategy(confirm, {
+      entityLabel: "gebou",
+      childrenLabel: "lokale",
+      hasChildren: children.length > 0,
+      hasContent,
+      counts: {
+        lokale: children.length,
+        bates: assetsInSubtree.length,
+        voorraad: stockInSubtree.length,
+        foutkaartjies: faultsInSubtree.length,
+        werksopdragte: jobsInSubtree.length,
+      },
+      directChildrenLabel: 'lokale',
+      parentLevelLabel: 'gebou',
+    });
+    if (!strategy) return;
+
     try {
+      if (strategy === 'move') {
+        const targetOptions = buildings
+          .filter((b) => b.building_id !== id)
+          .map((b) => ({ value: b.building_id, label: b.building_name }));
+        const assignments = await openMoveChildren({
+          mode: 'individual',
+          title: `Skuif lokale van "${buildings.find((b) => b.building_id === id)?.building_name || ''}"`,
+          children: children.map((r) => ({ id: r.room_id, label: r.room_name })),
+          parentOptions: targetOptions,
+          parentLabel: 'verwyder',
+          confirmLabel: 'Skuif en verwyder gebou',
+        });
+        if (assignments === false) return;
+        for (const child of children) {
+          const target = assignments[child.room_id];
+          if (target != null) {
+            await roomsAPI.update(child.room_id, { building_id: Number(target) });
+          }
+        }
+      } else if (strategy === 'moveContent') {
+        const targetRooms = rooms.filter((r) => !roomIds.has(r.room_id));
+        const parentOptions = targetRooms.map((r) => {
+          const b = buildings.find((bb) => bb.building_id === r.building_id);
+          const label = b ? `${r.room_name} — ${b.building_name}` : r.room_name;
+          return { value: r.room_id, label };
+        });
+        const groups = [];
+        const lookup = {};
+        const buildingLabel = buildings.find((b) => b.building_id === id)?.building_name || `Gebou ${id}`;
+        for (const room of children) {
+          const batesInRoom = assets.filter((a) => a.room_id === room.room_id);
+          const stockInRoom = stock.filter((s) => s.room_id === room.room_id);
+          if (batesInRoom.length === 0 && stockInRoom.length === 0) continue;
+          const items = [];
+          for (const a of batesInRoom) {
+            const sid = `a_${a.asset_id}`;
+            items.push({ id: sid, label: `Bate: ${a.asset_name || a.asset_serial || `Bate #${a.asset_id}`}` });
+            lookup[sid] = { kind: 'asset', realId: a.asset_id };
+          }
+          for (const s of stockInRoom) {
+            const sid = `s_${s.stock_id}`;
+            items.push({ id: sid, label: `Voorraad: ${s.stock_name || s.stock_type || `Voorraad #${s.stock_id}`}` });
+            lookup[sid] = { kind: 'stock', realId: s.stock_id };
+          }
+          groups.push({
+            id: `room_${room.room_id}`,
+            label: room.room_name,
+            buildingId: id,
+            buildingLabel,
+            items,
+          });
+        }
+        if (groups.length > 0) {
+          const assignments = await openMoveChildren({
+            mode: 'grouped',
+            title: `Skuif bates en voorraad van "${buildingLabel}"`,
+            groups,
+            parentOptions,
+            parentLabel: 'verwyder',
+            childrenHeader: 'Bates en voorraad volgens lokaal (sleep per lokaal of individueel)',
+            confirmLabel: 'Skuif en verwyder gebou',
+          });
+          if (assignments === false) return;
+          for (const [syntheticId, target] of Object.entries(assignments)) {
+            if (target == null) continue;
+            const rec = lookup[syntheticId];
+            if (!rec) continue;
+            if (rec.kind === 'asset') {
+              await assetsAPI.update(rec.realId, { room_id: Number(target) });
+            } else {
+              await stockAPI.update(rec.realId, { room_id: Number(target) });
+            }
+          }
+        }
+      }
       await buildingsAPI.delete(id);
       await fetchBuildings();
     } catch (error) {
@@ -187,9 +331,6 @@ function BuildingsPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredBuildings.map((x) => x.building_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -208,6 +349,7 @@ function BuildingsPage({ embedded = false }) {
 
   const handleEditBuilding = (item) => {
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
@@ -220,12 +362,14 @@ function BuildingsPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
     setShowModal(true);
@@ -261,7 +405,18 @@ function BuildingsPage({ embedded = false }) {
       if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
-  const allSelected = filteredBuildings.length > 0 && selectedIds.length === filteredBuildings.length;
+    const { currentPage, totalPages, paginatedData: paginatedBuildings, goToPage } = usePagination(filteredBuildings, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  const allSelected = paginatedBuildings.length > 0 && paginatedBuildings.every((x) => selectedIds.includes(x.building_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedBuildings.map((x) => x.building_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedBuildings.map((x) => x.building_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   // Opsies vir dropdowns
   const filterColumnOptions = [
@@ -291,7 +446,7 @@ function BuildingsPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -428,7 +583,7 @@ function BuildingsPage({ embedded = false }) {
           </tr>
         </thead>
         <tbody>
-          {filteredBuildings.map((building) => (
+          {paginatedBuildings.map((building) => (
             <tr key={building.building_id} onClick={() => handleEditBuilding(building)} style={{ cursor: "pointer" }}>
               <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedIds.includes(building.building_id)} onChange={() => toggleOne(building.building_id)} />
@@ -444,15 +599,21 @@ function BuildingsPage({ embedded = false }) {
           ))}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredBuildings.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Gebou {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('buildings.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -462,6 +623,7 @@ function BuildingsPage({ embedded = false }) {
               ref={el => fieldRefs.current.building_name = el}
               className={invalidFields.building_name ? "field-invalid" : ""}
               value={newBuilding.building_name}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewBuilding({ ...newBuilding, building_name: e.target.value });
                 if (invalidFields.building_name) setInvalidFields(prev => { const n = { ...prev }; delete n.building_name; return n; });
@@ -477,6 +639,7 @@ function BuildingsPage({ embedded = false }) {
               onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
               options={buildingTypeOptions}
               isSearchable={false}
+              isDisabled={isViewMode}
               styles={{
                 control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                 valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -500,18 +663,18 @@ function BuildingsPage({ embedded = false }) {
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
                return (
                  <div ref={modalCascadeMenu.containerRef}>
-                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px" })}
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
                     placeholder={["Kies Terrein...","Ligging voltooi"][cascadeCount]}
                     isClearable
-                    isDisabled={cascadeCount >= 1}
+                    isDisabled={isViewMode || cascadeCount >= 1}
                     closeMenuOnSelect={false}
                     menuIsOpen={modalCascadeMenu.menuIsOpen}
                     onMenuOpen={modalCascadeMenu.onMenuOpen}
                     onMenuClose={modalCascadeMenu.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                     options={allLocationOptions}
                     styles={{
                       container: (base) => ({ ...base, minWidth: '260px' }),
@@ -537,10 +700,12 @@ function BuildingsPage({ embedded = false }) {
             })()}
           </div>
         </div>
+        {!isViewMode && (
         <div className="modal-footer">
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        )}
       </div>
     </div>
   );
@@ -591,6 +756,7 @@ function BuildingsPage({ embedded = false }) {
           </div>
         )}
       {dialog}
+      {moveChildrenDialog}
       </>
     );
   }
@@ -642,6 +808,7 @@ function BuildingsPage({ embedded = false }) {
         </div>
       )}
       {dialog}
+      {moveChildrenDialog}
     </div>
   );
 }

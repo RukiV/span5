@@ -9,7 +9,7 @@ const PATH_TITLES = {
   '/assets': 'Bestuur Bates',
   '/stock': 'Bestuur Voorraad',
   '/rooms': 'Bestuur Lokale',
-  '/room-checks-schedules': 'Kontrole Skedules',
+  '/room-checks-schedules': 'Lokaal Kontrole',
   '/buildings': 'Bestuur Geboue',
   '/terrains': 'Bestuur Terreine',
   '/fault-tickets': 'Bestuur Foutkaartjies',
@@ -18,8 +18,7 @@ const PATH_TITLES = {
   '/users/roles': 'Bestuur Rolle',
   '/users/rights': 'Bestuur Regte',
   '/predictions': 'Voorspellings',
-  '/calendar': 'Kalender',
-  '/ai-drafts': 'AI-Foutkonsepte',
+  '/ai-drafts': 'Voorgestelde Werksopdragte',
 };
 
 function Navbar() {

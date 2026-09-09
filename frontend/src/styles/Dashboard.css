@@ -197,6 +197,51 @@ table tbody tr:hover {
     font-size: 0.9rem;
 }
 
+.dash-action-btn {
+    font-size: 11px;
+    padding: 6px 12px;
+    border: 1px solid #935e28;
+    color: #935e28;
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 700;
+    margin-top: 8px;
+    transition: background 0.15s, color 0.15s;
+}
+.dash-action-btn:hover:not(:disabled) {
+    background: #935e28;
+    color: #fff;
+}
+.dash-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: #9ca3af;
+    color: #9ca3af;
+}
+.dash-action-btn--small {
+    font-size: 11px;
+    padding: 4px 8px;
+    margin-top: 0;
+}
+.dash-link-btn {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #935e28;
+    text-decoration: none;
+    border: 1px solid #e8d5c4;
+    background: #fff7ed;
+    padding: 5px 10px;
+    border-radius: 6px;
+}
+.dash-link-btn:hover {
+    background: #935e28;
+    color: #fff;
+    border-color: #935e28;
+}
+
 @media (max-width: 1024px) {
     .dashboard-grid { grid-template-columns: 1fr; }
 }

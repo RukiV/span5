@@ -261,7 +261,7 @@ TABLES: dict[str, TableSpec] = {
         fields=(
             FieldSpec("asset_name", "Naam", required=True,
                       aliases=("naam", "asset naam", "name")),
-            FieldSpec("asset_brand", "Merk", required=True,
+            FieldSpec("asset_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand", "make", "vervaardiger")),
             FieldSpec("asset_serial", "Serienommer",
                       aliases=("serienommer", "serial", "serial number", "sn")),
@@ -286,7 +286,7 @@ TABLES: dict[str, TableSpec] = {
         sheet_aliases=("voorraad", "stock", "items"),
         fields=(
             FieldSpec("stock_name", "Naam", aliases=("naam", "item", "name")),
-            FieldSpec("stock_brand", "Merk", required=True,
+            FieldSpec("stock_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand")),
             FieldSpec("stock_amount", "Hoeveelheid", kind="int",
                       aliases=("hoeveelheid", "aantal", "amount", "qty", "quantity")),
@@ -317,6 +317,8 @@ TABLES: dict[str, TableSpec] = {
                       aliases=("selnommer", "foon", "phone", "mobile", "selfoon", "nummer")),
             FieldSpec("user_status", "Status", required=True,
                       aliases=("status", "toestand")),
+            FieldSpec("user_role_name", "Rol",
+                      aliases=("rol", "role", "funksie", "gebruiker rol", "user role")),
         ),
     ),
     # Kontrakteurs is gewone gebruikers (rol "Kontrakteur") en word deur die
@@ -971,8 +973,41 @@ _UPDATE_EXCLUDE: dict[str, set] = {"user": {"role_id", "user_password"}}
 
 def _apply_fixed_create_fields(session: Session, key: str, payload: dict) -> None:
     if key == "user":
-        payload["role_id"] = _get_student_role_id(session)
+        # Veilig: net User/Dosent/Kontrakteur via import; ander → default User. Terrein word geïgnoreer (net FK het terrein via seed).
+        raw_role = str(payload.pop("user_role_name", "") or "").strip()
+        # Remove any Terrein field that might have been mapped (net FK het terrein, nie via import)
+        payload.pop("location_id", None)
+        payload.pop("user_terrein", None)
+        payload.pop("terrein", None)
+        allowed = {"user": 1, "dosent": 5, "kontrakteur": 4}
+        # Also accept English and Afrikaans variations
+        norm_role = raw_role.lower().strip()
+        # Map common variations
+        role_map = {
+            "user": 1, "gebruiker": 1, "student": 1,
+            "dosent": 5, "lecturer": 5,
+            "kontrakteur": 4, "contractor": 4, " kontrakteur": 4,
+        }
+        role_id = role_map.get(norm_role, 1)  # default User
+        # Validate role exists, else fallback to User
+        from ..models.role import Role
+        role_exists = session.exec(select(Role).where(Role.role_id == role_id)).first()
+        if not role_exists:
+            role_id = _get_student_role_id(session)
+        payload["role_id"] = role_id
         payload["user_password"] = _generate_password()
+    if key == "assettype":
+        # Valideer drempel 1-10 (keer 80) en min≤avg≤max
+        thr = payload.get("assettype_replacement_threshold")
+        if thr is not None and not (1 <= thr <= 10):
+            raise ValueError(f"Vervangingsdrempel moet 1-10 wees (gekry {thr}), nie 80 nie")
+        avg = payload.get("assettype_avg_lifespan")
+        mn = payload.get("assettype_min_lifespan")
+        mx = payload.get("assettype_max_lifespan")
+        if avg is not None and mn is not None and mn > avg:
+            raise ValueError(f"Min lewensduur ({mn}) kan nie groter as gemiddeld ({avg}) wees nie")
+        if avg is not None and mx is not None and avg > mx:
+            raise ValueError(f"Gemiddelde lewensduur ({avg}) kan nie groter as maks ({mx}) wees nie")
 
 
 def _resolve_quote_list(session: Session, ctx: dict, raw: Any):
