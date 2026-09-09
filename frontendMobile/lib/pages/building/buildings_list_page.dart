@@ -217,33 +217,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 ],
               ),
 
-              if (UserSession.can('buildings.manage'))
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        if (_selectedCampus == null) return;
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AddBuildingPage(campus: _selectedCampus!),
-                          ),
-                        );
-                        if (result == true) setState(() {});
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("VOEG NUWE GEBOU BY"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-
               Expanded(
                 child: filtered.isEmpty
                     ? const Center(child: Text("Geen geboue gevind nie.", style: TextStyle(color: Colors.grey)))
@@ -251,7 +224,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                         onRefresh: () => CampusService.fetchCampuses(),
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                          padding: const EdgeInsets.fromLTRB(15, 15, 15, 90),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final b = filtered[index];
@@ -312,6 +285,25 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
               );
         },
       ),
+      floatingActionButton: UserSession.can('buildings.manage')
+          ? FloatingActionButton.extended(
+              heroTag: "buildingAddBtn",
+              backgroundColor: AppColors.gold,
+              elevation: 4,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text("Nuwe Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              onPressed: () async {
+                if (_selectedCampus == null) return;
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AddBuildingPage(campus: _selectedCampus!),
+                  ),
+                );
+                if (result == true) setState(() {});
+              },
+            )
+          : null,
     );
   }
 }

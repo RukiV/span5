@@ -87,15 +87,19 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     setState(() {});
   }
 
-  List<Room> get _availableRooms {
-    if (_selectedBuilding == null) return [];
-    return _selectedBuilding!.rooms ?? [];
-  }
-
   void _showAddRoomDialog(BuildContext context) {
     final nameController = TextEditingController();
     final capacityController = TextEditingController(text: "30");
     String type = "other";
+    final allBuildings = CampusService.campusesNotifier.value
+        .expand((c) => c.buildings)
+        .toList();
+    Building? selectedBuilding;
+    if (_selectedBuilding != null) {
+      selectedBuilding = allBuildings
+          .where((b) => b.id == _selectedBuilding!.id)
+          .firstOrNull;
+    }
 
     showDialog(
       context: context,
@@ -128,9 +132,15 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                   decoration: _popupInputDecoration(),
                 ),
                 const SizedBox(height: 16),
-                const Text("Gebou", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 6),
-                Text(_selectedBuilding?.name ?? "", style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                SearchableDropdown<Building>(
+                  label: "Gebou",
+                  hint: "Kies Gebou",
+                  value: selectedBuilding,
+                  items: allBuildings
+                      .map((b) => SearchableDropdownItem<Building>(value: b, label: b.name))
+                      .toList(),
+                  onChanged: (v) => selectedBuilding = v,
+                ),
                 const SizedBox(height: 16),
                 const Text("Kapasiteit", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 6),
@@ -160,13 +170,13 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                     const SizedBox(width: 16),
                     ElevatedButton(
                       onPressed: () async {
-                        if (nameController.text.isEmpty || _selectedBuilding == null) return;
+                        if (nameController.text.isEmpty || selectedBuilding == null) return;
                         final room = Room(
                           id: 0,
                           name: nameController.text.trim(),
                           type: type,
                           capacity: int.tryParse(capacityController.text),
-                          buildingId: _selectedBuilding!.id,
+                          buildingId: selectedBuilding!.id,
                         );
                         await CampusService.addRoom(room);
                         if (!mounted) return;
@@ -469,9 +479,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: Navigator.of(context).canPop()
-          ? AppBar(title: const Text("Lokale"))
-          : null,
       body: ValueListenableBuilder<List<Campus>>(
         valueListenable: CampusService.campusesNotifier,
         builder: (context, campuses, _) {
@@ -539,144 +546,134 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 ],
               ),
 
-              if (_selectedBuilding != null && UserSession.can('rooms.view'))
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Row(
-                    children: [
-                      if (UserSession.can('rooms.manage'))
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => _showAddRoomDialog(context),
-                            icon: const Icon(Icons.add),
-                            label: const Text("NUWE LOKAAL"),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.navy,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                        ),
-                      if (UserSession.can('rooms.manage'))
-                        const SizedBox(width: 10),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _scanRoomToViewAssets,
-                          icon: const Icon(Icons.qr_code_scanner),
-                          label: const Text("SKANDEER LOKAAL"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.gold,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
-                  child: _selectedBuilding == null
-                      ? const Center(
-                          child: Text("Kies 'n gebou om lokale te sien.", style: TextStyle(color: Colors.grey)),
-                        )
-                      : Builder(builder: (context) {
-                          final filtered = List<Room>.from(_availableRooms)
-                              .where((r) =>
-                                  _query.isEmpty ||
-                                  r.name.toLowerCase().contains(_query) ||
-                                  r.type.toLowerCase().contains(_query))
-                              .toList();
-                          if (_sortCtrl.isActive) {
-                            filtered.sort((a, b) {
-                              final dir = _sortCtrl.direction;
-                              switch (_sortCtrl.sortKey) {
-                                case 'name':
-                                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
-                                case 'type':
-                                  return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
-                                case 'capacity':
-                                  return (a.capacity ?? 0).compareTo(b.capacity ?? 0) * dir;
-                                default:
-                                  return 0;
-                              }
-                            });
-                          }
-                          if (filtered.isEmpty) {
-                            return const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)));
-                          }
-                          return RefreshIndicator(
-                            onRefresh: () => CampusService.fetchCampuses(),
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              itemCount: filtered.length,
-                              itemBuilder: (context, index) {
-                                final room = filtered[index];
-                                return CardDataRow(
-                                  leading: _selection.isSelecting
-                                      ? Checkbox(
-                                          value: _selection.isSelected(room.id),
-                                          onChanged: (_) => setState(() => _selection.toggle(room.id)),
-                                        )
-                                      : null,
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (!_selection.isSelecting && UserSession.can('rooms.manage')) ...[
-                                        IconButton(
-                                          icon: const Icon(Icons.qr_code_2, color: Colors.grey, size: 20),
-                                          tooltip: "Wys QR-kode",
-                                          onPressed: () => _showRoomQrDialog(room),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
-                                          tooltip: "Kontroleer bates",
-                                          onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => RoomChecklistPage(roomId: room.id),
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                          onPressed: () => _showEditRoomDialog(context, room),
-                                        ),
-                                      ],
-                                      const Icon(Icons.chevron_right, color: AppColors.gold),
-                                    ],
+                  child: Builder(builder: (context) {
+                    final baseRooms = _selectedBuilding != null
+                        ? (_selectedBuilding!.rooms ?? <Room>[])
+                        : campuses
+                            .expand((c) => c.buildings)
+                            .expand((b) => b.rooms ?? const <Room>[])
+                            .toList();
+                    final filtered = baseRooms
+                        .where((r) =>
+                            _query.isEmpty ||
+                            r.name.toLowerCase().contains(_query) ||
+                            r.type.toLowerCase().contains(_query))
+                        .toList();
+                    if (_sortCtrl.isActive) {
+                      filtered.sort((a, b) {
+                        final dir = _sortCtrl.direction;
+                        switch (_sortCtrl.sortKey) {
+                          case 'name':
+                            return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
+                          case 'type':
+                            return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
+                          case 'capacity':
+                            return (a.capacity ?? 0).compareTo(b.capacity ?? 0) * dir;
+                          default:
+                            return 0;
+                        }
+                      });
+                    }
+                    if (filtered.isEmpty) {
+                      return const Center(child: Text("Geen lokale geregistreer nie.", style: TextStyle(color: Colors.grey)));
+                    }
+                    return RefreshIndicator(
+                      onRefresh: () => CampusService.fetchCampuses(),
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 90),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final room = filtered[index];
+                          return CardDataRow(
+                            leading: _selection.isSelecting
+                                ? Checkbox(
+                                    value: _selection.isSelected(room.id),
+                                    onChanged: (_) => setState(() => _selection.toggle(room.id)),
+                                  )
+                                : null,
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (!_selection.isSelecting && UserSession.can('rooms.manage')) ...[
+                                  IconButton(
+                                    icon: const Icon(Icons.qr_code_2, color: Colors.grey, size: 20),
+                                    tooltip: "Wys QR-kode",
+                                    onPressed: () => _showRoomQrDialog(room),
                                   ),
-                                  onTap: () {
-                                    if (_selection.isSelecting) {
-                                      setState(() => _selection.toggle(room.id));
-                                    } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  onLongPress: () {
-                                    setState(() {
-                                      _selection.enter();
-                                      _selection.toggle(room.id);
-                                    });
-                                  },
-                                  children: _buildRoomCells(room),
-                                );
-                              },
+                                  IconButton(
+                                    icon: const Icon(Icons.checklist, color: Colors.grey, size: 20),
+                                    tooltip: "Kontroleer bates",
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => RoomChecklistPage(roomId: room.id),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                    onPressed: () => _showEditRoomDialog(context, room),
+                                  ),
+                                ],
+                                const Icon(Icons.chevron_right, color: AppColors.gold),
+                              ],
                             ),
+                            onTap: () {
+                              if (_selection.isSelecting) {
+                                setState(() => _selection.toggle(room.id));
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AssetsPage(filterRoomId: room.id.toString()),
+                                  ),
+                                );
+                              }
+                            },
+                            onLongPress: () {
+                              setState(() {
+                                _selection.enter();
+                                _selection.toggle(room.id);
+                              });
+                            },
+                            children: _buildRoomCells(room),
                           );
-                        }),
+                        },
+                      ),
+                    );
+                  }),
                 ),
               ),
             ],
           );
         },
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "roomScanBtn",
+            onPressed: _scanRoomToViewAssets,
+            backgroundColor: AppColors.navy,
+            child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+          ),
+          if (UserSession.can('rooms.manage')) ...[
+            const SizedBox(height: 12),
+            FloatingActionButton.extended(
+              heroTag: "roomAddBtn",
+              onPressed: () => _showAddRoomDialog(context),
+              backgroundColor: AppColors.gold,
+              elevation: 4,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text("Nuwe Lokaal", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            ),
+          ],
+        ],
       ),
     );
   }
