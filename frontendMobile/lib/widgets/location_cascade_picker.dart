@@ -389,8 +389,9 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
   }
 
   Widget _buildBreadcrumb(List<Campus> campuses) {
-    // Wortel is altyd sigbaar; daarna een krummel per gemaakte keuse.
-    final crumbs = <({int level, String name})>[(level: -1, name: 'Terreine')];
+    // Een krummel per gemaakte keuse (sonder 'n statiese "Terrein"-wortel).
+    // Die eerste krummel tree as wortel op en stel alles terug.
+    final crumbs = <({int level, String name})>[];
 
     final campus = _campusOf(campuses);
     if (campus != null) crumbs.add((level: 0, name: campus.name));
@@ -408,7 +409,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
       children: [
         for (var i = 0; i < crumbs.length; i++) ...[
           InkWell(
-            onTap: () => _clearFromLevel(crumbs[i].level + 1),
+            onTap: () => _clearFromLevel(i == 0 ? 0 : crumbs[i].level + 1),
             borderRadius: BorderRadius.circular(4),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
