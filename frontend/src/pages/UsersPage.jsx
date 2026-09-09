@@ -496,6 +496,7 @@ function UsersPage({ embedded = false }) {
             <input
               ref={el => fieldRefs.current.user_password = el}
               type="password"
+              autoComplete="new-password"
               className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
               value={formUser.user_password}
               disabled={isViewMode}

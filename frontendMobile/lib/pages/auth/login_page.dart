@@ -313,20 +313,16 @@ class _LoginPageState extends State<LoginPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.asset('assets/images/logo.jpg', height: 60),
+                        Image.asset('assets/images/logo.png', width: 333),
                         const SizedBox(height: 10),
                         const Text("FBS - Fasiliteitsbestuurstelsel",
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5)),
-                        const SizedBox(height: 6),
-                        const Text("Teken In",
-                            style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.navy)),
+                                letterSpacing: 0.5,
+                                color: Colors.black)),
+                        const SizedBox(height: 6),
                         const SizedBox(height: 35),
 
                         _buildInputLabel("E-pos Adres"),
@@ -361,6 +357,12 @@ class _LoginPageState extends State<LoginPage> {
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
                             onPressed: () => _navigateToHome(),
                             child: const Text("Teken In",
                                 style: TextStyle(
@@ -383,23 +385,29 @@ class _LoginPageState extends State<LoginPage> {
                         ),
 
                         // Microsoft SSO Alternatief
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
-                            side: const BorderSide(
-                                color: Colors.grey, width: 0.5),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
-                          ),
-                          onPressed: _outlookLogin,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _microsoftIcon(),
-                              const SizedBox(width: 10),
-                              const Text("Teken in met Microsoft",
-                                  style: TextStyle(color: Colors.black87)),
-                            ],
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _outlookLogin,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _microsoftIcon(),
+                                const SizedBox(width: 10),
+                                const Text("Teken in met Microsoft",
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        letterSpacing: 1.2)),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -449,26 +457,26 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// Styl vir die inset-velde.
+  /// Styl vir die inset-velde (soos web).
   InputDecoration _inputDecoration(String hint) {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: Colors.black26),
-      fillColor: AppColors.inputFill,
+      fillColor: AppColors.white,
       filled: true,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: Color(0xFFCCCCCC)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: Color(0xFFCCCCCC)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black38),
+        borderRadius: BorderRadius.circular(4),
+        borderSide: const BorderSide(color: AppColors.gold),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
     );
   }
 

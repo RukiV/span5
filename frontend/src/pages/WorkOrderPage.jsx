@@ -86,6 +86,11 @@ function WorkOrderPage() {
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showCreateContractorModal, setShowCreateContractorModal] = useState(false);
+  const [pendingQuoteIdForContractor, setPendingQuoteIdForContractor] = useState(null);
+  const [newContractorForm, setNewContractorForm] = useState({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+  const [contractorFormErrors, setContractorFormErrors] = useState({});
+  const [isCreatingContractor, setIsCreatingContractor] = useState(false);
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
 
@@ -1187,12 +1192,104 @@ function WorkOrderPage() {
 
   const handleSelectQuote = (quoteId) => {
     const nextSelectedId = quoteId === selectedQuoteId ? null : quoteId;
-    setSelectedQuoteId(nextSelectedId);
-    if (nextSelectedId) {
-      if (!quoteSelectionReasons[nextSelectedId]) {
-        setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
-      }
+    if (!nextSelectedId) {
+      setSelectedQuoteId(null);
+      return;
     }
+
+    const quote = quotes.find((q) => q.id === nextSelectedId);
+    const isNameOnlyContractor = quote && !quote.contractor_id && String(quote.contractor_name || "").trim();
+    if (isNameOnlyContractor) {
+      const parts = String(quote.contractor_name).trim().split(/\s+/);
+      const surname = parts.length > 1 ? parts.pop() : "";
+      const name = parts.join(" ") || String(quote.contractor_name).trim();
+      setPendingQuoteIdForContractor(nextSelectedId);
+      setNewContractorForm({ user_name: name, user_surname: surname, user_email: "", user_password: "" });
+      setContractorFormErrors({});
+      setShowCreateContractorModal(true);
+      return;
+    }
+
+    setSelectedQuoteId(nextSelectedId);
+    if (!quoteSelectionReasons[nextSelectedId]) {
+      setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
+    }
+  };
+
+  const handleCreateContractor = async () => {
+    try {
+      const errors = {};
+      if (!newContractorForm.user_name?.trim()) errors.user_name = true;
+      if (!newContractorForm.user_surname?.trim()) errors.user_surname = true;
+      const email = newContractorForm.user_email?.trim() || "";
+      if (!email) {
+        errors.user_email = true;
+      } else if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
+        errors.user_email = true;
+        showToast({ type: 'warning', title: 'Geldige e-posadres word vereis.' });
+      }
+      const pw = newContractorForm.user_password || "";
+      if (!pw) {
+        errors.user_password = true;
+      } else if (pw.length < 8 || pw.length > 128 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/.test(pw)) {
+        errors.user_password = true;
+        showToast({ type: 'warning', title: 'Wagwoord moet minstens 8 karakters, \'n hoofletter, \'n syfer en \'n simbool bevat.' });
+      }
+      setContractorFormErrors(errors);
+      if (Object.keys(errors).length > 0) return;
+
+      setIsCreatingContractor(true);
+      const response = await usersAPI.createContractor({
+        user_name: newContractorForm.user_name.trim(),
+        user_surname: newContractorForm.user_surname.trim(),
+        user_email: newContractorForm.user_email.trim(),
+        user_password: newContractorForm.user_password,
+        user_status: "active",
+        role_id: 4,
+        location_id: null,
+      });
+      const createdUser = response?.data || response;
+      setContractorFormErrors({});
+
+      const contractorId = createdUser?.user_id ?? null;
+      if (contractorId) {
+        setQuotes((prev) => prev.map((q) =>
+          q.id === pendingQuoteIdForContractor
+            ? { ...q, contractor_id: Number(contractorId), contractor_mode: "existing" }
+            : q
+        ));
+      }
+      fetchUsers();
+
+      setSelectedQuoteId(pendingQuoteIdForContractor);
+      if (pendingQuoteIdForContractor && !quoteSelectionReasons[pendingQuoteIdForContractor]) {
+        setQuoteSelectionReasons((prev) => ({ ...prev, [pendingQuoteIdForContractor]: "" }));
+      }
+
+      setShowCreateContractorModal(false);
+      setPendingQuoteIdForContractor(null);
+      setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+      showToast({ type: 'success', title: 'Kontrakteur is suksesvol by die lys gevoeg.' });
+    } catch (error) {
+      console.error("Fout by skep van kontrakteur:", error);
+      const status = error?.response?.status;
+      if (status === 409) {
+        showToast({ type: 'error', title: 'Daar is reeds \'n gebruiker met hierdie e-posadres.' });
+      } else if (error?.response?.data?.detail) {
+        showToast({ type: 'error', title: String(error.response.data.detail) });
+      } else {
+        showToast({ type: 'error', title: 'Fout by skep van kontrakteur. Probeer asseblief weer.' });
+      }
+    } finally {
+      setIsCreatingContractor(false);
+    }
+  };
+
+  const handleCloseCreateContractorModal = () => {
+    if (isCreatingContractor) return;
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setContractorFormErrors({});
   };
 
   const handleCloseModal = () => {
@@ -1217,6 +1314,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setConnectionType("");
     setConnectionTargetId("");
     setSelectedTerrein(null);
@@ -1266,6 +1368,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setFormData({
       job_desc: "",
       job_type: "",
@@ -2376,10 +2483,7 @@ function WorkOrderPage() {
                               </>
                             ) : quotePdfFiles[quote.id] ? (
                               <>
-                                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginRight: '0.5rem' }}>{quotePdfFiles[quote.id].name}</span>
-                                {quotePdfPreviewUrls[quote.id] && (
-                                  <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')}>Bekyk</button>
-                                )}
+                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')} disabled={!quotePdfPreviewUrls[quote.id]}>Bekyk</button>
                                 <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
                               </>
                             ) : (
@@ -2518,17 +2622,13 @@ function WorkOrderPage() {
                       <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
                         {quotePdfFiles[quoteEditId || "new"] ? (
                           <>
-                            <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
-                            {quotePdfPreviewUrls[quoteEditId || "new"] && (
-                              <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                            )}
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginRight: '0.5rem' }} disabled={!quotePdfPreviewUrls[quoteEditId || "new"]}>Bekyk</button>
+                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")}>Verwyder</button>
                           </>
                         ) : quoteDocuments[quoteEditId]?.[0] && (
                           <>
-                            <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
-                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginRight: '0.5rem' }}>Bekyk</button>
+                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)}>Verwyder</button>
                           </>
                         )}
                       </div>
@@ -2538,6 +2638,78 @@ function WorkOrderPage() {
                     <button className="btn-cancel" onClick={handleCloseQuoteModal}>Kanselleer</button>
                     <button className="btn-add" onClick={handleAddQuote}>
                       {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showCreateContractorModal && (
+              <div className="modal" style={{ zIndex: 1250 }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>Voeg Kontrakteur By</h3>
+                    <span className="close" onClick={handleCloseCreateContractorModal}>&times;</span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '1rem' }}>
+                    Die gekose kwotasie het 'n kontrakteur met slegs 'n naam. Skep die gebruiker hier sodat hy by die lys van kontrakteurs gevoeg word.
+                  </p>
+                  <div className="form-group">
+                    <label>Voornaam *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_name ? "field-invalid" : ""}
+                      value={newContractorForm.user_name}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_name: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_name; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Van *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_surname ? "field-invalid" : ""}
+                      value={newContractorForm.user_surname}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_surname: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_surname; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>E-pos *</label>
+                    <input
+                      type="email"
+                      className={contractorFormErrors.user_email ? "field-invalid" : ""}
+                      value={newContractorForm.user_email}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_email: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_email; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Wagwoord *</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className={contractorFormErrors.user_password ? "field-invalid" : ""}
+                      value={newContractorForm.user_password}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_password: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_password; return n; });
+                      }}
+                    />
+                    <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                      Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
+                    </small>
+                  </div>
+                  <div className="modal-footer">
+                    <button className="btn-cancel" onClick={handleCloseCreateContractorModal} disabled={isCreatingContractor}>Kanselleer</button>
+                    <button className="btn-add" onClick={handleCreateContractor} disabled={isCreatingContractor}>
+                      {isCreatingContractor ? 'Besig om te skep...' : 'Skep Kontrakteur'}
                     </button>
                   </div>
                 </div>

@@ -235,6 +235,7 @@ class _UsersPageState extends State<UsersPage> {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          autofillHints: obscureText ? const [] : null,
           keyboardType: keyboardType,
           style: const TextStyle(fontSize: 14),
           validator: required
