@@ -103,6 +103,21 @@ class UserService {
     return false;
   }
 
+  static Future<bool> addContractor(User user, String password) async {
+    try {
+      final payload = user.toCreateJson(password);
+      debugPrint("POST /users/contractors payload: $payload");
+      final response = await ApiClient().client.post('/users/contractors', data: payload);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await fetchUsers();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("Error adding contractor: $e");
+    }
+    return false;
+  }
+
   static Future<bool> updateUser(User user, {String? password}) async {
     try {
       final payload = user.toUpdateJson(password: password);
