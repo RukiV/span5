@@ -28,14 +28,17 @@ class _StockPageState extends State<StockPage> {
   int? _selectedRoomId;
 
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('stock', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('stock', [
     const ColumnDef(key: 'name', label: 'NAAM'),
     const ColumnDef(key: 'brand', label: 'HANDELSMERK'),
     const ColumnDef(key: 'type', label: 'TIPE'),
     const ColumnDef(key: 'amount', label: 'HVH'),
     const ColumnDef(key: 'minimum', label: 'Minimum', defaultVisible: false),
-    const ColumnDef(key: 'boxTotal', label: 'Boks Totaal', defaultVisible: false),
-    const ColumnDef(key: 'description', label: 'Beskrywing', defaultVisible: false),
+    const ColumnDef(
+        key: 'boxTotal', label: 'Boks Totaal', defaultVisible: false),
+    const ColumnDef(
+        key: 'description', label: 'Beskrywing', defaultVisible: false),
     const ColumnDef(key: 'room', label: 'Lokaal', defaultVisible: false),
   ]);
   final SelectionController<int> _selection = SelectionController<int>();
@@ -69,7 +72,7 @@ class _StockPageState extends State<StockPage> {
       valueListenable: StockService.stocksNotifier,
       builder: (context, allStocks, _) {
         final query = _searchController.text.toLowerCase();
-        
+
         final campuses = CampusService.campusesNotifier.value;
         final campusRoomIds = _selectedCampusId != null
             ? campuses
@@ -90,13 +93,21 @@ class _StockPageState extends State<StockPage> {
 
         List<Stock> filtered = allStocks.where((s) {
           // Campus filter
-          if (campusRoomIds != null && (s.roomId == null || !campusRoomIds.contains(s.roomId))) return false;
+          if (campusRoomIds != null &&
+              (s.roomId == null || !campusRoomIds.contains(s.roomId))) {
+            return false;
+          }
 
           // Building filter
-          if (buildingRoomIds != null && (s.roomId == null || !buildingRoomIds.contains(s.roomId))) return false;
+          if (buildingRoomIds != null &&
+              (s.roomId == null || !buildingRoomIds.contains(s.roomId))) {
+            return false;
+          }
 
           // Room filter
-          if (_selectedRoomId != null && s.roomId != _selectedRoomId) return false;
+          if (_selectedRoomId != null && s.roomId != _selectedRoomId) {
+            return false;
+          }
 
           return s.name.toLowerCase().contains(query) ||
               s.brand.toLowerCase().contains(query) ||
@@ -109,15 +120,28 @@ class _StockPageState extends State<StockPage> {
           filtered.sort((a, b) {
             final dir = _sortCtrl.direction;
             switch (_sortCtrl.sortKey) {
-              case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
-              case 'brand': return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) * dir;
-              case 'type': return a.type.toLowerCase().compareTo(b.type.toLowerCase()) * dir;
-              case 'amount': return a.amount.compareTo(b.amount) * dir;
-              case 'minimum': return a.minimum.compareTo(b.minimum) * dir;
-              case 'boxTotal': return a.boxTotal.compareTo(b.boxTotal) * dir;
-              case 'description': return (a.description ?? '').compareTo(b.description ?? '') * dir;
-              case 'room': return (a.roomName ?? '').compareTo(b.roomName ?? '') * dir;
-              default: return 0;
+              case 'name':
+                return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
+                    dir;
+              case 'brand':
+                return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) *
+                    dir;
+              case 'type':
+                return a.type.toLowerCase().compareTo(b.type.toLowerCase()) *
+                    dir;
+              case 'amount':
+                return a.amount.compareTo(b.amount) * dir;
+              case 'minimum':
+                return a.minimum.compareTo(b.minimum) * dir;
+              case 'boxTotal':
+                return a.boxTotal.compareTo(b.boxTotal) * dir;
+              case 'description':
+                return (a.description ?? '').compareTo(b.description ?? '') *
+                    dir;
+              case 'room':
+                return (a.roomName ?? '').compareTo(b.roomName ?? '') * dir;
+              default:
+                return 0;
             }
           });
         }
@@ -135,12 +159,15 @@ class _StockPageState extends State<StockPage> {
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => StockService.fetchStocks(),
+                  color: AppColors.refreshSpinner,
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
                       if (filtered.isEmpty)
                         const SliverFillRemaining(
-                          child: Center(child: Text("Geen voorraad gevind nie.", style: TextStyle(color: Colors.grey))),
+                          child: Center(
+                              child: Text("Geen voorraad gevind nie.",
+                                  style: TextStyle(color: Colors.grey))),
                         )
                       else
                         SliverList(
@@ -148,22 +175,28 @@ class _StockPageState extends State<StockPage> {
                             (context, index) {
                               final stock = filtered[index];
                               return CardDataRow(
-                                leading: _selection.isSelecting && stock.id != null
+                                leading: _selection.isSelecting &&
+                                        stock.id != null
                                     ? Checkbox(
                                         value: _selection.isSelected(stock.id!),
-                                        onChanged: (_) => setState(() => _selection.toggle(stock.id!)),
+                                        onChanged: (_) => setState(
+                                            () => _selection.toggle(stock.id!)),
                                       )
                                     : null,
-                                trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                                trailing: const Icon(Icons.chevron_right,
+                                    color: AppColors.gold),
                                 onTap: () {
                                   if (_selection.isSelecting) {
                                     if (stock.id != null) {
-                                      setState(() => _selection.toggle(stock.id!));
+                                      setState(
+                                          () => _selection.toggle(stock.id!));
                                     }
                                   } else {
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(builder: (context) => EditStockPage(stock: stock)),
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              EditStockPage(stock: stock)),
                                     );
                                   }
                                 },
@@ -186,7 +219,8 @@ class _StockPageState extends State<StockPage> {
                             childCount: filtered.length,
                           ),
                         ),
-                      const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+                      const SliverPadding(
+                          padding: EdgeInsets.only(bottom: 100)),
                     ],
                   ),
                 ),
@@ -198,11 +232,16 @@ class _StockPageState extends State<StockPage> {
                   backgroundColor: AppColors.gold,
                   elevation: 4,
                   icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text("Nuwe Voorraad", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  label: const Text("Nuwe Voorraad",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5)),
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const NewStockPage()),
+                      MaterialPageRoute(
+                          builder: (context) => const NewStockPage()),
                     );
                   },
                 )
@@ -230,7 +269,8 @@ class _StockPageState extends State<StockPage> {
           content: Text(fail == 0
               ? "$ok voorraad-item(s) verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -262,7 +302,8 @@ class _StockPageState extends State<StockPage> {
         BulkDeleteAction<int>(
           controller: _selection,
           confirmTitle: 'Verwyder Voorraad',
-          confirmMessage: 'Wil jy ${_selection.count} geselekteerde voorraad-item(s) verwyder?',
+          confirmMessage:
+              'Wil jy ${_selection.count} geselekteerde voorraad-item(s) verwyder?',
           onDelete: _bulkDeleteStock,
         ),
       ],
@@ -272,35 +313,56 @@ class _StockPageState extends State<StockPage> {
 
   int _columnFlex(String key) {
     switch (key) {
-      case 'name': return 3;
-      case 'brand': return 2;
-      case 'type': return 2;
-      case 'amount': return 1;
-      default: return 1;
+      case 'name':
+        return 3;
+      case 'brand':
+        return 2;
+      case 'type':
+        return 2;
+      case 'amount':
+        return 1;
+      default:
+        return 1;
     }
   }
 
   Widget _buildColumnContent(Stock stock, String key) {
     switch (key) {
       case 'name':
-        return Text(stock.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12));
+        return Text(stock.name,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12));
       case 'brand':
-        return Text(stock.brand, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+        return Text(stock.brand,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12));
       case 'type':
-        return Text(stock.type, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+        return Text(stock.type,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12));
       case 'amount':
-        return Text("${stock.amount}", textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 12));
+        return Text("${stock.amount}",
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.gold,
+                fontSize: 12));
       case 'minimum':
-        return Text("${stock.minimum}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
+        return Text("${stock.minimum}",
+            textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
       case 'boxTotal':
-        return Text("${stock.boxTotal}", textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
+        return Text("${stock.boxTotal}",
+            textAlign: TextAlign.right, style: const TextStyle(fontSize: 12));
       case 'description':
-        return Text(stock.description ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+        return Text(stock.description ?? '-',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12));
       case 'room':
-        return Text(stock.roomName ?? '-', overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12));
+        return Text(stock.roomName ?? '-',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12));
       default:
         return const SizedBox.shrink();
     }
   }
-
 }

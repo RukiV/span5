@@ -192,6 +192,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => CampusService.fetchCampuses(),
+                  color: AppColors.refreshSpinner,
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
