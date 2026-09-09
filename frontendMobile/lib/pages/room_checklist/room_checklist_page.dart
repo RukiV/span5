@@ -10,6 +10,7 @@ import '../../models/campus.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
+import '../../services/wrong_room_service.dart';
 import '../../models/report.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/app_snack_bar.dart';
@@ -155,8 +156,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       return;
     }
     if (asset.location != _activeRoomId.toString()) {
-      showAppSnackBar(context, "Bate is nie in hierdie lokaal nie",
-        backgroundColor: AppColors.warningOrange);
+      await _handleScanNotInRoom(asset);
       return;
     }
     final match = _items.where((i) => i.asset.id == asset.id).firstOrNull;
@@ -180,6 +180,50 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     setState(() => match.status = _CheckStatus.confirmed);
     showAppSnackBar(context, "${asset.name} bevestig",
         backgroundColor: AppColors.successGreen);
+  }
+
+  Future<void> _handleScanNotInRoom(Asset asset) async {
+    final state = await WrongRoomService.getAssetState(asset.id);
+    if (!mounted) return;
+    if (state == null) {
+      _showSnack("Bate is nie in hierdie lokaal nie", AppColors.warningOrange);
+      return;
+    }
+    final bool wasMissing = state.isMissing || state.isWrongRoom;
+    if (!wasMissing) {
+      _showSnack("Bate is nie in hierdie lokaal nie", AppColors.warningOrange);
+      return;
+    }
+    final foundRoom = state.foundRoomName ?? 'onbekende lokaal';
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Bate in verkeerde lokaal"),
+        content: Text(
+          "${asset.name} is as vermis gemerk (in $foundRoom). Word dit hier gevind? "
+          "Skuif na die toegewese lokaal en meld as gevind.",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Kanselleer")),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Ja, hier gevind"),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final fault = await WrongRoomService.markFoundInRoom(
+      asset.id,
+      _activeRoomId,
+      originalFaultId: int.tryParse(state.faultId ?? ''),
+    );
+    if (!mounted) return;
+    if (fault != null) {
+      _showSnack("${asset.name} gemeld as gevind in hierdie lokaal", AppColors.successGreen);
+    } else {
+      _showSnack("Kon nie die gevind-status stoor nie", AppColors.errorRed);
+    }
   }
 
   void _openScanner() async {

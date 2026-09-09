@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/user.dart';
@@ -153,24 +154,24 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                           ? null
                           : () async {
                               final navigator = Navigator.of(context);
-                              setState(() => _creating = true);
-                              final session = await RoomCheckSessionService
-                                  .createSession(
-                                roomId: _roomId!,
-                                assignedUserId: _assignedUserId!,
-                                scheduledDatetime: _scheduled,
-                              );
-                              if (!context.mounted) return;
-                              if (session == null) {
-                                setState(() => _creating = false);
-                                showAppSnackBar(
-                                  context,
-                                  "Kon nie die lokale kontrole skeduleer nie.",
-                                  error: true,
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await RoomCheckSessionService.createSession(
+                                  roomId: _roomId!,
+                                  assignedUserId: _assignedUserId!,
+                                  scheduledDatetime: _scheduled,
                                 );
-                                return;
+                                if (mounted) navigator.pop(true);
+                              } catch (e) {
+                                String msg = "Kon nie die skedule stoor nie";
+                                if (e is DioException &&
+                                    e.response?.data?['detail'] != null) {
+                                  msg = e.response!.data['detail'].toString();
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(msg)),
+                                );
                               }
-                              navigator.pop(true);
                             },
                       child: const Text("Skeduleer"),
                     ),

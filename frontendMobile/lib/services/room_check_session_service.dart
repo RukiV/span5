@@ -97,22 +97,18 @@ class RoomCheckSessionService {
     DateTime? scheduledDatetime,
     String? notes,
   }) async {
-    try {
-      final payload = <String, dynamic>{
-        'room_id': roomId,
-        'assigned_user_id': assignedUserId,
-        if (scheduledDatetime != null)
-          'scheduled_datetime': scheduledDatetime.toIso8601String(),
-        if (notes != null) 'notes': notes,
-      };
-      final response =
-          await ApiClient().client.post('/room-checks/sessions', data: payload);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchSessions();
-        return RoomCheckSession.fromJson(response.data);
-      }
-    } catch (e) {
-      debugPrint("Error creating room check session: $e");
+    final payload = <String, dynamic>{
+      'room_id': roomId,
+      'assigned_user_id': assignedUserId,
+      if (scheduledDatetime != null)
+        'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
+      if (notes != null) 'notes': notes,
+    };
+    final response = await ApiClient().client
+        .post('/room-checks/sessions', data: payload);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      await fetchSessions();
+      return RoomCheckSession.fromJson(response.data);
     }
     return null;
   }

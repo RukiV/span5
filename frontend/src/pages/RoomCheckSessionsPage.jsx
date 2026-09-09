@@ -5,7 +5,7 @@ import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { useSearchParams } from "react-router-dom";
-import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI } from "../services/api";
+import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI, assetsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from "../components/Toast/useToast";
 import { useConfirmDialog } from "../components/Modal/useConfirmDialog";
@@ -60,6 +60,7 @@ function RoomCheckSessionsPage() {
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -103,18 +104,20 @@ function RoomCheckSessionsPage() {
   useEffect(() => {
     const init = async () => {
       try {
-        const [sessionsRes, roomsRes, usersRes, terrainsRes, buildingsRes] = await Promise.all([
+        const [sessionsRes, roomsRes, usersRes, terrainsRes, buildingsRes, assetsRes] = await Promise.all([
           roomChecksAPI.sessions.getAll({}),
           roomsAPI.getAll(),
           usersAPI.getAssignable(),
           locationAPI.getAll(),
           buildingsAPI.getAll(),
+          assetsAPI.getAll(),
         ]);
         setSessions(sessionsRes.data || []);
         setRooms(roomsRes.data || []);
         setAssignableUsers(usersRes.data || []);
         setTerrains(terrainsRes.data || []);
         setBuildings(buildingsRes.data || []);
+        setAssets(assetsRes.data || []);
       } catch (err) {
         console.error("Fout met inisialisering:", err);
         showToast({ type: "error", title: "Fout", message: "Kon nie data laai nie." });
@@ -124,6 +127,17 @@ function RoomCheckSessionsPage() {
     };
     init();
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const id = setInterval(() => fetchSessions(), 30000);
+    const onFocus = () => fetchSessions();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loading]);
 
   useEffect(() => {
     if (!loading && searchParams.get("scheduleRoom")) {
@@ -218,7 +232,12 @@ function RoomCheckSessionsPage() {
       await fetchSessions();
     } catch (err) {
       console.error("Fout met stoor van skedule:", err);
-      showToast({ type: "error", title: "Fout", message: "Kon nie die skedule stoor nie." });
+      const detail = err?.response?.data?.detail;
+      showToast({
+        type: "error",
+        title: "Fout",
+        message: detail || "Kon nie die skedule stoor nie.",
+      });
     } finally {
       setSaving(false);
     }
@@ -297,7 +316,19 @@ function RoomCheckSessionsPage() {
     label: `${u.user_name} ${u.user_surname}`.trim() || `Gebruiker ${u.user_id}`,
   }));
 
-  const filteredSessions = [...sessions]
+  // Wys slegs die mees onlangse skedule per lokaal (deduplikasie).
+  const latestPerRoom = (() => {
+    const byRoom = {};
+    for (const s of sessions) {
+      const cur = byRoom[s.room_id];
+      if (!cur || s.session_id > cur.session_id) {
+        byRoom[s.room_id] = s;
+      }
+    }
+    return Object.values(byRoom);
+  })();
+
+  const filteredSessions = [...latestPerRoom]
     .filter((s) => {
       if (terrainFilter) {
         const room = rooms.find((r) => r.room_id === s.room_id);
@@ -515,9 +546,7 @@ function RoomCheckSessionsPage() {
                   <td key={col.key}>{col.render(s)}</td>
                 ))}
                 <td onClick={(e) => e.stopPropagation()}>
-                  {s.status === "completed" && (
-                    <button className="btn-history" title="Geskiedenis" onClick={() => handleViewHistory(s)}><MdHistory size={18} /></button>
-                  )}
+                  <button className="btn-view" onClick={() => handleViewHistory(s)}>Geskiedenis</button>
                   {canManage && s.status === "scheduled" && (
                     <>
                       <button className="btn-view" onClick={() => openEdit(s)}>Wysig</button>
@@ -714,17 +743,23 @@ function RoomCheckSessionsPage() {
                       <span style={{ color: "#dc2626", fontWeight: 600 }}>Vermis: {missing}</span>
                     </div>
                     <ul style={{ marginTop: "8px", paddingLeft: "16px", fontSize: "12px" }}>
-                      {summary.map((item, i) => (
-                        <li key={i} style={{ marginBottom: "4px" }}>
-                          Bate #{item.asset_id} — {
-                            item.status === 'confirmed' ? 'Bevestig'
-                            : item.status === 'missing' ? 'Vermis'
-                            : item.status === 'fault_reported' ? 'Fout aangemeld'
-                            : 'Hangend'
-                          }
-                          {item.fault_id ? ` (FK#${item.fault_id})` : ''}
-                        </li>
-                      ))}
+                      {summary.map((item, i) => {
+                        const asset = assets.find((a) => String(a.asset_id) === String(item.asset_id));
+                        const name = item.asset_name || asset?.asset_name;
+                        const serial = item.asset_serial || asset?.asset_serial;
+                        return (
+                          <li key={i} style={{ marginBottom: "4px", color: item.status === 'missing' ? "#dc2626" : item.status === 'fault_reported' ? "#d97706" : "#16a34a" }}>
+                            {name ? <strong>{name}</strong> : `Bate #${item.asset_id}`}
+                            {serial ? ` (${serial})` : ''} — {
+                              item.status === 'confirmed' ? 'Bevestig'
+                              : item.status === 'missing' ? 'Vermis'
+                              : item.status === 'fault_reported' ? 'Fout aangemeld'
+                              : 'Hangend'
+                            }
+                            {item.fault_id ? ` (FK#${item.fault_id})` : ''}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 );

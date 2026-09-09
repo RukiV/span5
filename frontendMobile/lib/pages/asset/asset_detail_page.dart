@@ -7,6 +7,7 @@ import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../services/report_service.dart';
+import '../../services/wrong_room_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
 import 'asset_form_page.dart';
@@ -23,6 +24,7 @@ class AssetDetailPage extends StatefulWidget {
 
 class _AssetDetailPageState extends State<AssetDetailPage> {
   late Asset _currentAsset;
+  AssetState? _assetState;
 
   @override
   void initState() {
@@ -30,6 +32,14 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     _currentAsset = widget.asset;
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
+    }
+    _loadAssetState();
+  }
+
+  Future<void> _loadAssetState() async {
+    final state = await WrongRoomService.getAssetState(_currentAsset.id);
+    if (mounted) {
+      setState(() => _assetState = state);
     }
   }
 
@@ -94,6 +104,10 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_assetState != null && !_assetState!.isClear) ...[
+              _buildWrongRoomBanner(),
+              const SizedBox(height: 20),
+            ],
             // Besonderhede Seksie
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
@@ -116,6 +130,52 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 : _buildReportList(relatedReports),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildWrongRoomBanner() {
+    final state = _assetState!;
+    final isWrongRoom = state.isWrongRoom;
+    final color = isWrongRoom ? AppColors.warningOrange : AppColors.errorRed;
+    final foundRoom = state.foundRoomName ?? 'onbekende lokaal';
+    String message;
+    if (isWrongRoom) {
+      message = "Gevind in $foundRoom — wag om terug te skuif";
+    } else {
+      message = "Vermis in $foundRoom (laaste kontrole)";
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Icon(isWrongRoom ? Icons.place : Icons.highlight_off, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isWrongRoom ? "BATE GEVIND IN VERKEERDE LOKAAL" : "BATE VERMIS",
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(message, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -39,7 +39,7 @@ class ApiClient {
     const dartDefineUrl = String.fromEnvironment('API_URL');
     final baseUrl = dartDefineUrl.isNotEmpty
         ? dartDefineUrl
-        : dotenv.get('API_URL', fallback: 'http://10.12.0.87:8000/api/v1');
+        : dotenv.get('API_URL', fallback: 'http://192.168.3.13:8000/api/v1');
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,

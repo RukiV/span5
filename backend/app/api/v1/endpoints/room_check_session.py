@@ -58,6 +58,18 @@ def create_session(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
+    existing = session.exec(
+        select(RoomCheckSession).where(
+            RoomCheckSession.room_id == data.room_id,
+            RoomCheckSession.status == "scheduled",
+        )
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Hierdie lokaal het reeds 'n aktiewe skedule. Wysig die bestaande skedule eerder.",
+        )
+
     event = calendar_service.create(session, _build_event(room.room_name, data.scheduled_datetime), user_id=data.assigned_user_id)
 
     obj = RoomCheckSession.model_validate(data)
