@@ -40,8 +40,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     super.initState();
     if (widget.initialCampus != null) {
       _selectedCampus = widget.initialCampus;
-    } else {
-      _loadInitialCampus();
     }
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -57,23 +55,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _loadInitialCampus() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (UserSession.isManager && UserSession.locationId != null) {
-      _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-    }
-    if (_selectedCampus == null) {
-      if (UserSession.hasAdminPrivileges) {
-        if (campuses.isNotEmpty) {
-          _selectedCampus = campuses.first;
-        }
-      } else {
-        _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
-      }
-    }
-    setState(() {});
   }
 
   List<Widget> _buildBuildingCells(Building b) {
@@ -153,17 +134,12 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           Campus? selectedCampus = _selectedCampus != null
               ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
               : null;
-          if (selectedCampus == null) {
-            if (UserSession.isManager && UserSession.locationId != null) {
-              selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-            }
-            if (selectedCampus == null && UserSession.hasAdminPrivileges) {
-              selectedCampus = campuses.isNotEmpty ? campuses.first : null;
-            }
-          }
           _selectedCampus = selectedCampus;
 
-          final buildings = selectedCampus?.buildings ?? <Building>[];
+          // Default wys alle geboue oor alle terreine (plat lys), sodat die lys
+          // nooit leeg is nie. Die terrein-filter vernou dit dinamies.
+          final buildings = selectedCampus?.buildings ??
+              campuses.expand((c) => c.buildings).toList();
 
           final filtered = buildings.where((b) =>
               _query.isEmpty ||
@@ -293,11 +269,10 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text("Nuwe Gebou", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
               onPressed: () async {
-                if (_selectedCampus == null) return;
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AddBuildingPage(campus: _selectedCampus!),
+                    builder: (context) => const AddBuildingPage(),
                   ),
                 );
                 if (result == true) setState(() {});

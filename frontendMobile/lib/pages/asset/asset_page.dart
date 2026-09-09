@@ -54,25 +54,14 @@ class _AssetsPageState extends State<AssetsPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
-    _tryAutoSelectCampus();
     _searchController.addListener(() {
       setState(() {});
     });
   }
 
-  void _tryAutoSelectCampus() {
-    if (UserSession.isManager && _selectedCampusId == null && UserSession.locationId != null) {
-      final match = CampusService.campusesNotifier.value
-          .where((c) => c.id == UserSession.locationId).firstOrNull;
-      if (match != null) _selectedCampusId = match.id;
-    }
-  }
-
   void _onCampusesChanged() {
     if (mounted) {
-      setState(() {
-        _tryAutoSelectCampus();
-      });
+      setState(() {});
     }
   }
 
