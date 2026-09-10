@@ -93,7 +93,8 @@ class _NewStockPageState extends State<NewStockPage> {
       if (building != null) {
         path += " > ${building.name}";
         if (_roomId != null) {
-          final room = building.rooms?.where((r) => r.id == _roomId).firstOrNull;
+          final room =
+              building.rooms?.where((r) => r.id == _roomId).firstOrNull;
           if (room != null) {
             path += " > ${room.name}";
           }
@@ -112,7 +113,8 @@ class _NewStockPageState extends State<NewStockPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const Icon(Icons.location_on_outlined,
+              size: 16, color: AppColors.gold),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -129,25 +131,60 @@ class _NewStockPageState extends State<NewStockPage> {
     );
   }
 
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.navy, fontSize: 14),
+      filled: true,
+      fillColor: Colors.grey[50],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+    );
+  }
+
+  Widget _buildField(String label, Function(String) onSet, {int maxLines = 1}) {
+    return TextFormField(
+      maxLines: maxLines,
+      decoration: _inputDecoration(label),
+      onChanged: onSet,
+      validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+    );
+  }
+
+  Widget _buildNumberField(String label, Function(String) onSet) {
+    return TextFormField(
+      keyboardType: TextInputType.number,
+      decoration: _inputDecoration(label),
+      onChanged: onSet,
+      validator: (v) =>
+          (v == null || int.tryParse(v) == null) ? "Vereis" : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.navy,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("Nuwe Voorraad",
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
           child: Form(
             key: _formKey,
             child: Column(
@@ -187,8 +224,8 @@ class _NewStockPageState extends State<NewStockPage> {
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _buildNumberField(
-                          "Boks Totaal", (v) => boxTotal = int.tryParse(v) ?? 0),
+                      child: _buildNumberField("Boks Totaal",
+                          (v) => boxTotal = int.tryParse(v) ?? 0),
                     ),
                   ],
                 ),
@@ -206,10 +243,12 @@ class _NewStockPageState extends State<NewStockPage> {
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
+                  height: 50,
                   child: ElevatedButton(
                     onPressed: () async {
                       if (_roomId == null) {
-                        setState(() => _locationError = "Kies 'n volledige ligging");
+                        setState(
+                            () => _locationError = "Kies 'n volledige ligging");
                         return;
                       }
                       if (_formKey.currentState!.validate()) {
@@ -234,13 +273,12 @@ class _NewStockPageState extends State<NewStockPage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
-                      elevation: 2,
                     ),
                     child: const Text("STOOR VOORRAAD",
-                        style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, letterSpacing: 1)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -249,9 +287,11 @@ class _NewStockPageState extends State<NewStockPage> {
                   child: TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text("Kanselleer",
-                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                        style: TextStyle(
+                            color: Colors.grey, fontWeight: FontWeight.bold)),
                   ),
                 ),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -259,60 +299,4 @@ class _NewStockPageState extends State<NewStockPage> {
       ),
     );
   }
-
-  Widget _buildField(String label, Function(String) onSet, {int maxLines = 1}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          maxLines: maxLines,
-          decoration: _inputDecoration(),
-          onChanged: onSet,
-          validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildNumberField(String label, Function(String) onSet) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          keyboardType: TextInputType.number,
-          decoration: _inputDecoration(),
-          onChanged: onSet,
-          validator: (v) =>
-              (v == null || int.tryParse(v) == null) ? "Vereis" : null,
-        ),
-      ],
-    );
-  }
-
-  InputDecoration _inputDecoration() {
-    return InputDecoration(
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.gold, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-    );
-  }
 }
-

@@ -17,7 +17,12 @@ import '../../widgets/card_data_row.dart';
 
 class BuildingsListPage extends StatefulWidget {
   final Campus? initialCampus;
-  const BuildingsListPage({super.key, this.initialCampus});
+  final void Function(Building building)? onBuildingSelected;
+  const BuildingsListPage({
+    super.key,
+    this.initialCampus,
+    this.onBuildingSelected,
+  });
 
   @override
   State<BuildingsListPage> createState() => _BuildingsListPageState();
@@ -28,7 +33,8 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('buildings', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('buildings', [
     const ColumnDef(key: 'name', label: 'Naam'),
     const ColumnDef(key: 'rooms', label: 'Lokale'),
     const ColumnDef(key: 'address', label: 'Adres', defaultVisible: false),
@@ -40,8 +46,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     super.initState();
     if (widget.initialCampus != null) {
       _selectedCampus = widget.initialCampus;
-    } else {
-      _loadInitialCampus();
     }
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -59,23 +63,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     super.dispose();
   }
 
-  void _loadInitialCampus() {
-    final campuses = CampusService.campusesNotifier.value;
-    if (UserSession.isManager && UserSession.locationId != null) {
-      _selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-    }
-    if (_selectedCampus == null) {
-      if (UserSession.hasAdminPrivileges) {
-        if (campuses.isNotEmpty) {
-          _selectedCampus = campuses.first;
-        }
-      } else {
-        _selectedCampus = CampusService.getCampusByName(UserSession.userCampus);
-      }
-    }
-    setState(() {});
-  }
-
   List<Widget> _buildBuildingCells(Building b) {
     final roomCount = b.rooms?.length ?? 0;
     return _colVis.visibleColumns.map((col) {
@@ -87,7 +74,10 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           child = Text(
             b.name,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 16),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+                fontSize: 16),
           );
           break;
         case 'rooms':
@@ -95,7 +85,10 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           child = Text(
             "$roomCount Lokale",
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.gold, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.gold,
+                fontWeight: FontWeight.bold),
           );
           break;
         case 'address':
@@ -131,7 +124,8 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           content: Text(fail == 0
               ? "$ok gebou/geboue verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -153,30 +147,33 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           Campus? selectedCampus = _selectedCampus != null
               ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
               : null;
-          if (selectedCampus == null) {
-            if (UserSession.isManager && UserSession.locationId != null) {
-              selectedCampus = campuses.where((c) => c.id == UserSession.locationId).firstOrNull;
-            }
-            if (selectedCampus == null && UserSession.hasAdminPrivileges) {
-              selectedCampus = campuses.isNotEmpty ? campuses.first : null;
-            }
-          }
           _selectedCampus = selectedCampus;
 
-          final buildings = selectedCampus?.buildings ?? <Building>[];
+          // Default wys alle geboue oor alle terreine (plat lys), sodat die lys
+          // nooit leeg is nie. Die terrein-filter vernou dit dinamies.
+          final buildings = selectedCampus?.buildings ??
+              campuses.expand((c) => c.buildings).toList();
 
-          final filtered = buildings.where((b) =>
-              _query.isEmpty ||
-              b.name.toLowerCase().contains(_query) ||
-              b.address.toLowerCase().contains(_query)).toList();
+          final filtered = buildings
+              .where((b) =>
+                  _query.isEmpty ||
+                  b.name.toLowerCase().contains(_query) ||
+                  b.address.toLowerCase().contains(_query))
+              .toList();
 
           if (_sortCtrl.isActive) {
             filtered.sort((a, b) {
               final dir = _sortCtrl.direction;
               switch (_sortCtrl.sortKey) {
-                case 'name': return a.name.toLowerCase().compareTo(b.name.toLowerCase()) * dir;
-                case 'rooms': return (a.rooms?.length ?? 0).compareTo(b.rooms?.length ?? 0) * dir;
-                default: return 0;
+                case 'name':
+                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
+                      dir;
+                case 'rooms':
+                  return (a.rooms?.length ?? 0)
+                          .compareTo(b.rooms?.length ?? 0) *
+                      dir;
+                default:
+                  return 0;
               }
             });
           }
@@ -198,119 +195,132 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                       campusId: _selectedCampus?.id,
                       onChanged: (campusId, _, __) {
                         setState(() {
-                          _selectedCampus =
-                              campuses.where((c) => c.id == campusId).firstOrNull;
+                          _selectedCampus = campuses
+                              .where((c) => c.id == campusId)
+                              .firstOrNull;
                         });
                       },
                     ),
                   ),
                   if (UserSession.can('buildings.manage')) ...[
-                    SelectModeButton<int>(
-                      controller: _selection,
-                      onToggle: () => setState(() =>
-                          _selection.isSelecting ? _selection.exit() : _selection.enter()),
-                    ),
                     BulkDeleteAction<int>(
                       controller: _selection,
                       confirmTitle: 'Verwyder Geboue',
-                      confirmMessage: 'Wil jy ${_selection.count} geselekteerde gebou/geboue verwyder?',
-                      childWarning: 'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                      confirmMessage:
+                          'Wil jy ${_selection.count} geselekteerde gebou/geboue verwyder?',
+                      childWarning:
+                          'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
                       onDelete: _bulkDeleteBuildings,
                     ),
                   ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
-
-              if (UserSession.can('buildings.manage'))
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        if (_selectedCampus == null) return;
-                        final result = await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AddBuildingPage(campus: _selectedCampus!),
-                          ),
-                        );
-                        if (result == true) setState(() {});
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text("VOEG NUWE GEBOU BY"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
-                  ),
-                ),
-
               Expanded(
                 child: filtered.isEmpty
-                    ? const Center(child: Text("Geen geboue gevind nie.", style: TextStyle(color: Colors.grey)))
+                    ? const Center(
+                        child: Text("Geen geboue gevind nie.",
+                            style: TextStyle(color: Colors.grey)))
                     : RefreshIndicator(
                         onRefresh: () => CampusService.fetchCampuses(),
+                        color: AppColors.refreshSpinner,
                         child: ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+                          padding: const EdgeInsets.fromLTRB(15, 15, 15, 90),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) {
                             final b = filtered[index];
-                          return CardDataRow(
-                            leading: _selection.isSelecting
-                                ? Checkbox(
-                                    value: _selection.isSelected(b.id),
-                                    onChanged: (_) => setState(() => _selection.toggle(b.id)),
-                                  )
-                                : null,
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!_selection.isSelecting && UserSession.can('buildings.manage'))
+                            return CardDataRow(
+                              leading: _selection.isSelecting
+                                  ? Checkbox(
+                                      value: _selection.isSelected(b.id),
+                                      onChanged: (_) => setState(
+                                          () => _selection.toggle(b.id)),
+                                    )
+                                  : null,
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
                                   IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                    onPressed: () async {
-                                      final result = await Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => EditBuildingPage(building: b),
-                                        ),
-                                      );
-                                      if (result == true) setState(() {});
-                                    },
+                                    icon: const Icon(Icons.chevron_right,
+                                        color: AppColors.gold),
+                                    tooltip: "Wys lokale in gebou",
+                                    onPressed: _selection.isSelecting
+                                        ? () => setState(
+                                            () => _selection.toggle(b.id))
+                                        : () {
+                                            final onBuildingSelected =
+                                                widget.onBuildingSelected;
+                                            if (onBuildingSelected != null) {
+                                              onBuildingSelected(b);
+                                            } else {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) =>
+                                                      ManageRoomsPage(
+                                                    initialCampus:
+                                                        _selectedCampus,
+                                                    initialBuilding: b,
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                          },
                                   ),
-                                const Icon(Icons.chevron_right, color: AppColors.gold),
-                              ],
-                            ),
-                            onTap: () {
-                              if (_selection.isSelecting) {
-                                setState(() => _selection.toggle(b.id));
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ManageRoomsPage(
-                                      initialCampus: _selectedCampus,
-                                      initialBuilding: b,
+                                ],
+                              ),
+                              onTap: () {
+                                if (_selection.isSelecting) {
+                                  setState(() => _selection.toggle(b.id));
+                                } else {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          EditBuildingPage(building: b),
                                     ),
-                                  ),
-                                );
-                              }
-                            },
-                            children: _buildBuildingCells(b),
-                          );
-                        },
+                                  );
+                                }
+                              },
+                              onLongPress: () {
+                                setState(() {
+                                  _selection.enter();
+                                  _selection.toggle(b.id);
+                                });
+                              },
+                              children: _buildBuildingCells(b),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              );
+              ),
+            ],
+          );
         },
       ),
+      floatingActionButton: UserSession.can('buildings.manage')
+          ? FloatingActionButton.extended(
+              heroTag: "buildingAddBtn",
+              backgroundColor: AppColors.gold,
+              elevation: 4,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text("Nuwe Gebou",
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5)),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddBuildingPage(),
+                  ),
+                );
+                if (result == true) setState(() {});
+              },
+            )
+          : null,
     );
   }
 }

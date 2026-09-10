@@ -377,7 +377,7 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     _buildDropdown("Status", _status, _statuses, (val) => setState(() {
                       _status = val!;
-                      _rawStatus = _displayToRawStatus(val!);
+                      _rawStatus = _displayToRawStatus(val);
                     })),
                     const SizedBox(height: 20),
                     LocationCascadePicker(
@@ -385,22 +385,20 @@ class _EditReportPageState extends State<EditReportPage> {
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,
-                      onChanged: _onLocationChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: _scanRoom,
-                        icon: const Icon(Icons.qr_code_scanner, size: 18),
-                        label: const Text("Skandeer Lokaal"),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.navy,
-                          side: const BorderSide(color: AppColors.navy),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      trailing: IconButton(
+                        icon:
+                            const Icon(Icons.qr_code_scanner, color: AppColors.navy),
+                        tooltip: "Skandeer Lokaal",
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey[100],
+                          side: BorderSide(color: Colors.grey[300]!),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.all(10),
                         ),
+                        onPressed: _scanRoom,
                       ),
+                      onChanged: _onLocationChanged,
                     ),
                     const SizedBox(height: 20),
                     _buildMapSection(),

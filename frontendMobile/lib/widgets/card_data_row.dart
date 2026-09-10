@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 class CardDataRow extends StatelessWidget {
   final List<Widget> children;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final Widget? leading;
   final Widget? trailing;
   final EdgeInsetsGeometry padding;
@@ -20,6 +21,7 @@ class CardDataRow extends StatelessWidget {
     super.key,
     required this.children,
     this.onTap,
+    this.onLongPress,
     this.leading,
     this.trailing,
     this.padding = const EdgeInsets.all(15),
@@ -36,6 +38,7 @@ class CardDataRow extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius)),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: padding,
           child: Row(
