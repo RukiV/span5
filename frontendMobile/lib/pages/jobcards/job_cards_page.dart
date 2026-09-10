@@ -35,7 +35,8 @@ class _JobCardsPageState extends State<JobCardsPage>
   // ── Job list state ──
   final TextEditingController _searchController = TextEditingController();
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('jobcards', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('jobcards', [
     const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
     const ColumnDef(key: 'description', label: 'Beskrywing'),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
@@ -106,7 +107,9 @@ class _JobCardsPageState extends State<JobCardsPage>
         children: [
           FixedPageHeader(
             controller: _searchController,
-            hintText: _tabController.index == 0 ? "Soek werkkaarte..." : "Soek voorgestelde werksopdragte...",
+            hintText: _tabController.index == 0
+                ? "Soek werkkaarte..."
+                : "Soek voorgestelde werksopdragte...",
             onChanged: (v) => setState(() {}),
             actions: _tabController.index == 0 ? _buildJobHeaderActions() : [],
           ),
@@ -146,14 +149,18 @@ class _JobCardsPageState extends State<JobCardsPage>
                 if (_pendingCount > 0) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.gold,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
                       '$_pendingCount',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
@@ -207,7 +214,9 @@ class _JobCardsPageState extends State<JobCardsPage>
                         .compareTo((b.type ?? '').toLowerCase()) *
                     dir;
               case 'status':
-                return a.status.toLowerCase().compareTo(b.status.toLowerCase()) *
+                return a.status
+                        .toLowerCase()
+                        .compareTo(b.status.toLowerCase()) *
                     dir;
               case 'date':
                 return (a.createdDatetime ?? DateTime(0))
@@ -221,7 +230,7 @@ class _JobCardsPageState extends State<JobCardsPage>
 
         return RefreshIndicator(
           onRefresh: () => JobcardService.fetchJobs(),
-          color: AppColors.gold,
+          color: AppColors.refreshSpinner,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -250,15 +259,11 @@ class _JobCardsPageState extends State<JobCardsPage>
   List<Widget> _buildJobHeaderActions() {
     return [
       if (UserSession.can('jobs.manage')) ...[
-        SelectModeButton<int>(
-          controller: _selection,
-          onToggle: () => setState(() =>
-              _selection.isSelecting ? _selection.exit() : _selection.enter()),
-        ),
         BulkDeleteAction<int>(
           controller: _selection,
           confirmTitle: 'Verwyder Werksopdragte',
-          confirmMessage: 'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
+          confirmMessage:
+              'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
           onDelete: _bulkDeleteJobs,
         ),
       ],
@@ -284,7 +289,8 @@ class _JobCardsPageState extends State<JobCardsPage>
           content: Text(fail == 0
               ? "$ok werksopdrag(te) verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -297,7 +303,8 @@ class _JobCardsPageState extends State<JobCardsPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment_turned_in_outlined, size: 64, color: Colors.grey[400]),
+            Icon(Icons.assignment_turned_in_outlined,
+                size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               _searchQuery.isNotEmpty
@@ -336,6 +343,12 @@ class _JobCardsPageState extends State<JobCardsPage>
           _openJob(job);
         }
       },
+      onLongPress: () {
+        setState(() {
+          _selection.enter();
+          _selection.toggle(job.id);
+        });
+      },
       children: _buildJobCells(job),
     );
   }
@@ -350,7 +363,8 @@ class _JobCardsPageState extends State<JobCardsPage>
           child = Text(
             "#${job.id}",
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12),
           );
           break;
         case 'description':
@@ -359,7 +373,10 @@ class _JobCardsPageState extends State<JobCardsPage>
             job.description,
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.navy),
+            style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy),
           );
           break;
         case 'type':
@@ -377,7 +394,9 @@ class _JobCardsPageState extends State<JobCardsPage>
         case 'date':
           flex = 2;
           child = Text(
-            job.createdDatetime != null ? _formatDate(job.createdDatetime!) : '-',
+            job.createdDatetime != null
+                ? _formatDate(job.createdDatetime!)
+                : '-',
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 13, color: Colors.grey),
           );
@@ -407,11 +426,15 @@ class _JobCardsPageState extends State<JobCardsPage>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 6),
           Text(
             status.toUpperCase(),
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10),
+            style: TextStyle(
+                color: color, fontWeight: FontWeight.bold, fontSize: 10),
           ),
         ],
       ),
@@ -454,7 +477,8 @@ class _JobCardsPageState extends State<JobCardsPage>
             valueListenable: AiService.isLoadingNotifier,
             builder: (context, isLoading, _) {
               if (isLoading && AiService.draftsNotifier.value.isEmpty) {
-                return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+                return const Center(
+                    child: CircularProgressIndicator(color: AppColors.gold));
               }
               return ValueListenableBuilder<List<JobDraft>>(
                 valueListenable: AiService.draftsNotifier,
@@ -465,22 +489,27 @@ class _JobCardsPageState extends State<JobCardsPage>
                   if (drafts.isEmpty) {
                     return RefreshIndicator(
                       onRefresh: _refetchAiDrafts,
+                      color: AppColors.refreshSpinner,
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: const [
                           SizedBox(height: 120),
-                          Center(child: Text("Geen voorgestelde werksopdragte gevind nie.")),
+                          Center(
+                              child: Text(
+                                  "Geen voorgestelde werksopdragte gevind nie.")),
                         ],
                       ),
                     );
                   }
                   return RefreshIndicator(
                     onRefresh: _refetchAiDrafts,
+                    color: AppColors.refreshSpinner,
                     child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       itemCount: drafts.length,
-                      itemBuilder: (context, index) => _buildDraftTile(drafts[index]),
+                      itemBuilder: (context, index) =>
+                          _buildDraftTile(drafts[index]),
                     ),
                   );
                 },
@@ -550,7 +579,8 @@ class _JobCardsPageState extends State<JobCardsPage>
             const Icon(Icons.cloud_off, color: AppColors.errorRed, size: 40),
             const SizedBox(height: 12),
             Text(
-              AiService.lastError ?? "Kon nie voorgestelde werksopdragte laai nie.",
+              AiService.lastError ??
+                  "Kon nie voorgestelde werksopdragte laai nie.",
               textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.errorRed),
             ),
@@ -579,7 +609,9 @@ class _JobCardsPageState extends State<JobCardsPage>
         onTap: () async {
           final result = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (context) => AiDraftReviewPage(draftId: draft.draftId)),
+            MaterialPageRoute(
+                builder: (context) =>
+                    AiDraftReviewPage(draftId: draft.draftId)),
           );
           if (result == true) {
             _refetchAiDrafts();
@@ -590,7 +622,9 @@ class _JobCardsPageState extends State<JobCardsPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(titleText, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text(titleText,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
@@ -602,7 +636,8 @@ class _JobCardsPageState extends State<JobCardsPage>
                   if (draft.aiStatus == 'ok')
                     const _AiBadge(label: 'AI', color: AppColors.successGreen)
                   else
-                    const _AiBadge(label: 'Beperk', color: AppColors.warningOrange),
+                    const _AiBadge(
+                        label: 'Beperk', color: AppColors.warningOrange),
                   Text(
                     draft.source == 'auto' ? 'Outomaties' : 'Handmatig',
                     style: const TextStyle(fontSize: 11, color: Colors.grey),
@@ -662,7 +697,9 @@ class _AiDraftStatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }
@@ -679,7 +716,8 @@ class _AiDraftTag extends StatelessWidget {
         color: AppColors.navy.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(label, style: const TextStyle(color: AppColors.navy, fontSize: 11)),
+      child: Text(label,
+          style: const TextStyle(color: AppColors.navy, fontSize: 11)),
     );
   }
 }
@@ -698,8 +736,9 @@ class _AiBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      child: Text(label,
+          style: TextStyle(
+              color: color, fontSize: 11, fontWeight: FontWeight.bold)),
     );
   }
 }
-

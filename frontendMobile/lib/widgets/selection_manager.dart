@@ -39,39 +39,6 @@ class SelectionController<T> {
   }
 }
 
-/// Icon-only button that enters/exits select mode. Placed next to the existing
-/// column-visibility button on every list page so placement matches exactly.
-class SelectModeButton<T> extends StatelessWidget {
-  final SelectionController<T> controller;
-  final VoidCallback onToggle;
-  final bool enabled;
-
-  const SelectModeButton({
-    super.key,
-    required this.controller,
-    required this.onToggle,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final active = controller.isSelecting;
-    return IconButton(
-      tooltip: active ? 'Kies modus af' : 'Kies modus',
-      icon: Icon(
-        active ? Icons.check_circle : Icons.checklist,
-        color: active ? AppColors.gold : Colors.white,
-        size: 20,
-      ),
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: 30 / 255),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      onPressed: enabled ? onToggle : null,
-    );
-  }
-}
-
 /// Trash action that appears (with a count badge) only while select mode is
 /// active and at least one row is chosen. Shows a confirmation dialog that can
 /// warn the user that child rows will be removed too (hierarchy pages).
