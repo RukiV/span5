@@ -43,6 +43,10 @@ class LocationCascadePicker extends StatefulWidget {
   /// se bestaande ligging verander word ("Verander ... van ...").
   final bool editing;
 
+  /// Opsionele knoppie (bv. 'n QR-skandering-ikoon) wat regs langs die
+  /// keuse-veld vertoon word. Bly in plek ongeag die geselekteerde waarde.
+  final Widget? trailing;
+
   const LocationCascadePicker({
     super.key,
     this.depth = LocationDepth.room,
@@ -54,6 +58,7 @@ class LocationCascadePicker extends StatefulWidget {
     this.errorText,
     this.showBreadcrumb = true,
     this.editing = false,
+    this.trailing,
   });
 
   @override
@@ -490,21 +495,32 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
               _buildBreadcrumb(campuses),
               const SizedBox(height: 6),
             ],
-            InlineSearchableDropdown<_LocationChoice>(
-              hint: hint,
-              items: _isComplete ? const [] : _buildOptions(campuses),
-              value: null,
-              enabled: true,
-              closeOnSelect: false,
-              restoreOnBlur: false,
-              onFocus: () {
-                // "Tik om te verander": 'n voltooide kaskade spring terug na
-                // vlak 0 sodat die hele pad oor gekies kan word.
-                if (_isComplete) _clearFromLevel(0);
-              },
-              onChanged: (v) {
-                if (v != null) _pick(v);
-              },
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: InlineSearchableDropdown<_LocationChoice>(
+                    hint: hint,
+                    items: _isComplete ? const [] : _buildOptions(campuses),
+                    value: null,
+                    enabled: true,
+                    closeOnSelect: false,
+                    restoreOnBlur: false,
+                    onFocus: () {
+                      // "Tik om te verander": 'n voltooide kaskade spring terug
+                      // na vlak 0 sodat die hele pad oor gekies kan word.
+                      if (_isComplete) _clearFromLevel(0);
+                    },
+                    onChanged: (v) {
+                      if (v != null) _pick(v);
+                    },
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 8),
+                  widget.trailing!,
+                ],
+              ],
             ),
             if (widget.errorText != null) ...[
               const SizedBox(height: 6),
