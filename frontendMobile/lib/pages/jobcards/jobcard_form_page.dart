@@ -496,6 +496,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(widget.isEditing
             ? "Wysig Werksopdrag #${widget.jobcard!.id}"
@@ -604,7 +605,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         child: ElevatedButton(
           onPressed: _saving ? null : _save,
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.terracotta,
+            backgroundColor: AppColors.gold,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           child: _saving
