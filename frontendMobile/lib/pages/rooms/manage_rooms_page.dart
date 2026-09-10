@@ -17,7 +17,7 @@ import '../../widgets/card_data_row.dart';
 import '../asset/asset_page.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
-import 'edit_room_page.dart';
+import 'room_detail_page.dart';
 import 'add_room_page.dart';
 
 class ManageRoomsPage extends StatefulWidget {
@@ -319,14 +319,9 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                     ),
                   ),
                   if (UserSession.can('rooms.manage')) ...[
-                    BulkDeleteAction<int>(
+                    SelectionExitAction<int>(
                       controller: _selection,
-                      confirmTitle: 'Verwyder Lokale',
-                      confirmMessage:
-                          'Wil jy ${_selection.count} geselekteerde lokaal/lokale verwyder?',
-                      childWarning:
-                          'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
-                      onDelete: _bulkDeleteRooms,
+                      onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
@@ -452,12 +447,13 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        EditRoomPage(room: room),
+                                        RoomDetailPage(room: room),
                                   ),
                                 );
                               }
                             },
                             onLongPress: () {
+                              if (!UserSession.can('rooms.manage')) return;
                               setState(() {
                                 _selection.enter();
                                 _selection.toggle(room.id);
@@ -479,6 +475,18 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          if (UserSession.can('rooms.manage')) ...[
+            BulkDeleteFloatingAction<int>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Lokale',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde lokaal/lokale verwyder?',
+              childWarning:
+                  'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
+              onDelete: _bulkDeleteRooms,
+            ),
+            const SizedBox(height: 12),
+          ],
           FloatingActionButton(
             heroTag: "roomScanBtn",
             onPressed: _scanRoomToViewAssets,

@@ -3,6 +3,7 @@ import '../../core/app_colors.dart';
 import '../../models/user_session.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/selection_manager.dart';
 import 'new_room_check_session_page.dart';
 import 'room_checklist_page.dart';
 import 'room_check_history_page.dart';
@@ -20,6 +21,7 @@ class RoomCheckSessionPage extends StatefulWidget {
 
 class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
   final bool _canManage = UserSession.can('room_checks.manage');
+  final SelectionController<int> _selection = SelectionController<int>();
 
   @override
   void initState() {
@@ -221,7 +223,11 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
         foregroundColor: Colors.white,
         title: Text(widget.manageMode ? "Lokaal Kontrole" : "My Kontroles"),
         actions: [
-          if (widget.manageMode && _canManage)
+          if (widget.manageMode && _canManage) ...[
+            SelectionExitAction<int>(
+              controller: _selection,
+              onExit: () => setState(() => _selection.exit()),
+            ),
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: "Nuwe skedule",
@@ -231,6 +237,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                     builder: (_) => const NewRoomCheckSessionPage()),
               ),
             ),
+          ],
         ],
       ),
       body: ValueListenableBuilder<List<RoomCheckSession>>(
@@ -258,113 +265,158 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
+                  color: _selection.isSelected(session.sessionId)
+                      ? AppColors.lavender
+                      : null,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                session.roomName ?? "Lokaal #${session.roomId}",
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      if (_selection.isSelecting) {
+                        setState(() => _selection.toggle(session.sessionId));
+                      }
+                    },
+                    onLongPress: () {
+                      if (!widget.manageMode || !_canManage) return;
+                      setState(() {
+                        _selection.enter();
+                        _selection.toggle(session.sessionId);
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_selection.isSelecting) ...[
+                            Checkbox(
+                              value: _selection.isSelected(session.sessionId),
+                              onChanged: (_) => setState(
+                                  () => _selection.toggle(session.sessionId)),
                             ),
-                            _statusBadge(session.status),
+                            const SizedBox(width: 4),
                           ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.event,
-                                size: 16, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Text(dateStr,
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey[700])),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.person_outline,
-                                size: 16, color: Colors.grey),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                session.assignedUserName ??
-                                    "Gebruiker #${session.assignedUserId}",
-                                style: TextStyle(
-                                    fontSize: 12, color: Colors.grey[700]),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!session.isCompleted) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              if (widget.manageMode && _canManage) ...[
-                                TextButton.icon(
-                                  onPressed: () => _openEditDialog(session),
-                                  icon:
-                                      const Icon(Icons.edit_outlined, size: 18),
-                                  label: const Text("Herroewys"),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        session.roomName ??
+                                            "Lokaal #${session.roomId}",
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14),
+                                      ),
+                                    ),
+                                    _statusBadge(session.status),
+                                  ],
                                 ),
-                                TextButton.icon(
-                                  onPressed: () => _confirmDelete(session),
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18),
-                                  label: const Text("Verwyder"),
-                                  style: TextButton.styleFrom(
-                                      foregroundColor: AppColors.errorRed),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.event,
+                                        size: 16, color: Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Text(dateStr,
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[700])),
+                                  ],
                                 ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline,
+                                        size: 16, color: Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        session.assignedUserName ??
+                                            "Gebruiker #${session.assignedUserId}",
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[700]),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (!session.isCompleted &&
+                                    !_selection.isSelecting) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      if (widget.manageMode && _canManage) ...[
+                                        TextButton.icon(
+                                          onPressed: () =>
+                                              _openEditDialog(session),
+                                          icon: const Icon(Icons.edit_outlined,
+                                              size: 18),
+                                          label: const Text("Herroewys"),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: () =>
+                                              _confirmDelete(session),
+                                          icon: const Icon(Icons.delete_outline,
+                                              size: 18),
+                                          label: const Text("Verwyder"),
+                                          style: TextButton.styleFrom(
+                                              foregroundColor:
+                                                  AppColors.errorRed),
+                                        ),
+                                      ],
+                                      FilledButton.tonal(
+                                        onPressed: () async {
+                                          final result = await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => RoomChecklistPage(
+                                                  roomId: session.roomId),
+                                            ),
+                                          );
+                                          if (result == true && mounted)
+                                            _load();
+                                        },
+                                        style: FilledButton.styleFrom(
+                                            backgroundColor: AppColors.gold),
+                                        child: const Text("Voltooi"),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                if (session.isCompleted &&
+                                    !_selection.isSelecting) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  RoomCheckHistoryPage(
+                                                      roomId: session.roomId),
+                                            ),
+                                          );
+                                        },
+                                        icon:
+                                            const Icon(Icons.history, size: 18),
+                                        label: const Text("Geskiedenis"),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
-                              FilledButton.tonal(
-                                onPressed: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => RoomChecklistPage(
-                                          roomId: session.roomId),
-                                    ),
-                                  );
-                                  if (result == true && mounted) _load();
-                                },
-                                style: FilledButton.styleFrom(
-                                    backgroundColor: AppColors.gold),
-                                child: const Text("Voltooi"),
-                              ),
-                            ],
+                            ),
                           ),
                         ],
-                        if (session.isCompleted) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              TextButton.icon(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => RoomCheckHistoryPage(
-                                          roomId: session.roomId),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.history, size: 18),
-                                label: const Text("Geskiedenis"),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                 );
@@ -373,6 +425,46 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
           );
         },
       ),
+      floatingActionButton: (widget.manageMode && _canManage)
+          ? BulkDeleteFloatingAction<int>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Lokaal Kontroles',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde lokaal-kontrole(s) verwyder?',
+              onDelete: _bulkDeleteSessions,
+            )
+          : null,
     );
+  }
+
+  Future<void> _bulkDeleteSessions(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      try {
+        if (await RoomCheckSessionService.deleteSession(id)) {
+          ok++;
+        } else {
+          fail++;
+        }
+      } catch (e) {
+        fail++;
+      }
+    }
+    await RoomCheckSessionService.fetchSessions(
+      assignedUserId: widget.manageMode ? null : UserSession.userId,
+    );
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok lokaal-kontrole(s) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 }

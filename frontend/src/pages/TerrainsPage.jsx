@@ -42,7 +42,7 @@ function TerrainsPage({ embedded = false }) {
     { key: 'type', label: 'Tipe', render: (t) => t.location_type, sortKey: 'type', defaultVisible: true },
     { key: 'streetnum', label: 'Straatnommer', render: (t) => t.location_streetnum || '-', sortKey: 'streetnum', defaultVisible: true },
     { key: 'streetname', label: 'Straatnaam', render: (t) => t.location_streetname || '-', sortKey: 'streetname', defaultVisible: true },
-    { key: 'suburb', label: 'Suburb', render: (t) => t.location_suburb || '-', sortKey: 'suburb', defaultVisible: true },
+    { key: 'suburb', label: 'Voorstad', render: (t) => t.location_suburb || '-', sortKey: 'suburb', defaultVisible: true },
     { key: 'city', label: 'Stad', render: (t) => t.location_city || '-', sortKey: 'city', defaultVisible: true },
     { key: 'province', label: 'Provinsie', render: (t) => t.location_province || '-', sortKey: 'province', defaultVisible: true },
     { key: 'country', label: 'Land', render: (t) => t.location_country || '-', sortKey: 'country', defaultVisible: false },
@@ -599,7 +599,7 @@ function TerrainsPage({ embedded = false }) {
         </div>
         <div className="input-row">
           <div className="input-group">
-            <label>Suburb *</label>
+            <label>Voorstad *</label>
             <input
               ref={el => fieldRefs.current.location_suburb = el}
               type="text"

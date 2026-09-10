@@ -141,21 +141,26 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
             const Text("Kontrakteur",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: [
-                ChoiceChip(
-                  label: const Text("Bestaande kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: !_isNewContractor,
-                  onSelected: (_) =>
-                      setState(() => _isNewContractor = false),
-                ),
-                ChoiceChip(
-                  label: const Text("Nuwe kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: _isNewContractor,
-                  onSelected: (_) => setState(() => _isNewContractor = true),
-                ),
-              ],
+            RadioGroup<int>(
+              groupValue: _isNewContractor ? 2 : 1,
+              onChanged: (v) => setState(() => _isNewContractor = (v == 2)),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Radio<int>(value: 1),
+                      Text("Bestaande kontrakteur", style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Radio<int>(value: 2),
+                      Text("Nuwe kontrakteur", style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             if (_isNewContractor)
@@ -369,6 +374,52 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
     }
   }
 
+  Widget _webField({
+    required String label,
+    TextEditingController? controller,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    List<String>? autofillHints,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          autofillHints: autofillHints,
+          keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -398,47 +449,30 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              key: const ValueKey('contractor_name'),
+            _webField(
+              label: "Voornaam *",
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: "Voornaam *",
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              autofillHints: const [],
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              key: const ValueKey('contractor_surname'),
+            _webField(
+              label: "Van *",
               controller: _surnameController,
-              decoration: const InputDecoration(
-                labelText: "Van *",
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              autofillHints: const [],
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              key: const ValueKey('contractor_email'),
+            _webField(
+              label: "E-pos *",
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: "E-pos *",
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
+              autofillHints: const [],
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              key: const ValueKey('contractor_password'),
+            _webField(
+              label: "Wagwoord *",
               controller: _passwordController,
               obscureText: true,
               autofillHints: const [],
-              decoration: const InputDecoration(
-                labelText: "Wagwoord *",
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
             ),
             const SizedBox(height: 4),
             const Text(

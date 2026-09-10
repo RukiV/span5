@@ -187,7 +187,7 @@ class _AddCampusPageState extends State<AddCampusPage> {
                   decoration: _inputDecoration(""),
                 ),
                 const SizedBox(height: 20),
-                const Text("Suburb",
+                const Text("Voorstad",
                     style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.navy,

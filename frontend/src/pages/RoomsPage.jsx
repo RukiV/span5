@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
@@ -622,7 +623,7 @@ function RoomsPage({ embedded = false }) {
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-view" onClick={() => handleViewAssets(room)}>Bekyk Bates</button>
-                  <button className="btn-view" onClick={() => handleViewHistory(room)}>Geskiedenis</button>
+                  <button className="btn-history" title="Geskiedenis" onClick={() => handleViewHistory(room)}><MdHistory size={18} /></button>
                   {canManageSessions && (
                     <button className="btn-view" onClick={() => navigate(`/room-checks-schedules?scheduleRoom=${room.room_id}`)}>Skeduleer</button>
                   )}

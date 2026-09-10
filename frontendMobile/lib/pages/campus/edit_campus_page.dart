@@ -292,7 +292,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        _buildFieldLabel("Suburb"),
+                        _buildFieldLabel("Voorstad"),
                         TextFormField(
                           controller: _suburbController,
                           style: const TextStyle(fontSize: 14),

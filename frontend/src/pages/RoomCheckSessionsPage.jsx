@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import RawSelect from "react-select";
 import Select from "react-select";
 import { IoTrashOutline } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { useSearchParams } from "react-router-dom";
 import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI } from "../services/api";
@@ -490,7 +491,7 @@ function RoomCheckSessionsPage() {
                 ))}
                 <td onClick={(e) => e.stopPropagation()}>
                   {s.status === "completed" && (
-                    <button className="btn-view" onClick={() => handleViewHistory(s)}>Geskiedenis</button>
+                    <button className="btn-history" title="Geskiedenis" onClick={() => handleViewHistory(s)}><MdHistory size={18} /></button>
                   )}
                   {canManage && s.status === "scheduled" && (
                     <>
