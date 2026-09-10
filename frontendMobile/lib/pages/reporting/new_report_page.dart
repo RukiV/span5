@@ -272,156 +272,19 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
-  /// Opsommingsblok bokant die kieser-veld: wys die gekose
-  /// terrein/gebou/lokaal as 'n gestapelde lys en bied die opsionele
-  /// koördinate (kaart/GPS) aan.
-  Widget _buildLocationBlock() {
-    final roomName = selectedLocation?.split(':').last;
-    final hasCoords = _mapLocation != null;
-    final coordsText = hasCoords
-        ? '${_mapLocation!.latitude.toStringAsFixed(6)}, ${_mapLocation!.longitude.toStringAsFixed(6)}'
-        : null;
-
-    return GestureDetector(
-      // Tik op die boks skakel die wysig-modus hieronder aan/af.
-      onTap: () => setState(() => _correctingLocation = !_correctingLocation),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (UserSession.can('faults.view')) ...[
-              _locationRow(
-                  Icons.priority_high_outlined, 'Prioriteit', selectedPriority),
-              const SizedBox(height: 6),
-            ],
-            _locationRow(Icons.school_outlined, 'Terrein', selectedCampus),
-            const SizedBox(height: 6),
-            _locationRow(Icons.apartment_outlined, 'Gebou', selectedBuilding),
-            const SizedBox(height: 6),
-            _locationRow(Icons.meeting_room_outlined, 'Lokaal', roomName),
-            const SizedBox(height: 6),
-            _locationRow(Icons.wb_sunny_outlined, 'Buite Lokaal',
-                _isOutdoor == null ? null : (_isOutdoor! ? 'Ja' : 'Nee')),
-            const SizedBox(height: 6),
-            _locationRow(
-                Icons.handyman_outlined, 'Werksoort', selectedCategory),
-            const SizedBox(height: 10),
-            Divider(height: 1, color: Colors.grey[300], thickness: 1),
-            const SizedBox(height: 10),
-            if (hasCoords)
-              Row(
-                children: [
-                  const Icon(Icons.location_on,
-                      size: 16, color: AppColors.successGreen),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      coordsText!,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.navy),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_location_alt,
-                        size: 18, color: AppColors.gold),
-                    tooltip: "Verander kaartligging",
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _pickMapLocation,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: AppColors.errorRed),
-                    tooltip: "Verwyder kaartligging",
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => setState(() {
-                      _mapLocation = null;
-                      _mapScreenshot = null;
-                      _locationError = null;
-                    }),
-                  ),
-                ],
-              )
-            else if (_assetResolved)
-              // "Verander Foutkaartjie?" staan alleen (ná 'n bate-skandering
-              // of -opsoek); die kaart-kieser is nou 'n "Kies op Kaart"-
-              // knoppie langs die Ja/Nee-knoppies in die korreksie-afdeling.
-              // By 'n leë vorm is daar niks om te verander nie, dus geen
-              // knoppie nie.
-              _smallActionButton(
-                Icons.edit_location_alt,
-                "Verander Foutkaartjie?",
-                () =>
-                    setState(() => _correctingLocation = !_correctingLocation),
-              ),
-            if (_locationError != null) ...[
-              const SizedBox(height: 8),
-              Text(_locationError!,
-                  style:
-                      const TextStyle(color: AppColors.errorRed, fontSize: 12)),
-            ],
-          ],
-        ),
+  /// Kompakte QR-ikoonknoppie wat regs langs die ligging-kieser staan om 'n
+  /// lokaal se kode te skandeer — in plaas van die ou vol-breedte knoppie.
+  Widget _buildScanRoomIcon() {
+    return IconButton(
+      icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
+      tooltip: "Skandeer Lokaal",
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.grey[100],
+        side: BorderSide(color: Colors.grey[300]!),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.all(10),
       ),
-    );
-  }
-
-  Widget _locationRow(IconData icon, String label, String? value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.gold),
-        const SizedBox(width: 8),
-        Text('$label: ',
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.navy)),
-        Expanded(
-          child: Text(
-            value ?? '-',
-            style: TextStyle(
-                fontSize: 13,
-                color: value == null ? Colors.grey[400] : Colors.grey[800]),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _smallActionButton(IconData icon, String label, VoidCallback onTap,
-      {bool active = false}) {
-    final fg = active ? Colors.white : AppColors.gold;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color:
-              active ? AppColors.gold : AppColors.gold.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold, color: fg)),
-          ],
-        ),
-      ),
+      onPressed: _scanRoom,
     );
   }
 
@@ -433,6 +296,10 @@ class _NewReportPageState extends State<NewReportPage> {
       descController: descController,
       photoFiles: _photoFiles,
       onAddPhoto: _pickPhoto,
+      onPickMap: () {
+        setState(() => _isOutdoor = true);
+        _pickMapLocation();
+      },
       onRemovePhoto: (i) => setState(() => _photoFiles.removeAt(i)),
       titleValidator: (v) {
         if ((v == null || v.trim().isEmpty) &&
@@ -548,25 +415,11 @@ class _NewReportPageState extends State<NewReportPage> {
                 ),
 
                 if (UserSession.can('ai.use'))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: OutlinedButton.icon(
-                      onPressed: _isAiCreating ? null : _handleAiDraft,
-                      icon: _isAiCreating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_awesome, size: 18),
-                      label: const Text("AI-konsep"),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.gold,
-                        side: const BorderSide(color: AppColors.gold),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
+                  HeaderIconAction(
+                    icon: Icons.auto_awesome,
+                    tooltip: "AI-konsep",
+                    loading: _isAiCreating,
+                    onTap: _isAiCreating ? null : _handleAiDraft,
                   ),
                 // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
                 // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
@@ -588,96 +441,65 @@ class _NewReportPageState extends State<NewReportPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Foutkaartjie Nasien",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: AppColors.navy)),
-              const SizedBox(height: 8),
-              _buildLocationBlock(),
-              const SizedBox(height: 24),
               _buildTitleDescriptionBox(),
-              if (_correctingLocation) ...[
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Text("Buite Lokaal:",
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.navy)),
-                    const SizedBox(width: 2),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text("Nee")),
-                        ButtonSegment(value: true, label: Text("Ja")),
-                      ],
-                      selected: {_isOutdoor ?? false},
-                      onSelectionChanged: (s) => setState(() {
-                        _isOutdoor = s.first;
-                        _locationError = null;
-                        // Buite-lokaal = Nee beteken binne: die kaartpunt (en
-                        // sy skermgreep) is nie meer van toepassing nie.
-                        if (_isOutdoor == false) {
-                          _mapLocation = null;
-                          _mapScreenshot = null;
-                        }
-                      }),
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                          visualDensity: VisualDensity.compact),
-                    ),
-                    _smallActionButton(
-                      Icons.map_outlined,
-                      "Kies op Kaart",
-                      () {
-                        setState(() => _isOutdoor = true);
-                        _pickMapLocation();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                LocationCascadePicker(
-                  initialCampusId: _selectedCampusId,
-                  initialBuildingId: _selectedBuildingId,
-                  initialRoomId: _selectedRoomId,
-                  label: "Waargeneemde Ligging",
-                  editing: _assetResolved,
-                  showBreadcrumb: false,
-                  onChanged: _onLocationChanged,
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _scanRoom,
-                    icon: const Icon(Icons.qr_code_scanner, size: 18),
-                    label: const Text("Skandeer Lokaal"),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.navy,
-                      side: const BorderSide(color: AppColors.navy),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
+              const SizedBox(height: 24),
+              LocationCascadePicker(
+                initialCampusId: _selectedCampusId,
+                initialBuildingId: _selectedBuildingId,
+                initialRoomId: _selectedRoomId,
+                label: "Waargeneemde Ligging",
+                editing: _assetResolved,
+                showBreadcrumb: false,
+                errorText: _locationError,
+                trailing: _buildScanRoomIcon(),
+                onChanged: _onLocationChanged,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text("Buite Lokaal:",
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.navy)),
+                  const SizedBox(width: 2),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text("Nee")),
+                      ButtonSegment(value: true, label: Text("Ja")),
+                    ],
+                    selected: {_isOutdoor ?? false},
+                    onSelectionChanged: (s) => setState(() {
+                      _isOutdoor = s.first;
+                      _locationError = null;
+                      // Buite-lokaal = Nee beteken binne: die kaartpunt (en
+                      // sy skermgreep) is nie meer van toepassing nie.
+                      if (_isOutdoor == false) {
+                        _mapLocation = null;
+                        _mapScreenshot = null;
+                      }
+                    }),
+                    showSelectedIcon: false,
+                    style:
+                        const ButtonStyle(visualDensity: VisualDensity.compact),
                   ),
-                ),
-                const SizedBox(height: 10),
-                InlineSearchableDropdown<String>(
-                  label: "Werksoort",
-                  hint: "Kies Werksoort",
-                  value: selectedCategory,
-                  items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
-                      .map((e) => SearchableDropdownItem(value: e, label: e))
-                      .toList(),
-                  onChanged: (v) => setState(() => selectedCategory = v),
-                ),
-              ],
+                ],
+              ),
+              const SizedBox(height: 10),
+              InlineSearchableDropdown<String>(
+                label: "Werksoort",
+                hint: "Kies Werksoort",
+                value: selectedCategory,
+                items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
+                    .map((e) => SearchableDropdownItem(value: e, label: e))
+                    .toList(),
+                onChanged: (v) => setState(() => selectedCategory = v),
+              ),
               if (UserSession.can('faults.view')) ...[
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 InlineSearchableDropdown<String>(
                   label: "Prioriteit",
                   hint: "Kies Prioriteit",
@@ -1152,6 +974,9 @@ class _TitleDescriptionBox extends StatefulWidget {
 
   /// Maak 'n keuse-dialoog oop (kamera of galery) en voeg die foto by.
   final VoidCallback? onAddPhoto;
+
+  /// "Kies op Kaart" — maak die kaart-kieser oop (stel Buite Lokaal = Ja).
+  final VoidCallback? onPickMap;
   final ValueChanged<int>? onRemovePhoto;
   final String? Function(String?)? titleValidator;
   final String? Function(String?)? descValidator;
@@ -1161,6 +986,7 @@ class _TitleDescriptionBox extends StatefulWidget {
     required this.descController,
     this.photoFiles = const [],
     this.onAddPhoto,
+    this.onPickMap,
     this.onRemovePhoto,
     this.titleValidator,
     this.descValidator,
@@ -1259,14 +1085,27 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                           left: 15, right: 145, top: 12, bottom: 12),
                     ),
                   ),
-                  if (widget.onAddPhoto != null)
+                  if (widget.onAddPhoto != null || widget.onPickMap != null)
                     Positioned(
                       right: 6,
                       bottom: 6,
-                      child: _photoActionButton(
-                        Icons.photo_camera_outlined,
-                        "Voeg foto by (kamera/galery)",
-                        widget.onAddPhoto!,
+                      child: Row(
+                        children: [
+                          if (widget.onPickMap != null)
+                            _photoActionButton(
+                              Icons.map_outlined,
+                              "Kies op Kaart",
+                              widget.onPickMap!,
+                            ),
+                          if (widget.onAddPhoto != null) ...[
+                            const SizedBox(width: 6),
+                            _photoActionButton(
+                              Icons.photo_camera_outlined,
+                              "Voeg foto by (kamera/galery)",
+                              widget.onAddPhoto!,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],
