@@ -35,6 +35,10 @@ class LocationCascadePicker extends StatefulWidget {
   final String? label;
   final String? errorText;
 
+  /// Maak die etiket (en veldraam) rooi — gebruik vir vereiste liggings wat
+  /// nog nie gekies is nie.
+  final bool error;
+
   /// Wys die krummelpad bo die kieser-veld. Skakel af (false) wanneer die
   /// ouder self 'n opsommingsblok bokant die veld wys.
   final bool showBreadcrumb;
@@ -56,6 +60,7 @@ class LocationCascadePicker extends StatefulWidget {
     required this.onChanged,
     this.label,
     this.errorText,
+    this.error = false,
     this.showBreadcrumb = true,
     this.editing = false,
     this.trailing,
@@ -483,10 +488,10 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
             if (widget.label != null) ...[
               Text(
                 widget.label!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: AppColors.navy,
+                  color: widget.error ? AppColors.errorRed : AppColors.navy,
                 ),
               ),
               const SizedBox(height: 6),
@@ -504,6 +509,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     items: _isComplete ? const [] : _buildOptions(campuses),
                     value: null,
                     enabled: true,
+                    error: widget.error,
                     closeOnSelect: false,
                     restoreOnBlur: false,
                     onFocus: () {

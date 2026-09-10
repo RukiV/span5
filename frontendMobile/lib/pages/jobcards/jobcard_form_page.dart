@@ -22,7 +22,8 @@ import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
 /// wanneer die hele werksopdrag gestoor word (of wanneer die kwotasie-keuse
@@ -171,7 +172,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                 onChanged: (v) => _contractorName = v,
               )
             else
-              SearchableDropdown<int?>(
+              InlineSearchableDropdown<int?>(
                 label: "Kies kontrakteur",
                 hint: "Kies Kontrakteur",
                 value: _contractorId,
@@ -629,7 +630,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle("Status"),
           Row(
             children: [
               Expanded(child: _buildDropdown("Status", _status, _statuses, _onStatusSelected,
@@ -652,13 +652,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             ],
           ),
           const SizedBox(height: 20),
-          _buildTextField("Hoofbeskrywing (Kort Beskrywing)", _briefController),
+          _buildTextField("Hoofbeskrywing", _briefController),
           const SizedBox(height: 20),
-          _sectionTitle("Ligging & Koppeling"),
-          const SizedBox(height: 12),
           LocationCascadePicker(
             label: "Ligging",
-            errorText: _selectedCampusId == null ? 'Kies \'n ligging' : null,
+            error: _selectedCampusId == null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,
             initialRoomId: _selectedRoomId,
@@ -675,7 +673,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           ValueListenableBuilder<List<Report>>(
             valueListenable: ReportService.reportsNotifier,
             builder: (context, reports, _) {
-              return SearchableDropdown<String>(
+              return InlineSearchableDropdown<String>(
                 label: "Koppel foutkaartjie (opsioneel)",
                 hint: "Soek & kies foutkaartjie",
                 value: _faultId?.toString(),
@@ -726,7 +724,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       return int.tryParse(a.location) == _selectedRoomId;
     }).toList();
 
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: "Bate",
       hint: "Kies Bate (opsioneel)",
       value: _selectedAssetId,
@@ -1093,7 +1091,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Personeel lid",
                     hint: "Kies personeel lid",
                     value: _assignedToId,
@@ -1105,7 +1103,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                     onChanged: (v) => setState(() => _assignedToId = v),
                   ),
                   const SizedBox(height: 14),
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Kontrakteur (opsioneel)",
                     hint: "Kies kontrakteur",
                     enabled: _lockedContractorId == null,
@@ -1235,6 +1233,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             controller: _notesController,
             maxLines: 6,
             decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
               hintText: "Gedetailleerde beskrywing van werk wat gedoen moet word...",
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -1600,6 +1600,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
@@ -1645,7 +1647,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged,
       {bool required = false, bool error = false}) {
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: label,
       hint: "Kies $label",
       value: value,
