@@ -4,7 +4,7 @@
 
 export const EXAMPLE_ROWS = {
   location: {
-    columns: ['Naam', 'Tipe', 'Straatnommer', 'Straatnaam', 'Suburb', 'Stad', 'Provinsie', 'Land'],
+    columns: ['Naam', 'Tipe', 'Straatnommer', 'Straatnaam', 'Voorstad', 'Stad', 'Provinsie', 'Land'],
     rows: [
       ['Hoofkampus', 'Kampus', '1', 'Kerkstraat', 'Matieland', 'Stellenbosch', 'Wes-Kaap', 'Suid-Afrika'],
       ['Tuinesentrum', 'Sub-kampus', '22', 'Dorpsstraat', '', 'Kaapstad', 'Wes-Kaap', ''],

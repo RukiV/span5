@@ -2407,7 +2407,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(getJobImageUrl(image.image_id))}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleDeleteExistingImage(image.image_id)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleDeleteExistingImage(image.image_id)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                     {selectedImagePreviewUrls.map((url, index) => (
@@ -2419,7 +2419,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(url)}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleRemoveSelectedPreview(index)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleRemoveSelectedPreview(index)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                   </div>
@@ -2479,12 +2479,12 @@ function WorkOrderPage() {
                             {quoteDocuments[quote.id]?.[0] ? (
                               <>
                                 <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quote.id][0].document_id)}>Bekyk</button>
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : quotePdfFiles[quote.id] ? (
                               <>
                                 <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')} disabled={!quotePdfPreviewUrls[quote.id]}>Bekyk</button>
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : (
                               <span style={{ color: '#999', fontSize: '0.8rem' }}>-</span>
@@ -2512,8 +2512,9 @@ function WorkOrderPage() {
                               type="button"
                               onClick={() => handleDeleteQuote(quote.id)}
                               className="btn-delete"
+                              title="Verwyder"
                             >
-                              Verwyder
+                              <IoTrashOutline size={18} />
                             </button>
                           </td>
                         </tr>
@@ -2623,12 +2624,12 @@ function WorkOrderPage() {
                         {quotePdfFiles[quoteEditId || "new"] ? (
                           <>
                             <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginRight: '0.5rem' }} disabled={!quotePdfPreviewUrls[quoteEditId || "new"]}>Bekyk</button>
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")}>Verwyder</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId || "new")}><IoTrashOutline size={18} /></button>
                           </>
                         ) : quoteDocuments[quoteEditId]?.[0] && (
                           <>
                             <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginRight: '0.5rem' }}>Bekyk</button>
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)}>Verwyder</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId)}><IoTrashOutline size={18} /></button>
                           </>
                         )}
                       </div>

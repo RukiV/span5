@@ -211,12 +211,9 @@ class _AssetsPageState extends State<AssetsPage> {
           ),
         ),
       if (UserSession.can('assets.manage')) ...[
-        BulkDeleteAction<String>(
+        SelectionExitAction<String>(
           controller: _selection,
-          confirmTitle: 'Verwyder Bates',
-          confirmMessage:
-              'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
-          onDelete: _bulkDeleteAssets,
+          onExit: () => setState(() => _selection.exit()),
         ),
       ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
@@ -368,6 +365,7 @@ class _AssetsPageState extends State<AssetsPage> {
         }
       },
       onLongPress: () {
+        if (!UserSession.can('assets.manage')) return;
         setState(() {
           _selection.enter();
           _selection.toggle(asset.id);
@@ -457,6 +455,16 @@ class _AssetsPageState extends State<AssetsPage> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (UserSession.can('assets.manage')) ...[
+          BulkDeleteFloatingAction<String>(
+            controller: _selection,
+            confirmTitle: 'Verwyder Bates',
+            confirmMessage:
+                'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
+            onDelete: _bulkDeleteAssets,
+          ),
+          const SizedBox(height: 12),
+        ],
         FloatingActionButton(
           heroTag: "scanBtn",
           onPressed: _scanToIdentify,

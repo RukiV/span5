@@ -8,7 +8,7 @@ import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import 'add_building_page.dart';
-import 'edit_building_page.dart';
+import 'building_detail_page.dart';
 import '../rooms/manage_rooms_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
@@ -203,14 +203,9 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                     ),
                   ),
                   if (UserSession.can('buildings.manage')) ...[
-                    BulkDeleteAction<int>(
+                    SelectionExitAction<int>(
                       controller: _selection,
-                      confirmTitle: 'Verwyder Geboue',
-                      confirmMessage:
-                          'Wil jy ${_selection.count} geselekteerde gebou/geboue verwyder?',
-                      childWarning:
-                          'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
-                      onDelete: _bulkDeleteBuildings,
+                      onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
@@ -278,12 +273,13 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (context) =>
-                                          EditBuildingPage(building: b),
+                                          BuildingDetailPage(building: b),
                                     ),
                                   );
                                 }
                               },
                               onLongPress: () {
+                                if (!UserSession.can('buildings.manage')) return;
                                 setState(() {
                                   _selection.enter();
                                   _selection.toggle(b.id);
@@ -300,25 +296,41 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
         },
       ),
       floatingActionButton: UserSession.can('buildings.manage')
-          ? FloatingActionButton.extended(
-              heroTag: "buildingAddBtn",
-              backgroundColor: AppColors.gold,
-              elevation: 4,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text("Nuwe Gebou",
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5)),
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddBuildingPage(),
-                  ),
-                );
-                if (result == true) setState(() {});
-              },
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                BulkDeleteFloatingAction<int>(
+                  controller: _selection,
+                  confirmTitle: 'Verwyder Geboue',
+                  confirmMessage:
+                      'Wil jy ${_selection.count} geselekteerde gebou/geboue verwyder?',
+                  childWarning:
+                      'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                  onDelete: _bulkDeleteBuildings,
+                ),
+                const SizedBox(height: 12),
+                FloatingActionButton.extended(
+                  heroTag: "buildingAddBtn",
+                  backgroundColor: AppColors.gold,
+                  elevation: 4,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text("Nuwe Gebou",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5)),
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddBuildingPage(),
+                      ),
+                    );
+                    if (result == true) setState(() {});
+                  },
+                ),
+              ],
             )
           : null,
     );

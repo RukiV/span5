@@ -11,6 +11,7 @@ import '../../services/jobcard_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../reporting/report_detail_page.dart';
+import 'jobcard_form_page.dart';
 
 /// Kontrakteur-aansig van 'n werksopdrag: leesbare Besonderhede (insluitend die
 /// foutkaartjie se fotos) plus 'n Kontrakteur Werknotas-blad waar werknotas en
@@ -227,6 +228,23 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
         foregroundColor: Colors.white,
         actions: UserSession.can('jobs.manage')
             ? [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.white),
+                  tooltip: "Wysig",
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            JobcardFormPage(jobcard: widget.job),
+                      ),
+                    );
+                    if (result == true && mounted) {
+                      await JobcardService.fetchJobs();
+                      if (mounted) setState(() {});
+                    }
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.white),
                   tooltip: "Verwyder",

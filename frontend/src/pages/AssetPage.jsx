@@ -2,6 +2,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -903,7 +904,7 @@ onMenuClose={filterCascade.onMenuClose}
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
-                  <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
+                  <button className="btn-history" title="Geskiedenis" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}><MdHistory size={18} /></button>
                   <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
                 </td>
               </tr>

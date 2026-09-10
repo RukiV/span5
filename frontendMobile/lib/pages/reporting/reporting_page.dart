@@ -117,16 +117,32 @@ class _ReportingPageState extends State<ReportingPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        elevation: 4,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text("Nuwe Foutkaartjie",
-            style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5)),
-        onPressed: () => _handleNewReport(context),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (UserSession.can('faults.manage')) ...[
+            BulkDeleteFloatingAction<String>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Foutkaartjies',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde foutkaartjie(s) verwyder?',
+              onDelete: _bulkDeleteFaults,
+            ),
+            const SizedBox(height: 12),
+          ],
+          FloatingActionButton.extended(
+            backgroundColor: AppColors.gold,
+            elevation: 4,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text("Nuwe Foutkaartjie",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5)),
+            onPressed: () => _handleNewReport(context),
+          ),
+        ],
       ),
     );
   }
@@ -221,12 +237,13 @@ class _ReportingPageState extends State<ReportingPage> {
                             );
                           }
                         },
-                        onLongPress: () {
-                          setState(() {
-                            _selection.enter();
-                            _selection.toggle(r.id);
-                          });
-                        },
+onLongPress: () {
+                            if (!UserSession.can('faults.manage')) return;
+                            setState(() {
+                              _selection.enter();
+                              _selection.toggle(r.id);
+                            });
+                          },
                         children: _colVis.visibleColumns.map((col) {
                           return Expanded(
                             flex: _columnFlex(col.key),
@@ -281,12 +298,9 @@ class _ReportingPageState extends State<ReportingPage> {
         ),
       ),
       if (UserSession.can('faults.manage')) ...[
-        BulkDeleteAction<String>(
+        SelectionExitAction<String>(
           controller: _selection,
-          confirmTitle: 'Verwyder Foutkaartjies',
-          confirmMessage:
-              'Wil jy ${_selection.count} geselekteerde foutkaartjie(s) verwyder?',
-          onDelete: _bulkDeleteFaults,
+          onExit: () => setState(() => _selection.exit()),
         ),
       ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),

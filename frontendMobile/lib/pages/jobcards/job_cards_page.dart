@@ -121,6 +121,20 @@ class _JobCardsPageState extends State<JobCardsPage>
           ),
         ],
       ),
+      floatingActionButton: _buildJobFloatingActions(),
+    );
+  }
+
+  Widget _buildJobFloatingActions() {
+    if (_tabController.index != 0 || !UserSession.can('jobs.manage')) {
+      return const SizedBox.shrink();
+    }
+    return BulkDeleteFloatingAction<int>(
+      controller: _selection,
+      confirmTitle: 'Verwyder Werksopdragte',
+      confirmMessage:
+          'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
+      onDelete: _bulkDeleteJobs,
     );
   }
 
@@ -259,12 +273,9 @@ class _JobCardsPageState extends State<JobCardsPage>
   List<Widget> _buildJobHeaderActions() {
     return [
       if (UserSession.can('jobs.manage')) ...[
-        BulkDeleteAction<int>(
+        SelectionExitAction<int>(
           controller: _selection,
-          confirmTitle: 'Verwyder Werksopdragte',
-          confirmMessage:
-              'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
-          onDelete: _bulkDeleteJobs,
+          onExit: () => setState(() => _selection.exit()),
         ),
       ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
@@ -344,6 +355,7 @@ class _JobCardsPageState extends State<JobCardsPage>
         }
       },
       onLongPress: () {
+        if (!UserSession.can('jobs.manage')) return;
         setState(() {
           _selection.enter();
           _selection.toggle(job.id);
