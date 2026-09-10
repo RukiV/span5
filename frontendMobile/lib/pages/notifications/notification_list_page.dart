@@ -24,7 +24,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
   bool _hasMore = true;
   String _filterType = '';
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('notifications', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('notifications', [
     const ColumnDef(key: 'type', label: 'Tipe'),
     const ColumnDef(key: 'title', label: 'Titel'),
     const ColumnDef(key: 'message', label: 'Boodskap', defaultVisible: false),
@@ -72,9 +73,13 @@ class _NotificationListPageState extends State<NotificationListPage> {
           final dir = _sortCtrl.direction;
           switch (_sortCtrl.sortKey) {
             case 'title':
-              return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
+              return a.title.toLowerCase().compareTo(b.title.toLowerCase()) *
+                  dir;
             case 'type':
-              return a.notificationType.toLowerCase().compareTo(b.notificationType.toLowerCase()) * dir;
+              return a.notificationType
+                      .toLowerCase()
+                      .compareTo(b.notificationType.toLowerCase()) *
+                  dir;
             case 'date':
               final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
               final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
@@ -252,7 +257,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       SearchableDropdownItem(
                           value: 'job.created', label: 'Werksopdrag Geskep'),
                       SearchableDropdownItem(
-                          value: 'job.completion_requested', label: 'Voltooiingsversoek'),
+                          value: 'job.completion_requested',
+                          label: 'Voltooiingsversoek'),
                       SearchableDropdownItem(
                           value: 'stock.low', label: 'Lae Voorraad'),
                       SearchableDropdownItem(
@@ -282,6 +288,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       )
                     : RefreshIndicator(
                         onRefresh: _onRefresh,
+                        color: AppColors.refreshSpinner,
                         child: ListView.builder(
                           controller: _scrollController,
                           itemCount: _notifications.length,

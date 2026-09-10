@@ -35,7 +35,8 @@ class _ReportingPageState extends State<ReportingPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('reports', [
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('reports', [
     const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
     const ColumnDef(key: 'title', label: 'TITEL'),
     const ColumnDef(key: 'location', label: 'Ligging', defaultVisible: false),
@@ -53,7 +54,6 @@ class _ReportingPageState extends State<ReportingPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
-    _tryAutoSelectCampus();
   }
 
   @override
@@ -63,21 +63,9 @@ class _ReportingPageState extends State<ReportingPage> {
     super.dispose();
   }
 
-  // ── Campus auto-select ──
-
-  void _tryAutoSelectCampus() {
-    if (UserSession.isManager && _selectedCampusId == null && UserSession.locationId != null) {
-      final match = CampusService.campusesNotifier.value
-          .where((c) => c.id == UserSession.locationId).firstOrNull;
-      if (match != null) _selectedCampusId = match.id;
-    }
-  }
-
   void _onCampusesChanged() {
     if (mounted) {
-      setState(() {
-        _tryAutoSelectCampus();
-      });
+      setState(() {});
     }
   }
 
@@ -132,9 +120,12 @@ class _ReportingPageState extends State<ReportingPage> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: AppColors.gold,
         elevation: 4,
-        icon: const Icon(Icons.add_a_photo, color: Colors.white),
+        icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("Nuwe Foutkaartjie",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5)),
         onPressed: () => _handleNewReport(context),
       ),
     );
@@ -154,34 +145,54 @@ class _ReportingPageState extends State<ReportingPage> {
               r.id.toLowerCase().contains(query) ||
               r.title.toLowerCase().contains(query) ||
               r.location.toLowerCase().contains(query);
-          final matchesStatus = _statusFilter == "Alles" || (r.phase == _statusFilter);
-          final matchesCampus = _selectedCampusId == null || _campusIdForReport(r) == _selectedCampusId;
-          final matchesBuilding = _selectedBuildingId == null || _buildingIdForReport(r) == _selectedBuildingId;
-          return matchesSearch && matchesStatus && matchesCampus && matchesBuilding;
+          final matchesStatus =
+              _statusFilter == "Alles" || (r.phase == _statusFilter);
+          final matchesCampus = _selectedCampusId == null ||
+              _campusIdForReport(r) == _selectedCampusId;
+          final matchesBuilding = _selectedBuildingId == null ||
+              _buildingIdForReport(r) == _selectedBuildingId;
+          return matchesSearch &&
+              matchesStatus &&
+              matchesCampus &&
+              matchesBuilding;
         }).toList();
 
         if (_sortCtrl.isActive) {
           filtered.sort((a, b) {
             final dir = _sortCtrl.direction;
             switch (_sortCtrl.sortKey) {
-              case 'id': return a.id.toLowerCase().compareTo(b.id.toLowerCase()) * dir;
-              case 'title': return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
-              case 'location': return a.location.toLowerCase().compareTo(b.location.toLowerCase()) * dir;
-              case 'phase': return a.phase.toLowerCase().compareTo(b.phase.toLowerCase()) * dir;
-              case 'timestamp': return a.timestamp.compareTo(b.timestamp) * dir;
-              default: return 0;
+              case 'id':
+                return a.id.toLowerCase().compareTo(b.id.toLowerCase()) * dir;
+              case 'title':
+                return a.title.toLowerCase().compareTo(b.title.toLowerCase()) *
+                    dir;
+              case 'location':
+                return a.location
+                        .toLowerCase()
+                        .compareTo(b.location.toLowerCase()) *
+                    dir;
+              case 'phase':
+                return a.phase.toLowerCase().compareTo(b.phase.toLowerCase()) *
+                    dir;
+              case 'timestamp':
+                return a.timestamp.compareTo(b.timestamp) * dir;
+              default:
+                return 0;
             }
           });
         }
 
         return RefreshIndicator(
           onRefresh: () => ReportService.fetchReports(),
+          color: AppColors.refreshSpinner,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               if (filtered.isEmpty)
                 const SliverFillRemaining(
-                  child: Center(child: Text("Geen foutkaartjies gevind nie.", style: TextStyle(color: Colors.grey))),
+                  child: Center(
+                      child: Text("Geen foutkaartjies gevind nie.",
+                          style: TextStyle(color: Colors.grey))),
                 )
               else
                 SliverList(
@@ -192,19 +203,29 @@ class _ReportingPageState extends State<ReportingPage> {
                         leading: _selection.isSelecting
                             ? Checkbox(
                                 value: _selection.isSelected(r.id),
-                                onChanged: (_) => setState(() => _selection.toggle(r.id)),
+                                onChanged: (_) =>
+                                    setState(() => _selection.toggle(r.id)),
                               )
                             : null,
-                        trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
+                        trailing: const Icon(Icons.chevron_right,
+                            color: AppColors.gold),
                         onTap: () {
                           if (_selection.isSelecting) {
                             setState(() => _selection.toggle(r.id));
                           } else {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => ReportDetailPage(report: r)),
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      ReportDetailPage(report: r)),
                             );
                           }
+                        },
+                        onLongPress: () {
+                          setState(() {
+                            _selection.enter();
+                            _selection.toggle(r.id);
+                          });
                         },
                         children: _colVis.visibleColumns.map((col) {
                           return Expanded(
@@ -226,7 +247,8 @@ class _ReportingPageState extends State<ReportingPage> {
   }
 
   List<Widget> _buildFaultHeaderActions() {
-    final locationActive = _selectedCampusId != null || _selectedBuildingId != null;
+    final locationActive =
+        _selectedCampusId != null || _selectedBuildingId != null;
     return [
       HeaderIconAction(
         icon: Icons.place_outlined,
@@ -254,19 +276,16 @@ class _ReportingPageState extends State<ReportingPage> {
           items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
               .map((s) => SearchableDropdownItem(value: s, label: s))
               .toList(),
-          onSelected: (val) => setState(() => _statusFilter = val ?? _statusFilter),
+          onSelected: (val) =>
+              setState(() => _statusFilter = val ?? _statusFilter),
         ),
       ),
       if (UserSession.can('faults.manage')) ...[
-        SelectModeButton<String>(
-          controller: _selection,
-          onToggle: () => setState(() =>
-              _selection.isSelecting ? _selection.exit() : _selection.enter()),
-        ),
         BulkDeleteAction<String>(
           controller: _selection,
           confirmTitle: 'Verwyder Foutkaartjies',
-          confirmMessage: 'Wil jy ${_selection.count} geselekteerde foutkaartjie(s) verwyder?',
+          confirmMessage:
+              'Wil jy ${_selection.count} geselekteerde foutkaartjie(s) verwyder?',
           onDelete: _bulkDeleteFaults,
         ),
       ],
@@ -292,7 +311,8 @@ class _ReportingPageState extends State<ReportingPage> {
           content: Text(fail == 0
               ? "$ok foutkaartjie(s) verwyder."
               : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor: fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
         ),
       );
     }
@@ -304,23 +324,32 @@ class _ReportingPageState extends State<ReportingPage> {
 
   int _columnFlex(String key) {
     switch (key) {
-      case 'id': return 1;
-      case 'title': return 3;
-      case 'location': return 2;
-      case 'phase': return 2;
-      case 'timestamp': return 2;
-      default: return 1;
+      case 'id':
+        return 1;
+      case 'title':
+        return 3;
+      case 'location':
+        return 2;
+      case 'phase':
+        return 2;
+      case 'timestamp':
+        return 2;
+      default:
+        return 1;
     }
   }
 
   Widget _buildColumnContent(Report r, String key) {
     switch (key) {
       case 'id':
-        return Text("#${r.id}", style: const TextStyle(color: Colors.black87, fontSize: 13));
+        return Text("#${r.id}",
+            style: const TextStyle(color: Colors.black87, fontSize: 13));
       case 'title':
-        return Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14));
+        return Text(r.title,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14));
       case 'location':
-        return Text(r.location, style: const TextStyle(fontSize: 11, color: Colors.grey));
+        return Text(r.location,
+            style: const TextStyle(fontSize: 11, color: Colors.grey));
       case 'phase':
         return StatusBadge(status: r.phase);
       case 'timestamp':
