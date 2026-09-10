@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../core/datetime_utils.dart';
+import '../../models/user.dart';
 import '../../models/user_session.dart';
+import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/app_snack_bar.dart';
@@ -76,14 +77,8 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                       hintText: "Kies gebruiker",
                     ),
                     items: [
-                      for (final u in UserService.users.where((u) {
-                        if (u.id == UserSession.userId) return true;
-                        if (u.roleId == 1 || u.roleId == 4) return false;
-                        if (u.roleId != 5) return false;
-                        return true;
-                      }))
-                        DropdownMenuItem(
-                            value: u.id, child: Text(u.displayName)),
+                      for (final u in _assignableUsers(session))
+                        DropdownMenuItem(value: u.id, child: Text(_displayName(u))),
                     ],
                     onChanged: (val) =>
                         setDialogState(() => assignedUserId = val),
@@ -160,6 +155,29 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
         },
       ),
     );
+  }
+
+  /// Wisselbare gebruikers vir die wysig-dialoog — dieselfde filtreer as
+  /// skedulering (alle FK-koördineerders + dosente/professore + self, gesorteer
+  /// per kampus), maar die huidige toegewysde persoon word altyd bygevoeg sodat
+  /// DropdownButtonFormField se initialValue altyd 'n ooreenstemmende item het.
+  List<User> _assignableUsers(RoomCheckSession session) {
+    final assignable = UserService.roomCheckAssignable().toList();
+
+    final assignedId = session.assignedUserId;
+    if (!assignable.any((u) => u.id == assignedId)) {
+      final assigned = UserService.users.where((u) => u.id == assignedId);
+      if (assigned.isNotEmpty) assignable.add(assigned.first);
+    }
+
+    return assignable;
+  }
+
+  String _displayName(User u) {
+    final campus = u.locationId == null
+        ? ""
+        : CampusService.getCampusName(u.locationId!);
+    return campus.isEmpty ? u.displayName : "${u.displayName} — $campus";
   }
 
   Future<void> _confirmDelete(RoomCheckSession session) async {

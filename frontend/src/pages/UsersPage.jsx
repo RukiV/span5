@@ -184,7 +184,8 @@ function UsersPage({ embedded = false }) {
           user_email: '',
           user_password: '',
           user_status: 'active',
-          role_id: 1
+          role_id: 1,
+          location_id: ''
         });
         fetchUsers();
       }, 1500);
@@ -578,9 +579,68 @@ function UsersPage({ embedded = false }) {
               <button className="btn-add" onClick={handleAddUser}>Stoor</button>
             </div>
           </div>
+        )}
+        <div className="form-group">
+          <label>Rol *</label>
+          <select
+            ref={el => fieldRefs.current.role_id = el}
+            className={invalidFields.role_id ? "field-invalid" : ""}
+            value={formUser.role_id}
+            disabled={isViewMode}
+            onChange={(e) => {
+              const newRoleId = parseInt(e.target.value);
+              setFormUser({
+                ...formUser,
+                role_id: newRoleId,
+                location_id: [2, 3, 5].includes(newRoleId) ? formUser.location_id : null,
+              });
+              setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+            }}
+          >
+            {roles.map(role => (
+              <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
+            ))}
+          </select>
         </div>
-      )}
-    </>
+        {[2, 3, 5].includes(formUser.role_id) && (
+        <div className="form-group">
+          <label>Terrein</label>
+          <select
+            value={formUser.location_id || ''}
+            disabled={isViewMode}
+            onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
+          >
+            <option value="">Geen terrein</option>
+            {terrains.map(t => (
+              <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
+            ))}
+          </select>
+        </div>
+        )}
+        <div className="form-group">
+          <label>Status *</label>
+          <select
+            ref={el => fieldRefs.current.user_status = el}
+            className={invalidFields.user_status ? "field-invalid" : ""}
+            value={formUser.user_status}
+            disabled={isViewMode}
+            onChange={(e) => {
+              setFormUser({ ...formUser, user_status: e.target.value });
+              setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+            }}
+          >
+            <option value="active">Aktief</option>
+            <option value="inactive">Onaktief</option>
+          </select>
+        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleAddUser}>Stoor</button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   if (embedded) {

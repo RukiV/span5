@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from ....auth.permissions import require_right
-from ....auth.rights_catalog import BUILTIN_ROLE_IDS
+from ....auth.rights_catalog import BUILTIN_ROLE_IDS, ROLE_ADMIN, ROLE_FK
 from ....db.database import getSession
 from ....models.role import Role, RoleRead, RoleCreate, RoleUpdate
 from ....models.user import User
@@ -84,6 +84,9 @@ def patchRole(roleID: int, roleIn: RoleManageUpdate, session: Session = Depends(
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
 
+    if current.role_id != ROLE_ADMIN and roleID in (ROLE_ADMIN, ROLE_FK):
+        raise HTTPException(status_code=403, detail="Kan nie hierdie rol wysig nie")
+
     # Built-in roles: the name is immutable (relied on by seed/login gate), but
     # their right-assignments remain editable.
     renaming = roleIn.role_name is not None and roleIn.role_name != role.role_name
@@ -108,6 +111,8 @@ def setRoleRights(roleID: int, payload: RoleRightsUpdate, session: Session = Dep
     role = role_service.getByID(session, roleID)
     if not role:
         raise HTTPException(status_code=404, detail="Role not found")
+    if current.role_id != ROLE_ADMIN and roleID in (ROLE_ADMIN, ROLE_FK):
+        raise HTTPException(status_code=403, detail="Kan nie die regte van hierdie rol wysig nie")
     try:
         return role_service.set_rights(session, roleID, payload.right_ids, user_id=current.user_id)
     except PermissionError as exc:
