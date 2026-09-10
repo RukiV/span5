@@ -485,6 +485,14 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   // ===== Bou =====
 
+  static const _tabLabels = ["Besonderhede", "Kwotasies", "Skedulering", "Werknotas"];
+  static const _tabIcons = [
+    Icons.info_outline,
+    Icons.request_quote_outlined,
+    Icons.calendar_month_outlined,
+    Icons.note_alt_outlined,
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -494,24 +502,13 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             : "Nuwe Werksopdrag"),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          labelColor: AppColors.gold,
-          indicatorColor: AppColors.gold,
-          tabs: const [
-            Tab(text: "Besonderhede"),
-            Tab(text: "Kwotasies"),
-            Tab(text: "Skedulering & Toewysing"),
-            Tab(text: "Kontrakteur Werknotas"),
-          ],
-        ),
       ),
       body: Column(
         children: [
+          _buildTabRoster(),
           Expanded(
-            child: TabBarView(
-              controller: _tabController,
+            child: IndexedStack(
+              index: _tabController.index,
               children: [
                 _buildBesonderhedeTab(),
                 _buildKwotasiesTab(),
@@ -522,6 +519,74 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           ),
           _buildFooter(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTabRoster() {
+    return Container(
+      color: AppColors.navy,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _buildTabButton(0)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildTabButton(1)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _buildTabButton(2)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildTabButton(3)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index) {
+    final isSelected = _tabController.index == index;
+    return GestureDetector(
+      onTap: () => setState(() => _tabController.index = index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.gold.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.gold
+                : Colors.white.withValues(alpha: 0.4),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _tabIcons[index],
+              size: 16,
+              color: isSelected ? AppColors.gold : Colors.white70,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _tabLabels[index],
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.gold : Colors.white,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1320,23 +1385,23 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   Future<void> _save() async {
     if (_selectedCampusId == null) {
       _showSnack("Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
-      _tabController.animateTo(0);
+      setState(() => _tabController.index = 0);
       return;
     }
     if (_workType.isEmpty) {
       _showSnack("Kies asseblief 'n werksoort.", error: true);
-      _tabController.animateTo(0);
+      setState(() => _tabController.index = 0);
       return;
     }
     if (_assignedToId == null) {
       _showSnack("Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
-      _tabController.animateTo(2);
+      setState(() => _tabController.index = 2);
       return;
     }
     for (final q in _quotes) {
       if (!q.hasPdf) {
         _showSnack("Elke kwotasie moet 'n PDF-dokument hê.", error: true);
-        _tabController.animateTo(1);
+        setState(() => _tabController.index = 1);
         return;
       }
     }
@@ -1344,12 +1409,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
       if (selected != null && !selected.hasContractor) {
         _showSnack("Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
-        _tabController.animateTo(1);
+        setState(() => _tabController.index = 1);
         return;
       }
       if (selected != null && (selected.selectionReason == null || selected.selectionReason!.trim().isEmpty)) {
         _showSnack("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
-        _tabController.animateTo(1);
+        setState(() => _tabController.index = 1);
         return;
       }
     }
