@@ -9,7 +9,10 @@ class AppColors {
   static const Color white = Color(0xFFFFFFFF);
   static const Color background = Color(0xFFF5F5F5);
   static const Color inputFill = Color(0xFFFFFEF0);
-  
+
+  // Verfris-aansuier (RefreshIndicator) — eenvormige kleur op alle bladsye.
+  static const Color refreshSpinner = Color(0xFF935E28);
+
   // Status en Prioriteit Kleure (Sentrale beheer vir konsekwentheid)
   static const Color successGreen = Color(0xFF2E7D32);
   static const Color warningOrange = Color(0xFFEF6C00);
