@@ -108,11 +108,13 @@ class _EditStockPageState extends State<EditStockPage> {
     String path = campus.name;
 
     if (_buildingId != null) {
-      final building = campus.buildings.where((b) => b.id == _buildingId).firstOrNull;
+      final building =
+          campus.buildings.where((b) => b.id == _buildingId).firstOrNull;
       if (building != null) {
         path += " > ${building.name}";
         if (_roomId != null) {
-          final room = building.rooms?.where((r) => r.id == _roomId).firstOrNull;
+          final room =
+              building.rooms?.where((r) => r.id == _roomId).firstOrNull;
           if (room != null) {
             path += " > ${room.name}";
           }
@@ -131,7 +133,8 @@ class _EditStockPageState extends State<EditStockPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
+          const Icon(Icons.location_on_outlined,
+              size: 16, color: AppColors.gold),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -148,153 +151,48 @@ class _EditStockPageState extends State<EditStockPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.navy,
-      appBar: AppBar(
-        title: const Text("Wysig Voorraad",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+  InputDecoration _inputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AppColors.navy, fontSize: 14),
+      filled: true,
+      fillColor: Colors.grey[50],
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
-      body: SingleChildScrollView(
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildBreadcrumbs(),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildField("Naam", (v) => name = v, initialValue: name),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildField("Handelsmerk", (v) => brand = v, initialValue: brand),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildField("Tipe", (v) => type = v, initialValue: type),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildNumberField("Hoeveelheid",
-                          (v) => amount = int.tryParse(v) ?? 0,
-                          initialValue: amount.toString()),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildNumberField("Minimum Voorraad",
-                          (v) => minimum = int.tryParse(v) ?? 0,
-                          initialValue: minimum.toString()),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildNumberField("Boks Totaal",
-                          (v) => boxTotal = int.tryParse(v) ?? 0,
-                          initialValue: boxTotal.toString()),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                LocationCascadePicker(
-                  label: "Ligging *",
-                  initialCampusId: _campusId,
-                  initialBuildingId: _buildingId,
-                  initialRoomId: _roomId,
-                  errorText: _locationError,
-                  onChanged: _onLocationChanged,
-                ),
-                const SizedBox(height: 20),
-                _buildField("Beskrywing", (v) => description = v,
-                    initialValue: description, maxLines: 3),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (_roomId == null) {
-                        setState(() => _locationError = "Kies 'n volledige ligging");
-                        return;
-                      }
-                      if (_formKey.currentState!.validate()) {
-                        final updated = Stock(
-                          id: widget.stock.id,
-                          name: name,
-                          brand: brand,
-                          amount: amount,
-                          minimum: minimum,
-                          boxTotal: boxTotal,
-                          type: type,
-                          description: description,
-                          roomId: _roomId,
-                        );
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey[300]!),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: AppColors.gold, width: 2),
+      ),
+    );
+  }
 
-                        final success = await StockService.updateStock(updated);
-                        if (!context.mounted) return;
-                        if (success) {
-                          Navigator.pop(context, true);
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      elevation: 2,
-                    ),
-                    child: const Text("OPDATEER VOORRAAD",
-                        style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Kanselleer",
-                        style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (UserSession.can('stock.manage'))
-                  SizedBox(
-                    width: double.infinity,
-                    child: TextButton(
-                      onPressed: () => _confirmDelete(),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
-                      ),
-                      child: const Text("VERWYDER VOORRAAD",
-                          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  Widget _buildField(String label, Function(String) onSet,
+      {int maxLines = 1, String? initialValue}) {
+    return TextFormField(
+      initialValue: initialValue,
+      maxLines: maxLines,
+      decoration: _inputDecoration(label),
+      onChanged: onSet,
+      validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+    );
+  }
+
+  Widget _buildNumberField(String label, Function(String) onSet,
+      {String? initialValue}) {
+    return TextFormField(
+      initialValue: initialValue,
+      keyboardType: TextInputType.number,
+      decoration: _inputDecoration(label),
+      onChanged: onSet,
+      validator: (v) =>
+          (v == null || int.tryParse(v) == null) ? "Vereis" : null,
     );
   }
 
@@ -335,63 +233,155 @@ class _EditStockPageState extends State<EditStockPage> {
     }
   }
 
-  Widget _buildField(String label, Function(String) onSet,
-      {int maxLines = 1, String? initialValue}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          initialValue: initialValue,
-          maxLines: maxLines,
-          decoration: _inputDecoration(),
-          onChanged: onSet,
-          validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
-        ),
-      ],
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Wysig Voorraad",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildBreadcrumbs(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildField("Naam", (v) => name = v,
+                          initialValue: name),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildField("Handelsmerk", (v) => brand = v,
+                          initialValue: brand),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildField("Tipe", (v) => type = v,
+                          initialValue: type),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildNumberField(
+                          "Hoeveelheid", (v) => amount = int.tryParse(v) ?? 0,
+                          initialValue: amount.toString()),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildNumberField("Minimum Voorraad",
+                          (v) => minimum = int.tryParse(v) ?? 0,
+                          initialValue: minimum.toString()),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _buildNumberField(
+                          "Boks Totaal", (v) => boxTotal = int.tryParse(v) ?? 0,
+                          initialValue: boxTotal.toString()),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                LocationCascadePicker(
+                  label: "Ligging *",
+                  initialCampusId: _campusId,
+                  initialBuildingId: _buildingId,
+                  initialRoomId: _roomId,
+                  errorText: _locationError,
+                  onChanged: _onLocationChanged,
+                ),
+                const SizedBox(height: 20),
+                _buildField("Beskrywing", (v) => description = v,
+                    initialValue: description, maxLines: 3),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      if (_roomId == null) {
+                        setState(
+                            () => _locationError = "Kies 'n volledige ligging");
+                        return;
+                      }
+                      if (_formKey.currentState!.validate()) {
+                        final updated = Stock(
+                          id: widget.stock.id,
+                          name: name,
+                          brand: brand,
+                          amount: amount,
+                          minimum: minimum,
+                          boxTotal: boxTotal,
+                          type: type,
+                          description: description,
+                          roomId: _roomId,
+                        );
 
-  Widget _buildNumberField(String label, Function(String) onSet,
-      {String? initialValue}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        const SizedBox(height: 6),
-        TextFormField(
-          initialValue: initialValue,
-          keyboardType: TextInputType.number,
-          decoration: _inputDecoration(),
-          onChanged: onSet,
-          validator: (v) =>
-              (v == null || int.tryParse(v) == null) ? "Vereis" : null,
+                        final success = await StockService.updateStock(updated);
+                        if (!context.mounted) return;
+                        if (success) {
+                          Navigator.pop(context, true);
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("OPDATEER VOORRAAD",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text("Kanselleer",
+                        style: TextStyle(
+                            color: Colors.grey, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (UserSession.can('stock.manage'))
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => _confirmDelete(),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: BorderSide(
+                            color: Colors.red.withValues(alpha: 0.5)),
+                      ),
+                      child: const Text("VERWYDER VOORRAAD",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
         ),
-      ],
-    );
-  }
-
-  InputDecoration _inputDecoration() {
-    return InputDecoration(
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
       ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.gold, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 }
-

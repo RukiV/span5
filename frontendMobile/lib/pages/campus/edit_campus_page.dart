@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
+import '../../models/user_session.dart';
 import '../reporting/select_location_page.dart';
 
 class EditCampusPage extends StatefulWidget {
@@ -26,6 +27,7 @@ class _EditCampusPageState extends State<EditCampusPage> {
   late LatLng _selectedLocation;
   late TextEditingController _radiusController;
   bool _isSaving = false;
+  bool _editing = false;
 
   @override
   void initState() {
@@ -33,13 +35,15 @@ class _EditCampusPageState extends State<EditCampusPage> {
     _nameController = TextEditingController(text: widget.campus.name);
     _typeController = TextEditingController(text: widget.campus.code);
     _streetNumController = TextEditingController(text: widget.campus.streetNum);
-    _streetNameController = TextEditingController(text: widget.campus.streetName);
+    _streetNameController =
+        TextEditingController(text: widget.campus.streetName);
     _suburbController = TextEditingController(text: widget.campus.suburb);
     _cityController = TextEditingController(text: widget.campus.city);
     _provinceController = TextEditingController(text: widget.campus.province);
     _countryController = TextEditingController(text: widget.campus.country);
     _selectedLocation = widget.campus.location;
-    _radiusController = TextEditingController(text: widget.campus.radius.toStringAsFixed(0));
+    _radiusController =
+        TextEditingController(text: widget.campus.radius.toStringAsFixed(0));
   }
 
   @override
@@ -119,11 +123,15 @@ class _EditCampusPageState extends State<EditCampusPage> {
       if (success) {
         Navigator.pop(context, true); // Stuur true terug vir verfrissing
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Terrein suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
+          const SnackBar(
+              content: Text("Terrein suksesvol opgedateer"),
+              backgroundColor: AppColors.successGreen),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie opdateer nie. Probeer weer."), backgroundColor: AppColors.errorRed),
+          const SnackBar(
+              content: Text("Kon nie opdateer nie. Probeer weer."),
+              backgroundColor: AppColors.errorRed),
         );
       }
     }
@@ -132,201 +140,242 @@ class _EditCampusPageState extends State<EditCampusPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text("Wysig Terrein", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+        title: Text(
+          _editing ? 'Wysig Terrein' : widget.campus.name,
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          overflow: TextOverflow.ellipsis,
         ),
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        actions: [
+          if (!_editing && UserSession.can('locations.manage'))
+            IconButton(
+              icon: const Icon(Icons.edit, color: Colors.white),
+              tooltip: 'Wysig',
+              onPressed: () => setState(() => _editing = true),
             ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFieldLabel("Naam"),
-                  TextFormField(
-                    controller: _nameController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                    validator: (v) => v!.isEmpty ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Tipe / Kode"),
-                  TextFormField(
-                    controller: _typeController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                    validator: (v) => v!.isEmpty ? "Vereis" : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Ligging op Kaart"),
-                  InkWell(
-                    onTap: () async {
-                      final LatLng? result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SelectLocationPage(initialLocation: _selectedLocation),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                IgnorePointer(
+                  ignoring: !_editing,
+                  child: Opacity(
+                    opacity: _editing ? 1 : 0.6,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildFieldLabel("Naam"),
+                        TextFormField(
+                          controller: _nameController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                          validator: (v) => v!.isEmpty ? "Vereis" : null,
                         ),
-                      );
-                      if (result != null) {
-                        setState(() => _selectedLocation = result);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.location_on, color: AppColors.gold),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              "Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}",
-                              style: const TextStyle(fontSize: 14),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Tipe / Kode"),
+                        TextFormField(
+                          controller: _typeController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                          validator: (v) => v!.isEmpty ? "Vereis" : null,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Ligging op Kaart"),
+                        InkWell(
+                          onTap: () async {
+                            final LatLng? result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SelectLocationPage(
+                                    initialLocation: _selectedLocation),
+                              ),
+                            );
+                            if (result != null) {
+                              setState(() => _selectedLocation = result);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 15, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              border: Border.all(color: Colors.grey[300]!),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.location_on,
+                                    color: AppColors.gold),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    "Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}",
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ),
+                                const Text("VERANDER",
+                                    style: TextStyle(
+                                        color: AppColors.gold,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12)),
+                              ],
                             ),
                           ),
-                          const Text("VERANDER", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Toegelate Radius (meter)"),
+                        TextFormField(
+                          controller: _radiusController,
+                          style: const TextStyle(fontSize: 14),
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          decoration: _inputDecoration(),
+                          validator: (v) {
+                            final val = double.tryParse(v ?? "");
+                            return (v == null ||
+                                    v.isEmpty ||
+                                    val == null ||
+                                    val <= 0)
+                                ? "Geldige radius word vereis"
+                                : null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldLabel("Nr"),
+                                  TextFormField(
+                                    controller: _streetNumController,
+                                    style: const TextStyle(fontSize: 14),
+                                    decoration: _inputDecoration(),
+                                    validator: (v) =>
+                                        v!.isEmpty ? "Vereis" : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 5,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildFieldLabel("Straatnaam"),
+                                  TextFormField(
+                                    controller: _streetNameController,
+                                    style: const TextStyle(fontSize: 14),
+                                    decoration: _inputDecoration(),
+                                    validator: (v) =>
+                                        v!.isEmpty ? "Vereis" : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Suburb"),
+                        TextFormField(
+                          controller: _suburbController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Stad"),
+                        TextFormField(
+                          controller: _cityController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Provinsie"),
+                        TextFormField(
+                          controller: _provinceController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildFieldLabel("Land"),
+                        TextFormField(
+                          controller: _countryController,
+                          style: const TextStyle(fontSize: 14),
+                          decoration: _inputDecoration(),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Toegelate Radius (meter)"),
-                  TextFormField(
-                    controller: _radiusController,
-                    style: const TextStyle(fontSize: 14),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: _inputDecoration(),
-                    validator: (v) {
-                      final val = double.tryParse(v ?? "");
-                      return (v == null || v.isEmpty || val == null || val <= 0) ? "Geldige radius word vereis" : null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildFieldLabel("Nr"),
-                            TextFormField(
-                              controller: _streetNumController,
-                              style: const TextStyle(fontSize: 14),
-                              decoration: _inputDecoration(),
-                              validator: (v) => v!.isEmpty ? "Vereis" : null,
-                            ),
-                          ],
-                        ),
+                ),
+                const SizedBox(height: 32),
+                if (_editing) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 5,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildFieldLabel("Straatnaam"),
-                            TextFormField(
-                              controller: _streetNameController,
-                              style: const TextStyle(fontSize: 14),
-                              decoration: _inputDecoration(),
-                              validator: (v) => v!.isEmpty ? "Vereis" : null,
-                            ),
-                          ],
-                        ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Text("OPDATEER",
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Kanselleer",
+                          style: TextStyle(
+                              color: Colors.grey, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ] else
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                    ],
+                      child: const Text("KLAAR",
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                    ),
                   ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Suburb"),
-                  TextFormField(
-                    controller: _suburbController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Stad"),
-                  TextFormField(
-                    controller: _cityController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Provinsie"),
-                  TextFormField(
-                    controller: _provinceController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildFieldLabel("Land"),
-                  TextFormField(
-                    controller: _countryController,
-                    style: const TextStyle(fontSize: 14),
-                    decoration: _inputDecoration(),
-                  ),
-                  const SizedBox(height: 32),
-                  
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Kanselleer", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: _isSaving ? null : _save,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 15),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          elevation: 0,
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                            : const Text("OPDATEER", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ),

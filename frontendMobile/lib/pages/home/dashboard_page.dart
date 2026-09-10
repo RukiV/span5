@@ -52,7 +52,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
     return RefreshIndicator(
       onRefresh: _refreshData,
-      color: AppColors.gold,
+      color: AppColors.refreshSpinner,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -78,13 +78,14 @@ class _DashboardPageState extends State<DashboardPage> {
             // Seksie: Rapportering Opsomming
             _buildSectionHeader("Rapportering"),
             const SizedBox(height: 12),
-            
+
             // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
             ValueListenableBuilder<List<Report>>(
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
-                final voltooi = reports.where((r) => r.phase == "Voltooi").length;
+                final voltooi =
+                    reports.where((r) => r.phase == "Voltooi").length;
                 final werksopdragteTotaal = reports.length;
 
                 return LayoutBuilder(
@@ -147,7 +148,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 );
               },
             ),
-            
+
             const SizedBox(height: 30),
 
             // Seksie: Kalender (ingebed)
@@ -172,7 +173,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildMiniStatCard(BuildContext context, String title, String value, String trend, Color color, String targetTitle, double width) {
+  Widget _buildMiniStatCard(BuildContext context, String title, String value,
+      String trend, Color color, String targetTitle, double width) {
     return InkWell(
       onTap: () => widget.onTabRequested?.call(targetTitle),
       borderRadius: BorderRadius.circular(12),
@@ -182,20 +184,39 @@ class _DashboardPageState extends State<DashboardPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
           border: Border(bottom: BorderSide(color: color, width: 3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey), maxLines: 1),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey),
+                maxLines: 1),
             const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.navy)),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navy)),
             if (trend.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
                 trend,
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: trend.contains('+') ? AppColors.successGreen : AppColors.errorRed),
+                style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: trend.contains('+')
+                        ? AppColors.successGreen
+                        : AppColors.errorRed),
               ),
             ],
           ],
@@ -204,7 +225,8 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildWideStatCard(BuildContext context, String title, String value, String trend, Color color, String targetTitle) {
+  Widget _buildWideStatCard(BuildContext context, String title, String value,
+      String trend, Color color, String targetTitle) {
     return InkWell(
       onTap: () => widget.onTabRequested?.call(targetTitle),
       borderRadius: BorderRadius.circular(12),
@@ -213,7 +235,12 @@ class _DashboardPageState extends State<DashboardPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -221,18 +248,33 @@ class _DashboardPageState extends State<DashboardPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
                 const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.navy)),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy)),
               ],
             ),
             if (trend.isEmpty)
               const SizedBox.shrink()
             else
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.successGreen.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                child: Text(trend, style: const TextStyle(color: AppColors.successGreen, fontSize: 12, fontWeight: FontWeight.bold)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: AppColors.successGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text(trend,
+                    style: const TextStyle(
+                        color: AppColors.successGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
               )
           ],
         ),
