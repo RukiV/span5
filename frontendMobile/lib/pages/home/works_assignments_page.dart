@@ -3,11 +3,10 @@ import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
+import '../../core/status_colors.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
-import '../../widgets/sort_utils.dart';
-import '../../widgets/column_visibility.dart';
 import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
@@ -20,13 +19,6 @@ class WorksAssignmentsPage extends StatefulWidget {
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis =
-      ColumnVisibilityController('works-assignments', [
-    const ColumnDef(key: 'description', label: 'Beskrywing'),
-    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
-    const ColumnDef(key: 'status', label: 'Status'),
-  ]);
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
@@ -105,7 +97,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
-              ColumnVisibilityButton(controller: _colVis, iconOnly: true),
             ],
           ),
           Expanded(
@@ -133,31 +124,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }
                   return true;
                 }).toList();
-
-                if (_sortCtrl.isActive) {
-                  filtered.sort((a, b) {
-                    final dir = _sortCtrl.direction;
-                    switch (_sortCtrl.sortKey) {
-                      case 'description':
-                        return a.description
-                                .toLowerCase()
-                                .compareTo(b.description.toLowerCase()) *
-                            dir;
-                      case 'type':
-                        return (a.type ?? '')
-                                .toLowerCase()
-                                .compareTo((b.type ?? '').toLowerCase()) *
-                            dir;
-                      case 'status':
-                        return a.status
-                                .toLowerCase()
-                                .compareTo(b.status.toLowerCase()) *
-                            dir;
-                      default:
-                        return 0;
-                    }
-                  });
-                }
 
                 if (filtered.isEmpty) {
                   return RefreshIndicator(
@@ -197,10 +163,10 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
                           leading: CircleAvatar(
-                            backgroundColor: _getStatusColor(job.status)
+                            backgroundColor: jobStatusColor(job.status)
                                 .withValues(alpha: 0.2),
                             child: Icon(Icons.assignment,
-                                color: _getStatusColor(job.status)),
+                                color: jobStatusColor(job.status)),
                           ),
                           title: Text(
                             job.description,
@@ -245,27 +211,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Wag':
-        return Colors.orange;
-      case 'Oop':
-        return Colors.blue;
-      case 'Geskeduleer':
-        return Colors.teal;
-      case 'Besig':
-        return Colors.blue;
-      case 'Voltooi':
-        return Colors.green;
-      case 'Gekanselleer':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Widget _buildStatusBadge(String status) {
-    final color = _getStatusColor(status);
+    final color = jobStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

@@ -4,6 +4,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
+import '../../core/input_decoration.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
 import '../../services/outlook_token_manager.dart';
@@ -333,7 +334,15 @@ class _LoginPageState extends State<LoginPage> {
                         TextField(
                           controller: _userControl,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: _inputDecoration("e-pos adres"),
+                          decoration: appInputDecoration(
+                              hintText: "e-pos adres",
+                              hintStyle: const TextStyle(color: Colors.black26),
+                              labelStyle: null,
+                              fillColor: AppColors.inputFill,
+                              borderColor: Colors.black12,
+                              focusedBorderColor: Colors.black38,
+                              focusedBorderWidth: 1,
+                              radius: 8),
                         ),
                         const SizedBox(height: 20),
 
@@ -341,7 +350,17 @@ class _LoginPageState extends State<LoginPage> {
                         TextField(
                           controller: _passControl,
                           obscureText: _obscurePassword,
-                          decoration: _inputDecoration("wagwoord").copyWith(
+                          decoration: appInputDecoration(
+                                  hintText: "wagwoord",
+                                  hintStyle:
+                                      const TextStyle(color: Colors.black26),
+                                  labelStyle: null,
+                                  fillColor: AppColors.inputFill,
+                                  borderColor: Colors.black12,
+                                  focusedBorderColor: Colors.black38,
+                                  focusedBorderWidth: 1,
+                                  radius: 8)
+                              .copyWith(
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword
@@ -437,38 +456,15 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         const DecoratedBox(
           decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/background.jpg'),
-                fit: BoxFit.cover,
-                alignment: Alignment.topRight,
-              ),
+            image: DecorationImage(
+              image: AssetImage('assets/images/background.jpg'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topRight,
+            ),
           ),
         ),
         child,
       ],
-    );
-  }
-
-  /// Styl vir die inset-velde.
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black26),
-      fillColor: AppColors.inputFill,
-      filled: true,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black38),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 
