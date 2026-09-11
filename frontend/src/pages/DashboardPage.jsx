@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { IoPencil } from 'react-icons/io5';
 import { useMsal } from '@azure/msal-react';
 import '../styles/App.css';
 import '../styles/Dashboard.css';
@@ -41,6 +42,49 @@ const formatDateKey = (date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const parseTimeFromText = (text) => {
+  let cleanTitle = String(text || '').trim();
+  let hours = 8;
+  let minutes = 0;
+
+  const lower = cleanTitle.toLowerCase();
+  const noonMatch = lower.match(/\bnoon\b|(?:om\s+|at\s+)?(?:die\s+)?\bmiddag\b/);
+
+  if (noonMatch) {
+    hours = 12;
+    minutes = 0;
+    cleanTitle = cleanTitle.replace(/\bnoon\b|(?:om\s+|at\s+)?(?:die\s+)?\bmiddag\b/gi, '');
+  } else {
+    const timeMatch = lower.match(
+      /(?:om|at)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|vm|nm)?|\d{1,2}(?::\d{2})\s*(?:am|pm|vm|nm)?|\d{1,2}\s*(?:am|pm|vm|nm)/
+    );
+    if (timeMatch) {
+      const matched = timeMatch[0];
+      const hourMin = matched.match(/(\d{1,2})(?::(\d{2}))?/);
+      let parsedHours = hourMin ? parseInt(hourMin[1], 10) : 8;
+      minutes = hourMin && hourMin[2] ? parseInt(hourMin[2], 10) : 0;
+      const suffix = (matched.match(/(am|pm|vm|nm)$/i) || [])[1];
+      if (suffix === 'am' || suffix === 'vm') {
+        hours = parsedHours === 12 ? 0 : parsedHours;
+      } else if (suffix === 'pm' || suffix === 'nm') {
+        hours = parsedHours === 12 ? 12 : parsedHours + 12;
+      } else {
+        hours = parsedHours;
+      }
+      cleanTitle = cleanTitle.replace(new RegExp(matched.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '');
+    }
+  }
+
+  cleanTitle = cleanTitle
+    .replace(/\s+/g, ' ')
+    .replace(/^(om|at|die)\s+/i, '')
+    .replace(/\s+(om|at|die)\s*$/i, '')
+    .replace(/^[:;\s,.\-—!]+|[:;\s,.\-—!]+$/g, '')
+    .trim();
+
+  return { cleanTitle, hours, minutes };
 };
 
 const SOURCE_ICONS = {
@@ -92,6 +136,9 @@ const DashboardPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingEventId, setDeletingEventId] = useState(null);
   const [syncingEventId, setSyncingEventId] = useState(null);
+  const [quickTaskText, setQuickTaskText] = useState('');
+  const [editingEvent, setEditingEvent] = useState(null);
+  const formRef = useRef(null);
 
   const formatActivityTime = (value) => {
     if (!value) return 'Onlangs';
@@ -247,6 +294,92 @@ const DashboardPage = () => {
       endTime: '09:00',
     }));
   }, []);
+
+  const resetNewEvent = (date = selectedDate) => {
+    const defaults = getDefaultEventTimes(date);
+    setNewEvent({
+      title: '',
+      description: '',
+      startDate: defaults.startDate,
+      startTime: defaults.startTime,
+      endDate: defaults.endDate,
+      endTime: defaults.endTime,
+      location: '',
+      notify_email: false,
+      reminder_minutes: 60,
+    });
+  };
+
+  const handleQuickAddTask = async () => {
+    const text = quickTaskText.trim();
+    if (!text) {
+      showToast({ type: 'warning', title: 'Tik die taak in die vinnige-byvoeg-balk.' });
+      return;
+    }
+
+    const { cleanTitle, hours, minutes } = parseTimeFromText(text);
+    if (!cleanTitle) {
+      showToast({ type: 'warning', title: 'Vul asseblief ’n taak beskrywing in.' });
+      return;
+    }
+
+    const start = new Date(selectedDate);
+    start.setHours(hours, minutes, 0, 0);
+    const end = new Date(start);
+    end.setHours(end.getHours() + 1);
+
+    setIsSubmitting(true);
+    try {
+      const response = await calendarEventsAPI.create({
+        title: cleanTitle,
+        description: '',
+        start_datetime: start.toISOString(),
+        end_datetime: end.toISOString(),
+        location: null,
+        notify_email: false,
+        reminder_minutes: null,
+      });
+      const created = response.data;
+      setEvents((prev) => [...prev, {
+        ...created,
+        _start: new Date(created.start_datetime),
+        _end: created.end_datetime ? new Date(created.end_datetime) : new Date(new Date(created.start_datetime).getTime() + 3600000),
+        dateKey: formatDateKey(new Date(created.start_datetime)),
+      }]);
+      setQuickTaskText('');
+      showToast({ type: 'success', title: 'Taak bygevoeg!' });
+    } catch (err) {
+      console.error('Vinnige byvoeg fout:', err);
+      showToast({ type: 'error', title: 'Fout tydens byvoeg van taak.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditEvent = (event) => {
+    const start = event._start || new Date(event.start_datetime);
+    const end = event._end || new Date(new Date(event.start_datetime).getTime() + 3600000);
+    setNewEvent({
+      title: event.title || '',
+      description: event.description || '',
+      startDate: formatDateInput(start),
+      startTime: formatTimeInput(start),
+      endDate: formatDateInput(end),
+      endTime: formatTimeInput(end),
+      location: event.location || '',
+      notify_email: !!event.notify_email,
+      reminder_minutes: event.reminder_minutes || 60,
+    });
+    setEditingEvent(event);
+    if (formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEvent(null);
+    resetNewEvent();
+  };
 
   const getMicrosoftAccessToken = async () => {
     let msAccessToken = sessionStorage.getItem('ms_access_token');
@@ -540,33 +673,39 @@ const DashboardPage = () => {
         reminder_minutes: newEvent.notify_email ? newEvent.reminder_minutes : null,
       };
 
-      const response = await calendarEventsAPI.create(payload);
-      const created = response.data;
+      if (editingEvent) {
+        const response = await calendarEventsAPI.update(editingEvent.source_id, payload);
+        const updated = response.data;
+        setEvents((prev) => prev.map((ev) =>
+          ev.source === 'calendar_event' && ev.source_id === updated.event_id
+            ? {
+                ...updated,
+                _start: new Date(updated.start_datetime),
+                _end: updated.end_datetime
+                  ? new Date(updated.end_datetime)
+                  : new Date(new Date(updated.start_datetime).getTime() + 3600000),
+                dateKey: formatDateKey(new Date(updated.start_datetime)),
+              }
+            : ev
+        ));
+        showToast({ type: 'success', title: 'Wysigings gestoor!' });
+      } else {
+        const response = await calendarEventsAPI.create(payload);
+        const created = response.data;
+        setEvents((prev) => [...prev, {
+          ...created,
+          _start: new Date(created.start_datetime),
+          _end: created.end_datetime ? new Date(created.end_datetime) : new Date(new Date(created.start_datetime).getTime() + 3600000),
+          dateKey: formatDateKey(new Date(created.start_datetime)),
+        }]);
+        showToast({ type: 'success', title: 'Afspraak suksesvol geskep!' });
+      }
 
-      setEvents((prev) => [...prev, {
-        ...created,
-        _start: new Date(created.start_datetime),
-        _end: created.end_datetime ? new Date(created.end_datetime) : new Date(new Date(created.start_datetime).getTime() + 3600000),
-        dateKey: formatDateKey(new Date(created.start_datetime)),
-      }]);
-
-      const defaults = getDefaultEventTimes(selectedDate);
-      setNewEvent({
-        title: '',
-        description: '',
-        startDate: defaults.startDate,
-        startTime: defaults.startTime,
-        endDate: defaults.endDate,
-        endTime: defaults.endTime,
-        location: '',
-        notify_email: false,
-        reminder_minutes: 60,
-      });
-
-      showToast({ type: 'success', title: 'Afspraak suksesvol geskep!' });
+      setEditingEvent(null);
+      resetNewEvent();
     } catch (err) {
-      console.error("CREATE Error:", err);
-      showToast({ type: 'error', title: 'Fout tydens skep van afspraak.' });
+      console.error("HANDLE Error:", err);
+      showToast({ type: 'error', title: editingEvent ? 'Fout tydens wysiging van afspraak.' : 'Fout tydens skep van afspraak.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -887,6 +1026,17 @@ const DashboardPage = () => {
                             <div className="calendar-event-meta">{event.location || 'Geen plek'}</div>
                             <div className="calendar-event-body">{event.description || 'Geen beskrywing.'}</div>
                             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                              {event.source === 'calendar_event' && (
+                                <button
+                                  type="button"
+                                  className="calendar-edit-btn"
+                                  onClick={() => handleEditEvent(event)}
+                                  title="Wysig"
+                                  aria-label="Wysig"
+                                >
+                                  <IoPencil size={16} />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 className="btn-delete"
@@ -914,12 +1064,39 @@ const DashboardPage = () => {
                         ))}
                       </div>
                     )}
+                    {canManage && (
+                      <div className="calendar-quick-add">
+                        <input
+                          type="text"
+                          value={quickTaskText}
+                          onChange={(e) => setQuickTaskText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleQuickAddTask();
+                            }
+                          }}
+                          placeholder="Taak + tyd... bv. 'E-pos bestuurder om 18:00'"
+                          disabled={isSubmitting}
+                          aria-label="Vinnige taak byvoeg"
+                        />
+                        <button
+                          type="button"
+                          className="calendar-quick-add-btn"
+                          onClick={handleQuickAddTask}
+                          disabled={isSubmitting || !quickTaskText.trim()}
+                          title="Voeg taak by"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {canManage && (
-                  <div className="calendar-form-card">
-                    <h4>+ Nuwe Kalenderafspraak Skep</h4>
+                  <div className="calendar-form-card" ref={formRef}>
+                    <h4>{editingEvent ? '✏️ Wysig Kalenderafspraak' : '+ Nuwe Kalenderafspraak Skep'}</h4>
                     <form onSubmit={handleCreateEvent} className="calendar-form-grid">
                       <div>
                         <label>Onderwerp *</label>
@@ -988,8 +1165,19 @@ const DashboardPage = () => {
                         <textarea value={newEvent.description} onChange={(e) => setNewEvent({...newEvent, description: e.target.value})} placeholder="Voeg ekstra besonderhede hier by..." />
                       </div>
                       <div className="calendar-form-full calendar-form-submit">
+                        {editingEvent && (
+                          <button
+                            type="button"
+                            className="btn-delete"
+                            onClick={handleCancelEdit}
+                            disabled={isSubmitting}
+                            style={{ marginTop: 0, marginRight: '10px' }}
+                          >
+                            Kanselleer
+                          </button>
+                        )}
                         <button type="submit" className="btn-add" disabled={isSubmitting}>
-                          {isSubmitting ? 'Besig om te stoor...' : 'Skep Afspraak'}
+                          {isSubmitting ? 'Besig om te stoor...' : editingEvent ? 'Stoor Wysigings' : 'Skep Afspraak'}
                         </button>
                       </div>
                     </form>

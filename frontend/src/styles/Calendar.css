@@ -284,6 +284,74 @@
   text-align: right;
 }
 
+.calendar-quick-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #d1d5db;
+}
+
+.calendar-quick-add input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+}
+
+.calendar-quick-add input:focus {
+  border-color: #935e28;
+  box-shadow: 0 0 0 2px rgba(147, 94, 40, 0.15);
+}
+
+.calendar-quick-add-btn {
+  border: none;
+  border-radius: 8px;
+  background: #935e28;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.calendar-quick-add-btn:hover {
+  background: #7c4e1f;
+}
+
+.calendar-quick-add-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.calendar-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #935e28;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.calendar-edit-btn:hover {
+  background: #fdf2e8;
+  border-color: #935e28;
+}
+
 @media (max-width: 980px) {
   .calendar-main {
     grid-template-columns: 1fr;
