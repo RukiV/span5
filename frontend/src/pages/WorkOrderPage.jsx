@@ -24,6 +24,9 @@ import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import Modal from '../components/Modal/Modal';
+import WorkOrderDetailView from '../components/DetailView/WorkOrderDetailView';
+import '../components/DetailView/DetailView.css';
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -1714,8 +1717,55 @@ function WorkOrderPage() {
           </table>
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredWorkOrders.length} pageSize={100} />
         </div>
+{showModal && isViewMode && isEditing && (() => {
+  const terrain = terrains.find(t => String(t.location_id) === String(formData.location_id));
+  const building = buildings.find(b => String(b.building_id) === String(formData.building_id));
+  const room = rooms.find(r => String(r.room_id) === String(formData.room_id));
+  const asset = assets.find(a => String(a.asset_id) === String(formData.asset_id));
+  const assignedUser = users.find(u => String(u.user_id) === String(formData.assigned_to));
+  const faultTicket = tickets.find(t => String(t.fault_id) === String(formData.fault_id));
+  const jobImageUrls = (jobImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  const ticketImageUrls = (ticketImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  return (
+    <Modal
+      isOpen={true}
+      onClose={handleCloseModal}
+      title={`Werksopdrag #${editingId}`}
+      size="md"
+      headerActions={
+        hasRight('jobs.manage') ? (
+          <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+        ) : null
+      }
+    >
+      <WorkOrderDetailView
+        order={{
+          ...formData,
+          jobcard_id: editingId,
+          job_desc: formData.brief_description || formData.job_desc,
+        }}
+        assignedName={assignedUser ? `${assignedUser.user_name} ${assignedUser.user_surname || ''}`.trim() : null}
+        contractorName={null}
+        terrainName={terrain?.location_name}
+        buildingName={building?.building_name}
+        roomName={room?.room_name}
+        assetName={asset?.asset_name}
+        faultId={formData.fault_id}
+        ticketTitle={faultTicket ? (faultTicket.fault_description || '').split(':')[0]?.trim() : null}
+        ticketImages={ticketImageUrls}
+        jobImages={jobImageUrls}
+      />
+    </Modal>
+  );
+})()}
 {/* MODAL: Werksopdrag-Kaart */}
-      {showModal && (
+      {showModal && !isViewMode && (
         <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content-workorder" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
