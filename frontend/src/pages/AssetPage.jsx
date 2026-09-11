@@ -24,6 +24,9 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import AssetDetailView from '../components/DetailView/AssetDetailView';
+import '../components/DetailView/DetailView.css';
 
 // Prevent react-select from toggling a dropdown closed when you click the control again.
 // Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
@@ -1191,7 +1194,53 @@ onMenuClose={modalCascadeMenu.onMenuClose}
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (() => {
+          const room = rooms.find(r => String(r.room_id) === String(newAsset.room_id));
+          const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newAsset.building_id));
+          const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newAsset.location_id));
+          const assetType = assettypes.find(t => String(t.assettype_id) === String(newAsset.assettype_id));
+          const imageUrls = assetImages.map(img => ({
+            ...img,
+            url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+          }));
+          return (
+            <Modal
+              isOpen={true}
+              onClose={handleCloseModal}
+              title={`Bekyk Bate`}
+              size="md"
+              headerActions={
+                hasRight('assets.manage') ? (
+                  <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                ) : null
+              }
+            >
+              <AssetDetailView
+                asset={{
+                  ...newAsset,
+                  asset_id: editingId,
+                }}
+                assetTypeName={assetType?.assettype_name}
+                roomName={room?.room_name}
+                buildingName={building?.building_name}
+                terrainName={terrain?.location_name}
+                images={imageUrls}
+                onViewHistory={() => {
+                  const asset = assets.find(a => String(a.asset_id) === String(editingId));
+                  if (asset) {
+                    handleCloseModal();
+                    setSelectedAsset(asset);
+                    fetchAssetHistory(asset.asset_id);
+                    fetchAssetImages(asset.asset_id);
+                    setShowHistoryModal(true);
+                  }
+                }}
+              />
+            </Modal>
+          );
+        })()}
+
+        {showModal && !isViewMode && modalContent}
         {imageViewerContent}
 
         {/* History Modal */}
@@ -1282,26 +1331,6 @@ onMenuClose={modalCascadeMenu.onMenuClose}
                     />
                   </div>
                   <div className="input-group">
-                    <label>Min Lewensduur (maande)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={newType.assettype_min_lifespan}
-                      onChange={(e) => setNewType({ ...newType, assettype_min_lifespan: e.target.value })}
-                    />
-                  </div>
-                  <div className="input-group">
-                    <label>Maks Lewensduur (maande)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={newType.assettype_max_lifespan}
-                      onChange={(e) => setNewType({ ...newType, assettype_max_lifespan: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="input-row">
-                  <div className="input-group">
                     <label>Diensinterval (maande)</label>
                     <input
                       type="number"
@@ -1368,7 +1397,53 @@ onMenuClose={modalCascadeMenu.onMenuClose}
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (() => {
+        const room = rooms.find(r => String(r.room_id) === String(newAsset.room_id));
+        const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newAsset.building_id));
+        const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newAsset.location_id));
+        const assetType = assettypes.find(t => String(t.assettype_id) === String(newAsset.assettype_id));
+        const imageUrls = assetImages.map(img => ({
+          ...img,
+          url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+        }));
+        return (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Bate`}
+            size="md"
+            headerActions={
+              hasRight('assets.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <AssetDetailView
+              asset={{
+                ...newAsset,
+                asset_id: editingId,
+              }}
+              assetTypeName={assetType?.assettype_name}
+              roomName={room?.room_name}
+              buildingName={building?.building_name}
+              terrainName={terrain?.location_name}
+              images={imageUrls}
+              onViewHistory={() => {
+                const asset = assets.find(a => String(a.asset_id) === String(editingId));
+                if (asset) {
+                  handleCloseModal();
+                  setSelectedAsset(asset);
+                  fetchAssetHistory(asset.asset_id);
+                  fetchAssetImages(asset.asset_id);
+                  setShowHistoryModal(true);
+                }
+              }}
+            />
+          </Modal>
+        );
+      })()}
+
+      {showModal && !isViewMode && modalContent}
       {imageViewerContent}
 
       {/* History Modal */}

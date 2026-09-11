@@ -18,6 +18,9 @@ import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
+import Modal from '../components/Modal/Modal';
+import CampusDetailView from '../components/DetailView/CampusDetailView';
+import '../components/DetailView/DetailView.css';
 
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -672,7 +675,30 @@ function TerrainsPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Terrein`}
+            size="md"
+            headerActions={
+              hasRight('locations.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <CampusDetailView
+              campus={newTerrain}
+              buildings={buildings}
+              onNavigateToBuilding={(b) => {
+                handleCloseModal();
+                navigate('/buildings', { state: { building: b } });
+              }}
+            />
+          </Modal>
+        )}
+
+        {showModal && !isViewMode && modalContent}
 
         {showBuildingsModal && selectedTerrain && (
           <div className="modal" style={{ display: "flex" }}>
@@ -718,7 +744,29 @@ function TerrainsPage({ embedded = false }) {
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (
+        <Modal
+          isOpen={true}
+          onClose={handleCloseModal}
+          title={`Bekyk Terrein`}
+          size="md"
+          headerActions={
+            hasRight('locations.manage') ? (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            ) : null
+          }
+        >
+          <CampusDetailView
+            campus={newTerrain}
+            buildings={buildings}
+            onNavigateToBuilding={(b) => {
+              handleCloseModal();
+              navigate('/buildings', { state: { building: b } });
+            }}
+          />
+        </Modal>
+      )}
+      {showModal && !isViewMode && modalContent}
       {showBuildingsModal && selectedTerrain && (
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import RawSelect from "react-select";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { useSearchParams } from "react-router-dom";
@@ -18,6 +18,9 @@ import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import ResizableTh from "../components/ResizableTh";
 import { buildFlatLocationOptions } from "./locationSearchUtils";
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import Modal from '../components/Modal/Modal';
+import RoomCheckSessionDetailView from '../components/DetailView/RoomCheckSessionDetailView';
+import '../components/DetailView/DetailView.css';
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import "../components/Modal/Modal.css";
@@ -90,6 +93,7 @@ function RoomCheckSessionsPage() {
   const [formUserId, setFormUserId] = useState(null);
   const [formDateTime, setFormDateTime] = useState("");
   const [saving, setSaving] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historySession, setHistorySession] = useState(null);
@@ -153,6 +157,7 @@ function RoomCheckSessionsPage() {
 
   const openCreate = () => {
     setEditing(null);
+    setIsViewMode(false);
     setFormLocationId("");
     setFormBuildingId("");
     setFormRoomId(null);
@@ -163,6 +168,7 @@ function RoomCheckSessionsPage() {
 
   const openEdit = (s) => {
     setEditing(s);
+    setIsViewMode(false);
     setFormRoomId(s.room_id);
     setFormUserId(s.assigned_user_id);
     setFormDateTime(s.scheduled_datetime ? s.scheduled_datetime.slice(0, 16) : "");
@@ -181,6 +187,12 @@ function RoomCheckSessionsPage() {
       setFormLocationId("");
     }
     setShowForm(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowForm(false);
+    setIsViewMode(false);
+    setEditing(null);
   };
 
   const handleSave = async () => {
@@ -482,7 +494,20 @@ function RoomCheckSessionsPage() {
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: "center", padding: "20px" }}>Geen skedules gevind nie.</td></tr>
           ) : (
             paginatedSessions.map((s) => (
-              <tr key={s.session_id} onClick={() => canManage && openEdit(s)} style={{ cursor: canManage ? "pointer" : "default" }}>
+              <tr key={s.session_id} onClick={() => {
+                if (!canManage) return;
+                setEditing(s);
+                setIsViewMode(true);
+                const room = rooms.find(r => String(r.room_id) === String(s.room_id));
+                if (room) {
+                  setFormRoomId(room.room_id);
+                  setFormBuildingId(room.building_id);
+                  setFormLocationId(room.location_id);
+                }
+                setFormUserId(s.assigned_user_id);
+                setFormDateTime(s.scheduled_datetime ? s.scheduled_datetime.slice(0, 16) : '');
+                setShowForm(true);
+              }} style={{ cursor: canManage ? "pointer" : "default" }}>
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(s.session_id)} onChange={() => toggleOne(s.session_id)} />
                 </td>
@@ -509,7 +534,34 @@ function RoomCheckSessionsPage() {
     </>
   );
 
-  const modalContent = showForm && canManage && (() => {
+  const detailModalContent = showForm && isViewMode && editing && (() => {
+    const room = rooms.find(r => String(r.room_id) === String(editing.room_id));
+    const building = buildings.find(b => String(b.building_id) === String(room?.building_id));
+    const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
+    return (
+      <Modal
+        isOpen={true}
+        onClose={() => { setShowForm(false); setIsViewMode(false); setEditing(null); }}
+        title={`Bekyk Lokaal Kontrole`}
+        size="md"
+        headerActions={
+          canManage ? (
+            <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+          ) : null
+        }
+      >
+        <RoomCheckSessionDetailView
+          session={editing}
+          roomName={room?.room_name}
+          buildingName={building?.building_name}
+          terrainName={terrain?.location_name}
+          userName={editing.assigned_user_name}
+        />
+      </Modal>
+    );
+  })();
+
+  const modalContent = showForm && canManage && !isViewMode && (() => {
     const cascadeCount = [formLocationId, formBuildingId, formRoomId].filter(Boolean).length;
     const currentDisplayValue = cascadeCount === 0 ? null
       : cascadeCount === 1 && formLocationId ? { value: formLocationId, label: terrains?.find((t) => String(t.location_id) === String(formLocationId))?.location_name || formLocationId }
@@ -527,11 +579,11 @@ function RoomCheckSessionsPage() {
     if (formRoomId) breadcrumbData.push({ level: 2, name: rooms?.find((r) => r.room_id === formRoomId)?.room_name || formRoomId });
 
     return (
-      <div className="modal-overlay" onClick={() => setShowForm(false)}>
+      <div className="modal-overlay" onClick={handleCloseModal}>
         <div className="modal-panel" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
           <div className="modal-panel-header">
             <h3>{editing ? "Wysig Lokaal Kontrole" : "Nuwe Lokaal Kontrole"}</h3>
-            <span className="modal-close" onClick={() => setShowForm(false)}>&times;</span>
+            <span className="modal-close" onClick={handleCloseModal}>&times;</span>
           </div>
           <div className="modal-panel-body">
             <div className="input-group" style={{ marginBottom: 16 }}>
@@ -612,7 +664,7 @@ function RoomCheckSessionsPage() {
             </div>
           </div>
           <div className="modal-panel-footer">
-            <button className="btn-cancel" onClick={() => setShowForm(false)}>Kanselleer</button>
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
             <button className="btn-add" onClick={handleSave} disabled={saving}>
               {saving ? "Stoor..." : (editing ? "Stoor" : "Skeduleer")}
             </button>
@@ -690,6 +742,7 @@ function RoomCheckSessionsPage() {
         {pageContent}
       </div>
       {modalContent}
+      {detailModalContent}
       {historyModalContent}
       {dialog}
     </div>

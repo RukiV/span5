@@ -22,6 +22,9 @@ import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import RoomDetailView from '../components/DetailView/RoomDetailView';
+import '../components/DetailView/DetailView.css';
 
 
 function RoomsPage({ embedded = false }) {
@@ -865,7 +868,31 @@ function RoomsPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (() => {
+          const building = buildings.find(b => String(b.building_id) === String(newRoom.building_id));
+          const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
+          return (
+            <Modal
+              isOpen={true}
+              onClose={handleCloseModal}
+              title={`Bekyk Lokaal`}
+              size="md"
+              headerActions={
+                hasRight('rooms.manage') ? (
+                  <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                ) : null
+              }
+            >
+              <RoomDetailView
+                room={newRoom}
+                buildingName={building?.building_name}
+                terrainName={terrain?.location_name}
+              />
+            </Modal>
+          );
+        })()}
+
+        {showModal && !isViewMode && modalContent}
 
         {showAssetsModal && selectedRoom && (
           <div className="modal" style={{ display: "flex" }}>
@@ -917,7 +944,31 @@ function RoomsPage({ embedded = false }) {
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (() => {
+        const building = buildings.find(b => String(b.building_id) === String(newRoom.building_id));
+        const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
+        return (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Lokaal`}
+            size="md"
+            headerActions={
+              hasRight('rooms.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <RoomDetailView
+              room={newRoom}
+              buildingName={building?.building_name}
+              terrainName={terrain?.location_name}
+            />
+          </Modal>
+        );
+      })()}
+
+      {showModal && !isViewMode && modalContent}
 
       {showAssetsModal && selectedRoom && (
         <div className="modal" style={{ display: "flex" }}>
