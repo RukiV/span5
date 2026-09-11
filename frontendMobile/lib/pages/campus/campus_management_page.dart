@@ -4,7 +4,7 @@ import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import 'add_campus_page.dart';
-import 'edit_campus_page.dart';
+import 'campus_detail_page.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -176,14 +176,9 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                 onChanged: (_) => setState(() {}),
                 actions: [
                   if (UserSession.can('locations.manage')) ...[
-                    BulkDeleteAction<int>(
+                    SelectionExitAction<int>(
                       controller: _selection,
-                      confirmTitle: 'Verwyder Terreine',
-                      confirmMessage:
-                          'Wil jy ${_selection.count} geselekteerde terrein/terreine verwyder?',
-                      childWarning:
-                          'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
-                      onDelete: _bulkDeleteCampuses,
+                      onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
@@ -241,7 +236,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) =>
-                                              EditCampusPage(campus: campus),
+                                              CampusDetailPage(campus: campus),
                                         ),
                                       );
                                       if (edited == true) {
@@ -250,6 +245,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                                     }
                                   },
                                   onLongPress: () {
+                                    if (!UserSession.can('locations.manage')) return;
                                     setState(() {
                                       _selection.enter();
                                       _selection.toggle(campus.id);
@@ -272,21 +268,37 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
         },
       ),
       floatingActionButton: UserSession.can('locations.manage')
-          ? FloatingActionButton.extended(
-              backgroundColor: AppColors.gold,
-              elevation: 4,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                "Nuwe Terrein",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5),
-              ),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddCampusPage()),
-              ),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                BulkDeleteFloatingAction<int>(
+                  controller: _selection,
+                  confirmTitle: 'Verwyder Terreine',
+                  confirmMessage:
+                      'Wil jy ${_selection.count} geselekteerde terrein/terreine verwyder?',
+                  childWarning:
+                      'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
+                  onDelete: _bulkDeleteCampuses,
+                ),
+                const SizedBox(height: 12),
+                FloatingActionButton.extended(
+                  backgroundColor: AppColors.gold,
+                  elevation: 4,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text(
+                    "Nuwe Terrein",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5),
+                  ),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddCampusPage()),
+                  ),
+                ),
+              ],
             )
           : null,
     );

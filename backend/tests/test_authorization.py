@@ -371,6 +371,44 @@ def test_fk_forbidden_on_users(client, headers_for):
     assert client.delete(f"{API}/users/1", headers=h).status_code == 403
 
 
+def test_fk_can_create_contractor(client, headers_for):
+    """FK cannot create arbitrary users but CAN create contractors (the quote
+    flow lets an FK add a name-only contractor to the contractor list)."""
+    h = headers_for("fk")
+    body = {
+        "user_name": "Nuwe",
+        "user_surname": "Kontrakteur",
+        "user_email": "nuwe.kontrakteur@works.co.za",
+        "user_password": "Strong#Pass1",
+        "user_status": "active",
+        "role_id": 3,  # FK tries to sneak an admin through
+    }
+    resp = client.post(f"{API}/users/contractors", json=body, headers=h)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["role_id"] == 4, "contractor endpoint must force role_id=4"
+    assert "user_password" not in data
+
+
+def test_contractor_endpoint_requires_auth_and_rights(client, headers_for):
+    anon = client.post(f"{API}/users/contractors", json={})
+    assert anon.status_code == 401
+    hold = headers_for("contractor")
+    resp = client.post(
+        f"{API}/users/contractors",
+        json={
+            "user_name": "X",
+            "user_surname": "Y",
+            "user_email": "x.y@nope.co.za",
+            "user_password": "Strong#Pass1",
+            "user_status": "active",
+            "role_id": 4,
+        },
+        headers=hold,
+    )
+    assert resp.status_code == 403
+
+
 def test_fk_web_login_ok(client, seeded):
     resp = client.post(
         f"{API}/auth/login",

@@ -14,6 +14,10 @@ import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { getApiErrorMessage, getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { useCurrentUser } from '../hooks/useCurrentUser';
+import Modal from '../components/Modal/Modal';
+import UserDetailView from '../components/DetailView/UserDetailView';
+import '../components/DetailView/DetailView.css';
 
 const EMAIL_REGEX = /^[\w\.-]+@[\w\.-]+\.\w+$/;
 const PASSWORD_SPECIAL = /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/;
@@ -33,6 +37,7 @@ function isFieldTouchedEmail(email) {
 
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
+  const { hasRight } = useCurrentUser();
   const { showToast } = useToast();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -433,138 +438,149 @@ function UsersPage({ embedded = false }) {
     </>
   );
 
-  const modalContent = showModal && (
-    <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
-      <div className="modal-content">
-        <div className="modal-header">
-          <h3>{isViewMode ? 'Bekyk' : editingUser ? 'Wysig' : 'Nuwe'} Gebruiker</h3>
-          <div className="modal-header-actions">
-            {editingUser && isViewMode && (
+  const modalContent = (
+    <>
+      {showModal && isViewMode && editingUser && (
+        <Modal
+          isOpen={true}
+          onClose={handleCloseModal}
+          title="Bekyk Gebruiker"
+          size="md"
+          headerActions={
+            hasRight('users.manage') ? (
               <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
-            )}
-            <span className="close" onClick={handleCloseModal}>&times;</span>
-          </div>
-        </div>
+            ) : null
+          }
+        >
+          <UserDetailView
+            user={editingUser}
+            terrainName={terrains.find(t => t.location_id === editingUser.location_id)?.location_name}
+          />
+        </Modal>
+      )}
+      {showModal && !isViewMode && (
+        <div className="modal" onClick={(e) => { if (e.target === e.currentTarget) handleCloseModal(); }}>
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>{editingUser ? 'Wysig' : 'Nuwe'} Gebruiker</h3>
+              <div className="modal-header-actions">
+                <span className="close" onClick={handleCloseModal}>&times;</span>
+              </div>
+            </div>
 
-        <div className="form-group">
-          <label>Voornaam *</label>
-          <input
-            ref={el => fieldRefs.current.user_name = el}
-            type="text"
-            className={invalidFields.user_name ? "field-invalid" : ""}
-            value={formUser.user_name}
-            disabled={isViewMode}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_name: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
-            }}
-          />
-        </div>
-        <div className="form-group">
-          <label>Van *</label>
-          <input
-            ref={el => fieldRefs.current.user_surname = el}
-            type="text"
-            className={invalidFields.user_surname ? "field-invalid" : ""}
-            value={formUser.user_surname}
-            disabled={isViewMode}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_surname: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
-            }}
-          />
-        </div>
-        <div className="form-group">
-          <label>E-pos *</label>
-          <input
-            ref={el => fieldRefs.current.user_email = el}
-            type="email"
-            className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
-            value={formUser.user_email}
-            disabled={isViewMode}
-            onChange={(e) => {
-              const value = e.target.value;
-              setFormUser({ ...formUser, user_email: value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
-              setFieldStatus(p => ({ ...p, user_email: computeEmailStatus(value) }));
-            }}
-          />
-        </div>
-        {!editingUser && (
-          <div className="form-group">
-            <label>Wagwoord *</label>
-            <input
-              ref={el => fieldRefs.current.user_password = el}
-              type="password"
-              className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
-              value={formUser.user_password}
-              disabled={isViewMode}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFormUser({ ...formUser, user_password: value });
-                setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
-                setFieldStatus(p => ({ ...p, user_password: computePasswordStatus(value) }));
-              }}
-            />
-            <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
-              Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
-            </small>
+            <div className="form-group">
+              <label>Voornaam *</label>
+              <input
+                ref={el => fieldRefs.current.user_name = el}
+                type="text"
+                className={invalidFields.user_name ? "field-invalid" : ""}
+                value={formUser.user_name}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_name: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
+                }}
+              />
+            </div>
+            <div className="form-group">
+              <label>Van *</label>
+              <input
+                ref={el => fieldRefs.current.user_surname = el}
+                type="text"
+                className={invalidFields.user_surname ? "field-invalid" : ""}
+                value={formUser.user_surname}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_surname: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
+                }}
+              />
+            </div>
+            <div className="form-group">
+              <label>E-pos *</label>
+              <input
+                ref={el => fieldRefs.current.user_email = el}
+                type="email"
+                className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
+                value={formUser.user_email}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormUser({ ...formUser, user_email: value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+                  setFieldStatus(p => ({ ...p, user_email: computeEmailStatus(value) }));
+                }}
+              />
+            </div>
+            {!editingUser && (
+              <div className="form-group">
+                <label>Wagwoord *</label>
+                <input
+                  ref={el => fieldRefs.current.user_password = el}
+                  type="password"
+                  autoComplete="new-password"
+                  className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
+                  value={formUser.user_password}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormUser({ ...formUser, user_password: value });
+                    setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+                    setFieldStatus(p => ({ ...p, user_password: computePasswordStatus(value) }));
+                  }}
+                />
+                <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                  Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
+                </small>
+              </div>
+            )}
+            <div className="form-group">
+              <label>Rol *</label>
+              <select
+                ref={el => fieldRefs.current.role_id = el}
+                className={invalidFields.role_id ? "field-invalid" : ""}
+                value={formUser.role_id}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
+                  setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+                }}
+              >
+                {roles.map(role => (
+                  <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Terrein (slegs vir FK)</label>
+              <select
+                value={formUser.location_id || ''}
+                onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">Geen terrein</option>
+                {terrains.map(t => (
+                  <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Status *</label>
+              <select
+                ref={el => fieldRefs.current.user_status = el}
+                className={invalidFields.user_status ? "field-invalid" : ""}
+                value={formUser.user_status}
+                onChange={(e) => {
+                  setFormUser({ ...formUser, user_status: e.target.value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+                }}
+              >
+                <option value="active">Aktief</option>
+                <option value="inactive">Onaktief</option>
+              </select>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+              <button className="btn-add" onClick={handleAddUser}>Stoor</button>
+            </div>
           </div>
-        )}
-        <div className="form-group">
-          <label>Rol *</label>
-          <select
-            ref={el => fieldRefs.current.role_id = el}
-            className={invalidFields.role_id ? "field-invalid" : ""}
-            value={formUser.role_id}
-            disabled={isViewMode}
-            onChange={(e) => {
-              setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
-              setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
-            }}
-          >
-            {roles.map(role => (
-              <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
-            ))}
-          </select>
         </div>
-        <div className="form-group">
-          <label>Terrein (slegs vir FK)</label>
-          <select
-            value={formUser.location_id || ''}
-            disabled={isViewMode}
-            onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">Geen terrein</option>
-            {terrains.map(t => (
-              <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Status *</label>
-          <select
-            ref={el => fieldRefs.current.user_status = el}
-            className={invalidFields.user_status ? "field-invalid" : ""}
-            value={formUser.user_status}
-            disabled={isViewMode}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_status: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
-            }}
-          >
-            <option value="active">Aktief</option>
-            <option value="inactive">Onaktief</option>
-          </select>
-        </div>
-        {!isViewMode && (
-          <div className="modal-footer">
-            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-            <button className="btn-add" onClick={handleAddUser}>Stoor</button>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </>
   );
 
   if (embedded) {

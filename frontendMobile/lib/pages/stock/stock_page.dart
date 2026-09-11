@@ -12,7 +12,7 @@ import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
 import 'new_stock_page.dart';
-import 'edit_stock_page.dart';
+import 'stock_detail_page.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -196,11 +196,12 @@ class _StockPageState extends State<StockPage> {
                                       context,
                                       MaterialPageRoute(
                                           builder: (context) =>
-                                              EditStockPage(stock: stock)),
+                                              StockDetailPage(stock: stock)),
                                     );
                                   }
                                 },
                                 onLongPress: () {
+                                  if (!UserSession.can('stock.manage')) return;
                                   if (stock.id != null) {
                                     setState(() {
                                       _selection.enter();
@@ -228,22 +229,36 @@ class _StockPageState extends State<StockPage> {
             ],
           ),
           floatingActionButton: UserSession.can('stock.manage')
-              ? FloatingActionButton.extended(
-                  backgroundColor: AppColors.gold,
-                  elevation: 4,
-                  icon: const Icon(Icons.add, color: Colors.white),
-                  label: const Text("Nuwe Voorraad",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5)),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const NewStockPage()),
-                    );
-                  },
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    BulkDeleteFloatingAction<int>(
+                      controller: _selection,
+                      confirmTitle: 'Verwyder Voorraad',
+                      confirmMessage:
+                          'Wil jy ${_selection.count} geselekteerde voorraad-item(s) verwyder?',
+                      onDelete: _bulkDeleteStock,
+                    ),
+                    const SizedBox(height: 12),
+                    FloatingActionButton.extended(
+                      backgroundColor: AppColors.gold,
+                      elevation: 4,
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: const Text("Nuwe Voorraad",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5)),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const NewStockPage()),
+                        );
+                      },
+                    ),
+                  ],
                 )
               : null,
         );
@@ -299,12 +314,9 @@ class _StockPageState extends State<StockPage> {
         ),
       ),
       if (UserSession.can('stock.manage')) ...[
-        BulkDeleteAction<int>(
+        SelectionExitAction<int>(
           controller: _selection,
-          confirmTitle: 'Verwyder Voorraad',
-          confirmMessage:
-              'Wil jy ${_selection.count} geselekteerde voorraad-item(s) verwyder?',
-          onDelete: _bulkDeleteStock,
+          onExit: () => setState(() => _selection.exit()),
         ),
       ],
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),

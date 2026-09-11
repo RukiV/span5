@@ -6,6 +6,7 @@ import '../../services/user_service.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
+import '../../widgets/selection_manager.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -16,6 +17,7 @@ class UsersPage extends StatefulWidget {
 
 class _UsersPageState extends State<UsersPage> {
   final TextEditingController _searchController = TextEditingController();
+  final SelectionController<int> _selection = SelectionController<int>();
   String _query = "";
 
   @override
@@ -235,6 +237,7 @@ class _UsersPageState extends State<UsersPage> {
         TextFormField(
           controller: controller,
           obscureText: obscureText,
+          autofillHints: obscureText ? const [] : null,
           keyboardType: keyboardType,
           style: const TextStyle(fontSize: 14),
           validator: required
@@ -270,20 +273,26 @@ class _UsersPageState extends State<UsersPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        FixedPageHeader(
-          controller: _searchController,
-          hintText: "Soek gebruikers...",
-          onChanged: (_) => setState(() {}),
-          actions: [
-            HeaderIconAction(
-              icon: Icons.refresh,
-              tooltip: "Verfris",
-              onTap: _reload,
-            ),
-          ],
-        ),
+    return Scaffold(
+      body: Column(
+        children: [
+          FixedPageHeader(
+            controller: _searchController,
+            hintText: "Soek gebruikers...",
+            onChanged: (_) => setState(() {}),
+            actions: [
+              if (UserSession.can('users.manage'))
+                SelectionExitAction<int>(
+                  controller: _selection,
+                  onExit: () => setState(() => _selection.exit()),
+                ),
+              HeaderIconAction(
+                icon: Icons.refresh,
+                tooltip: "Verfris",
+                onTap: _reload,
+              ),
+            ],
+          ),
         if (UserSession.can('users.manage'))
           Padding(
             padding: const EdgeInsets.fromLTRB(15, 10, 15, 0),
@@ -338,7 +347,42 @@ class _UsersPageState extends State<UsersPage> {
           ),
         ),
       ],
+      ),
+      floatingActionButton: UserSession.can('users.manage')
+          ? BulkDeleteFloatingAction<int>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Gebruikers',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde gebruiker(s) verwyder?',
+              onDelete: _bulkDeleteUsers,
+            )
+          : null,
     );
+  }
+
+  Future<void> _bulkDeleteUsers(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await UserService.deleteUser(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await UserService.fetchUsers();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok gebruiker(s) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   Widget _errorState() {
@@ -363,14 +407,23 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Widget _userTile(User user) {
+    final userId = user.id;
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: AppColors.lavender,
-        child: Text(
-          user.name.isNotEmpty ? user.name[0].toUpperCase() : "?",
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
-        ),
-      ),
+      selected: _selection.isSelected(userId ?? -1),
+      leading: _selection.isSelecting
+          ? Checkbox(
+              value: userId != null && _selection.isSelected(userId),
+              onChanged: userId == null
+                  ? null
+                  : (_) => setState(() => _selection.toggle(userId)),
+            )
+          : CircleAvatar(
+              backgroundColor: AppColors.lavender,
+              child: Text(
+                user.name.isNotEmpty ? user.name[0].toUpperCase() : "?",
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+              ),
+            ),
       title: Text(
         user.fullName,
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
@@ -379,6 +432,20 @@ class _UsersPageState extends State<UsersPage> {
         "${user.email}\n${UserService.roleName(user.roleId)}",
         style: const TextStyle(fontSize: 12),
       ),
+      onTap: () {
+        if (userId == null) return;
+        if (_selection.isSelecting) {
+          setState(() => _selection.toggle(userId));
+        }
+      },
+      onLongPress: () {
+        if (userId == null) return;
+        if (!UserSession.can('users.manage')) return;
+        setState(() {
+          _selection.enter();
+          _selection.toggle(userId);
+        });
+      },
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -401,7 +468,7 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
           ),
-          if (UserSession.can('users.manage')) ...[
+          if (UserSession.can('users.manage') && !_selection.isSelecting) ...[
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               color: AppColors.navy,

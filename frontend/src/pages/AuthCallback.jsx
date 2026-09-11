@@ -35,10 +35,8 @@ function AuthCallback() {
 
   return (
     <div className="page login-page">
-      <div className="login-card">
-        <h2>Teken In</h2>
-        <p>{status}</p>
-      </div>
+      <h2>Teken In</h2>
+      <p>{status}</p>
     </div>
   );
 }

@@ -19,6 +19,14 @@ def readAssignableUsers(session: Session = Depends(getSession), _user: User = De
     #Users that can be assigned to work orders, chosen as quote contractors, or assigned room check sessions
     return session.exec(select(User).order_by(User.user_name, User.user_surname)).all()
 
+@router.post("/contractors", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+def addContractor(userIn: UserCreate, session: Session = Depends(getSession), current: User = Depends(require_right("contractors.manage"))):
+    #Create a new contractor user (role_id = 4). Gated by contractors.manage so
+    #FK's (who manage quotes/contractors but not users) can add name-only
+    #contractors straight from a quote.
+    userIn = userIn.model_copy(update={"role_id": 4})
+    return user_service.create(session, userIn, user_id=current.user_id)
+
 @router.get("/{userID}", response_model=UserRead)
 def readUser(userID: int, session: Session = Depends(getSession), _user: User = Depends(require_right("users.view"))):
     #Fetch single user by id

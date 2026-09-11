@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { assetsAPI, buildingsAPI, roomsAPI, locationAPI, roomChecksAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
@@ -21,6 +22,9 @@ import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import RoomDetailView from '../components/DetailView/RoomDetailView';
+import '../components/DetailView/DetailView.css';
 
 
 function RoomsPage({ embedded = false }) {
@@ -622,7 +626,7 @@ function RoomsPage({ embedded = false }) {
                 ))}
                 <td onClick={e => e.stopPropagation()}>
                   <button className="btn-view" onClick={() => handleViewAssets(room)}>Bekyk Bates</button>
-                  <button className="btn-view" onClick={() => handleViewHistory(room)}>Geskiedenis</button>
+                  <button className="btn-history" title="Geskiedenis" onClick={() => handleViewHistory(room)}><MdHistory size={18} /></button>
                   {canManageSessions && (
                     <button className="btn-view" onClick={() => navigate(`/room-checks-schedules?scheduleRoom=${room.room_id}`)}>Skeduleer</button>
                   )}
@@ -864,7 +868,31 @@ function RoomsPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (() => {
+          const building = buildings.find(b => String(b.building_id) === String(newRoom.building_id));
+          const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
+          return (
+            <Modal
+              isOpen={true}
+              onClose={handleCloseModal}
+              title={`Bekyk Lokaal`}
+              size="md"
+              headerActions={
+                hasRight('rooms.manage') ? (
+                  <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                ) : null
+              }
+            >
+              <RoomDetailView
+                room={newRoom}
+                buildingName={building?.building_name}
+                terrainName={terrain?.location_name}
+              />
+            </Modal>
+          );
+        })()}
+
+        {showModal && !isViewMode && modalContent}
 
         {showAssetsModal && selectedRoom && (
           <div className="modal" style={{ display: "flex" }}>
@@ -916,7 +944,31 @@ function RoomsPage({ embedded = false }) {
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (() => {
+        const building = buildings.find(b => String(b.building_id) === String(newRoom.building_id));
+        const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
+        return (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Lokaal`}
+            size="md"
+            headerActions={
+              hasRight('rooms.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <RoomDetailView
+              room={newRoom}
+              buildingName={building?.building_name}
+              terrainName={terrain?.location_name}
+            />
+          </Modal>
+        );
+      })()}
+
+      {showModal && !isViewMode && modalContent}
 
       {showAssetsModal && selectedRoom && (
         <div className="modal" style={{ display: "flex" }}>
