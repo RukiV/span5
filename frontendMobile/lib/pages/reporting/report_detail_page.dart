@@ -9,13 +9,11 @@ import '../../services/report_service.dart';
 import '../../services/image_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
-import 'dart:typed_data';
 
 class ReportDetailPage extends StatefulWidget {
   final Report report;
-  final Uint8List? screenshot;
 
-  const ReportDetailPage({super.key, required this.report, this.screenshot});
+  const ReportDetailPage({super.key, required this.report});
 
   @override
   State<ReportDetailPage> createState() => _ReportDetailPageState();
@@ -80,8 +78,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Verslag nie meer gevind nie"),
-            backgroundColor: AppColors.warningOrange),
+              content: Text("Verslag nie meer gevind nie"),
+              backgroundColor: AppColors.warningOrange),
         );
       }
       return;
@@ -108,17 +106,20 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const SizedBox(height: 25),
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
-            _buildDetailRow("Kampus", CampusService.getCampusNameByRoomId(_currentReport.location)),
-            _buildDetailRow("Gebou", CampusService.getBuildingNameByRoomId(_currentReport.location)),
-            _buildDetailRow("Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (_currentReport.isOutdoor)
-              _buildDetailRow("Buite Lokaal", "Ja"),
+            _buildDetailRow("Kampus",
+                CampusService.getCampusNameByRoomId(_currentReport.location)),
+            _buildDetailRow("Gebou",
+                CampusService.getBuildingNameByRoomId(_currentReport.location)),
+            _buildDetailRow(
+                "Lokaal", CampusService.getRoomName(_currentReport.location)),
+            if (_currentReport.isOutdoor) _buildDetailRow("Buite Lokaal", "Ja"),
             if (_mapPoint != null) ...[
               const SizedBox(height: 12),
               _buildMapCard(),
             ],
             if (UserSession.can('faults.view'))
-              _buildDetailRow("Bate ID", _currentReport.assetSerialCode ?? _currentReport.assetId),
+              _buildDetailRow("Bate ID",
+                  _currentReport.assetSerialCode ?? _currentReport.assetId),
             _buildDetailRow("Werksoort", _currentReport.category),
             _buildDetailRow("Opskrif", _currentReport.title),
             if (_currentReport.description.isNotEmpty)
@@ -126,7 +127,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   _currentReport.description,
-                  style: TextStyle(color: Colors.grey[700], fontSize: 14, height: 1.5),
+                  style: TextStyle(
+                      color: Colors.grey[700], fontSize: 14, height: 1.5),
                 ),
               ),
 
@@ -165,7 +167,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 showDialog(
                   context: context,
                   builder: (context) => Dialog(
-                    child: InteractiveViewer(child: Image.network(imageUrl, fit: BoxFit.contain)),
+                    child: InteractiveViewer(
+                        child: Image.network(imageUrl, fit: BoxFit.contain)),
                   ),
                 );
               },
@@ -180,7 +183,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     height: 120,
                     width: 120,
                     color: Colors.grey[200],
-                    child: const Center(child: Text("Foto nie\nbeskikbaar", textAlign: TextAlign.center)),
+                    child: const Center(
+                        child: Text("Foto nie\nbeskikbaar",
+                            textAlign: TextAlign.center)),
                   ),
                 ),
               ),
@@ -193,18 +198,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
 
   Widget _buildStatusCard(BuildContext context) {
     String phase = _currentReport.phase;
-    
+
     // Sinkroniseer kleure met Paneelbord: Besig/Voltooi = Groen, Geweier = Rooi, Ontvang = Goud
-    Color statusColor = (phase == "Voltooi" || phase == "Opgelos" || phase == "Besig") 
-        ? AppColors.successGreen 
-        : (phase == "Geweier" || phase == "Verwerp" ? AppColors.errorRed : AppColors.gold);
+    Color statusColor =
+        (phase == "Voltooi" || phase == "Opgelos" || phase == "Besig")
+            ? AppColors.successGreen
+            : (phase == "Geweier" || phase == "Verwerp"
+                ? AppColors.errorRed
+                : AppColors.gold);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)
+        ],
       ),
       child: Column(
         children: [
@@ -217,7 +227,15 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  phase == "Voltooi" || phase == "Opgelos" ? Icons.check_circle : (phase == "Besig" || phase == "Bevestig" || phase == "Oop" ? Icons.pending : (phase == "Geweier" || phase == "Verwerp" ? Icons.cancel : Icons.mark_as_unread)),
+                  phase == "Voltooi" || phase == "Opgelos"
+                      ? Icons.check_circle
+                      : (phase == "Besig" ||
+                              phase == "Bevestig" ||
+                              phase == "Oop"
+                          ? Icons.pending
+                          : (phase == "Geweier" || phase == "Verwerp"
+                              ? Icons.cancel
+                              : Icons.mark_as_unread)),
                   color: statusColor,
                 ),
               ),
@@ -226,15 +244,24 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Huidige Status", style: TextStyle(color: Colors.grey[500], fontSize: 12, fontWeight: FontWeight.bold)),
-                    Text(phase.toUpperCase(), style: TextStyle(color: statusColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text("Huidige Status",
+                        style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
+                    Text(phase.toUpperCase(),
+                        style: TextStyle(
+                            color: statusColor,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
             ],
           ),
           if (UserSession.can('jobs.manage')) ...[
-            const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
+            const Padding(
+                padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
@@ -242,19 +269,26 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                   final created = await Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => JobcardFormPage(report: _currentReport),
+                      builder: (context) =>
+                          JobcardFormPage(report: _currentReport),
                     ),
                   );
                   if (created == true) _refreshData();
                 },
-                icon: const Icon(Icons.assignment_add, color: Colors.white, size: 18),
-                label: const Text("SKEP WERKSOPDRAG", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy, padding: const EdgeInsets.symmetric(vertical: 12)),
+                icon: const Icon(Icons.assignment_add,
+                    color: Colors.white, size: 18),
+                label: const Text("SKEP WERKSOPDRAG",
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    padding: const EdgeInsets.symmetric(vertical: 12)),
               ),
             ),
           ],
           if (UserSession.can('faults.manage')) ...[
-            const Padding(padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
+            const Padding(
+                padding: EdgeInsets.symmetric(vertical: 15), child: Divider()),
             Row(
               children: [
                 Expanded(
@@ -262,22 +296,34 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     onPressed: () async {
                       final result = await Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => EditReportPage(report: _currentReport)),
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                EditReportPage(report: _currentReport)),
                       );
                       if (result == true) _refreshData();
                     },
                     icon: const Icon(Icons.edit, color: Colors.white, size: 18),
-                    label: const Text("WYSIG", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.terracotta, padding: const EdgeInsets.symmetric(vertical: 12)),
+                    label: const Text("WYSIG",
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.terracotta,
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _showDeleteDialog(context),
-                    icon: const Icon(Icons.delete, color: AppColors.errorRed, size: 18),
-                    label: const Text("VERWYDER", style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.errorRed), padding: const EdgeInsets.symmetric(vertical: 12)),
+                    icon: const Icon(Icons.delete,
+                        color: AppColors.errorRed, size: 18),
+                    label: const Text("VERWYDER",
+                        style: TextStyle(
+                            color: AppColors.errorRed,
+                            fontWeight: FontWeight.bold)),
+                    style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.errorRed),
+                        padding: const EdgeInsets.symmetric(vertical: 12)),
                   ),
                 ),
               ],
@@ -293,38 +339,53 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text("Verwyder Foutkaartjie", style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold)),
-        content: const Text("Is jy seker jy wil hierdie foutkaartjie permanent verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
+        title: const Text("Verwyder Foutkaartjie",
+            style: TextStyle(
+                color: AppColors.errorRed, fontWeight: FontWeight.bold)),
+        content: const Text(
+            "Is jy seker jy wil hierdie foutkaartjie permanent verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("KANSELLEER")),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("KANSELLEER")),
           StatefulBuilder(
             builder: (builderContext, setInnerState) => ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+              style:
+                  ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
               onPressed: isDeleting
                   ? null
                   : () async {
                       setInnerState(() => isDeleting = true);
                       final messenger = ScaffoldMessenger.of(context);
-                      final success = await ReportService.deleteReport(_currentReport.id);
+                      final success =
+                          await ReportService.deleteReport(_currentReport.id);
                       if (!mounted) return;
                       if (success) {
                         Navigator.pop(dialogContext); // Maak dialoog toe
                         Navigator.pop(context); // Gaan terug na lys
                         messenger.showSnackBar(
-                          const SnackBar(content: Text("Foutkaartjie verwyder"), backgroundColor: AppColors.errorRed),
+                          const SnackBar(
+                              content: Text("Foutkaartjie verwyder"),
+                              backgroundColor: AppColors.errorRed),
                         );
                       } else {
                         setInnerState(() => isDeleting = false);
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text("Kon nie foutkaartjie verwyder nie. Probeer weer."),
-                            backgroundColor: AppColors.errorRed),
+                              content: Text(
+                                  "Kon nie foutkaartjie verwyder nie. Probeer weer."),
+                              backgroundColor: AppColors.errorRed),
                         );
                       }
                     },
               child: isDeleting
-                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text("VERWYDER", style: TextStyle(color: Colors.white)),
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Text("VERWYDER",
+                      style: TextStyle(color: Colors.white)),
             ),
           ),
         ],
@@ -333,7 +394,12 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _buildSectionHeader(String title) {
-    return Text(title.toUpperCase(), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2));
+    return Text(title.toUpperCase(),
+        style: const TextStyle(
+            color: AppColors.navy,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+            letterSpacing: 1.2));
   }
 
   Widget _buildMapCard() {
@@ -351,7 +417,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
               child: GoogleMap(
                 initialCameraPosition: CameraPosition(target: point, zoom: 17),
                 markers: {
-                  Marker(markerId: const MarkerId("fault_point"), position: point),
+                  Marker(
+                      markerId: const MarkerId("fault_point"), position: point),
                 },
                 zoomControlsEnabled: false,
                 myLocationEnabled: false,
@@ -369,8 +436,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 100, child: Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14))),
-          Expanded(child: Text(value, style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14))),
+          SizedBox(
+              width: 100,
+              child: Text(label,
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14))),
+          Expanded(
+              child: Text(value,
+                  style: const TextStyle(
+                      color: AppColors.navy,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14))),
         ],
       ),
     );

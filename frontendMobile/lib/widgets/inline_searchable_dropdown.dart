@@ -13,7 +13,6 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   final T? value;
   final List<SearchableDropdownItem<T>> items;
   final ValueChanged<T?> onChanged;
-  final String? Function(T?)? validator;
 
   final bool enabled;
   final Widget? trailing;
@@ -30,9 +29,6 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   /// Vuur wanneer die veld fokus kry (slegs in soek-modus).
   final VoidCallback? onFocus;
 
-  /// Vuur wanneer soek-modus begin (soek-ikoon) of eindig (blur/select).
-  final ValueChanged<bool>? onSearchModeChanged;
-
   const InlineSearchableDropdown({
     super.key,
     this.label,
@@ -40,7 +36,6 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.value,
     required this.items,
     required this.onChanged,
-    this.validator,
     this.enabled = true,
     this.trailing,
     this.required = false,
@@ -48,7 +43,6 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.closeOnSelect = true,
     this.restoreOnBlur = true,
     this.onFocus,
-    this.onSearchModeChanged,
   });
 
   @override
@@ -67,7 +61,6 @@ class _InlineSearchableDropdownState<T>
   bool _open = false;
 
   String? _preFocusText;
-  bool _pickedSinceFocus = false;
 
   bool _searchMode = false;
 
@@ -158,17 +151,13 @@ class _InlineSearchableDropdownState<T>
     if (!widget.enabled) return;
     _openList();
     setState(() => _searchMode = true);
-    widget.onSearchModeChanged?.call(true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
   }
 
   void _exitSearchMode() {
-    if (_searchMode) {
-      _searchMode = false;
-      widget.onSearchModeChanged?.call(false);
-    }
+    _searchMode = false;
     _closeList();
   }
 
@@ -182,7 +171,6 @@ class _InlineSearchableDropdownState<T>
     }
     _openStates.add(this);
     _preFocusText = null;
-    _pickedSinceFocus = false;
     if (_text.text.isNotEmpty) {
       _preFocusText = _text.text;
       _text.clear();
@@ -198,20 +186,14 @@ class _InlineSearchableDropdownState<T>
     if (!_open) return;
     setState(() => _open = false);
     _openStates.remove(this);
-    if (widget.restoreOnBlur &&
-        _preFocusText != null &&
-        !_pickedSinceFocus) {
+    if (widget.restoreOnBlur && _preFocusText != null) {
       _text.text = _preFocusText!;
     }
     _preFocusText = null;
-    _pickedSinceFocus = false;
   }
 
   void _closeAll() {
-    if (_searchMode) {
-      _searchMode = false;
-      widget.onSearchModeChanged?.call(false);
-    }
+    _searchMode = false;
     _focus.unfocus();
     _browseFocus.unfocus();
     _closeList();
@@ -241,7 +223,6 @@ class _InlineSearchableDropdownState<T>
   void _select(SearchableDropdownItem<T> item) {
     _text.text = item.label;
     _preFocusText = null;
-    _pickedSinceFocus = false;
     widget.onChanged(item.value);
     if (widget.closeOnSelect) {
       _closeAll();
@@ -251,7 +232,6 @@ class _InlineSearchableDropdownState<T>
   void _clear() {
     _text.clear();
     _preFocusText = null;
-    _pickedSinceFocus = false;
     widget.onChanged(null);
     setState(() {});
   }
@@ -298,9 +278,8 @@ class _InlineSearchableDropdownState<T>
                       item.label,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                     selected: isSelected,
@@ -315,8 +294,7 @@ class _InlineSearchableDropdownState<T>
 
   /// Blaai-modus: nie-redigeerbare veld met soek-ikoon regs.
   Widget _buildBrowseField() {
-    final displayText =
-        _text.text.isNotEmpty ? _text.text : null;
+    final displayText = _text.text.isNotEmpty ? _text.text : null;
 
     return Focus(
       focusNode: _browseFocus,
@@ -324,53 +302,51 @@ class _InlineSearchableDropdownState<T>
         onTap: widget.enabled ? _toggleList : null,
         borderRadius: BorderRadius.circular(10),
         child: InputDecorator(
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: widget.enabled ? Colors.white : Colors.grey[200],
-          hintText: widget.hint,
-          hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.gold, width: 2),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: widget.enabled ? Colors.white : Colors.grey[200],
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                  color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            suffixIcon: widget.enabled
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.trailing != null) widget.trailing!,
+                      IconButton(
+                        icon: const Icon(Icons.search, size: 20),
+                        onPressed: _enterSearchMode,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  )
+                : widget.trailing,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(
-                color: widget.error
-                    ? AppColors.errorRed
-                    : Colors.grey[300]!),
+          child: Text(
+            displayText ?? '',
+            style: TextStyle(
+              color: displayText != null ? Colors.black : Colors.grey[600],
+              fontSize: 14,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey[300]!),
-          ),
-          suffixIcon: widget.enabled
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.trailing != null) widget.trailing!,
-                    IconButton(
-                      icon: const Icon(Icons.search, size: 20),
-                      onPressed: _enterSearchMode,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                )
-              : widget.trailing,
-        ),
-        child: Text(
-          displayText ?? '',
-          style: TextStyle(
-            color: displayText != null ? Colors.black : Colors.grey[600],
-            fontSize: 14,
-          ),
-          overflow: TextOverflow.ellipsis,
         ),
       ),
-    ),
-  );
+    );
   }
 
   /// Soek-modus: redigeerbare veld met sleutelbord.
@@ -402,9 +378,7 @@ class _InlineSearchableDropdownState<T>
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-              color: widget.error
-                  ? AppColors.errorRed
-                  : Colors.grey[300]!),
+              color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
