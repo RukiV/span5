@@ -1,0 +1,136 @@
+import 'package:flutter/material.dart';
+import '../core/app_colors.dart';
+import 'column_visibility.dart';
+import 'fixed_page_header.dart';
+import 'selection_manager.dart';
+
+/// Read-only view of the shared list-scaffold state handed to the page's
+/// [SearchableListScaffold.content] builder so it can filter rows and render
+/// selectable cards without owning that state itself.
+class SearchableListState<T> {
+  final String query;
+  final SelectionController<T> selection;
+  final ColumnVisibilityController columnVisibility;
+
+  const SearchableListState({
+    required this.query,
+    required this.selection,
+    required this.columnVisibility,
+  });
+}
+
+/// Die gemeenskaplike raam vir al die app se soekbare lysbladsye. Die skil
+/// besit die soekveld, kolom-sigbaarheid en ry-kiesing (`select mode`) en bou
+/// die `FixedPageHeader` (met bulk-verwyder en kolom-kieser) plus die
+/// `Scaffold`-raam. Elke bladsy voorsien die aksies, bulk-verwyder-konfigurasie
+/// en die lys-inhoud via [content].
+///
+/// `T` is die ry-id-tipe (int vir die meeste bladsye, String vir Assets/Faults).
+class SearchableListScaffold<T> extends StatefulWidget {
+  final String searchHint;
+  final List<ColumnDef> columns;
+  final List<Widget> leadingActions;
+  final bool canBulkDelete;
+  final String bulkDeleteTitle;
+  final String bulkDeleteMessage;
+  final String? bulkDeleteChildWarning;
+  final Future<void> Function(BuildContext context, Set<T> ids) onBulkDelete;
+  final Future<void> Function() onRefresh;
+  final Widget Function(BuildContext context, SearchableListState<T> state)
+      content;
+  final Widget? floatingActionButton;
+  final Color backgroundColor;
+
+  const SearchableListScaffold({
+    super.key,
+    required this.searchHint,
+    required this.columns,
+    required this.onBulkDelete,
+    required this.onRefresh,
+    required this.content,
+    this.leadingActions = const [],
+    this.canBulkDelete = false,
+    required this.bulkDeleteTitle,
+    required this.bulkDeleteMessage,
+    this.bulkDeleteChildWarning,
+    this.floatingActionButton,
+    this.backgroundColor = AppColors.background,
+  });
+
+  @override
+  State<SearchableListScaffold<T>> createState() =>
+      _SearchableListScaffoldState<T>();
+}
+
+class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = "";
+  late final ColumnVisibilityController _colVis;
+  late final SelectionController<T> _selection;
+
+  @override
+  void initState() {
+    super.initState();
+    _colVis = ColumnVisibilityController(widget.columns);
+    _selection = SelectionController<T>()..addListener(_onSelectionChanged);
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _selection.removeListener(_onSelectionChanged);
+    _selection.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() => _query = _searchController.text.toLowerCase());
+  }
+
+  void _onSelectionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: widget.backgroundColor,
+      body: Column(
+        children: [
+          FixedPageHeader(
+            controller: _searchController,
+            hintText: widget.searchHint,
+            actions: [
+              ...widget.leadingActions,
+              if (widget.canBulkDelete)
+                BulkDeleteAction<T>(
+                  controller: _selection,
+                  confirmTitle: widget.bulkDeleteTitle,
+                  confirmMessage: widget.bulkDeleteMessage
+                      .replaceAll('{count}', '${_selection.count}'),
+                  childWarning: widget.bulkDeleteChildWarning,
+                  onDelete: (context, ids) async {
+                    await widget.onBulkDelete(context, ids);
+                    _selection.exit();
+                  },
+                ),
+              ColumnVisibilityButton(controller: _colVis),
+            ],
+          ),
+          Expanded(
+            child: widget.content(
+              context,
+              SearchableListState<T>(
+                query: _query,
+                selection: _selection,
+                columnVisibility: _colVis,
+              ),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: widget.floatingActionButton,
+    );
+  }
+}

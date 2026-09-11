@@ -9,12 +9,11 @@ import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/asset.dart';
 import 'asset_detail_page.dart';
-import 'new_asset_page.dart';
+import 'asset_form_page.dart';
 import 'manage_asset_types_page.dart';
 import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_check_history_page.dart';
-import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -38,9 +37,7 @@ class _AssetsPageState extends State<AssetsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis =
-      ColumnVisibilityController('assets', [
+  final ColumnVisibilityController _colVis = ColumnVisibilityController([
     const ColumnDef(key: 'id', label: '#ID', defaultVisible: false),
     const ColumnDef(key: 'name', label: 'Naam'),
     const ColumnDef(key: 'brand', label: 'Handelsmerk', defaultVisible: false),
@@ -219,7 +216,7 @@ class _AssetsPageState extends State<AssetsPage> {
           onDelete: _bulkDeleteAssets,
         ),
       ],
-      ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+      ColumnVisibilityButton(controller: _colVis),
     ];
   }
 
@@ -285,45 +282,6 @@ class _AssetsPageState extends State<AssetsPage> {
               a.serialCode.toLowerCase().contains(q) ||
               a.id.toLowerCase().contains(q);
         }).toList();
-
-        // Apply sorting
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
-              case 'id':
-                return a.id.compareTo(b.id) * dir;
-              case 'name':
-                return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
-                    dir;
-              case 'brand':
-                return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) *
-                    dir;
-              case 'serial':
-                return a.serialCode
-                        .toLowerCase()
-                        .compareTo(b.serialCode.toLowerCase()) *
-                    dir;
-              case 'type':
-                return a.category
-                        .toLowerCase()
-                        .compareTo(b.category.toLowerCase()) *
-                    dir;
-              case 'isOutdoor':
-                return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) *
-                    dir;
-              case 'status':
-                return a.status
-                        .toLowerCase()
-                        .compareTo(b.status.toLowerCase()) *
-                    dir;
-              case 'created':
-                return 0;
-              default:
-                return 0;
-            }
-          });
-        }
 
         if (filtered.isEmpty) {
           return const SliverFillRemaining(
@@ -428,28 +386,14 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   Future<void> _bulkDeleteAssets(BuildContext context, Set<String> ids) async {
-    int ok = 0;
-    int fail = 0;
-    for (final id in ids) {
-      if (await AssetService.deleteAsset(id)) {
-        ok++;
-      } else {
-        fail++;
-      }
-    }
-    await AssetService.fetchAssets();
-    if (context.mounted) {
-      setState(() => _selection.exit());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(fail == 0
-              ? "$ok bate/bates verwyder."
-              : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor:
-              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
-    }
+    await runBulkDelete(
+      context,
+      ids: ids,
+      delete: AssetService.deleteAsset,
+      refresh: AssetService.fetchAssets,
+      entityLabel: 'bate/bates',
+      onExit: () => setState(() => _selection.exit()),
+    );
   }
 
   Widget _buildFab() {
@@ -468,7 +412,7 @@ class _AssetsPageState extends State<AssetsPage> {
           FloatingActionButton.extended(
             heroTag: "addBtn",
             onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (context) => const NewAssetPage())),
+                MaterialPageRoute(builder: (context) => const AssetFormPage())),
             backgroundColor: AppColors.gold,
             elevation: 4,
             icon: const Icon(Icons.add, color: Colors.white),

@@ -1,19 +1,24 @@
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
+import 'count_badge.dart';
 
 /// Page-agnostic selection state for the universal "select mode" + bulk-delete
 /// flow. `T` is the row id type (int for most pages, String for Assets/Faults).
-/// The owning page calls `setState` whenever it mutates this controller so the
-/// rows and header actions rebuild.
-class SelectionController<T> {
+/// A [ChangeNotifier] so the owning page (or its list scaffold) can rebuild on
+/// mutation; callers may still wrap mutations in `setState` if they prefer.
+class SelectionController<T> extends ChangeNotifier {
   bool isSelecting = false;
   final Set<T> selectedIds = {};
 
-  void enter() => isSelecting = true;
+  void enter() {
+    isSelecting = true;
+    notifyListeners();
+  }
 
   void exit() {
     isSelecting = false;
     selectedIds.clear();
+    notifyListeners();
   }
 
   void toggle(T id) {
@@ -22,21 +27,12 @@ class SelectionController<T> {
     } else {
       selectedIds.add(id);
     }
+    notifyListeners();
   }
 
   bool isSelected(T id) => selectedIds.contains(id);
 
   int get count => selectedIds.length;
-
-  void toggleAll(List<T> allIds) {
-    if (selectedIds.length == allIds.length) {
-      selectedIds.clear();
-    } else {
-      selectedIds
-        ..clear()
-        ..addAll(allIds);
-    }
-  }
 }
 
 /// Trash action that appears (with a count badge) only while select mode is
@@ -71,30 +67,15 @@ class BulkDeleteAction<T> extends StatelessWidget {
           icon: const Icon(Icons.delete, color: Colors.white, size: 20),
           style: IconButton.styleFrom(
             backgroundColor: Colors.redAccent.withValues(alpha: 60 / 255),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
           onPressed: () => _confirm(context),
         ),
         Positioned(
           right: -4,
           top: -4,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: AppColors.gold,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-            child: Text(
-              '${controller.count}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
+          child: CountBadge(controller.count),
         ),
       ],
     );
@@ -121,7 +102,8 @@ class BulkDeleteAction<T> extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.warning_amber, color: Colors.redAccent, size: 18),
+                    const Icon(Icons.warning_amber,
+                        color: Colors.redAccent, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -154,5 +136,37 @@ class BulkDeleteAction<T> extends StatelessWidget {
     if (confirmed == true && context.mounted) {
       await onDelete(context, ids);
     }
+  }
+}
+
+Future<void> runBulkDelete<T>(
+  BuildContext context, {
+  required Set<T> ids,
+  required Future<bool> Function(T id) delete,
+  required Future<void> Function() refresh,
+  required String entityLabel,
+  required VoidCallback onExit,
+}) async {
+  var ok = 0;
+  var fail = 0;
+  for (final id in ids) {
+    if (await delete(id)) {
+      ok++;
+    } else {
+      fail++;
+    }
+  }
+  await refresh();
+  if (context.mounted) {
+    onExit();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(fail == 0
+            ? "$ok $entityLabel verwyder."
+            : "$ok verwyder, $fail kon nie verwyder word nie."),
+        backgroundColor:
+            fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+      ),
+    );
   }
 }

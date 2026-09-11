@@ -7,18 +7,16 @@ import '../../models/user_session.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
-import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
-import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/list_page_scaffold.dart';
+import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
-import '../../widgets/card_data_row.dart';
 import '../asset/asset_page.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
-import 'edit_room_page.dart';
-import 'add_room_page.dart';
+import 'room_form_page.dart';
 
 class ManageRoomsPage extends StatefulWidget {
   final Campus? initialCampus;
@@ -39,16 +37,6 @@ class ManageRoomsPage extends StatefulWidget {
 class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Campus? _selectedCampus;
   Building? _selectedBuilding;
-  final TextEditingController _searchController = TextEditingController();
-  String _query = "";
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis =
-      ColumnVisibilityController('rooms', [
-    const ColumnDef(key: 'name', label: 'Naam'),
-    const ColumnDef(key: 'type', label: 'Tipe'),
-    const ColumnDef(key: 'capacity', label: 'Kapasiteit'),
-  ]);
-  final SelectionController<int> _selection = SelectionController<int>();
 
   @override
   void initState() {
@@ -62,17 +50,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
-    _searchController.addListener(() {
-      setState(() {
-        _query = _searchController.text.toLowerCase();
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   @override
@@ -86,8 +63,8 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
     }
   }
 
-  List<Widget> _buildRoomCells(Room room) {
-    return _colVis.visibleColumns.map((col) {
+  List<Widget> _buildRoomCells(Room room, SearchableListState<int> state) {
+    return state.columnVisibility.visibleColumns.map((col) {
       int flex = 2;
       Widget child;
       switch (col.key) {
@@ -126,28 +103,14 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   }
 
   Future<void> _bulkDeleteRooms(BuildContext context, Set<int> ids) async {
-    int ok = 0;
-    int fail = 0;
-    for (final id in ids) {
-      if (await CampusService.removeRoom(id)) {
-        ok++;
-      } else {
-        fail++;
-      }
-    }
-    await CampusService.fetchCampuses();
-    if (context.mounted) {
-      setState(() => _selection.exit());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(fail == 0
-              ? "$ok lokaal/lokale verwyder."
-              : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor:
-              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
-    }
+    await runBulkDelete(
+      context,
+      ids: ids,
+      delete: CampusService.removeRoom,
+      refresh: CampusService.fetchCampuses,
+      entityLabel: 'lokaal/lokale',
+      onExit: () => setState(() {}),
+    );
   }
 
   /// Skandeer 'n lokaal se QR-kode en gaan direk na daardie lokaal se bates.
@@ -260,254 +223,197 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: ValueListenableBuilder<List<Campus>>(
-        valueListenable: CampusService.campusesNotifier,
-        builder: (context, campuses, _) {
-          if (campuses.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return ValueListenableBuilder<List<Campus>>(
+      valueListenable: CampusService.campusesNotifier,
+      builder: (context, campuses, _) {
+        if (campuses.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
 
-          // Re-resolve die gekose kampus/gebou teen die vars `campuses`-lys (nie
-          // die ou objekverwysings nie) sodat byvoeg/wysig/verwyder dadelik wys.
-          Campus? selectedCampus = _selectedCampus != null
-              ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
-              : null;
-          _selectedCampus = selectedCampus;
+        // Re-resolve die gekose kampus/gebou teen die vars `campuses`-lys (nie
+        // die ou objekverwysings nie) sodat byvoeg/wysig/verwyder dadelik wys.
+        Campus? selectedCampus = _selectedCampus != null
+            ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
+            : null;
+        _selectedCampus = selectedCampus;
 
-          Building? selectedBuilding;
-          if (_selectedBuilding != null) {
-            for (final c in campuses) {
-              final match = c.buildings
-                  .where((b) => b.id == _selectedBuilding!.id)
-                  .firstOrNull;
-              if (match != null) {
-                selectedBuilding = match;
-                break;
-              }
+        Building? selectedBuilding;
+        if (_selectedBuilding != null) {
+          for (final c in campuses) {
+            final match = c.buildings
+                .where((b) => b.id == _selectedBuilding!.id)
+                .firstOrNull;
+            if (match != null) {
+              selectedBuilding = match;
+              break;
             }
           }
-          _selectedBuilding = selectedBuilding;
+        }
+        _selectedBuilding = selectedBuilding;
 
-          return Column(
-            children: [
-              FixedPageHeader(
-                controller: _searchController,
-                hintText: "Soek lokale...",
-                onChanged: (_) => setState(() {}),
-                actions: [
-                  HeaderIconAction(
-                    icon: Icons.place_outlined,
-                    tooltip: "Filter op Ligging",
-                    activeBadge: _selectedBuilding != null,
-                    onTap: () => showLocationFilterSheet(
-                      context,
-                      depth: LocationDepth.building,
-                      campusId: _selectedCampus?.id,
-                      buildingId: _selectedBuilding?.id,
-                      onChanged: (campusId, buildingId, _) {
-                        setState(() {
-                          _selectedCampus = campuses
-                              .where((c) => c.id == campusId)
-                              .firstOrNull;
-                          _selectedBuilding = _selectedCampus?.buildings
-                              .where((b) => b.id == buildingId)
-                              .firstOrNull;
-                        });
-                      },
-                    ),
-                  ),
-                  if (UserSession.can('rooms.manage')) ...[
-                    BulkDeleteAction<int>(
-                      controller: _selection,
-                      confirmTitle: 'Verwyder Lokale',
-                      confirmMessage:
-                          'Wil jy ${_selection.count} geselekteerde lokaal/lokale verwyder?',
-                      childWarning:
-                          'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
-                      onDelete: _bulkDeleteRooms,
-                    ),
-                  ],
-                  ColumnVisibilityButton(controller: _colVis, iconOnly: true),
-                ],
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Builder(builder: (context) {
-                    final baseRooms = _selectedBuilding != null
-                        ? (_selectedBuilding!.rooms ?? <Room>[])
-                        : campuses
-                            .expand((c) => c.buildings)
-                            .expand((b) => b.rooms ?? const <Room>[])
-                            .toList();
-                    final filtered = baseRooms
-                        .where((r) =>
-                            _query.isEmpty ||
-                            r.name.toLowerCase().contains(_query) ||
-                            r.type.toLowerCase().contains(_query))
-                        .toList();
-                    if (_sortCtrl.isActive) {
-                      filtered.sort((a, b) {
-                        final dir = _sortCtrl.direction;
-                        switch (_sortCtrl.sortKey) {
-                          case 'name':
-                            return a.name
-                                    .toLowerCase()
-                                    .compareTo(b.name.toLowerCase()) *
-                                dir;
-                          case 'type':
-                            return a.type
-                                    .toLowerCase()
-                                    .compareTo(b.type.toLowerCase()) *
-                                dir;
-                          case 'capacity':
-                            return (a.capacity ?? 0)
-                                    .compareTo(b.capacity ?? 0) *
-                                dir;
-                          default:
-                            return 0;
-                        }
-                      });
-                    }
-                    if (filtered.isEmpty) {
-                      return const Center(
-                          child: Text("Geen lokale geregistreer nie.",
-                              style: TextStyle(color: Colors.grey)));
-                    }
-                    return RefreshIndicator(
-                      onRefresh: () => CampusService.fetchCampuses(),
-                      color: AppColors.refreshSpinner,
-                      child: ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.only(bottom: 90),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          final room = filtered[index];
-                          return CardDataRow(
-                            leading: _selection.isSelecting
-                                ? Checkbox(
-                                    value: _selection.isSelected(room.id),
-                                    onChanged: (_) => setState(
-                                        () => _selection.toggle(room.id)),
-                                  )
-                                : null,
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!_selection.isSelecting &&
-                                    UserSession.can('rooms.manage')) ...[
-                                  IconButton(
-                                    icon: const Icon(Icons.qr_code_2,
-                                        color: Colors.grey, size: 20),
-                                    tooltip: "Wys QR-kode",
-                                    onPressed: () => _showRoomQrDialog(room),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.checklist,
-                                        color: Colors.grey, size: 20),
-                                    tooltip: "Kontroleer bates",
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            RoomChecklistPage(roomId: room.id),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                IconButton(
-                                  icon: const Icon(Icons.chevron_right,
-                                      color: AppColors.gold),
-                                  tooltip: "Wys bates in lokaal",
-                                  onPressed: _selection.isSelecting
-                                      ? () => setState(
-                                          () => _selection.toggle(room.id))
-                                      : () {
-                                          final onRoomSelected =
-                                              widget.onRoomSelected;
-                                          if (onRoomSelected != null) {
-                                            onRoomSelected(room);
-                                          } else {
-                                            Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) =>
-                                                    AssetsPage(
-                                                        filterRoomId:
-                                                            room.id.toString()),
-                                              ),
-                                            );
-                                          }
-                                        },
-                                ),
-                              ],
-                            ),
-                            onTap: () {
-                              if (_selection.isSelecting) {
-                                setState(() => _selection.toggle(room.id));
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        EditRoomPage(room: room),
-                                  ),
-                                );
-                              }
-                            },
-                            onLongPress: () {
-                              setState(() {
-                                _selection.enter();
-                                _selection.toggle(room.id);
-                              });
-                            },
-                            children: _buildRoomCells(room),
-                          );
-                        },
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton(
-            heroTag: "roomScanBtn",
-            onPressed: _scanRoomToViewAssets,
-            backgroundColor: AppColors.navy,
-            child: const Icon(Icons.qr_code_scanner, color: Colors.white),
-          ),
-          if (UserSession.can('rooms.manage')) ...[
-            const SizedBox(height: 12),
-            FloatingActionButton.extended(
-              heroTag: "roomAddBtn",
-              onPressed: () => Navigator.push(
+        return SearchableListScaffold<int>(
+          searchHint: "Soek lokale...",
+          columns: const [
+            ColumnDef(key: 'name', label: 'Naam'),
+            ColumnDef(key: 'type', label: 'Tipe'),
+            ColumnDef(key: 'capacity', label: 'Kapasiteit'),
+          ],
+          leadingActions: [
+            HeaderIconAction(
+              icon: Icons.place_outlined,
+              tooltip: "Filter op Ligging",
+              activeBadge: _selectedBuilding != null,
+              onTap: () => showLocationFilterSheet(
                 context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      AddRoomPage(initialBuilding: _selectedBuilding),
-                ),
+                depth: LocationDepth.building,
+                campusId: _selectedCampus?.id,
+                buildingId: _selectedBuilding?.id,
+                onChanged: (campusId, buildingId, _) {
+                  setState(() {
+                    _selectedCampus =
+                        campuses.where((c) => c.id == campusId).firstOrNull;
+                    _selectedBuilding = _selectedCampus?.buildings
+                        .where((b) => b.id == buildingId)
+                        .firstOrNull;
+                  });
+                },
               ),
-              backgroundColor: AppColors.gold,
-              elevation: 4,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text("Nuwe Lokaal",
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5)),
             ),
           ],
-        ],
-      ),
+          canBulkDelete: UserSession.can('rooms.manage'),
+          bulkDeleteTitle: 'Verwyder Lokale',
+          bulkDeleteMessage:
+              'Wil jy {count} geselekteerde lokaal/lokale verwyder?',
+          bulkDeleteChildWarning:
+              'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
+          onBulkDelete: _bulkDeleteRooms,
+          onRefresh: () => CampusService.fetchCampuses(),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton(
+                heroTag: "roomScanBtn",
+                onPressed: _scanRoomToViewAssets,
+                backgroundColor: AppColors.navy,
+                child: const Icon(Icons.qr_code_scanner, color: Colors.white),
+              ),
+              if (UserSession.can('rooms.manage')) ...[
+                const SizedBox(height: 12),
+                FloatingActionButton.extended(
+                  heroTag: "roomAddBtn",
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          RoomFormPage(initialBuilding: _selectedBuilding),
+                    ),
+                  ),
+                  backgroundColor: AppColors.gold,
+                  elevation: 4,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text("Nuwe Lokaal",
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5)),
+                ),
+              ],
+            ],
+          ),
+          content: (context, state) {
+            final baseRooms = _selectedBuilding != null
+                ? (_selectedBuilding!.rooms ?? <Room>[])
+                : campuses
+                    .expand((c) => c.buildings)
+                    .expand((b) => b.rooms ?? const <Room>[])
+                    .toList();
+            final filtered = baseRooms
+                .where((r) =>
+                    state.query.isEmpty ||
+                    r.name.toLowerCase().contains(state.query) ||
+                    r.type.toLowerCase().contains(state.query))
+                .toList();
+            if (filtered.isEmpty) {
+              return const Center(
+                  child: Text("Geen lokale geregistreer nie.",
+                      style: TextStyle(color: Colors.grey)));
+            }
+            return RefreshIndicator(
+              onRefresh: () => CampusService.fetchCampuses(),
+              color: AppColors.refreshSpinner,
+              child: ListView.builder(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 90),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final room = filtered[index];
+                  final selecting = state.selection.isSelecting;
+                  return SelectableRow<int>(
+                    id: room.id,
+                    selection: state.selection,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!selecting && UserSession.can('rooms.manage')) ...[
+                          IconButton(
+                            icon: const Icon(Icons.qr_code_2,
+                                color: Colors.grey, size: 20),
+                            tooltip: "Wys QR-kode",
+                            onPressed: () => _showRoomQrDialog(room),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.checklist,
+                                color: Colors.grey, size: 20),
+                            tooltip: "Kontroleer bates",
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    RoomChecklistPage(roomId: room.id),
+                              ),
+                            ),
+                          ),
+                        ],
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right,
+                              color: AppColors.gold),
+                          tooltip: "Wys bates in lokaal",
+                          onPressed: selecting
+                              ? () => state.selection.toggle(room.id)
+                              : () {
+                                  final onRoomSelected = widget.onRoomSelected;
+                                  if (onRoomSelected != null) {
+                                    onRoomSelected(room);
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AssetsPage(
+                                            filterRoomId: room.id.toString()),
+                                      ),
+                                    );
+                                  }
+                                },
+                        ),
+                      ],
+                    ),
+                    onOpen: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RoomFormPage(room: room),
+                        ),
+                      );
+                    },
+                    children: _buildRoomCells(room, state),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

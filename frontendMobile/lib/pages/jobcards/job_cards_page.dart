@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/status_colors.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/ai_service.dart';
 import '../../models/jobcard.dart';
 import '../../models/job_draft.dart';
-import '../../widgets/sort_utils.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
+import '../../widgets/count_badge.dart';
 import '../../widgets/card_data_row.dart';
 import '../../widgets/fixed_page_header.dart';
 import 'jobcard_detail_page.dart';
@@ -34,9 +35,7 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   // ── Job list state ──
   final TextEditingController _searchController = TextEditingController();
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis =
-      ColumnVisibilityController('jobcards', [
+  final ColumnVisibilityController _colVis = ColumnVisibilityController([
     const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
     const ColumnDef(key: 'description', label: 'Beskrywing'),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
@@ -148,21 +147,11 @@ class _JobCardsPageState extends State<JobCardsPage>
                 const Text('Voorgestelde Werksopdragte'),
                 if (_pendingCount > 0) ...[
                   const SizedBox(width: 6),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$_pendingCount',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                  CountBadge(_pendingCount,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      fontSize: 11,
+                      minSize: null),
                 ],
               ],
             ),
@@ -196,37 +185,6 @@ class _JobCardsPageState extends State<JobCardsPage>
               j.id.toString().contains(_searchQuery) ||
               (j.type?.toLowerCase().contains(_searchQuery) ?? false);
         }).toList();
-
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
-              case 'id':
-                return a.id.compareTo(b.id) * dir;
-              case 'description':
-                return a.description
-                        .toLowerCase()
-                        .compareTo(b.description.toLowerCase()) *
-                    dir;
-              case 'type':
-                return (a.type ?? '')
-                        .toLowerCase()
-                        .compareTo((b.type ?? '').toLowerCase()) *
-                    dir;
-              case 'status':
-                return a.status
-                        .toLowerCase()
-                        .compareTo(b.status.toLowerCase()) *
-                    dir;
-              case 'date':
-                return (a.createdDatetime ?? DateTime(0))
-                        .compareTo(b.createdDatetime ?? DateTime(0)) *
-                    dir;
-              default:
-                return 0;
-            }
-          });
-        }
 
         return RefreshIndicator(
           onRefresh: () => JobcardService.fetchJobs(),
@@ -267,33 +225,19 @@ class _JobCardsPageState extends State<JobCardsPage>
           onDelete: _bulkDeleteJobs,
         ),
       ],
-      ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+      ColumnVisibilityButton(controller: _colVis),
     ];
   }
 
   Future<void> _bulkDeleteJobs(BuildContext context, Set<int> ids) async {
-    int ok = 0;
-    int fail = 0;
-    for (final id in ids) {
-      if (await JobcardService.deleteJob(id)) {
-        ok++;
-      } else {
-        fail++;
-      }
-    }
-    await JobcardService.fetchJobs();
-    if (context.mounted) {
-      setState(() => _selection.exit());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(fail == 0
-              ? "$ok werksopdrag(te) verwyder."
-              : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor:
-              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
-    }
+    await runBulkDelete(
+      context,
+      ids: ids,
+      delete: JobcardService.deleteJob,
+      refresh: JobcardService.fetchJobs,
+      entityLabel: 'werksopdrag(te)',
+      onExit: () => setState(() => _selection.exit()),
+    );
   }
 
   Widget _buildEmptyState() {
@@ -416,7 +360,7 @@ class _JobCardsPageState extends State<JobCardsPage>
   }
 
   Widget _buildStatusChip(String status) {
-    Color color = _getStatusColor(status);
+    Color color = jobStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -439,25 +383,6 @@ class _JobCardsPageState extends State<JobCardsPage>
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Besig':
-        return Colors.blue;
-      case 'Geskeduleer':
-        return Colors.teal;
-      case 'Voltooi':
-        return Colors.green;
-      case 'Oop':
-        return Colors.orange;
-      case 'Wag':
-        return Colors.amber;
-      case 'Gekanselleer':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
   }
 
   String _formatDate(DateTime date) {
