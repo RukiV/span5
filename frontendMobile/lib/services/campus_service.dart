@@ -1,14 +1,18 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../models/campus.dart';
 import '../models/building.dart';
 import '../models/room.dart';
 import '../core/api_client.dart';
 import '../core/idempotency.dart';
+import 'cached_list_manager.dart';
 
 class CampusService {
-  static final List<Campus> _campuses = [];
-  static final ValueNotifier<List<Campus>> campusesNotifier = ValueNotifier(_campuses);
+  static final CachedListManager<Campus> _manager = CachedListManager(
+    load: _load,
+  );
+
+  static ValueNotifier<List<Campus>> get campusesNotifier => _manager.notifier;
 
   // Pending X-Idempotency-Keys per entity; each reused until that create
   // succeeds, then cleared. Separate keys so campus/building/room creates
@@ -17,96 +21,102 @@ class CampusService {
   static String? _pendingBuildingKey;
   static String? _pendingRoomKey;
 
-  static Future<void> fetchCampuses() async {
-    try {
-      final locResponse = await ApiClient().client.get('/location');
-      final buildingResponse = await ApiClient().client.get('/building');
-      final roomResponse = await ApiClient().client.get('/rooms');
+  static Future<List<Campus>> _load() async {
+    final locResponse = await ApiClient().client.get('/location');
+    final buildingResponse = await ApiClient().client.get('/building');
+    final roomResponse = await ApiClient().client.get('/rooms');
 
-      if (locResponse.statusCode == 200 &&
-          buildingResponse.statusCode == 200 &&
-          roomResponse.statusCode == 200) {
-        final List<dynamic> locData = locResponse.data;
-        final List<dynamic> buildingData = buildingResponse.data;
-        final List<dynamic> roomData = roomResponse.data;
+    if (locResponse.statusCode == 200 &&
+        buildingResponse.statusCode == 200 &&
+        roomResponse.statusCode == 200) {
+      final List<dynamic> locData = locResponse.data;
+      final List<dynamic> buildingData = buildingResponse.data;
+      final List<dynamic> roomData = roomResponse.data;
 
-        _campuses.clear();
+      final campuses = <Campus>[];
 
-        for (var locJson in locData) {
-          int locId = locJson['location_id'];
+      for (var locJson in locData) {
+        int locId = locJson['location_id'];
 
-          List<Building> locationBuildings = buildingData
-              .where((b) => b['location_id'] == locId)
-              .map((bJson) {
-                int bId = bJson['building_id'];
-                List<Room> buildingRooms = roomData
-                    .where((r) => r['building_id'] == bId)
-                    .map((r) => Room.fromJson(r))
-                    .toList();
-                return Building.fromJson(bJson).copyWith(rooms: buildingRooms);
-              })
+        List<Building> locationBuildings =
+            buildingData.where((b) => b['location_id'] == locId).map((bJson) {
+          int bId = bJson['building_id'];
+          List<Room> buildingRooms = roomData
+              .where((r) => r['building_id'] == bId)
+              .map((r) => Room.fromJson(r))
               .toList();
+          return Building.fromJson(bJson).copyWith(rooms: buildingRooms);
+        }).toList();
 
-          _campuses.add(Campus.fromJson(locJson).copyWith(buildings: locationBuildings));
-        }
-
-        campusesNotifier.value = List.from(_campuses);
+        campuses.add(
+            Campus.fromJson(locJson).copyWith(buildings: locationBuildings));
       }
-    } catch (e) {
-      debugPrint("Error loading locations/buildings/rooms: $e");
+
+      return campuses;
     }
+    throw Exception('Unexpected locations/buildings/rooms response');
   }
+
+  static Future<void> fetchCampuses() => _manager.fetch();
 
   // --- Helper methods (adapted from old rooms-based approach) ---
 
-  static String getRoomName(String roomId) {
-    for (var campus in _campuses) {
-      for (var building in campus.buildings) {
-        for (var room in (building.rooms ?? [])) {
-          if (room.id.toString() == roomId) {
-            return room.name;
+  static ({Campus? campus, Building? building, Room? room}) findRoomWithPath(
+      int roomId) {
+    for (final campus in _manager.values) {
+      for (final building in campus.buildings) {
+        for (final room in building.rooms ?? const <Room>[]) {
+          if (room.id == roomId) {
+            return (campus: campus, building: building, room: room);
           }
         }
       }
     }
-    return "";
+    return (campus: null, building: null, room: null);
+  }
+
+  static ({Campus? campus, Building? building, Room? room}) locationPath(
+      int? campusId, int? buildingId, int? roomId) {
+    Campus? campus;
+    Building? building;
+    Room? room;
+    for (final c in _manager.values) {
+      if (c.id == campusId) {
+        campus = c;
+        for (final b in c.buildings) {
+          if (b.id == buildingId) {
+            building = b;
+            for (final r in b.rooms ?? const <Room>[]) {
+              if (r.id == roomId) room = r;
+            }
+          }
+        }
+      }
+    }
+    return (campus: campus, building: building, room: room);
+  }
+
+  static String getRoomName(String roomId) {
+    return findRoomWithPath(int.tryParse(roomId) ?? -1).room?.name ?? "";
   }
 
   static String getBuildingNameByRoomId(String roomId) {
-    for (var campus in _campuses) {
-      for (var building in campus.buildings) {
-        for (var room in (building.rooms ?? [])) {
-          if (room.id.toString() == roomId) {
-            return building.name;
-          }
-        }
-      }
-    }
-    return "";
+    return findRoomWithPath(int.tryParse(roomId) ?? -1).building?.name ?? "";
   }
 
   static String getCampusNameByRoomId(String roomId) {
-    for (var campus in _campuses) {
-      for (var building in campus.buildings) {
-        for (var room in (building.rooms ?? [])) {
-          if (room.id.toString() == roomId) {
-            return campus.name;
-          }
-        }
-      }
-    }
-    return "";
+    return findRoomWithPath(int.tryParse(roomId) ?? -1).campus?.name ?? "";
   }
 
   static String getCampusName(int campusId) {
-    for (var campus in _campuses) {
+    for (var campus in _manager.values) {
       if (campus.id == campusId) return campus.name;
     }
     return "";
   }
 
   static String getBuildingName(int buildingId) {
-    for (var campus in _campuses) {
+    for (var campus in _manager.values) {
       for (var building in campus.buildings) {
         if (building.id == buildingId) return building.name;
       }
@@ -116,7 +126,7 @@ class CampusService {
 
   static Campus? getCampusByName(String name) {
     try {
-      return _campuses.firstWhere(
+      return _manager.values.firstWhere(
         (c) => c.name == name || name.contains(c.name),
       );
     } catch (_) {
@@ -132,10 +142,11 @@ class CampusService {
       _pendingCampusKey ??= Idempotency.generate();
 
       final response = await ApiClient().client.post(
-        '/location',
-        data: data,
-        options: Options(headers: {'X-Idempotency-Key': _pendingCampusKey!}),
-      );
+            '/location',
+            data: data,
+            options:
+                Options(headers: {'X-Idempotency-Key': _pendingCampusKey!}),
+          );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         _pendingCampusKey = null;
@@ -150,7 +161,9 @@ class CampusService {
 
   static Future<bool> updateCampus(Campus campus) async {
     try {
-      final response = await ApiClient().client.patch('/location/${campus.id}', data: campus.toJson());
+      final response = await ApiClient()
+          .client
+          .patch('/location/${campus.id}', data: campus.toJson());
 
       if (response.statusCode == 200) {
         await fetchCampuses();
@@ -181,10 +194,11 @@ class CampusService {
     try {
       _pendingBuildingKey ??= Idempotency.generate();
       final response = await ApiClient().client.post(
-        '/building',
-        data: building.toJson(),
-        options: Options(headers: {'X-Idempotency-Key': _pendingBuildingKey!}),
-      );
+            '/building',
+            data: building.toJson(),
+            options:
+                Options(headers: {'X-Idempotency-Key': _pendingBuildingKey!}),
+          );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         _pendingBuildingKey = null;
@@ -199,7 +213,9 @@ class CampusService {
 
   static Future<bool> updateBuilding(Building building) async {
     try {
-      final response = await ApiClient().client.patch('/building/${building.id}', data: building.toJson());
+      final response = await ApiClient()
+          .client
+          .patch('/building/${building.id}', data: building.toJson());
 
       if (response.statusCode == 200) {
         await fetchCampuses();
@@ -230,10 +246,10 @@ class CampusService {
     try {
       _pendingRoomKey ??= Idempotency.generate();
       final response = await ApiClient().client.post(
-        '/rooms',
-        data: room.toJson(),
-        options: Options(headers: {'X-Idempotency-Key': _pendingRoomKey!}),
-      );
+            '/rooms',
+            data: room.toJson(),
+            options: Options(headers: {'X-Idempotency-Key': _pendingRoomKey!}),
+          );
       if (response.statusCode == 200 || response.statusCode == 201) {
         _pendingRoomKey = null;
         await fetchCampuses();
@@ -247,7 +263,9 @@ class CampusService {
 
   static Future<bool> updateRoom(Room room) async {
     try {
-      final response = await ApiClient().client.patch('/rooms/${room.id}', data: room.toJson());
+      final response = await ApiClient()
+          .client
+          .patch('/rooms/${room.id}', data: room.toJson());
       if (response.statusCode == 200) {
         await fetchCampuses();
         return true;
