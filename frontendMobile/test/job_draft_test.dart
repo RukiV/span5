@@ -105,7 +105,8 @@ void main() {
         'reviewed_at': null,
       });
 
-      final updated = draft.copyWith(status: 'rejected', reviewNote: 'Duplikaat');
+      final updated =
+          draft.copyWith(status: 'rejected', reviewNote: 'Duplikaat');
 
       expect(updated.draftId, 3);
       expect(updated.status, 'rejected');
