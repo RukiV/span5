@@ -94,6 +94,42 @@ void main() {
       expect(manager.isLoaded, isTrue);
     });
 
+    test('gelyktydige fetch-oproepe deel een in-vlug versoek', () async {
+      var loads = 0;
+      final manager = CachedListManager<int>(load: () async {
+        loads++;
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        return [loads];
+      });
+
+      await Future.wait([
+        manager.fetch(),
+        manager.fetch(),
+        manager.fetch(),
+      ]);
+
+      expect(loads, 1);
+      expect(manager.values, [1]);
+      expect(manager.notifier.value, [1]);
+      expect(manager.lastError, isNull);
+    });
+
+    test('in-vlug-guard word ná voltooiing vrygestel', () async {
+      var loads = 0;
+      final manager = CachedListManager<int>(load: () async {
+        loads++;
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        return [loads];
+      });
+
+      await manager.fetch();
+      expect(loads, 1);
+
+      await manager.fetch();
+      expect(loads, 2);
+      expect(manager.values, [2]);
+    });
+
     test('values is onveranderlik', () async {
       final manager = CachedListManager<int>(load: () async => [1]);
 

@@ -17,6 +17,8 @@ class CachedListManager<T> {
   final List<T> _items = [];
   final ValueNotifier<List<T>> notifier = ValueNotifier(List<T>.empty());
 
+  Future<void>? _inFlight;
+
   String? lastError;
 
   @visibleForTesting
@@ -32,7 +34,27 @@ class CachedListManager<T> {
     notifier.value = List.from(items);
   }
 
-  Future<void> fetch() async {
+  /// Laai die lys na die kas.
+  ///
+  /// Gelyktydige oproepe terwyl 'n laai aan die gang is, deel dieselfde
+  /// in-vlug-versoek (hulle wag op die lopende [Future]) in plaas van om 'n
+  /// tweede parallelle versoek te begin. So kan 'n ouer respons nie ná 'n
+  /// nuwer een 'n pas-verwyderde ry terug bring nie en word die data net een
+  /// keer gedupliseer.
+  Future<void> fetch() {
+    final current = _inFlight;
+    if (current != null) return current;
+
+    final future = _runFetch();
+    _inFlight = future;
+    return future.whenComplete(() {
+      if (identical(_inFlight, future)) {
+        _inFlight = null;
+      }
+    });
+  }
+
+  Future<void> _runFetch() async {
     try {
       final result = await _load();
       lastError = null;
