@@ -17,6 +17,7 @@ import '../../widgets/selection_manager.dart';
 import '../asset/assets_page.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
+import 'room_detail_page.dart';
 import 'room_form_page.dart';
 
 class RoomsPage extends StatefulWidget {
@@ -417,10 +418,13 @@ class _RoomsPageState extends State<RoomsPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => RoomFormPage(room: room),
+                          builder: (context) => RoomDetailPage(room: room),
                         ),
                       );
                     },
+                    onLongPress: UserSession.can('rooms.manage')
+                        ? null
+                        : () {},
                     children: _buildRoomCells(room, state),
                   );
                 },

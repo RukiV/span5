@@ -146,21 +146,26 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
             const Text("Kontrakteur",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: [
-                ChoiceChip(
-                  label: const Text("Bestaande kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: !_isNewContractor,
-                  onSelected: (_) =>
-                      setState(() => _isNewContractor = false),
-                ),
-                ChoiceChip(
-                  label: const Text("Nuwe kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: _isNewContractor,
-                  onSelected: (_) => setState(() => _isNewContractor = true),
-                ),
-              ],
+            RadioGroup<int>(
+              groupValue: _isNewContractor ? 2 : 1,
+              onChanged: (v) => setState(() => _isNewContractor = (v == 2)),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Radio<int>(value: 1),
+                      Text("Bestaande kontrakteur", style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Radio<int>(value: 2),
+                      Text("Nuwe kontrakteur", style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             if (_isNewContractor)
@@ -195,7 +200,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                     icon: const Icon(Icons.picture_as_pdf, color: AppColors.errorRed),
                     label: Text(
                       _pdfFile != null
-                          ? _pdfFile!.path.split('/').last
+                          ? "PDF gekies"
                           : "Laai PDF op (verpligtend)",
                       style: const TextStyle(fontSize: 13),
                       overflow: TextOverflow.ellipsis,
@@ -227,6 +232,284 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                   ),
                   onPressed: _submit,
                   child: const Text("Voeg By", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatedContractor {
+  final int userId;
+  final String name;
+
+  const _CreatedContractor({required this.userId, required this.name});
+}
+
+class _CreateContractorDialog extends StatefulWidget {
+  final String initialName;
+  final String initialSurname;
+
+  const _CreateContractorDialog({
+    required this.initialName,
+    required this.initialSurname,
+  });
+
+  @override
+  State<_CreateContractorDialog> createState() => _CreateContractorDialogState();
+}
+
+class _CreateContractorDialogState extends State<_CreateContractorDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _surnameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _surnameController = TextEditingController(text: widget.initialSurname);
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _surnameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    final surname = _surnameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (name.isEmpty || surname.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Vul asseblief al die verpligte velde in."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    if (!RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geldige e-posadres word vereis."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    if (password.length < 8 ||
+        !password.contains(RegExp(r'[a-z]')) ||
+        !password.contains(RegExp(r'[A-Z]')) ||
+        !password.contains(RegExp(r'[0-9]')) ||
+        !password.contains(RegExp(r'[^a-zA-Z0-9]'))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Wagwoord moet minstens 8 karakters, 'n hoofletter, 'n syfer en 'n simbool bevat."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final ok = await UserService.addContractor(
+        User(
+          name: name,
+          surname: surname,
+          email: email,
+          status: "active",
+          roleId: 4,
+        ),
+        password,
+      );
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Kon nie kontrakteur skep nie — kontroleer die e-pos en probeer weer."),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      final created = UserService.users
+          .where((u) => u.email == email)
+          .firstOrNull;
+      if (created == null || created.id == null) {
+        if (!mounted) return;
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Kontrakteur is geskep maar die lys kon nie verfris word nie."),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      Navigator.pop(
+        context,
+        _CreatedContractor(userId: created.id!, name: created.displayName),
+      );
+    } catch (e) {
+      debugPrint("Fout by skep van kontrakteur: $e");
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Fout by skep van kontrakteur. Probeer asseblief weer."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
+  }
+
+  Widget _webField({
+    required String label,
+    TextEditingController? controller,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    List<String>? autofillHints,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          autofillHints: autofillHints,
+          keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Voeg Kontrakteur By",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _submitting
+                        ? null
+                        : () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Die gekose kwotasie het 'n kontrakteur met slegs 'n naam. Skep die gebruiker hier sodat hy by die lys van kontrakteurs gevoeg word.",
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            _webField(
+              label: "Voornaam *",
+              controller: _nameController,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "Van *",
+              controller: _surnameController,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "E-pos *",
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "Wagwoord *",
+              controller: _passwordController,
+              obscureText: true,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Vereistes: minstens 8 karakters, 'n hoofletter, 'n syfer en 'n simbool.",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _submitting ? null : () => Navigator.pop(context),
+                  child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text("Skep Kontrakteur",
+                          style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -868,9 +1151,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               Expanded(
                 child: Text(
                   quote.pdfFile != null
-                      ? quote.pdfFile!.path.split('/').last
-                      : (quote.existingDocs.isNotEmpty ? quote.existingDocs.first.filename : "Geen PDF"),
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      ? "PDF aangeheg"
+                      : (quote.existingDocs.isNotEmpty ? "PDF aangeheg" : "Geen PDF"),
+                  style: const TextStyle(color: AppColors.successGreen, fontSize: 13, fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -1007,6 +1290,25 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       showAppSnackBar(context, "Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
       return;
     }
+
+    // Nuwe kontrakteur wat net 'n naam het — vra vir die volledige gebruikersdata
+    // voordat die kwotasie-keuse gestoor word, en voeg hom by die kontrakteurslys.
+    if (quote.contractorId == null && (quote.contractorName ?? '').trim().isNotEmpty) {
+      final parts = quote.contractorName!.trim().split(RegExp(r'\s+'));
+      final surname = parts.length > 1 ? parts.removeLast() : "";
+      final created = await showDialog<_CreatedContractor>(
+        context: context,
+        builder: (context) => _CreateContractorDialog(
+          initialName: parts.join(" "),
+          initialSurname: surname,
+        ),
+      );
+      if (created == null || !mounted) return;
+      quote
+        ..contractorId = created.userId
+        ..contractorName = created.name;
+    }
+
     setState(() => _savingQuoteSelection = true);
     try {
       if (quote.quoteId == null) {
@@ -1441,6 +1743,25 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         showAppSnackBar(context, "Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
         setState(() => _tabController.index = 1);
         return;
+      }
+      // Nuwe kontrakteur wat net 'n naam het — vra vir die volledige
+      // gebruikersdata tydens die finale stoor en voeg hom by die lys.
+      if (selected != null &&
+          selected.contractorId == null &&
+          (selected.contractorName ?? '').trim().isNotEmpty) {
+        final parts = selected.contractorName!.trim().split(RegExp(r'\s+'));
+        final surname = parts.length > 1 ? parts.removeLast() : "";
+        final created = await showDialog<_CreatedContractor>(
+          context: context,
+          builder: (context) => _CreateContractorDialog(
+            initialName: parts.join(" "),
+            initialSurname: surname,
+          ),
+        );
+        if (created == null || !mounted) return;
+        selected
+          ..contractorId = created.userId
+          ..contractorName = created.name;
       }
     }
 

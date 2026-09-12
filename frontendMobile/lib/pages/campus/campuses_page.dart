@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
+import 'campus_detail_page.dart';
 import 'campus_form_page.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/list_page_scaffold.dart';
@@ -177,18 +178,18 @@ class _CampusesPageState extends State<CampusesPage> {
                                   }
                                 },
                               ),
-                              onOpen: () async {
-                                final edited = await Navigator.push(
+                              onOpen: () {
+                                Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) =>
-                                        CampusFormPage(campus: campus),
+                                        CampusDetailPage(campus: campus),
                                   ),
                                 );
-                                if (edited == true) {
-                                  CampusService.fetchCampuses();
-                                }
                               },
+                              onLongPress: UserSession.can('locations.manage')
+                                  ? null
+                                  : () {},
                               children: _buildCampusCells(campus, state),
                             );
                           },

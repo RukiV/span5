@@ -25,7 +25,7 @@ beforeEach(() => {
 
 test('renders username and password fields', () => {
   render(<BrowserRouter><LoginPage /></BrowserRouter>);
-  expect(screen.getByLabelText('Gebruikersnaam:')).toBeInTheDocument();
+  expect(screen.getByLabelText('E-pos adres:')).toBeInTheDocument();
   expect(screen.getByLabelText('Wagwoord:')).toBeInTheDocument();
 });
 
@@ -39,7 +39,7 @@ test('shows error message on failed login', async () => {
   const { authAPI } = require('../services/api');
   authAPI.login.mockRejectedValue({ response: { status: 401, data: { detail: 'Invalid credentials' } } });
   render(<BrowserRouter><LoginPage /></BrowserRouter>);
-  fireEvent.change(screen.getByLabelText('Gebruikersnaam:'), { target: { value: 'test@test.com' } });
+  fireEvent.change(screen.getByLabelText('E-pos adres:'), { target: { value: 'test@test.com' } });
   fireEvent.change(screen.getByLabelText('Wagwoord:'), { target: { value: 'wrong' } });
   fireEvent.click(screen.getByRole('button', { name: /Teken In$/ }));
   await waitFor(() => {

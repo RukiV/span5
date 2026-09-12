@@ -11,6 +11,7 @@ import '../../widgets/column_visibility.dart';
 import '../../widgets/list_page_scaffold.dart';
 import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
+import 'stock_detail_page.dart';
 import 'stock_form_page.dart';
 
 class StocksPage extends StatefulWidget {
@@ -260,8 +261,11 @@ class _StocksPageState extends State<StocksPage> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) =>
-                                        StockFormPage(stock: stock)),
+                                        StockDetailPage(stock: stock)),
                               ),
+                              onLongPress: UserSession.can('stock.manage')
+                                  ? null
+                                  : () {},
                               children: _stockCells(stock, state),
                             );
                           }
@@ -272,7 +276,7 @@ class _StocksPageState extends State<StocksPage> {
                               context,
                               MaterialPageRoute(
                                   builder: (context) =>
-                                      StockFormPage(stock: stock)),
+                                      StockDetailPage(stock: stock)),
                             ),
                             children: _stockCells(stock, state),
                           );

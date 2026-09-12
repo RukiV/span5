@@ -13,6 +13,10 @@ class SelectableRow<T> extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback onOpen;
 
+  /// Oorheers die standaard lankdruk (wat kies-modus begin). Bladsye wat 'n
+  /// reg-toets op lankdruk toepas, gee hier 'n bewaakte handler om verby te gee.
+  final VoidCallback? onLongPress;
+
   const SelectableRow({
     super.key,
     required this.id,
@@ -20,6 +24,7 @@ class SelectableRow<T> extends StatelessWidget {
     required this.children,
     required this.onOpen,
     this.trailing,
+    this.onLongPress,
   });
 
   @override
@@ -34,10 +39,11 @@ class SelectableRow<T> extends StatelessWidget {
           : null,
       trailing: trailing,
       onTap: selecting ? () => selection.toggle(id) : onOpen,
-      onLongPress: () {
-        selection.enter();
-        selection.toggle(id);
-      },
+      onLongPress: onLongPress ??
+          () {
+            selection.enter();
+            selection.toggle(id);
+          },
       children: children,
     );
   }

@@ -15,6 +15,7 @@ import '../../core/datetime_utils.dart';
 import '../../widgets/detail_row.dart';
 import '../../widgets/app_snack_bar.dart';
 import '../reporting/report_detail_page.dart';
+import 'jobcard_form_page.dart';
 
 const _rowLabelStyle = TextStyle(color: Colors.grey, fontSize: 13);
 const _rowValueStyle = TextStyle(
@@ -247,6 +248,23 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
         foregroundColor: Colors.white,
         actions: UserSession.can('jobs.manage')
             ? [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.white),
+                  tooltip: "Wysig",
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            JobcardFormPage(jobcard: widget.job),
+                      ),
+                    );
+                    if (result == true && mounted) {
+                      await JobcardService.fetchJobs();
+                      if (mounted) setState(() {});
+                    }
+                  },
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete, color: Colors.white),
                   tooltip: "Verwyder",

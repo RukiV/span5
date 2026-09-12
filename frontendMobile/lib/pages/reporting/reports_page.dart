@@ -261,6 +261,9 @@ class _ReportsPageState extends State<ReportsPage> {
                                         ReportDetailPage(report: r)),
                               );
                             },
+                            onLongPress: UserSession.can('faults.manage')
+                                ? null
+                                : () {},
                             children: state.columnVisibility.visibleColumns
                                 .map((col) => Expanded(
                                       flex: _columnFlex(col.key),

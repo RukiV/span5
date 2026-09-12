@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
 import 'count_badge.dart';
+import 'header_action_button.dart';
 
 /// Page-agnostic selection state for the universal "select mode" + bulk-delete
 /// flow. `T` is the row id type (int for most pages, String for Assets/Faults).
@@ -35,9 +36,103 @@ class SelectionController<T> extends ChangeNotifier {
   int get count => selectedIds.length;
 }
 
-/// Trash action that appears (with a count badge) only while select mode is
-/// active and at least one row is chosen. Shows a confirmation dialog that can
-/// warn the user that child rows will be removed too (hierarchy pages).
+/// Gedeelde bevestigingsdialoog vir beide die header- en FAB-variant van die
+/// vullis-aksie. Waarsku die gebruiker wanneer 'n aantal geselekteerde rye tans
+/// deur die soektog/filters versteek is, en dat kind-rye saam verwyder word
+/// (hiërargie-bladsye).
+Future<void> confirmBulkDelete<T>(
+  BuildContext context,
+  SelectionController<T> controller, {
+  required String confirmTitle,
+  required String confirmMessage,
+  required Future<void> Function(BuildContext context, Set<T> ids) onDelete,
+  String? childWarning,
+  int Function()? hiddenSelectedCount,
+}) async {
+  final ids = {...controller.selectedIds};
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(confirmTitle),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(confirmMessage),
+          if (hiddenSelectedCount != null && hiddenSelectedCount() > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 25 / 255),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.visibility_off,
+                      color: AppColors.warningOrange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "${hiddenSelectedCount()} van die geselekteerde rye is tans deur die soektog/filters versteek — hulle sal steeds verwyder word.",
+                      style: const TextStyle(
+                        color: Color(0xFF935E28),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (childWarning != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 20 / 255),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber,
+                      color: Colors.redAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+child: Text(
+                        childWarning,
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('KANSELLEER'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('VERWYDER', style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+  if (confirmed == true && context.mounted) {
+    await onDelete(context, ids);
+  }
+}
+
+/// Staan-aansig van die vullis-aksie vir [FixedPageHeader].
 class BulkDeleteAction<T> extends StatelessWidget {
   final SelectionController<T> controller;
   final Future<void> Function(BuildContext context, Set<T> ids) onDelete;
@@ -76,7 +171,15 @@ class BulkDeleteAction<T> extends StatelessWidget {
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
-          onPressed: () => _confirm(context),
+          onPressed: () => confirmBulkDelete(
+            context,
+            controller,
+            confirmTitle: confirmTitle,
+            confirmMessage: confirmMessage,
+            onDelete: onDelete,
+            childWarning: childWarning,
+            hiddenSelectedCount: hiddenSelectedCount,
+          ),
         ),
         Positioned(
           right: -4,
@@ -86,89 +189,90 @@ class BulkDeleteAction<T> extends StatelessWidget {
       ],
     );
   }
+}
 
-  Future<void> _confirm(BuildContext context) async {
-    final ids = {...controller.selectedIds};
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(confirmTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(confirmMessage),
-            if (hiddenSelectedCount != null && hiddenSelectedCount!() > 0) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withValues(alpha: 25 / 255),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.visibility_off,
-                        color: AppColors.warningOrange, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        "${hiddenSelectedCount!()} van die geselekteerde rye is tans deur die soektog/filters versteek — hulle sal steeds verwyder word.",
-                        style: const TextStyle(
-                          color: Color(0xFF935E28),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (childWarning != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 20 / 255),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.warning_amber,
-                        color: Colors.redAccent, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        childWarning!,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('KANSELLEER'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('VERWYDER', style: TextStyle(color: Colors.red)),
+/// Rooi vullis FloatingActionButton wat onder-regs verskyn terwyl kies-modus
+/// aktief is en ten minste een ry gekies is. Blaai na die web se delete-knoppie
+/// (rooi agtergrond met 'n vullis-ikoon — IoTrashOutline).
+class BulkDeleteFloatingAction<T> extends StatelessWidget {
+  final SelectionController<T> controller;
+  final Future<void> Function(BuildContext context, Set<T> ids) onDelete;
+  final String confirmTitle;
+  final String confirmMessage;
+  final String? childWarning;
+
+  /// Returner die aantal geselekteerde rye wat tans deur die soektog/filters
+  /// versteek is. Wanneer dit > 0 is, wys die bevestiging 'n waarskuwing.
+  /// Null skakel die waarskuwing af.
+  final int Function()? hiddenSelectedCount;
+
+  const BulkDeleteFloatingAction({
+    super.key,
+    required this.controller,
+    required this.onDelete,
+    required this.confirmTitle,
+    required this.confirmMessage,
+    this.childWarning,
+    this.hiddenSelectedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.isSelecting || controller.count == 0) {
+      return const SizedBox.shrink();
+    }
+    return FloatingActionButton(
+      heroTag: null,
+      tooltip: 'Verwyder geselekteer',
+      backgroundColor: AppColors.errorRed,
+      foregroundColor: Colors.white,
+      elevation: 4,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.delete_outline, size: 24),
+          Positioned(
+            right: -8,
+            top: -8,
+            child: CountBadge(controller.count),
           ),
         ],
       ),
+      onPressed: () => confirmBulkDelete(
+        context,
+        controller,
+        confirmTitle: confirmTitle,
+        confirmMessage: confirmMessage,
+        onDelete: onDelete,
+        childWarning: childWarning,
+        hiddenSelectedCount: hiddenSelectedCount,
+      ),
     );
-    if (confirmed == true && context.mounted) {
-      await onDelete(context, ids);
+  }
+}
+
+/// Header-"X"-knoppie wat net in kies-modus verskyn sodat die gebruiker kan
+/// ontsnap sonder om iets te verwyder.
+class SelectionExitAction<T> extends StatelessWidget {
+  final SelectionController<T> controller;
+  final VoidCallback onExit;
+
+  const SelectionExitAction({
+    super.key,
+    required this.controller,
+    required this.onExit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.isSelecting) {
+      return const SizedBox.shrink();
     }
+    return HeaderIconAction(
+      icon: Icons.close,
+      tooltip: "Kanselleer keuse",
+      onTap: onExit,
+    );
   }
 }
 

@@ -11,6 +11,7 @@ import '../../widgets/column_visibility.dart';
 import '../../widgets/list_page_scaffold.dart';
 import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
+import 'building_detail_page.dart';
 import 'building_form_page.dart';
 import '../rooms/rooms_page.dart';
 
@@ -246,10 +247,14 @@ class _BuildingsPageState extends State<BuildingsPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => BuildingFormPage(building: b),
+                          builder: (context) =>
+                              BuildingDetailPage(building: b),
                         ),
                       );
                     },
+                    onLongPress: UserSession.can('buildings.manage')
+                        ? null
+                        : () {},
                     children: _buildBuildingCells(b, state),
                   );
                 },
