@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/app_colors.dart';
 import '../../core/input_decoration.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
@@ -199,6 +200,13 @@ class _StockFormPageState extends State<StockFormPage> {
       if (!mounted) return;
       if (success) {
         Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Kon nie die voorraad byvoeg nie."),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
       }
       return;
     }
@@ -218,6 +226,13 @@ class _StockFormPageState extends State<StockFormPage> {
     if (!mounted) return;
     if (success) {
       Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie opdateer nie."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
     }
   }
 

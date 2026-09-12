@@ -49,11 +49,11 @@ class _ViewEditScaffoldState extends State<ViewEditScaffold> {
   bool get _active => widget.alwaysEditable || _editing;
 
   Future<void> _save() async {
-    if (widget.showSaveSpinner) setState(() => _saving = true);
+    setState(() => _saving = true);
     try {
       await widget.onSave();
     } finally {
-      if (mounted && widget.showSaveSpinner) setState(() => _saving = false);
+      if (mounted) setState(() => _saving = false);
     }
   }
 
@@ -105,9 +105,7 @@ class _ViewEditScaffoldState extends State<ViewEditScaffold> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: widget.showSaveSpinner
-                          ? (_saving ? null : _save)
-                          : _save,
+                      onPressed: _saving ? null : _save,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.gold,
                         foregroundColor: Colors.white,

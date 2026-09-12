@@ -216,6 +216,13 @@ class _AssetFormPageState extends State<AssetFormPage> {
       if (!mounted) return;
       if (success) {
         Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Kon nie die bate byvoeg nie."),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
       }
       return;
     }
@@ -234,6 +241,13 @@ class _AssetFormPageState extends State<AssetFormPage> {
     if (!mounted) return;
     if (success) {
       Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie opdateer nie."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
     }
   }
 
