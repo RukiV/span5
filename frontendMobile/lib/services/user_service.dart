@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../models/user.dart';
@@ -110,19 +112,25 @@ class UserService {
     return false;
   }
 
-  static Future<bool> addContractor(User user, String password) async {
+  static Future<User?> addContractor(User user, String password) async {
     try {
       final payload = user.toCreateJson(password);
       debugPrint("POST /users/contractors payload: ${_redactPayload(payload)}");
       final response = await ApiClient().client.post('/users/contractors', data: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchUsers();
-        return true;
+        // Best-effort cache refresh only — never affects the result. FK's lack
+        // users.view (GET /users would 403); the created user is returned from
+        // the POST body directly.
+        unawaited(fetchAssignableUsers());
+        final data = response.data;
+        if (data is Map<String, dynamic>) return User.fromJson(data);
+        debugPrint("Unexpected contractor response: $data");
+        return null;
       }
     } catch (e) {
       debugPrint("Error adding contractor: $e");
     }
-    return false;
+    return null;
   }
 
   static Future<bool> updateUser(User user, {String? password}) async {

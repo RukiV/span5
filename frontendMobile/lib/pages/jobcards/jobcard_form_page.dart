@@ -76,6 +76,13 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
   String _contractorName = '';
   File? _pdfFile;
   bool _isNewContractor = false;
+  final bool _canAddContractor = UserSession.can('contractors.manage');
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_canAddContractor) _isNewContractor = false;
+  }
 
   Future<void> _pickQuotePdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -149,21 +156,24 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
             RadioGroup<int>(
               groupValue: _isNewContractor ? 2 : 1,
               onChanged: (v) => setState(() => _isNewContractor = (v == 2)),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     children: [
                       Radio<int>(value: 1),
-                      Text("Bestaande kontrakteur", style: TextStyle(fontSize: 13)),
+                      Text("Bestaande kontrakteur",
+                          style: TextStyle(fontSize: 13)),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Radio<int>(value: 2),
-                      Text("Nuwe kontrakteur", style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
+                  if (_canAddContractor)
+                    const Row(
+                      children: [
+                        Radio<int>(value: 2),
+                        Text("Nuwe kontrakteur",
+                            style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -327,7 +337,7 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
 
     setState(() => _submitting = true);
     try {
-      final ok = await UserService.addContractor(
+      final created = await UserService.addContractor(
         User(
           name: name,
           surname: surname,
@@ -338,7 +348,8 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
         password,
       );
       if (!mounted) return;
-      if (!ok) {
+      final createdId = created?.id;
+      if (created == null || createdId == null) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -348,23 +359,9 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
         );
         return;
       }
-      final created = UserService.users
-          .where((u) => u.email == email)
-          .firstOrNull;
-      if (created == null || created.id == null) {
-        if (!mounted) return;
-        setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Kontrakteur is geskep maar die lys kon nie verfris word nie."),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
-        return;
-      }
       Navigator.pop(
         context,
-        _CreatedContractor(userId: created.id!, name: created.displayName),
+        _CreatedContractor(userId: createdId, name: created.displayName),
       );
     } catch (e) {
       debugPrint("Fout by skep van kontrakteur: $e");
