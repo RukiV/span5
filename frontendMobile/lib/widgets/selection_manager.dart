@@ -178,7 +178,7 @@ Future<void> runBulkDelete<T>(
   required Future<bool> Function(T id) delete,
   required Future<void> Function() refresh,
   required String entityLabel,
-  required VoidCallback onExit,
+  VoidCallback? onExit,
 }) async {
   var ok = 0;
   var fail = 0;
@@ -191,7 +191,7 @@ Future<void> runBulkDelete<T>(
   }
   await refresh();
   if (context.mounted) {
-    onExit();
+    onExit?.call();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(fail == 0

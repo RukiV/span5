@@ -75,7 +75,9 @@ class RoomCheckSessionService {
       _manager.notifier;
 
   @visibleForTesting
-  static void resetForTest() => _manager.reset();
+  static void resetForTest() =>
+      // ignore: invalid_use_of_visible_for_testing_member
+      _manager.reset();
 
   static Future<void> fetchSessions({
     int? assignedUserId,

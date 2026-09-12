@@ -35,7 +35,6 @@ class SearchableListScaffold<T> extends StatefulWidget {
   final String bulkDeleteMessage;
   final String? bulkDeleteChildWarning;
   final Future<void> Function(BuildContext context, Set<T> ids) onBulkDelete;
-  final Future<void> Function() onRefresh;
   final Widget Function(BuildContext context, SearchableListState<T> state)
       content;
   final Widget? floatingActionButton;
@@ -51,7 +50,6 @@ class SearchableListScaffold<T> extends StatefulWidget {
     required this.searchHint,
     required this.columns,
     required this.onBulkDelete,
-    required this.onRefresh,
     required this.content,
     this.leadingActions = const [],
     this.canBulkDelete = false,
@@ -134,7 +132,7 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
                         },
                   onDelete: (context, ids) async {
                     await widget.onBulkDelete(context, ids);
-                    _selection.exit();
+                    if (mounted) _selection.exit();
                   },
                 ),
               ColumnVisibilityButton(controller: _colVis),

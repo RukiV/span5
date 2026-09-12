@@ -74,7 +74,6 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
       delete: CampusService.removeCampus,
       refresh: CampusService.fetchCampuses,
       entityLabel: 'terrein/terreine',
-      onExit: () => setState(() {}),
     );
   }
 
@@ -105,7 +104,6 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
           visibleIdsProvider: (q) =>
               visibleRowsFor(q).map((c) => c.id).toSet(),
           onBulkDelete: _bulkDeleteCampuses,
-          onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: UserSession.can('locations.manage')
               ? FloatingActionButton.extended(
                   backgroundColor: AppColors.gold,

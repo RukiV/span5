@@ -90,7 +90,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
       delete: CampusService.removeBuilding,
       refresh: CampusService.fetchCampuses,
       entityLabel: 'gebou/geboue',
-      onExit: () => setState(() {}),
     );
   }
 
@@ -184,7 +183,6 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           visibleIdsProvider: (q) =>
               visibleRowsFor(q).map((b) => b.id).toSet(),
           onBulkDelete: _bulkDeleteBuildings,
-          onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: UserSession.can('buildings.manage')
               ? FloatingActionButton.extended(
                   heroTag: "buildingAddBtn",

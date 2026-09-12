@@ -54,7 +54,6 @@ class _StockPageState extends State<StockPage> {
       delete: StockService.deleteStock,
       refresh: StockService.fetchStocks,
       entityLabel: 'voorraad-item(s)',
-      onExit: () => setState(() {}),
     );
   }
 
@@ -211,7 +210,6 @@ class _StockPageState extends State<StockPage> {
               .whereType<int>()
               .toSet(),
           onBulkDelete: _bulkDeleteStock,
-          onRefresh: () => StockService.fetchStocks(),
           floatingActionButton: UserSession.can('stock.manage')
               ? FloatingActionButton.extended(
                   backgroundColor: AppColors.gold,

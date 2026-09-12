@@ -109,7 +109,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
       delete: CampusService.removeRoom,
       refresh: CampusService.fetchCampuses,
       entityLabel: 'lokaal/lokale',
-      onExit: () => setState(() {}),
     );
   }
 
@@ -332,7 +331,6 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
           visibleIdsProvider: (q) =>
               visibleRowsFor(q).map((r) => r.id).toSet(),
           onBulkDelete: _bulkDeleteRooms,
-          onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,

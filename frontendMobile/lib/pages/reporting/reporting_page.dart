@@ -93,7 +93,6 @@ class _ReportingPageState extends State<ReportingPage> {
       delete: ReportService.deleteReport,
       refresh: ReportService.fetchReports,
       entityLabel: 'foutkaartjie(s)',
-      onExit: () => setState(() {}),
     );
   }
 
@@ -218,7 +217,6 @@ class _ReportingPageState extends State<ReportingPage> {
           visibleIdsProvider: (q) =>
               visibleRowsFor(q).map((r) => r.id).toSet(),
           onBulkDelete: _bulkDeleteFaults,
-          onRefresh: () => ReportService.fetchReports(),
           floatingActionButton: FloatingActionButton.extended(
             backgroundColor: AppColors.gold,
             elevation: 4,
