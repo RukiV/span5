@@ -283,6 +283,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   final List<_QuoteDraft> _quotes = [];
   int? _selectedQuoteTempId;
   int _quoteCounter = 0;
+  bool _quotesLoading = false;
+  final Set<int> _removedQuoteIds = {};
 
   final List<int> _existingImageIds = [];
   final Set<int> _removedImageIds = {};
@@ -428,25 +430,30 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   }
 
   Future<void> _loadQuotesForJob() async {
-    for (final qid in widget.jobcard!.quoteIds) {
-      final quote = await QuoteService.fetchQuoteById(qid);
-      if (quote == null) continue;
-      final draft = _QuoteDraft(_newTempId())
-        ..quoteId = quote.id
-        ..contractorId = quote.contractorId
-        ..contractorName = quote.contractorName
-        ..selectionReason = quote.selectionReason
-        ..selectionSaved =
-            (quote.selectionReason ?? '').trim().isNotEmpty;
-      draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
-      if (mounted) {
-        setState(() {
-          _quotes.add(draft);
-          if (widget.jobcard!.quoteId == qid) {
-            _selectedQuoteTempId = draft.tempId;
-          }
-        });
+    _quotesLoading = true;
+    try {
+      for (final qid in widget.jobcard!.quoteIds) {
+        final quote = await QuoteService.fetchQuoteById(qid);
+        if (quote == null) continue;
+        final draft = _QuoteDraft(_newTempId())
+          ..quoteId = quote.id
+          ..contractorId = quote.contractorId
+          ..contractorName = quote.contractorName
+          ..selectionReason = quote.selectionReason
+          ..selectionSaved =
+              (quote.selectionReason ?? '').trim().isNotEmpty;
+        draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
+        if (mounted) {
+          setState(() {
+            _quotes.add(draft);
+            if (widget.jobcard!.quoteId == qid) {
+              _selectedQuoteTempId = draft.tempId;
+            }
+          });
+        }
       }
+    } finally {
+      if (mounted) setState(() => _quotesLoading = false);
     }
   }
 
@@ -604,7 +611,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         width: double.infinity,
         height: 48,
         child: ElevatedButton(
-          onPressed: _saving ? null : _save,
+          onPressed: (_saving || _quotesLoading) ? null : _save,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -764,6 +771,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 20),
           _sectionTitle("Kwotasies"),
           const SizedBox(height: 12),
+          if (_quotesLoading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           if (_quotes.isEmpty)
             Container(
               padding: const EdgeInsets.all(20),
@@ -884,6 +896,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 IconButton(
                   tooltip: "Verwyder kwotasie",
                   onPressed: () => setState(() {
+                    if (quote.quoteId != null) _removedQuoteIds.add(quote.quoteId!);
                     _quotes.remove(quote);
                     if (_selectedQuoteTempId == quote.tempId) _selectedQuoteTempId = null;
                   }),
@@ -1467,9 +1480,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final jobId = saved.id;
 
       // 2. Stoor kwotasies en laai PDF's op.
-      final createdQuoteIds = <int>[];
-      int? selectedCreatedQuoteId;
-      for (final q in _quotes) {
+      int? selectedQuoteId;
+      final selectedDraft = _selectedQuoteTempId != null
+          ? _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull
+          : null;
+      if (selectedDraft?.quoteId != null) selectedQuoteId = selectedDraft!.quoteId;
+      for (final q in List<_QuoteDraft>.from(_quotes)) {
         try {
           final quoteToSave = Quote(
             id: q.quoteId ?? 0,
@@ -1484,8 +1500,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               ? await QuoteService.updateQuote(q.quoteId!, quoteToSave)
               : await QuoteService.addQuote(quoteToSave);
           if (quote == null) continue;
-          createdQuoteIds.add(quote.id);
-          if (q.tempId == _selectedQuoteTempId) selectedCreatedQuoteId = quote.id;
+          q.quoteId = quote.id;
+          if (q.tempId == _selectedQuoteTempId) selectedQuoteId = quote.id;
 
           if (q.pdfFile != null) {
             await DocumentService.uploadQuotePdf(quote.id, q.pdfFile!);
@@ -1495,12 +1511,36 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         }
       }
 
-      // 3. Koppel kwotasies aan die werksopdrag.
+      // 3. Koppel kwotasies aan die werksopdrag. Bou die lys uit die
+      //    bestaande quote_ids en pas slegs die gebruiker se werklike
+      //    veranderinge toe (verwyderings + nuutskeppings), sodat 'n
+      //    kwotasie wat nie gelaai kon word nie nie stilweg ontkoppel
+      //    word nie. Slaan die PATCH oor as niks aan kwotasies verander
+      //    is nie.
       if (jobId > 0) {
-        await JobcardService.updateJob(jobId, {
-          'quote_id': selectedCreatedQuoteId,
-          'quote_ids': createdQuoteIds.isEmpty ? null : createdQuoteIds.join(','),
-        });
+        final existingQuoteIds = widget.jobcard?.quoteIds ?? const <int>[];
+        final keptExisting = existingQuoteIds
+            .where((id) => !_removedQuoteIds.contains(id))
+            .toSet();
+        final draftQuoteIds =
+            _quotes.map((q) => q.quoteId).whereType<int>().toSet();
+        final newQuoteIds = <int>[
+          ...keptExisting,
+          ...draftQuoteIds.where((id) => !keptExisting.contains(id)),
+        ];
+        final oldQuoteIdSet = existingQuoteIds.toSet();
+        final newQuoteIdSet = newQuoteIds.toSet();
+        final quoteIdsChanged =
+            oldQuoteIdSet.difference(newQuoteIdSet).isNotEmpty ||
+                newQuoteIdSet.difference(oldQuoteIdSet).isNotEmpty;
+        final quoteIdChanged = selectedQuoteId != widget.jobcard?.quoteId;
+
+        if (quoteIdsChanged || quoteIdChanged) {
+          await JobcardService.updateJob(jobId, {
+            'quote_id': selectedQuoteId,
+            'quote_ids': newQuoteIds.isEmpty ? null : newQuoteIds.join(','),
+          });
+        }
       }
 
       // 4. Beelde: verwyder gemerkte, laai nuwes op.
