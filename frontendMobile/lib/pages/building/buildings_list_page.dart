@@ -94,12 +94,40 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     );
   }
 
+  Widget _buildLoadError() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, color: AppColors.errorRed, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              CampusService.lastError ?? "Kon nie die kampuslys laai nie.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.errorRed),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => CampusService.fetchCampuses(),
+              child: const Text("Probeer weer"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<Campus>>(
       valueListenable: CampusService.campusesNotifier,
       builder: (context, campuses, _) {
         if (campuses.isEmpty) {
+          if (CampusService.lastError != null) {
+            return _buildLoadError();
+          }
           return const Center(child: CircularProgressIndicator());
         }
 

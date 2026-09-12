@@ -14,6 +14,10 @@ class CampusService {
 
   static ValueNotifier<List<Campus>> get campusesNotifier => _manager.notifier;
 
+  /// Laaste laai-fout (bv. bediener-onbereikbaar). Die UI lees dit om 'n
+  /// foutboodskap + "Probeer weer"-knoppie te wys na 'n mislukte laai.
+  static String? get lastError => _manager.lastError;
+
   // Pending X-Idempotency-Keys per entity; each reused until that create
   // succeeds, then cleared. Separate keys so campus/building/room creates
   // never share a key.
