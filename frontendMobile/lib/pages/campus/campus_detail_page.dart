@@ -40,7 +40,7 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        CampusFormPage(campus: _currentCampus),
+                        CampusFormPage(campus: _currentCampus, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {

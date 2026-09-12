@@ -14,8 +14,14 @@ import '../../widgets/confirm_delete.dart';
 class RoomFormPage extends StatefulWidget {
   final Room? room;
   final Building? initialBuilding;
+  final bool startEditing;
 
-  const RoomFormPage({super.key, this.room, this.initialBuilding});
+  const RoomFormPage({
+    super.key,
+    this.room,
+    this.initialBuilding,
+    this.startEditing = false,
+  });
 
   @override
   State<RoomFormPage> createState() => _RoomFormPageState();
@@ -167,6 +173,7 @@ class _RoomFormPageState extends State<RoomFormPage> {
 
     return ViewEditScaffold(
       alwaysEditable: _isCreate,
+      startEditing: widget.startEditing,
       title: _isCreate ? "Nuwe Lokaal" : (room?.name ?? ""),
       editingTitle: _isCreate ? null : "Wysig Lokaal",
       saveLabel: _isCreate ? "STOOR" : "OPDATEER",

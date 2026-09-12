@@ -66,7 +66,7 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        BuildingFormPage(building: _currentBuilding),
+                        BuildingFormPage(building: _currentBuilding, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {

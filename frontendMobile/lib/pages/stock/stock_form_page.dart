@@ -13,8 +13,9 @@ import '../../widgets/confirm_delete.dart';
 
 class StockFormPage extends StatefulWidget {
   final Stock? stock;
+  final bool startEditing;
 
-  const StockFormPage({super.key, this.stock});
+  const StockFormPage({super.key, this.stock, this.startEditing = false});
 
   @override
   State<StockFormPage> createState() => _StockFormPageState();
@@ -234,6 +235,7 @@ class _StockFormPageState extends State<StockFormPage> {
 
     return ViewEditScaffold(
       alwaysEditable: true,
+      startEditing: widget.startEditing,
       title: isCreate ? "Nuwe Voorraad" : "Wysig Voorraad",
       saveLabel: isCreate ? "STOOR VOORRAAD" : "OPDATEER VOORRAAD",
       showSaveSpinner: false,

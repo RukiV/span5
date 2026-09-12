@@ -65,7 +65,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        StockFormPage(stock: _currentStock),
+                        StockFormPage(stock: _currentStock, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {

@@ -19,6 +19,7 @@ class ViewEditScaffold extends StatefulWidget {
     this.saveLabel = 'STOOR',
     this.canEdit = false,
     this.alwaysEditable = false,
+    this.startEditing = false,
     this.deleteButton,
     this.showSaveSpinner = true,
     this.saveLetterSpacing = 1.1,
@@ -32,6 +33,10 @@ class ViewEditScaffold extends StatefulWidget {
   final GlobalKey<FormState> formKey;
   final bool canEdit;
   final bool alwaysEditable;
+
+  /// Wanneer waar (bv. van 'n besonderhede-bladsy se "Wysig"-aksie), begin die
+  /// vorm reeds in redigeer-modus in plaas van in kyk-modus met 'n potlood.
+  final bool startEditing;
   final bool showSaveSpinner;
   final bool showCancel;
   final Widget child;
@@ -43,10 +48,16 @@ class ViewEditScaffold extends StatefulWidget {
 }
 
 class _ViewEditScaffoldState extends State<ViewEditScaffold> {
-  bool _editing = false;
+  late bool _editing;
   bool _saving = false;
 
   bool get _active => widget.alwaysEditable || _editing;
+
+  @override
+  void initState() {
+    super.initState();
+    _editing = widget.startEditing;
+  }
 
   Future<void> _save() async {
     setState(() => _saving = true);

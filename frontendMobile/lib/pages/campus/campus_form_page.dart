@@ -11,8 +11,13 @@ import '../reporting/select_location_page.dart';
 
 class CampusFormPage extends StatefulWidget {
   final Campus? campus;
+  final bool startEditing;
 
-  const CampusFormPage({super.key, this.campus});
+  const CampusFormPage({
+    super.key,
+    this.campus,
+    this.startEditing = false,
+  });
 
   @override
   State<CampusFormPage> createState() => _CampusFormPageState();
@@ -214,6 +219,7 @@ class _CampusFormPageState extends State<CampusFormPage> {
 
     return ViewEditScaffold(
       alwaysEditable: _isCreate,
+      startEditing: widget.startEditing,
       title: _isCreate ? "Voeg Nuwe Terrein" : (campus?.name ?? ""),
       editingTitle: _isCreate ? null : "Wysig Terrein",
       saveLabel: _isCreate ? "STOOR" : "OPDATEER",

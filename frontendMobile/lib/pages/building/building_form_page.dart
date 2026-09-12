@@ -12,8 +12,14 @@ import '../../widgets/view_edit_scaffold.dart';
 class BuildingFormPage extends StatefulWidget {
   final Building? building;
   final Campus? campus;
+  final bool startEditing;
 
-  const BuildingFormPage({super.key, this.building, this.campus});
+  const BuildingFormPage({
+    super.key,
+    this.building,
+    this.campus,
+    this.startEditing = false,
+  });
 
   @override
   State<BuildingFormPage> createState() => _BuildingFormPageState();
@@ -138,6 +144,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
 
     return ViewEditScaffold(
       alwaysEditable: _isCreate,
+      startEditing: widget.startEditing,
       title: _isCreate ? "Voeg Nuwe Gebou" : (building?.name ?? ""),
       editingTitle: _isCreate ? null : "Wysig Gebou",
       saveLabel: _isCreate ? "STOOR" : "OPDATEER",

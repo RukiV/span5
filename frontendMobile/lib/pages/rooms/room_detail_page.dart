@@ -74,7 +74,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => RoomFormPage(room: _currentRoom),
+                    builder: (context) => RoomFormPage(room: _currentRoom, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {
