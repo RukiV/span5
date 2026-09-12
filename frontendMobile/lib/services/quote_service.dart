@@ -10,8 +10,6 @@ class QuoteService {
     load: _load,
   );
 
-  static String? _pendingKey;
-
   static Future<List<Quote>> _load() async {
     final response = await ApiClient().client.get('/quotes');
     if (response.statusCode == 200) {
@@ -42,14 +40,13 @@ class QuoteService {
 
   static Future<Quote?> addQuote(Quote quote) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/quotes',
             data: quote.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         final created = Quote.fromJson(response.data);
         await _manager.fetch();
         return created;

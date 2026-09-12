@@ -10,9 +10,6 @@ class AssetTypeService {
     load: _load,
   );
 
-  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
-  static String? _pendingKey;
-
   static Future<List<AssetType>> _load() async {
     final response = await ApiClient().client.get('/assettypes');
     if (response.statusCode == 200 && response.data is List) {
@@ -44,14 +41,13 @@ class AssetTypeService {
       if (avgLifespan != null) data['assettype_avg_lifespan'] = avgLifespan;
       if (minLifespan != null) data['assettype_min_lifespan'] = minLifespan;
       if (maxLifespan != null) data['assettype_max_lifespan'] = maxLifespan;
-      _pendingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/assettypes',
             data: data,
-            options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         await fetchTypes();
         return true;
       }

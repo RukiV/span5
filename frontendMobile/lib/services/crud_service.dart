@@ -16,7 +16,6 @@ class CrudService<T> {
   final Map<String, dynamic> Function(T) toJson;
 
   late final CachedListManager<T> _manager;
-  String? _pendingKey;
 
   CrudService({
     required this.basePath,
@@ -43,14 +42,13 @@ class CrudService<T> {
 
   Future<bool> add(T item) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             basePath,
             data: toJson(item),
-            options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         await fetch();
         return true;
       }

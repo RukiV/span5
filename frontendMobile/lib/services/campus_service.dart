@@ -18,13 +18,6 @@ class CampusService {
   /// foutboodskap + "Probeer weer"-knoppie te wys na 'n mislukte laai.
   static String? get lastError => _manager.lastError;
 
-  // Pending X-Idempotency-Keys per entity; each reused until that create
-  // succeeds, then cleared. Separate keys so campus/building/room creates
-  // never share a key.
-  static String? _pendingCampusKey;
-  static String? _pendingBuildingKey;
-  static String? _pendingRoomKey;
-
   static Future<List<Campus>> _load() async {
     final locResponse = await ApiClient().client.get('/location');
     final buildingResponse = await ApiClient().client.get('/building');
@@ -142,18 +135,16 @@ class CampusService {
 
   static Future<bool> addCampus(Campus campus) async {
     try {
+      final idempotencyKey = Idempotency.generate();
       final data = campus.toJson();
-      _pendingCampusKey ??= Idempotency.generate();
 
       final response = await ApiClient().client.post(
             '/location',
             data: data,
-            options:
-                Options(headers: {'X-Idempotency-Key': _pendingCampusKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingCampusKey = null;
         await fetchCampuses();
         return true;
       }
@@ -196,16 +187,14 @@ class CampusService {
 
   static Future<bool> addBuilding(Building building) async {
     try {
-      _pendingBuildingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/building',
             data: building.toJson(),
-            options:
-                Options(headers: {'X-Idempotency-Key': _pendingBuildingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingBuildingKey = null;
         await fetchCampuses();
         return true;
       }
@@ -248,14 +237,13 @@ class CampusService {
 
   static Future<bool> addRoom(Room room) async {
     try {
-      _pendingRoomKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/rooms',
             data: room.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': _pendingRoomKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingRoomKey = null;
         await fetchCampuses();
         return true;
       }

@@ -85,9 +85,6 @@ class CalendarService {
   static final ValueNotifier<List<CalendarEvent>> eventsNotifier =
       ValueNotifier(_events);
 
-  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
-  static String? _pendingKey;
-
   static Future<void> fetchEvents(DateTime start, DateTime end) async {
     try {
       final response = await ApiClient().client.get(
@@ -118,14 +115,13 @@ class CalendarService {
 
   static Future<bool> addEvent(CalendarEvent event) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/calendar/events',
             data: event.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         await fetchEvents(
           DateTime.now().subtract(const Duration(days: 30)),
           DateTime.now().add(const Duration(days: 60)),

@@ -10,8 +10,6 @@ class ReportService {
     load: _load,
   );
 
-  static String? _pendingKey;
-
   static Future<List<Report>> _load() async {
     final response = await ApiClient().client.get('/fault');
     if (response.statusCode == 200) {
@@ -47,17 +45,16 @@ class ReportService {
 
   static Future<Report?> addReport(Report report) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final idempotencyKey = Idempotency.generate();
       final response = await ApiClient().client.post(
             '/fault',
             data: report.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
+            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final newReport = Report.fromJson(response.data);
         final items = List<Report>.from(_manager.values)..insert(0, newReport);
         _manager.replaceAll(items);
-        _pendingKey = null;
         return newReport;
       }
     } catch (e) {
