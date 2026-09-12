@@ -252,7 +252,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
       timestamp: DateTime.now(),
       locationId: _locationIdForRoom(),
       buildingId: _buildingIdForRoom(),
-      isOutdoor: true,
+      isOutdoor: false,
     );
     return ReportService.addReport(report);
   }
