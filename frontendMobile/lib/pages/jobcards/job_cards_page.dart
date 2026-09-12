@@ -51,6 +51,7 @@ class _JobCardsPageState extends State<JobCardsPage>
   @override
   void initState() {
     super.initState();
+    _colVis.addListener(_onColumnVisibilityChanged);
     _canApprove = UserSession.can('ai.approve');
     _tabController = TabController(
       length: _canApprove ? 2 : 1,
@@ -73,10 +74,15 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   @override
   void dispose() {
+    _colVis.removeListener(_onColumnVisibilityChanged);
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onColumnVisibilityChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onTabChanged() {

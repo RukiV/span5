@@ -53,6 +53,7 @@ class _AssetsPageState extends State<AssetsPage> {
   @override
   void initState() {
     super.initState();
+    _colVis.addListener(_onColumnVisibilityChanged);
     _activeRoomFilter = widget.filterRoomId;
     AssetService.fetchAssets();
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
@@ -79,9 +80,14 @@ class _AssetsPageState extends State<AssetsPage> {
     }
   }
 
+  void _onColumnVisibilityChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    _colVis.removeListener(_onColumnVisibilityChanged);
     _searchController.dispose();
     super.dispose();
   }

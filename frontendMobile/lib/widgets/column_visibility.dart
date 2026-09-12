@@ -15,7 +15,7 @@ class ColumnDef {
 }
 
 /// Manages which columns are shown/hidden.
-class ColumnVisibilityController {
+class ColumnVisibilityController extends ChangeNotifier {
   final List<ColumnDef> _allColumns;
   final Set<String> _hidden = {};
 
@@ -38,6 +38,7 @@ class ColumnVisibilityController {
     } else {
       _hidden.add(key);
     }
+    notifyListeners();
   }
 
   void reset() {
@@ -45,6 +46,7 @@ class ColumnVisibilityController {
     for (final col in _allColumns) {
       if (!col.defaultVisible) _hidden.add(col.key);
     }
+    notifyListeners();
   }
 
   int get hiddenCount => _hidden.length;

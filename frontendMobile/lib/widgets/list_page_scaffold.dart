@@ -71,7 +71,8 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
   @override
   void initState() {
     super.initState();
-    _colVis = ColumnVisibilityController(widget.columns);
+    _colVis = ColumnVisibilityController(widget.columns)
+      ..addListener(_onColumnVisibilityChanged);
     _selection = SelectionController<T>()..addListener(_onSelectionChanged);
     _searchController.addListener(_onSearchChanged);
   }
@@ -79,6 +80,8 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
   @override
   void dispose() {
     _searchController.dispose();
+    _colVis.removeListener(_onColumnVisibilityChanged);
+    _colVis.dispose();
     _selection.removeListener(_onSelectionChanged);
     _selection.dispose();
     super.dispose();
@@ -86,6 +89,10 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
 
   void _onSearchChanged() {
     setState(() => _query = _searchController.text.toLowerCase());
+  }
+
+  void _onColumnVisibilityChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onSelectionChanged() {
