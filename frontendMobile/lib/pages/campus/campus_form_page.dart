@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/campus.dart';
 import '../../models/user_session.dart';
@@ -29,6 +30,7 @@ class _CampusFormPageState extends State<CampusFormPage> {
   late final TextEditingController _countryController;
   late final TextEditingController _radiusController;
   late LatLng _selectedLocation;
+  String? _idempotencyKey;
 
   bool get _isCreate => widget.campus == null;
 
@@ -48,6 +50,10 @@ class _CampusFormPageState extends State<CampusFormPage> {
     _selectedLocation = campus?.location ?? const LatLng(-25.8522, 28.1884);
     _radiusController =
         TextEditingController(text: campus?.radius.toStringAsFixed(0) ?? "110");
+
+    if (_isCreate) {
+      _idempotencyKey = Idempotency.generate();
+    }
   }
 
   @override
@@ -161,9 +167,11 @@ class _CampusFormPageState extends State<CampusFormPage> {
         location: _selectedLocation,
         radius: double.tryParse(_radiusController.text) ?? 110,
       );
-      final success = await CampusService.addCampus(campus);
+      final success = await CampusService.addCampus(
+          campus, idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context);
       }
       return;

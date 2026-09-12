@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../services/asset_type_service.dart';
 import '../../models/asset_type.dart';
 
@@ -16,10 +17,12 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
   final _minController = TextEditingController();
   final _maxController = TextEditingController();
   bool _isSaving = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
+    _idempotencyKey = Idempotency.generate();
     AssetTypeService.fetchTypes();
   }
 
@@ -39,11 +42,12 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
     final avg = int.tryParse(_avgController.text.trim());
     final min = int.tryParse(_minController.text.trim());
     final max = int.tryParse(_maxController.text.trim());
-    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max);
+    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max, idempotencyKey: _idempotencyKey);
     if (!mounted) return;
     setState(() {
       _isSaving = false;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         _nameController.clear();
         _avgController.clear();
         _minController.clear();

@@ -40,13 +40,13 @@ class CrudService<T> {
 
   Future<void> fetch() => _manager.fetch();
 
-  Future<bool> add(T item) async {
+  Future<bool> add(T item, {String? idempotencyKey}) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             basePath,
             data: toJson(item),
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetch();

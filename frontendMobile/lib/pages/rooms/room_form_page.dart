@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/building.dart';
 import '../../models/campus.dart';
@@ -26,6 +27,7 @@ class _RoomFormPageState extends State<RoomFormPage> {
   late final TextEditingController _capacityController;
   late String _type;
   Building? _selectedBuilding;
+  String? _idempotencyKey;
 
   final List<Map<String, String>> _types = [
     {'value': 'klas', 'label': 'Klaskamer'},
@@ -48,6 +50,7 @@ class _RoomFormPageState extends State<RoomFormPage> {
     _type = widget.room?.type ?? 'other';
     if (_isCreate) {
       _selectedBuilding = widget.initialBuilding;
+      _idempotencyKey = Idempotency.generate();
     }
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -113,9 +116,11 @@ class _RoomFormPageState extends State<RoomFormPage> {
         capacity: int.tryParse(_capacityController.text),
         buildingId: _selectedBuilding!.id,
       );
-      final success = await CampusService.addRoom(room);
+      final success =
+          await CampusService.addRoom(room, idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

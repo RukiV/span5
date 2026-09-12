@@ -25,6 +25,7 @@ import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../services/room_service.dart';
+import '../../core/idempotency.dart';
 
 class NewReportPage extends StatefulWidget {
   final String? prefillSerialCode;
@@ -77,9 +78,11 @@ class _NewReportPageState extends State<NewReportPage> {
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
   /// kieser; word teruggestel wanneer die soekveld skoongemaak word.
   bool _assetResolved = false;
+  String? _idempotencyKey;
   @override
   void initState() {
     super.initState();
+    _idempotencyKey = Idempotency.generate();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -634,7 +637,8 @@ class _NewReportPageState extends State<NewReportPage> {
       try {
         // 1. Skep die kaartjie eers sodat ons sy id het om
         //    fotos aan te koppel (parent_type 'ticket').
-        final created = await ReportService.addReport(newReport);
+        final created = await ReportService.addReport(newReport,
+            idempotencyKey: _idempotencyKey);
         if (!mounted) return;
         if (created == null) {
           if (context.mounted) {
@@ -687,6 +691,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 backgroundColor: AppColors.successGreen),
           );
         }
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context, true);
       } catch (e) {
         if (mounted && context.mounted) {

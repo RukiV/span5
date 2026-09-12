@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/asset.dart';
 import '../../models/asset_type.dart';
@@ -36,6 +37,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
   String? selectedBuilding;
   String? selectedLocation;
   String? _locationError;
+  String? _idempotencyKey;
   late final _serialController = TextEditingController();
 
   bool get _isCreate => widget.asset == null;
@@ -58,6 +60,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
     }
 
     if (_isCreate) {
+      _idempotencyKey = Idempotency.generate();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           setState(_autofillCampus);
@@ -210,9 +213,11 @@ class _AssetFormPageState extends State<AssetFormPage> {
         status: status,
         isOutdoor: isOutdoor,
       );
-      final success = await AssetService.addAsset(newAsset);
+      final success =
+          await AssetService.addAsset(newAsset, idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

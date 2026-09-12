@@ -123,15 +123,15 @@ class CampusService {
 
   // --- Campus CRUD ---
 
-  static Future<bool> addCampus(Campus campus) async {
+  static Future<bool> addCampus(Campus campus, {String? idempotencyKey}) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final data = campus.toJson();
 
       final response = await ApiClient().client.post(
             '/location',
             data: data,
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -175,13 +175,16 @@ class CampusService {
 
   // --- Building CRUD ---
 
-  static Future<bool> addBuilding(Building building) async {
+  static Future<bool> addBuilding(
+      Building building, {
+      String? idempotencyKey,
+    }) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/building',
             data: building.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -225,13 +228,13 @@ class CampusService {
 
   // --- Room CRUD ---
 
-  static Future<bool> addRoom(Room room) async {
+  static Future<bool> addRoom(Room room, {String? idempotencyKey}) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/rooms',
             data: room.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchCampuses();

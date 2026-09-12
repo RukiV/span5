@@ -35,17 +35,17 @@ class AssetTypeService {
   }
 
   static Future<bool> addType(String name,
-      {int? avgLifespan, int? minLifespan, int? maxLifespan}) async {
+    {int? avgLifespan, int? minLifespan, int? maxLifespan, String? idempotencyKey}) async {
     try {
       final data = <String, dynamic>{'assettype_name': name};
       if (avgLifespan != null) data['assettype_avg_lifespan'] = avgLifespan;
       if (minLifespan != null) data['assettype_min_lifespan'] = minLifespan;
       if (maxLifespan != null) data['assettype_max_lifespan'] = maxLifespan;
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/assettypes',
             data: data,
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchTypes();

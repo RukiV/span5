@@ -14,7 +14,8 @@ class StockService {
 
   static Future<void> fetchStocks() => _crud.fetch();
 
-  static Future<bool> addStock(Stock stock) => _crud.add(stock);
+  static Future<bool> addStock(Stock stock, {String? idempotencyKey}) =>
+      _crud.add(stock, idempotencyKey: idempotencyKey);
 
   static Future<bool> updateStock(Stock updatedStock) =>
       _crud.update(updatedStock, updatedStock.id);

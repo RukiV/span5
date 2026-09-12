@@ -45,13 +45,16 @@ class ReportService {
     isLoadingNotifier.value = false;
   }
 
-  static Future<Report?> addReport(Report report) async {
+  static Future<Report?> addReport(
+      Report report, {
+      String? idempotencyKey,
+    }) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/fault',
             data: report.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final newReport = Report.fromJson(response.data);

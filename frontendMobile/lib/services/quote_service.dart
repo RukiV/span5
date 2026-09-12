@@ -40,13 +40,13 @@ class QuoteService {
     return null;
   }
 
-  static Future<Quote?> addQuote(Quote quote) async {
+  static Future<Quote?> addQuote(Quote quote, {String? idempotencyKey}) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/quotes',
             data: quote.toJson(),
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final created = Quote.fromJson(response.data);

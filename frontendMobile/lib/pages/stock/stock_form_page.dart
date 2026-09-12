@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
@@ -33,6 +34,7 @@ class _StockFormPageState extends State<StockFormPage> {
   int? _buildingId;
   int? _roomId;
   String? _locationError;
+  String? _idempotencyKey;
 
   bool get _isCreate => widget.stock == null;
 
@@ -54,6 +56,7 @@ class _StockFormPageState extends State<StockFormPage> {
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
 
     if (_isCreate) {
+      _idempotencyKey = Idempotency.generate();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(_autoSelectCampus);
       });
@@ -194,9 +197,11 @@ class _StockFormPageState extends State<StockFormPage> {
         description: description,
         roomId: _roomId,
       );
-      final success = await StockService.addStock(newStock);
+      final success =
+          await StockService.addStock(newStock, idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(

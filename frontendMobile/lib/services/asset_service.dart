@@ -31,7 +31,8 @@ class AssetService {
   }
 
   // Adds a new asset to the backend and refreshes the local list.
-  static Future<bool> addAsset(Asset asset) => _crud.add(asset);
+  static Future<bool> addAsset(Asset asset, {String? idempotencyKey}) =>
+      _crud.add(asset, idempotencyKey: idempotencyKey);
 
   static Future<bool> updateAsset(Asset updatedAsset) =>
       _crud.update(updatedAsset, updatedAsset.id);

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../models/jobcard.dart';
 import '../../models/quote.dart';
 import '../../models/report.dart';
@@ -37,6 +38,7 @@ class _QuoteDraft {
   final List<QuoteDocument> existingDocs = [];
   String? selectionReason;
   bool selectionSaved = false;
+  String? idempotencyKey;
 
   _QuoteDraft(this.tempId);
 
@@ -294,11 +296,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   bool _saving = false;
   bool _savingQuoteSelection = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    if (!widget.isEditing) {
+      _idempotencyKey = Idempotency.generate();
+    }
 
     _status = widget.jobcard?.status ?? "Oop";
     _priority = widget.jobcard?.priority ?? "Normal";
@@ -1000,13 +1007,14 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     setState(() => _savingQuoteSelection = true);
     try {
       if (quote.quoteId == null) {
+        quote.idempotencyKey ??= Idempotency.generate();
         final created = await QuoteService.addQuote(Quote(
           contractorId: quote.contractorId,
           contractorName: quote.contractorName,
           date: DateTime.now(),
           status: 'Pending',
           selectionReason: reason,
-        ));
+        ), idempotencyKey: quote.idempotencyKey);
         if (created == null) {
           _failQuoteSelection("Kon nie kwotasie stoor nie.");
           return;
@@ -1472,10 +1480,14 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       // 1. Stoor/dateer die werksopdrag self.
       final saved = widget.isEditing
           ? await JobcardService.updateJob(widget.jobcard!.id, payload)
-          : await JobcardService.createJob(payload);
+          : await JobcardService.createJob(payload,
+              idempotencyKey: _idempotencyKey);
       if (saved == null) {
         _failSave("Kon nie werksopdrag stoor nie.");
         return;
+      }
+      if (!widget.isEditing) {
+        _idempotencyKey = Idempotency.generate();
       }
       final jobId = saved.id;
 
@@ -1498,7 +1510,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           );
           final quote = q.quoteId != null
               ? await QuoteService.updateQuote(q.quoteId!, quoteToSave)
-              : await QuoteService.addQuote(quoteToSave);
+              : await QuoteService.addQuote(quoteToSave,
+                  idempotencyKey: (q.idempotencyKey ??=
+                      Idempotency.generate()));
           if (quote == null) continue;
           q.quoteId = quote.id;
           if (q.tempId == _selectedQuoteTempId) selectedQuoteId = quote.id;

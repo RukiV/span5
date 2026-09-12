@@ -3,6 +3,7 @@ import '../../models/user_session.dart';
 import '../../widgets/searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../services/calendar_service.dart';
 import '../../services/outlook_service.dart';
 import '../../services/outlook_token_manager.dart';
@@ -91,6 +92,7 @@ class _CalendarPageState extends State<CalendarPage> {
     TimeOfDay selectedTime = const TimeOfDay(hour: 8, minute: 0);
     bool notifyEmail = false;
     int reminderMinutes = 60;
+    final idempotencyKey = Idempotency.generate();
 
     return showDialog(
       context: context,
@@ -219,7 +221,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   notifyEmail: notifyEmail,
                   reminderMinutes: notifyEmail ? reminderMinutes : null,
                 );
-                final success = await CalendarService.addEvent(event);
+                final success = await CalendarService.addEvent(event,
+                    idempotencyKey: idempotencyKey);
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (success && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
@@ -23,6 +24,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   late final TextEditingController _nameController;
   late String _type;
   Campus? _selectedCampus;
+  String? _idempotencyKey;
 
   final List<Map<String, String>> _types = [
     {'value': 'admin', 'label': 'Administrasie'},
@@ -42,6 +44,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     _type = widget.building?.type ?? 'other';
     if (_isCreate) {
       _selectedCampus = widget.campus;
+      _idempotencyKey = Idempotency.generate();
     }
   }
 
@@ -69,9 +72,11 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
         type: _type,
         locationId: _selectedCampus!.id,
       );
-      final success = await CampusService.addBuilding(building);
+      final success = await CampusService.addBuilding(
+          building, idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         Navigator.pop(context, true);
       }
       return;

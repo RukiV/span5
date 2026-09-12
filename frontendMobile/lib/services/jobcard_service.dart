@@ -37,13 +37,16 @@ class JobcardService {
 
   static Future<void> fetchJobs() => _manager.fetch();
 
-  static Future<Jobcard?> createJob(Map<String, dynamic> payload) async {
+  static Future<Jobcard?> createJob(
+      Map<String, dynamic> payload, {
+      String? idempotencyKey,
+    }) async {
     try {
-      final idempotencyKey = Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
             '/job',
             data: payload,
-            options: Options(headers: {'X-Idempotency-Key': idempotencyKey}),
+            options: Options(headers: {'X-Idempotency-Key': key}),
           );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final created = Jobcard.fromJson(response.data);
