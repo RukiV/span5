@@ -16,8 +16,15 @@ const apiPath = '/api/v1';
 /// - HTTP client is a singleton so there is exactly one point of configuration.
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
+  static const _refreshTokenKey = 'refresh_token';
+  static const _retriedOnceKey = 'retried_once';
+
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
+
+  /// Huidige in-vlug /auth/refresh-aanroep sodat gelyktydige 401's nie elk hul
+  /// eie verversing begin nie (single-flight).
+  Future<bool>? _refreshInFlight;
 
   /// Fires true when a token is saved, false when cleared.
   static final authNotifier = ValueNotifier<bool>(false);
@@ -59,8 +66,26 @@ class ApiClient {
           debugPrint("API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
 
           if (e.response?.statusCode == 401) {
+            // Stawingsbande is nie sessie-uitgewys nie: 'n mislukte aanmelding
+            // of 'n mislukte verversing moet nie dieselfde
+            // "sessie skoongemaak en na /" afhandeling kry as 'n vervalle sessie nie.
+            final path = e.requestOptions.path;
+            if (path.endsWith('/auth/login') || path.endsWith('/auth/refresh')) {
+              return handler.next(e);
+            }
+
+            // Die verversde versoek het weer 401 gewerp — eenmalige herprobeer is
+            // klaar verbruik, moenie eindeloos deur 'n nuwe verversingsiklus loop nie.
+            if (e.requestOptions.extra[_retriedOnceKey] == true) {
+              await clearToken();
+              UserSession.clear();
+              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+              return handler.next(e);
+            }
+
             final refreshed = await _refreshSession();
             if (refreshed) {
+              e.requestOptions.extra[_retriedOnceKey] = true;
               try {
                 final response = await _retry(e.requestOptions);
                 return handler.resolve(response);
@@ -80,21 +105,47 @@ class ApiClient {
   }
 
   /// Attempts to refresh the session using the /auth/refresh endpoint.
-  Future<bool> _refreshSession() async {
-    try {
-      final token = await _storage.read(key: 'auth_token');
-      if (token == null) return false;
+  /// Single-flight: gelyktydige 401's wag op dieselfde verversingsaanroep.
+  Future<bool> _refreshSession() {
+    final inFlight = _refreshInFlight;
+    if (inFlight != null) return inFlight;
+    final future = _doRefresh().whenComplete(() => _refreshInFlight = null);
+    _refreshInFlight = future;
+    return future;
+  }
 
-      final refreshDio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+  Future<bool> _doRefresh() async {
+    try {
+      final refreshToken = await _storage.read(key: _refreshTokenKey);
+      if (refreshToken == null) {
+        debugPrint("Session refresh failed: no refresh token stored");
+        return false;
+      }
+
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: _dio.options.baseUrl,
+          connectTimeout: _dio.options.connectTimeout,
+          receiveTimeout: _dio.options.receiveTimeout,
+          headers: Map<String, dynamic>.of(_dio.options.headers),
+        ),
+      );
       final response = await refreshDio.post(
         '/auth/refresh',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
+        options: Options(
+          headers: {'Authorization': 'Bearer $refreshToken'},
+        ),
       );
 
       if (response.statusCode == 200) {
-        final newToken = response.data['access_token'] ?? response.data['session_token'];
+        final newToken =
+            response.data['access_token'] ?? response.data['session_token'];
+        final newRefreshToken = response.data['refresh_token'];
         if (newToken != null) {
           await saveToken(newToken);
+          if (newRefreshToken != null) {
+            await saveRefreshToken(newRefreshToken);
+          }
           return true;
         }
       }
@@ -113,6 +164,7 @@ class ApiClient {
         ...requestOptions.headers,
         if (token != null) 'Authorization': 'Bearer $token',
       },
+      extra: requestOptions.extra,
     );
 
     return _dio.request(
@@ -152,9 +204,15 @@ class ApiClient {
     ApiClient.authNotifier.value = true;
   }
 
+  /// Stores the refresh token securely (vervang word by elke /auth/refresh).
+  Future<void> saveRefreshToken(String token) async {
+    await _storage.write(key: _refreshTokenKey, value: token);
+  }
+
   /// Removes the authentication token from secure storage.
   Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
+    await _storage.delete(key: _refreshTokenKey);
     ApiClient.authNotifier.value = false;
   }
 }

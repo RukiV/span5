@@ -100,9 +100,13 @@ class _LoginPageState extends State<LoginPage> {
 
         if (response.statusCode == 200) {
           final token = response.data['access_token'];
+          final refreshToken = response.data['refresh_token'];
 
-          // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
+          // SEKURE BERGING: Gebruik ApiClient om die token(s) geënkripteerd te stoor.
           await ApiClient().saveToken(token);
+          if (refreshToken != null) {
+            await ApiClient().saveRefreshToken(refreshToken);
+          }
 
           await _fetchProfileAndNavigate();
           return;
@@ -124,8 +128,22 @@ class _LoginPageState extends State<LoginPage> {
           debugPrint("   Login 401 detail: $detail");
         } else if (e.response?.statusCode == 403) {
           // Hanteer die platform-hekwagter boodskap vanaf die backend.
-          msg = e.response?.data['detail'] ??
-              "Jy het nie toegang tot hierdie stelsel nie.";
+          // Oppas: die liggaam is nie noodwendig 'n JSON-kaart nie.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Jy het nie toegang tot hierdie stelsel nie.";
+        } else if (e.response?.statusCode == 429) {
+          // Rekening gesluit ná te veel mislukte pogings — wys die werklike
+          // slotboodskap (met oorblywende tyd) vanaf die bediener.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Account is gesluit. Probeer later weer aan.";
         }
 
         _showError(msg);
