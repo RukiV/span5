@@ -114,27 +114,6 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
             hintText: widget.searchHint,
             actions: [
               ...widget.leadingActions,
-              if (widget.canBulkDelete)
-                BulkDeleteAction<T>(
-                  controller: _selection,
-                  confirmTitle: widget.bulkDeleteTitle,
-                  confirmMessage: widget.bulkDeleteMessage
-                      .replaceAll('{count}', '${_selection.count}'),
-                  childWarning: widget.bulkDeleteChildWarning,
-                  hiddenSelectedCount: widget.visibleIdsProvider == null
-                      ? null
-                      : () {
-                          final visible =
-                              widget.visibleIdsProvider!(_query).toSet();
-                          return _selection.selectedIds
-                              .where((id) => !visible.contains(id))
-                              .length;
-                        },
-                  onDelete: (context, ids) async {
-                    await widget.onBulkDelete(context, ids);
-                    if (mounted) _selection.exit();
-                  },
-                ),
               ColumnVisibilityButton(controller: _colVis),
             ],
           ),
@@ -150,7 +129,48 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
           ),
         ],
       ),
-      floatingActionButton: widget.floatingActionButton,
+      floatingActionButton: _buildFloatingActions(),
+    );
+  }
+
+  /// Bou die drywende aksies: wanneer [canBulkDelete] waar is, verskyn die rooi
+  /// vullis-knoppie bo die bladsy se eie "nuwe"-FAB (net terwyl kies-modus met
+  /// ten minste een geselekteerde ry aktief is). Dieselfde bevestiging en
+  /// versteekte-ry-waarskuwing as die ou kopskrif-aksie.
+  Widget? _buildFloatingActions() {
+    if (!widget.canBulkDelete) return widget.floatingActionButton;
+
+    final deleteFab = BulkDeleteFloatingAction<T>(
+      controller: _selection,
+      confirmTitle: widget.bulkDeleteTitle,
+      confirmMessage: widget.bulkDeleteMessage
+          .replaceAll('{count}', '${_selection.count}'),
+      childWarning: widget.bulkDeleteChildWarning,
+      hiddenSelectedCount: widget.visibleIdsProvider == null
+          ? null
+          : () {
+              final visible = widget.visibleIdsProvider!(_query).toSet();
+              return _selection.selectedIds
+                  .where((id) => !visible.contains(id))
+                  .length;
+            },
+      onDelete: (context, ids) async {
+        await widget.onBulkDelete(context, ids);
+        if (mounted) _selection.exit();
+      },
+    );
+
+    final createFab = widget.floatingActionButton;
+    final selecting = _selection.isSelecting && _selection.count > 0;
+    if (createFab == null) return selecting ? deleteFab : null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (selecting) deleteFab,
+        if (selecting) const SizedBox(height: 12),
+        createFab,
+      ],
     );
   }
 }

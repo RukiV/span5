@@ -132,65 +132,6 @@ child: Text(
   }
 }
 
-/// Staan-aansig van die vullis-aksie vir [FixedPageHeader].
-class BulkDeleteAction<T> extends StatelessWidget {
-  final SelectionController<T> controller;
-  final Future<void> Function(BuildContext context, Set<T> ids) onDelete;
-  final String confirmTitle;
-  final String confirmMessage;
-  final String? childWarning;
-
-  /// Returner die aantal geselekteerde rye wat tans deur die soektog/filters
-  /// versteek is. Wanneer dit > 0 is, wys die bevestiging 'n waarskuwing.
-  /// Null skakel die waarskuwing af.
-  final int Function()? hiddenSelectedCount;
-
-  const BulkDeleteAction({
-    super.key,
-    required this.controller,
-    required this.onDelete,
-    required this.confirmTitle,
-    required this.confirmMessage,
-    this.childWarning,
-    this.hiddenSelectedCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (!controller.isSelecting || controller.count == 0) {
-      return const SizedBox.shrink();
-    }
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          tooltip: 'Verwyder geselekteer',
-          icon: const Icon(Icons.delete, color: Colors.white, size: 20),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.redAccent.withValues(alpha: 60 / 255),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
-          onPressed: () => confirmBulkDelete(
-            context,
-            controller,
-            confirmTitle: confirmTitle,
-            confirmMessage: confirmMessage,
-            onDelete: onDelete,
-            childWarning: childWarning,
-            hiddenSelectedCount: hiddenSelectedCount,
-          ),
-        ),
-        Positioned(
-          right: -4,
-          top: -4,
-          child: CountBadge(controller.count),
-        ),
-      ],
-    );
-  }
-}
-
 /// Rooi vullis FloatingActionButton wat onder-regs verskyn terwyl kies-modus
 /// aktief is en ten minste een ry gekies is. Blaai na die web se delete-knoppie
 /// (rooi agtergrond met 'n vullis-ikoon — IoTrashOutline).
