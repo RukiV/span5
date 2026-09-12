@@ -74,6 +74,13 @@ class ApiClient {
               return handler.next(e);
             }
 
+            // FormData kan nie twee keer gestuur word nie (MultipartFile word
+            // gefinaliseer); laat die oorspronklike fout deur sodat die roeper
+            // se bestaande hantering dit rapporteer.
+            if (e.requestOptions.data is FormData) {
+              return handler.next(e);
+            }
+
             // Die verversde versoek het weer 401 gewerp — eenmalige herprobeer is
             // klaar verbruik, moenie eindeloos deur 'n nuwe verversingsiklus loop nie.
             if (e.requestOptions.extra[_retriedOnceKey] == true) {
@@ -165,6 +172,10 @@ class ApiClient {
         if (token != null) 'Authorization': 'Bearer $token',
       },
       extra: requestOptions.extra,
+      responseType: requestOptions.responseType,
+      contentType: requestOptions.contentType,
+      sendTimeout: requestOptions.sendTimeout,
+      receiveTimeout: requestOptions.receiveTimeout,
     );
 
     return _dio.request(
