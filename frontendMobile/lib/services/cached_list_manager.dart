@@ -73,7 +73,6 @@ class CachedListManager<T> {
   }
 
   /// Maak die kas skoon (toets-nutsitem).
-  @visibleForTesting
   void reset() {
     replaceAll(List<T>.empty());
     lastError = null;

@@ -37,7 +37,6 @@ class AiService {
 
   @visibleForTesting
   static void resetForTest() =>
-      // ignore: invalid_use_of_visible_for_testing_member
       _manager.reset();
 
   static String? get lastError => _manager.lastError;
