@@ -3,9 +3,12 @@ import '../../core/app_colors.dart';
 import '../../models/user.dart';
 import '../../models/user_session.dart';
 import '../../services/user_service.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/app_snack_bar.dart';
+import '../../widgets/confirm_delete.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
+import '../../widgets/list_load_error.dart';
+import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/selection_manager.dart';
 
 class UsersPage extends StatefulWidget {
@@ -55,11 +58,10 @@ class _UsersPageState extends State<UsersPage> {
     // dit kan 'n stoor stilweg na rol 1 (Student) terugval.
     if (UserService.rolesNotifier.value.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Rolle kon nie gelaai word nie. Verfris en probeer weer."),
-            backgroundColor: AppColors.errorRed,
-          ),
+        showAppSnackBar(
+          context,
+          "Rolle kon nie gelaai word nie. Verfris en probeer weer.",
+          error: true,
         );
       }
       return;
@@ -163,11 +165,10 @@ class _UsersPageState extends State<UsersPage> {
                             Navigator.pop(dialogContext);
                           }
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Kies 'n rol vir die gebruiker"),
-                                backgroundColor: AppColors.errorRed,
-                              ),
+                            showAppSnackBar(
+                              context,
+                              "Kies 'n rol vir die gebruiker",
+                              error: true,
                             );
                           }
                           return;
@@ -192,17 +193,12 @@ class _UsersPageState extends State<UsersPage> {
                           Navigator.pop(dialogContext);
                         }
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(ok
-                                  ? (isEdit
-                                      ? "Gebruiker opgedateer"
-                                      : "Gebruiker geskep")
-                                  : "Kon nie stoor nie"),
-                              backgroundColor:
-                                  ok ? AppColors.successGreen : AppColors.errorRed,
-                            ),
-                          );
+                          final msg = ok
+                              ? (isEdit
+                                  ? "Gebruiker opgedateer"
+                                  : "Gebruiker geskep")
+                              : "Kon nie stoor nie";
+                          showAppSnackBar(context, msg, error: !ok);
                         }
                       },
                       child: const Text("Stoor",
@@ -318,7 +314,8 @@ class _UsersPageState extends State<UsersPage> {
                 return const Center(child: CircularProgressIndicator());
               }
               if (UserService.usersLoadFailedNotifier.value) {
-                return _errorState();
+                return ListLoadError(
+                    message: "Kon nie gebruikers laai nie", onRetry: _reload);
               }
               final filtered = _filteredUsers;
               if (filtered.isEmpty) {
@@ -367,37 +364,12 @@ class _UsersPageState extends State<UsersPage> {
     await UserService.fetchUsers();
     if (context.mounted) {
       setState(() => _selection.exit());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(fail == 0
+      showAppSnackBar(context,
+          fail == 0
               ? "$ok gebruiker(s) verwyder."
-              : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor:
-              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
+              : "$ok verwyder, $fail kon nie verwyder word nie.",
+          error: fail != 0);
     }
-  }
-
-  Widget _errorState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
-          const SizedBox(height: 12),
-          const Text("Kon nie gebruikers laai nie"),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.navy),
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text("Probeer weer",
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _userTile(User user) {
@@ -480,33 +452,14 @@ class _UsersPageState extends State<UsersPage> {
   }
 
   Future<void> _confirmDelete(User user) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text("Gebruiker verwyder"),
-        content: Text("Seker om ${user.fullName} te verwyder?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
-          ),
-        ],
-      ),
+    final id = user.id;
+    if (id == null) return;
+    await confirmDeleteAndRun(
+      context,
+      entityLabel: 'gebruiker',
+      itemName: user.fullName,
+      delete: () => UserService.deleteUser(id),
+      onSuccess: () => showAppSnackBar(context, "Gebruiker verwyder"),
     );
-    if (confirmed != true || !mounted || user.id == null) return;
-    final ok = await UserService.deleteUser(user.id!);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok ? "Gebruiker verwyder" : "Kon nie verwyder nie"),
-          backgroundColor: ok ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
-    }
   }
 }
