@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
-import Select from 'react-select';
 import { apiClient } from '../services/api';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import { useToast } from '../components/Toast/useToast';
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 
 
 function RightsPage({ embedded = false }) {
@@ -98,7 +98,14 @@ function RightsPage({ embedded = false }) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select className="react-select-container" classNamePrefix="react-select" value={FILTER_COLUMNS.find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={FILTER_COLUMNS} isSearchable={false} />
+              <FilterPicker
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                filterColumn={filterColumn}
+                onFilterColumnChange={setFilterColumn}
+                filterColumnOptions={FILTER_COLUMNS}
+                onReset={() => setSearchTerm("")}
+              />
             </div>
             <div className="controls-right">
             </div>

@@ -3,7 +3,7 @@ import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
-import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
@@ -14,8 +14,11 @@ import '../styles/App.css';
 import "../styles/WorkOrder.css";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -44,9 +47,9 @@ function WorkOrderPage() {
   const [terrains, setTerrains] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
+  const filterPersist = useFilterState({ storageKey: "workorder-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
 
   const WORKORDER_COLUMNS = [
     { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: false },
@@ -67,12 +70,16 @@ function WorkOrderPage() {
   ];
   const colVis = useColumnVisibility('workorder-page', WORKORDER_COLUMNS);
   const colWidths = useColumnWidths('workorder-page', WORKORDER_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: WORKORDER_COLUMNS,
+    storageKey: 'workorder-page',
+    defaultSorts: [{ key: 'id', direction: 'asc' }],
+  });
   const colPickerRef = useRef(null);
 
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
-  const filterCascade = useCascadeMenu();
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const modalCascadeMenu = useCascadeMenu();
 
    
@@ -293,10 +300,18 @@ function WorkOrderPage() {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   useEffect(() => {
     return () => {
@@ -1421,8 +1436,8 @@ function WorkOrderPage() {
   };
 
   // Filter en sorteer werksopdragte vir tabel
-  const filteredWorkOrders = [...workOrders]
-    .filter((order) => {
+  const filteredWorkOrders = applySort(
+    [...workOrders].filter((order) => {
       if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
       if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
       if (roomFilter && String(order.room_id) !== roomFilter) return false;
@@ -1445,29 +1460,30 @@ function WorkOrderPage() {
         ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
         : String(values[filterColumn] || '').toLowerCase().includes(query);
       return matchesColumn;
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      switch (sortKey) {
-        case "date":
-          return (new Date(a.job_createddatetime) - new Date(b.job_createddatetime)) * dir;
-        case "status":
-          return String(a.job_status || "").localeCompare(String(b.job_status || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "description":
-          return String(a.job_desc || "").localeCompare(String(b.job_desc || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "type":
-          return String(a.job_type || "").localeCompare(String(b.job_type || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "asset_id":
-          return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * dir;
-        case "fault_id":
-          return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
-        default:
-          return (Number(a.jobcard_id || 0) - Number(b.jobcard_id || 0)) * dir;
+    }),
+    (o, key) => {
+      switch (key) {
+        case 'id': return Number(o.jobcard_id || 0);
+        case 'description': return String(o.job_desc || '');
+        case 'type': return String(o.job_type || '');
+        case 'priority': return String(o.job_priority || '');
+        case 'asset_id': return Number(o.asset_id || 0);
+        case 'fault_id': return Number(o.fault_id || 0);
+        case 'location_id': return Number(o.location_id || 0);
+        case 'building_id': return Number(o.building_id || 0);
+        case 'room_id': return Number(o.room_id || 0);
+        case 'date': return (o.job_scheduled_datetime || o.job_createddatetime) ? new Date(o.job_scheduled_datetime || o.job_createddatetime).getTime() : 0;
+        case 'status': return String(o.job_status || '');
+        case 'assigned': return String(o.assigned_to || '');
+        case 'nature': return String(o.nature || '');
+        case 'created': return o.job_createddatetime ? new Date(o.job_createddatetime).getTime() : 0;
+        case 'finished': return o.job_finisheddatetime ? new Date(o.job_finisheddatetime).getTime() : 0;
+        default: return '';
       }
-    });
+    },
+  );
   const { currentPage, totalPages, paginatedData: paginatedWorkOrders, goToPage } = usePagination(filteredWorkOrders, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
 
   const translateStatus = (status) => {
     return status || "-";
@@ -1543,19 +1559,12 @@ function WorkOrderPage() {
                 />
               </div>
               
-              <Select
-                className="react-select-container"
-                classNamePrefix="react-select"
-                value={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
-                  { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
-                  { value: "building_id", label: "Gebou ID" }, { value: "location_id", label: "Terrein ID" },
-                  { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
-                  { value: "status", label: "Status" },
-                ].find((option) => option.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected?.value || "all")}
-                options={[
+              <FilterPicker
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                filterColumn={filterColumn}
+                onFilterColumnChange={setFilterColumn}
+                filterColumnOptions={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
                   { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
                   { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
@@ -1563,72 +1572,41 @@ function WorkOrderPage() {
                   { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
                   { value: "status", label: "Status" },
                 ]}
-                isSearchable={false}
+                terrainFilter={terrainFilter}
+                buildingFilter={buildingFilter}
+                roomFilter={roomFilter}
+                onLocationChange={(loc, bld, room) => {
+                  setTerrainFilter(loc || "");
+                  setBuildingFilter(bld || "");
+                  setRoomFilter(room || "");
+                }}
+                locationOptions={allLocationOptions}
+                maxLevel={3}
+                lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+                onReset={() => {
+                  setSearchTerm("");
+                  setTerrainFilter("");
+                  setBuildingFilter("");
+                  setRoomFilter("");
+                }}
               />
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                return (
-                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                    <div className="control-cascade-breadcrumb">
-                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                    </div>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                       isClearable
-                       isDisabled={cascadeCount >= 3}
-                       closeMenuOnSelect={false}
-                       menuIsOpen={filterCascade.menuIsOpen}
-                       onMenuOpen={filterCascade.onMenuOpen}
-                       onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                      styles={{
-                        container: (base) => ({ ...base, minWidth: '260px' }),
-                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                      }}
-                       options={allLocationOptions}
-                      filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 3)
-                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                      }}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                        const f = selectedOption._fields;
-                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                      }}
-                    />
-                  </div>
-                );
-              })()}
+            <SortPicker
+                columns={WORKORDER_COLUMNS}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
+              />
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={colVis.columnDefs}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
             </div>
 
             <div className="controls-right">
@@ -1642,14 +1620,6 @@ function WorkOrderPage() {
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              <ColumnPicker
-                ref={colPickerRef}
-                columns={colVis.columnDefs}
-                visibleColumns={colVis.visibleColumns}
-                toggleColumn={colVis.toggleColumn}
-                resetVisibility={colVis.resetVisibility}
-                onResetWidths={colWidths.resetWidths}
-              />
               <button
                 type="button"
                 className="btn-add"
@@ -1679,11 +1649,9 @@ function WorkOrderPage() {
                     key={col.key}
                     col={col}
                     colWidths={colWidths}
-                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                    onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined}
                     onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}
                   >
-                    {col.label}{col.sortKey ? getSortIndicator(col.sortKey) : ''}
+                    {col.label}
                   </ResizableTh>
                 ))}
                 <th>Aksies</th>

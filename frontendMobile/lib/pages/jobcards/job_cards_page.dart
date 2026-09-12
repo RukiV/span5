@@ -6,10 +6,13 @@ import '../../services/ai_service.dart';
 import '../../models/jobcard.dart';
 import '../../models/job_draft.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
 import '../../widgets/fixed_page_header.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import 'jobcard_detail_page.dart';
 import '../ai/ai_draft_review_page.dart';
 
@@ -34,7 +37,8 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   // ── Job list state ──
   final TextEditingController _searchController = TextEditingController();
-  final SortController _sortCtrl = SortController();
+  final MultiSortController _sortCtrl =
+      MultiSortController('jobcards', ['id', 'description', 'type', 'status', 'date']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('jobcards', [
     const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
@@ -45,6 +49,13 @@ class _JobCardsPageState extends State<JobCardsPage>
   ]);
   final SelectionController<int> _selection = SelectionController<int>();
   String _searchQuery = "";
+  final FilterController _filterCtrl = FilterController('jobcards');
+  String _columnFilter = 'all';
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
+  int? _selectedRoomId;
+  bool _filterOpen = false;
+  bool _sortOpen = false;
 
   // ── AI draft queue state ──
   String? _aiStatusFilter = 'draft';
@@ -52,6 +63,9 @@ class _JobCardsPageState extends State<JobCardsPage>
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
     _canApprove = UserSession.can('ai.approve');
     _tabController = TabController(
       length: _canApprove ? 2 : 1,
@@ -60,7 +74,17 @@ class _JobCardsPageState extends State<JobCardsPage>
     _tabController.addListener(_onTabChanged);
 
     JobcardService.fetchJobs();
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _selectedCampusId = _filterCtrl.campusId;
+      _selectedBuildingId = _filterCtrl.buildingId;
+      _selectedRoomId = _filterCtrl.roomId;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      setState(() {});
+    });
     _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
       setState(() {
         _searchQuery = _searchController.text.toLowerCase();
       });
@@ -113,11 +137,51 @@ class _JobCardsPageState extends State<JobCardsPage>
             onChanged: (v) => setState(() {}),
             actions: _tabController.index == 0 ? _buildJobHeaderActions() : [],
           ),
+          if (_filterOpen)
+            FilterPanel(
+              controller: _filterCtrl,
+              depth: LocationDepth.room,
+              searchController: _searchController,
+              searchHint: "Soek werkkaarte...",
+              initialCampusId: _selectedCampusId,
+              initialBuildingId: _selectedBuildingId,
+              initialRoomId: _selectedRoomId,
+              onLocationChanged: (campusId, buildingId, roomId) => setState(() {
+                _selectedCampusId = campusId;
+                _selectedBuildingId = buildingId;
+                _selectedRoomId = roomId;
+              }),
+              columnItems: [
+                const SearchableDropdownItem(
+                    value: 'all', label: 'Alle kolomme'),
+                ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                    value: c.key, label: c.label)),
+              ],
+              columnValue: _columnFilter,
+              onColumnChanged: (v) => setState(() => _columnFilter = v),
+              onReset: () => setState(() {
+                _selectedCampusId = null;
+                _selectedBuildingId = null;
+                _selectedRoomId = null;
+                _columnFilter = 'all';
+              }),
+              onClose: () => setState(() => _filterOpen = false),
+            ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(() {}),
+            ),
           if (_canApprove) _buildTabBar(),
           Expanded(
-            child: _tabController.index == 0
-                ? _buildJobListTab()
-                : _buildAiDraftTab(),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: _tabController.index == 0
+                  ? _buildJobListTab()
+                  : _buildAiDraftTab(),
+            ),
           ),
         ],
       ),
@@ -204,43 +268,56 @@ class _JobCardsPageState extends State<JobCardsPage>
                 j.status == "Gekanselleer")
             .toList();
 
-        final filtered = activeJobs.where((j) {
-          if (_searchQuery.isEmpty) return true;
-          return j.description.toLowerCase().contains(_searchQuery) ||
-              j.id.toString().contains(_searchQuery) ||
-              (j.type?.toLowerCase().contains(_searchQuery) ?? false);
-        }).toList();
-
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
+        final filtered = _sortCtrl.apply(
+          activeJobs
+              .where((j) {
+                if (_selectedCampusId != null &&
+                    j.locationId != _selectedCampusId) {
+                  return false;
+                }
+                if (_selectedBuildingId != null &&
+                    j.buildingId != _selectedBuildingId) {
+                  return false;
+                }
+                if (_selectedRoomId != null && j.roomId != _selectedRoomId) {
+                  return false;
+                }
+                if (_searchQuery.isEmpty) return true;
+                final searchable = _columnFilter == 'all'
+                    ? [
+                        j.description,
+                        j.id.toString(),
+                        j.type ?? '',
+                        j.fullDescription,
+                        j.status,
+                      ].join(' ')
+                    : switch (_columnFilter) {
+                        'id' => j.id.toString(),
+                        'description' => j.description,
+                        'type' => j.type ?? '',
+                        'status' => j.status,
+                        _ => '',
+                      };
+                return searchable.toLowerCase().contains(_searchQuery);
+              })
+              .toList(),
+          (j, key) {
+            switch (key) {
               case 'id':
-                return a.id.compareTo(b.id) * dir;
+                return j.id;
               case 'description':
-                return a.description
-                        .toLowerCase()
-                        .compareTo(b.description.toLowerCase()) *
-                    dir;
+                return j.description.toLowerCase();
               case 'type':
-                return (a.type ?? '')
-                        .toLowerCase()
-                        .compareTo((b.type ?? '').toLowerCase()) *
-                    dir;
+                return (j.type ?? '').toLowerCase();
               case 'status':
-                return a.status
-                        .toLowerCase()
-                        .compareTo(b.status.toLowerCase()) *
-                    dir;
+                return j.status.toLowerCase();
               case 'date':
-                return (a.createdDatetime ?? DateTime(0))
-                        .compareTo(b.createdDatetime ?? DateTime(0)) *
-                    dir;
+                return j.createdDatetime ?? DateTime(0);
               default:
-                return 0;
+                return '';
             }
-          });
-        }
+          },
+        );
 
         return RefreshIndicator(
           onRefresh: () => JobcardService.fetchJobs(),
@@ -272,14 +349,39 @@ class _JobCardsPageState extends State<JobCardsPage>
 
   List<Widget> _buildJobHeaderActions() {
     return [
+      FilterButton(
+        controller: _filterCtrl,
+        selected: _filterOpen,
+        onPressed: () => setState(() {
+          _filterOpen = !_filterOpen;
+          _sortOpen = false;
+        }),
+      ),
       if (UserSession.can('jobs.manage')) ...[
         SelectionExitAction<int>(
           controller: _selection,
           onExit: () => setState(() => _selection.exit()),
         ),
       ],
+      SortButton(
+        controller: _sortCtrl,
+        selected: _sortOpen,
+        onPressed: () => setState(() {
+          _sortOpen = !_sortOpen;
+          _filterOpen = false;
+        }),
+      ),
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   Future<void> _bulkDeleteJobs(BuildContext context, Set<int> ids) async {

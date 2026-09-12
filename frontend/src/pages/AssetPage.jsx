@@ -6,9 +6,12 @@ import { MdHistory } from "react-icons/md";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import usePagination from "../hooks/usePagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
 import Pagination from "../components/Pagination/Pagination";
@@ -74,9 +77,9 @@ function AssetPage({ embedded = false }) {
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "asset-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const ASSET_COLUMNS = [
     { key: 'id', label: 'ID', render: (a) => a.asset_id, sortKey: 'id', defaultVisible: false },
     { key: 'asset_name', label: 'Naam', render: (a) => a.asset_name, sortKey: 'asset_name', defaultVisible: true },
@@ -90,16 +93,19 @@ function AssetPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('asset-page', ASSET_COLUMNS);
   const colWidths = useColumnWidths('asset-page', ASSET_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: ASSET_COLUMNS,
+    storageKey: 'asset-page',
+  });
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
-  const filterCascade = useCascadeMenu();
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const modalCascadeMenu = useCascadeMenu();
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -196,10 +202,18 @@ function AssetPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   const fetchAssets = async () => {
     try {
@@ -628,7 +642,7 @@ function AssetPage({ embedded = false }) {
     }
   };
   
-  const filteredItems = [...assets]
+  const filteredItems = applySort([...assets]
     .filter((asset) => {
       if (terrainFilter) {
         const locId = getAssetLocationId(asset);
@@ -659,21 +673,24 @@ function AssetPage({ embedded = false }) {
           .some((value) => String(value).toLowerCase().includes(query));
       }
       return String(getColumnValue(filterColumn) ?? "").toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === "asc" ? 1 : -1;
-      if (sortKey === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "asset_brand") return String(a.asset_brand || "").localeCompare(String(b.asset_brand || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "asset_serial") return String(a.asset_serial || "").localeCompare(String(b.asset_serial || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "assettype") return String(getAssettypeName(a) || "").localeCompare(String(getAssettypeName(b) || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "isoutdoor") return String(a.asset_isoutdoor ? "Ja" : "Nee").localeCompare(String(b.asset_isoutdoor ? "Ja" : "Nee"), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "room") return String(getRoomName(a) || "").localeCompare(String(getRoomName(b) || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
-      return 0;
-    });
+    }),
+    (a, key) => {
+      switch (key) {
+        case "id": return Number(a.asset_id || 0);
+        case "asset_name": return String(a.asset_name || "");
+        case "asset_brand": return String(a.asset_brand || "");
+        case "asset_serial": return String(a.asset_serial || "");
+        case "assettype": return String(getAssettypeName(a) || "");
+        case "isoutdoor": return String(a.asset_isoutdoor ? "Ja" : "Nee");
+        case "room": return String(getRoomName(a) || "");
+        case "status": return String(getStatusLabel(a.asset_status));
+        case "created": return a.asset_created_datetime ? new Date(a.asset_created_datetime).getTime() : 0;
+        default: return "";
+      }
+    },
+  );
   const { currentPage, totalPages, paginatedData: paginatedItems, goToPage } = usePagination(filteredItems, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
   const allSelected = paginatedItems.length > 0 && paginatedItems.every((x) => selectedIds.includes(x.asset_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -734,108 +751,47 @@ function AssetPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={filterColumnOptions.find(option => option.value === filterColumn)}
-            onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
-            options={filterColumnOptions}
-            isSearchable={false}
-            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
-            styles={{
-              container: (base) => ({ ...base, minWidth: '160px' }),
-              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+<FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={filterColumnOptions}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
             }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 3 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
-              return (
-                <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                  <div className="control-cascade-breadcrumb">
-                    {renderBreadcrumb()}
-                  </div>
-                  <Select
-                     className="react-select-container"
-                     classNamePrefix="react-select"
-                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                     isClearable
-                     isDisabled={cascadeCount >= 3}
-                     closeMenuOnSelect={false}
-                     menuIsOpen={filterCascade.menuIsOpen}
-                     onMenuOpen={filterCascade.onMenuOpen}
-onMenuClose={filterCascade.onMenuClose}
-                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                     styles={{
-                       container: (base) => ({ ...base, minWidth: '260px' }),
-                       control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                       valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-               singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                     }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={ASSET_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={ASSET_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('assets.manage') && (
@@ -847,14 +803,6 @@ onMenuClose={filterCascade.onMenuClose}
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={ASSET_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
           {selectedIds.length > 0 && (
@@ -884,11 +832,9 @@ onMenuClose={filterCascade.onMenuClose}
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '230px' }}>Aksies</th>

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
-import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
-import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import '../../core/app_colors.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
@@ -15,6 +15,7 @@ import '../../models/user_session.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_check_history_page.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -34,11 +35,15 @@ class AssetsPage extends StatefulWidget {
 
 class _AssetsPageState extends State<AssetsPage> {
   final TextEditingController _searchController = TextEditingController();
-  String _statusFilter = "Almal";
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
-  final SortController _sortCtrl = SortController();
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('assets');
+  String _columnFilter = 'all';
+  final MultiSortController _sortCtrl = MultiSortController(
+      'assets', ['id', 'name', 'brand', 'serial', 'type', 'isOutdoor', 'status', 'created']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('assets', [
     const ColumnDef(key: 'id', label: '#ID', defaultVisible: false),
@@ -56,6 +61,18 @@ class _AssetsPageState extends State<AssetsPage> {
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _selectedCampusId = _filterCtrl.campusId;
+      _selectedBuildingId = _filterCtrl.buildingId;
+      _selectedRoomId = _filterCtrl.roomId;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      setState(() {});
+    });
     _activeRoomFilter = widget.filterRoomId;
     AssetService.fetchAssets();
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
@@ -63,6 +80,7 @@ class _AssetsPageState extends State<AssetsPage> {
       CampusService.fetchCampuses();
     }
     _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
       setState(() {});
     });
   }
@@ -145,16 +163,56 @@ class _AssetsPageState extends State<AssetsPage> {
             onChanged: (v) => setState(() {}),
             actions: _buildHeaderActions(),
           ),
+          if (_filterOpen)
+            FilterPanel(
+              controller: _filterCtrl,
+              depth: LocationDepth.room,
+              searchController: _searchController,
+              searchHint: "Soek bates...",
+              initialCampusId: _selectedCampusId,
+              initialBuildingId: _selectedBuildingId,
+              initialRoomId: _selectedRoomId,
+              columnItems: [
+                const SearchableDropdownItem(
+                    value: 'all', label: 'Alle kolomme'),
+                ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                    value: c.key, label: c.label)),
+              ],
+              columnValue: _columnFilter,
+              onColumnChanged: (v) => setState(() => _columnFilter = v),
+              onLocationChanged: (campusId, buildingId, roomId) => setState(() {
+                _selectedCampusId = campusId;
+                _selectedBuildingId = buildingId;
+                _selectedRoomId = roomId;
+              }),
+              onReset: () => setState(() {
+                _selectedCampusId = null;
+                _selectedBuildingId = null;
+                _selectedRoomId = null;
+                _columnFilter = 'all';
+              }),
+              onClose: () => setState(() => _filterOpen = false),
+            ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(() {}),
+            ),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => AssetService.fetchAssets(),
-              color: AppColors.refreshSpinner,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  _buildAssetListSliver(),
-                  const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
-                ],
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: RefreshIndicator(
+                onRefresh: () => AssetService.fetchAssets(),
+                color: AppColors.refreshSpinner,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    _buildAssetListSliver(),
+                    const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+                  ],
+                ),
               ),
             ),
           ),
@@ -165,41 +223,14 @@ class _AssetsPageState extends State<AssetsPage> {
   }
 
   List<Widget> _buildHeaderActions() {
-    final locationActive = _selectedCampusId != null ||
-        _selectedBuildingId != null ||
-        _selectedRoomId != null;
     return [
-      HeaderIconAction(
-        icon: Icons.place_outlined,
-        tooltip: "Filter op Ligging",
-        activeBadge: locationActive,
-        onTap: () => showLocationFilterSheet(
-          context,
-          depth: LocationDepth.room,
-          campusId: _selectedCampusId,
-          buildingId: _selectedBuildingId,
-          roomId: _selectedRoomId,
-          onChanged: (campusId, buildingId, roomId) => setState(() {
-            _selectedCampusId = campusId;
-            _selectedBuildingId = buildingId;
-            _selectedRoomId = roomId;
-          }),
-        ),
-      ),
-      HeaderIconAction(
-        icon: Icons.filter_alt_outlined,
-        tooltip: "Status",
-        activeBadge: _statusFilter != "Almal",
-        onTap: () => showSearchableDialog<String>(
-          context: context,
-          title: "Status",
-          initialValue: _statusFilter,
-          items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-              .map((s) => SearchableDropdownItem(value: s, label: s))
-              .toList(),
-          onSelected: (val) =>
-              setState(() => _statusFilter = val ?? _statusFilter),
-        ),
+      FilterButton(
+        controller: _filterCtrl,
+        selected: _filterOpen,
+        onPressed: () => setState(() {
+          _filterOpen = !_filterOpen;
+          _sortOpen = false;
+        }),
       ),
       if (UserSession.can('assets.manage'))
         HeaderIconAction(
@@ -216,8 +247,25 @@ class _AssetsPageState extends State<AssetsPage> {
           onExit: () => setState(() => _selection.exit()),
         ),
       ],
+      SortButton(
+        controller: _sortCtrl,
+        selected: _sortOpen,
+        onPressed: () => setState(() {
+          _sortOpen = !_sortOpen;
+          _filterOpen = false;
+        }),
+      ),
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   Widget _buildAssetListSliver() {
@@ -244,83 +292,79 @@ class _AssetsPageState extends State<AssetsPage> {
                 .toSet()
             : null;
 
-        final filtered = allAssets.where((a) {
-          // Room filter from constructor
-          if (_activeRoomFilter != null && a.location != _activeRoomFilter) {
-            return false;
-          }
-
-          // Campus filter
-          if (campusRoomIds != null && !campusRoomIds.contains(a.location)) {
-            return false;
-          }
-
-          // Building filter
-          if (buildingRoomIds != null &&
-              !buildingRoomIds.contains(a.location)) {
-            return false;
-          }
-
-          // Room filter
-          if (_selectedRoomId != null &&
-              a.location != _selectedRoomId.toString()) {
-            return false;
-          }
-
-          // Status filter
-          if (_statusFilter != "Almal") {
-            String mapped = "active";
-            if (_statusFilter == "Onderhoud") mapped = "maintenance";
-            if (_statusFilter == "Afgedank") mapped = "retired";
-            if (_statusFilter == "Onaktief") mapped = "inactive";
-            if (a.status.toLowerCase() != mapped) return false;
-          }
-
-          // Search query
-          final q = _searchController.text.toLowerCase();
-          return a.name.toLowerCase().contains(q) ||
-              a.serialCode.toLowerCase().contains(q) ||
-              a.id.toLowerCase().contains(q);
-        }).toList();
-
-        // Apply sorting
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
-              case 'id':
-                return a.id.compareTo(b.id) * dir;
-              case 'name':
-                return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
-                    dir;
-              case 'brand':
-                return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) *
-                    dir;
-              case 'serial':
-                return a.serialCode
-                        .toLowerCase()
-                        .compareTo(b.serialCode.toLowerCase()) *
-                    dir;
-              case 'type':
-                return a.category
-                        .toLowerCase()
-                        .compareTo(b.category.toLowerCase()) *
-                    dir;
-              case 'isOutdoor':
-                return (a.isOutdoor ? 1 : 0).compareTo(b.isOutdoor ? 1 : 0) *
-                    dir;
-              case 'status':
-                return a.status
-                        .toLowerCase()
-                        .compareTo(b.status.toLowerCase()) *
-                    dir;
-              case 'created':
-                return 0;
-              default:
-                return 0;
+        final filtered = _sortCtrl.apply(
+          allAssets.where((a) {
+            // Room filter from constructor
+            if (_activeRoomFilter != null &&
+                a.location != _activeRoomFilter) {
+              return false;
             }
-          });
-        }
+
+            // Campus filter
+            if (campusRoomIds != null &&
+                !campusRoomIds.contains(a.location)) {
+              return false;
+            }
+
+            // Building filter
+            if (buildingRoomIds != null &&
+                !buildingRoomIds.contains(a.location)) {
+              return false;
+            }
+
+            // Room filter
+            if (_selectedRoomId != null &&
+                a.location != _selectedRoomId.toString()) {
+              return false;
+            }
+
+            // Search query
+            final q = _searchController.text.toLowerCase();
+            final searchable = _columnFilter == 'all'
+                ? [
+                    a.name,
+                    a.serialCode,
+                    a.id,
+                    a.brand,
+                    a.category,
+                    a.status,
+                    a.location,
+                  ].join(' ')
+                : switch (_columnFilter) {
+                    'id' => a.id,
+                    'name' => a.name,
+                    'brand' => a.brand,
+                    'serial' => a.serialCode,
+                    'type' => a.category,
+                    'isOutdoor' => a.isOutdoor ? 'Buite' : 'Binne',
+                    'status' => a.status,
+                    _ => '',
+                  };
+            return searchable.toLowerCase().contains(q);
+          }).toList(),
+          (a, key) {
+            switch (key) {
+              case 'id':
+                return a.id.toLowerCase();
+              case 'name':
+                return a.name.toLowerCase();
+              case 'brand':
+                return a.brand.toLowerCase();
+              case 'serial':
+                return a.serialCode.toLowerCase();
+              case 'type':
+                return a.category.toLowerCase();
+              case 'isOutdoor':
+                return a.isOutdoor ? 1 : 0;
+              case 'status':
+                return a.status.toLowerCase();
+              case 'created':
+                return '';
+              default:
+                return '';
+            }
+          },
+        );
 
         if (filtered.isEmpty) {
           return const SliverFillRemaining(

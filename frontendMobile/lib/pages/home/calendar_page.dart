@@ -7,6 +7,7 @@ import '../../services/calendar_service.dart';
 import '../../services/outlook_service.dart';
 import '../../services/outlook_token_manager.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 
 class CalendarPage extends StatefulWidget {
@@ -22,16 +23,21 @@ class _CalendarPageState extends State<CalendarPage> {
   DateTime? _selectedDay;
   List<CalendarEvent> _events = [];
   bool _loading = true;
-  final SortController _sortCtrl = SortController();
+  final MultiSortController _sortCtrl =
+      MultiSortController('calendar', ['title', 'time', 'location']);
   final ColumnVisibilityController _colVis = ColumnVisibilityController('calendar', [
     const ColumnDef(key: 'title', label: 'Titel'),
     const ColumnDef(key: 'time', label: 'Tyd'),
     const ColumnDef(key: 'location', label: 'Ligging', defaultVisible: false),
   ]);
+  bool _sortOpen = false;
 
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
     _selectedDay = _focusedDay;
     _loadEvents();
     CalendarService.eventsNotifier.addListener(_onEventsChanged);
@@ -453,6 +459,12 @@ class _CalendarPageState extends State<CalendarPage> {
         "${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
   }
 
+  void _closePanels() {
+    if (_sortOpen) {
+      setState(() => _sortOpen = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -536,6 +548,12 @@ class _CalendarPageState extends State<CalendarPage> {
                 outsideDaysVisible: false,
               ),
             ),
+            if (_sortOpen)
+              SortPanel(
+                controller: _sortCtrl,
+                columns: _colVis.allColumns,
+                onChanged: () => setState(() {}),
+              ),
             Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 4),
               child: Row(
@@ -548,13 +566,23 @@ class _CalendarPageState extends State<CalendarPage> {
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
                     ),
                   ),
+                  SortButton(
+                    controller: _sortCtrl,
+                    selected: _sortOpen,
+                    onPressed: () => setState(() => _sortOpen = !_sortOpen),
+                  ),
+                  const SizedBox(width: 8),
                   ColumnVisibilityButton(controller: _colVis),
                 ],
               ),
             ),
-            SizedBox(
-              height: 300,
-              child: _buildEventList(),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: SizedBox(
+                height: 300,
+                child: _buildEventList(),
+              ),
             ),
           ],
         ),
@@ -563,17 +591,18 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildEventList() {
-    final events = _getEventsForDay(_selectedDay!);
-    if (_sortCtrl.isActive) {
-      events.sort((a, b) {
-        final dir = _sortCtrl.direction;
-        switch (_sortCtrl.sortKey) {
-          case 'title': return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
-          case 'time': return a.startDatetime.compareTo(b.startDatetime) * dir;
-          default: return 0;
-        }
-      });
-    }
+    final events = _sortCtrl.apply(_getEventsForDay(_selectedDay!), (e, key) {
+      switch (key) {
+        case 'title':
+          return e.title.toLowerCase();
+        case 'time':
+          return e.startDatetime;
+        case 'location':
+          return (e.location ?? '').toLowerCase();
+        default:
+          return '';
+      }
+    });
     if (events.isEmpty) {
       return Center(
         child: Column(

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../widgets/fixed_page_header.dart';
-import '../../widgets/header_action_button.dart';
-import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import '../../core/app_colors.dart';
 import '../../services/stock_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -26,8 +27,21 @@ class _StockPageState extends State<StockPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('stock');
+  String _columnFilter = 'all';
 
-  final SortController _sortCtrl = SortController();
+  final MultiSortController _sortCtrl = MultiSortController('stock', [
+    'name',
+    'brand',
+    'type',
+    'amount',
+    'minimum',
+    'boxTotal',
+    'description',
+    'room',
+  ]);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('stock', [
     const ColumnDef(key: 'name', label: 'NAAM'),
@@ -46,11 +60,26 @@ class _StockPageState extends State<StockPage> {
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _selectedCampusId = _filterCtrl.campusId;
+      _selectedBuildingId = _filterCtrl.buildingId;
+      _selectedRoomId = _filterCtrl.roomId;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      setState(() {});
+    });
     StockService.fetchStocks();
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
+    });
   }
 
   void _onCampusesChanged() {
@@ -91,60 +120,74 @@ class _StockPageState extends State<StockPage> {
                 .toSet()
             : null;
 
-        List<Stock> filtered = allStocks.where((s) {
-          // Campus filter
-          if (campusRoomIds != null &&
-              (s.roomId == null || !campusRoomIds.contains(s.roomId))) {
-            return false;
-          }
+        final filtered = _sortCtrl.apply(
+          allStocks
+              .where((s) {
+                // Campus filter
+                if (campusRoomIds != null &&
+                    (s.roomId == null ||
+                        !campusRoomIds.contains(s.roomId))) {
+                  return false;
+                }
 
-          // Building filter
-          if (buildingRoomIds != null &&
-              (s.roomId == null || !buildingRoomIds.contains(s.roomId))) {
-            return false;
-          }
+                // Building filter
+                if (buildingRoomIds != null &&
+                    (s.roomId == null || !buildingRoomIds.contains(s.roomId))) {
+                  return false;
+                }
 
-          // Room filter
-          if (_selectedRoomId != null && s.roomId != _selectedRoomId) {
-            return false;
-          }
+                // Room filter
+                if (_selectedRoomId != null && s.roomId != _selectedRoomId) {
+                  return false;
+                }
 
-          return s.name.toLowerCase().contains(query) ||
-              s.brand.toLowerCase().contains(query) ||
-              s.type.toLowerCase().contains(query) ||
-              (s.id?.toString().contains(query) ?? false);
-        }).toList();
-
-        // Apply sorting
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
+                final searchable = _columnFilter == 'all'
+                    ? [
+                        s.name,
+                        s.brand,
+                        s.type,
+                        s.id?.toString() ?? '',
+                        s.description ?? '',
+                        s.roomName ?? '',
+                        s.amount.toString(),
+                      ].join(' ')
+                    : switch (_columnFilter) {
+                        'name' => s.name,
+                        'brand' => s.brand,
+                        'type' => s.type,
+                        'amount' => s.amount.toString(),
+                        'minimum' => s.minimum.toString(),
+                        'boxTotal' => s.boxTotal.toString(),
+                        'description' => s.description ?? '',
+                        'room' => s.roomName ?? '',
+                        _ => '',
+                      };
+                return searchable.toLowerCase().contains(query);
+              })
+              .toList(),
+          (s, key) {
+            switch (key) {
               case 'name':
-                return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
-                    dir;
+                return s.name.toLowerCase();
               case 'brand':
-                return a.brand.toLowerCase().compareTo(b.brand.toLowerCase()) *
-                    dir;
+                return s.brand.toLowerCase();
               case 'type':
-                return a.type.toLowerCase().compareTo(b.type.toLowerCase()) *
-                    dir;
+                return s.type.toLowerCase();
               case 'amount':
-                return a.amount.compareTo(b.amount) * dir;
+                return s.amount;
               case 'minimum':
-                return a.minimum.compareTo(b.minimum) * dir;
+                return s.minimum;
               case 'boxTotal':
-                return a.boxTotal.compareTo(b.boxTotal) * dir;
+                return s.boxTotal;
               case 'description':
-                return (a.description ?? '').compareTo(b.description ?? '') *
-                    dir;
+                return (s.description ?? '').toLowerCase();
               case 'room':
-                return (a.roomName ?? '').compareTo(b.roomName ?? '') * dir;
+                return (s.roomName ?? '').toLowerCase();
               default:
-                return 0;
+                return '';
             }
-          });
-        }
+          },
+        );
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -156,8 +199,48 @@ class _StockPageState extends State<StockPage> {
                 onChanged: (v) => setState(() {}),
                 actions: _buildHeaderActions(),
               ),
+              if (_filterOpen)
+                FilterPanel(
+                  controller: _filterCtrl,
+                  depth: LocationDepth.room,
+                  searchController: _searchController,
+                  searchHint: "Soek voorraad...",
+                  initialCampusId: _selectedCampusId,
+                  initialBuildingId: _selectedBuildingId,
+                  initialRoomId: _selectedRoomId,
+                  onLocationChanged: (campusId, buildingId, roomId) =>
+                      setState(() {
+                    _selectedCampusId = campusId;
+                    _selectedBuildingId = buildingId;
+                    _selectedRoomId = roomId;
+                  }),
+                  columnItems: [
+                    const SearchableDropdownItem(
+                        value: 'all', label: 'Alle kolomme'),
+                    ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                        value: c.key, label: c.label)),
+                  ],
+                  columnValue: _columnFilter,
+                  onColumnChanged: (v) => setState(() => _columnFilter = v),
+                  onReset: () => setState(() {
+                    _selectedCampusId = null;
+                    _selectedBuildingId = null;
+                    _selectedRoomId = null;
+                    _columnFilter = 'all';
+                  }),
+                  onClose: () => setState(() => _filterOpen = false),
+                ),
+              if (_sortOpen)
+                SortPanel(
+                  controller: _sortCtrl,
+                  columns: _colVis.allColumns,
+                  onChanged: () => setState(() {}),
+                ),
               Expanded(
-                child: RefreshIndicator(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _closePanels,
+                  child: RefreshIndicator(
                   onRefresh: () => StockService.fetchStocks(),
                   color: AppColors.refreshSpinner,
                   child: CustomScrollView(
@@ -223,6 +306,7 @@ class _StockPageState extends State<StockPage> {
                       const SliverPadding(
                           padding: EdgeInsets.only(bottom: 100)),
                     ],
+                  ),
                   ),
                 ),
               ),
@@ -292,26 +376,14 @@ class _StockPageState extends State<StockPage> {
   }
 
   List<Widget> _buildHeaderActions() {
-    final locationActive = _selectedCampusId != null ||
-        _selectedBuildingId != null ||
-        _selectedRoomId != null;
     return [
-      HeaderIconAction(
-        icon: Icons.place_outlined,
-        tooltip: "Filter op Ligging",
-        activeBadge: locationActive,
-        onTap: () => showLocationFilterSheet(
-          context,
-          depth: LocationDepth.room,
-          campusId: _selectedCampusId,
-          buildingId: _selectedBuildingId,
-          roomId: _selectedRoomId,
-          onChanged: (campusId, buildingId, roomId) => setState(() {
-            _selectedCampusId = campusId;
-            _selectedBuildingId = buildingId;
-            _selectedRoomId = roomId;
-          }),
-        ),
+      FilterButton(
+        controller: _filterCtrl,
+        selected: _filterOpen,
+        onPressed: () => setState(() {
+          _filterOpen = !_filterOpen;
+          _sortOpen = false;
+        }),
       ),
       if (UserSession.can('stock.manage')) ...[
         SelectionExitAction<int>(
@@ -319,8 +391,25 @@ class _StockPageState extends State<StockPage> {
           onExit: () => setState(() => _selection.exit()),
         ),
       ],
+      SortButton(
+        controller: _sortCtrl,
+        selected: _sortOpen,
+        onPressed: () => setState(() {
+          _sortOpen = !_sortOpen;
+          _filterOpen = false;
+        }),
+      ),
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   int _columnFlex(String key) {

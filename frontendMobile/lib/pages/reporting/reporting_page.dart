@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/fixed_page_header.dart';
-import '../../widgets/header_action_button.dart';
-import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
@@ -11,6 +10,7 @@ import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../widgets/column_visibility.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/sort_utils.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -31,10 +31,14 @@ class ReportingPage extends StatefulWidget {
 class _ReportingPageState extends State<ReportingPage> {
   // ── Fault list state ──
   final TextEditingController _searchController = TextEditingController();
-  String _statusFilter = "Alles";
   int? _selectedCampusId;
   int? _selectedBuildingId;
-  final SortController _sortCtrl = SortController();
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('reports');
+  String _columnFilter = 'all';
+  final MultiSortController _sortCtrl =
+      MultiSortController('reports', ['id', 'title', 'location', 'phase', 'timestamp']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('reports', [
     const ColumnDef(key: 'id', label: 'ID', defaultVisible: false),
@@ -48,12 +52,25 @@ class _ReportingPageState extends State<ReportingPage> {
   @override
   void initState() {
     super.initState();
-
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _selectedCampusId = _filterCtrl.campusId;
+      _selectedBuildingId = _filterCtrl.buildingId;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      setState(() {});
+    });
     ReportService.fetchReports();
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
+    _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
+    });
   }
 
   @override
@@ -112,8 +129,45 @@ class _ReportingPageState extends State<ReportingPage> {
             onChanged: (v) => setState(() {}),
             actions: _buildFaultHeaderActions(),
           ),
+          if (_filterOpen)
+            FilterPanel(
+              controller: _filterCtrl,
+              depth: LocationDepth.building,
+              searchController: _searchController,
+              searchHint: "Soek verslae...",
+              initialCampusId: _selectedCampusId,
+              initialBuildingId: _selectedBuildingId,
+              columnItems: [
+                const SearchableDropdownItem(
+                    value: 'all', label: 'Alle kolomme'),
+                ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                    value: c.key, label: c.label)),
+              ],
+              columnValue: _columnFilter,
+              onColumnChanged: (v) => setState(() => _columnFilter = v),
+              onLocationChanged: (campusId, buildingId, _) => setState(() {
+                _selectedCampusId = campusId;
+                _selectedBuildingId = buildingId;
+              }),
+              onReset: () => setState(() {
+                _selectedCampusId = null;
+                _selectedBuildingId = null;
+                _columnFilter = 'all';
+              }),
+              onClose: () => setState(() => _filterOpen = false),
+            ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(() {}),
+            ),
           Expanded(
-            child: _buildFaultList(),
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: _buildFaultList(),
+            ),
           ),
         ],
       ),
@@ -156,47 +210,59 @@ class _ReportingPageState extends State<ReportingPage> {
       valueListenable: ReportService.reportsNotifier,
       builder: (context, allReports, child) {
         final query = _searchController.text.toLowerCase();
-        List<Report> filtered = allReports.where((r) {
-          final matchesSearch = query.isEmpty ||
-              r.id.toLowerCase().contains(query) ||
-              r.title.toLowerCase().contains(query) ||
-              r.location.toLowerCase().contains(query);
-          final matchesStatus =
-              _statusFilter == "Alles" || (r.phase == _statusFilter);
-          final matchesCampus = _selectedCampusId == null ||
-              _campusIdForReport(r) == _selectedCampusId;
-          final matchesBuilding = _selectedBuildingId == null ||
-              _buildingIdForReport(r) == _selectedBuildingId;
-          return matchesSearch &&
-              matchesStatus &&
-              matchesCampus &&
-              matchesBuilding;
-        }).toList();
-
-        if (_sortCtrl.isActive) {
-          filtered.sort((a, b) {
-            final dir = _sortCtrl.direction;
-            switch (_sortCtrl.sortKey) {
+        final filtered = _sortCtrl.apply(
+          allReports
+              .where((r) {
+                final searchableColumn = _columnFilter == 'all'
+                    ? ''
+                    : switch (_columnFilter) {
+                        'id' => r.id,
+                        'title' => r.title,
+                        'location' => r.location,
+                        'phase' => r.phase,
+                        _ => '',
+                      };
+                final matchesSearch = query.isEmpty ||
+                    (_columnFilter == 'all'
+                        ? r.id.toLowerCase().contains(query) ||
+                            r.title.toLowerCase().contains(query) ||
+                            r.location.toLowerCase().contains(query) ||
+                            r.description.toLowerCase().contains(query) ||
+                            r.phase.toLowerCase().contains(query) ||
+                            r.priority.toLowerCase().contains(query) ||
+                            r.assetId.toLowerCase().contains(query) ||
+                            (r.assetSerialCode ?? '')
+                                .toLowerCase()
+                                .contains(query) ||
+                            r.category.toLowerCase().contains(query) ||
+                            r.user.toLowerCase().contains(query)
+                        : searchableColumn.toLowerCase().contains(query));
+                final matchesCampus = _selectedCampusId == null ||
+                    _campusIdForReport(r) == _selectedCampusId;
+                final matchesBuilding = _selectedBuildingId == null ||
+                    _buildingIdForReport(r) == _selectedBuildingId;
+                return matchesSearch &&
+                    matchesCampus &&
+                    matchesBuilding;
+              })
+              .toList(),
+          (r, key) {
+            switch (key) {
               case 'id':
-                return a.id.toLowerCase().compareTo(b.id.toLowerCase()) * dir;
+                return r.id.toLowerCase();
               case 'title':
-                return a.title.toLowerCase().compareTo(b.title.toLowerCase()) *
-                    dir;
+                return r.title.toLowerCase();
               case 'location':
-                return a.location
-                        .toLowerCase()
-                        .compareTo(b.location.toLowerCase()) *
-                    dir;
+                return r.location.toLowerCase();
               case 'phase':
-                return a.phase.toLowerCase().compareTo(b.phase.toLowerCase()) *
-                    dir;
+                return r.phase.toLowerCase();
               case 'timestamp':
-                return a.timestamp.compareTo(b.timestamp) * dir;
+                return r.timestamp;
               default:
-                return 0;
+                return '';
             }
-          });
-        }
+          },
+        );
 
         return RefreshIndicator(
           onRefresh: () => ReportService.fetchReports(),
@@ -264,38 +330,14 @@ onLongPress: () {
   }
 
   List<Widget> _buildFaultHeaderActions() {
-    final locationActive =
-        _selectedCampusId != null || _selectedBuildingId != null;
     return [
-      HeaderIconAction(
-        icon: Icons.place_outlined,
-        tooltip: "Filter op Ligging",
-        activeBadge: locationActive,
-        onTap: () => showLocationFilterSheet(
-          context,
-          depth: LocationDepth.building,
-          campusId: _selectedCampusId,
-          buildingId: _selectedBuildingId,
-          onChanged: (campusId, buildingId, _) => setState(() {
-            _selectedCampusId = campusId;
-            _selectedBuildingId = buildingId;
-          }),
-        ),
-      ),
-      HeaderIconAction(
-        icon: Icons.filter_alt_outlined,
-        tooltip: "Status",
-        activeBadge: _statusFilter != "Alles",
-        onTap: () => showSearchableDialog<String>(
-          context: context,
-          title: "Status",
-          initialValue: _statusFilter,
-          items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
-              .map((s) => SearchableDropdownItem(value: s, label: s))
-              .toList(),
-          onSelected: (val) =>
-              setState(() => _statusFilter = val ?? _statusFilter),
-        ),
+      FilterButton(
+        controller: _filterCtrl,
+        selected: _filterOpen,
+        onPressed: () => setState(() {
+          _filterOpen = !_filterOpen;
+          _sortOpen = false;
+        }),
       ),
       if (UserSession.can('faults.manage')) ...[
         SelectionExitAction<String>(
@@ -303,8 +345,25 @@ onLongPress: () {
           onExit: () => setState(() => _selection.exit()),
         ),
       ],
+      SortButton(
+        controller: _sortCtrl,
+        selected: _sortOpen,
+        onPressed: () => setState(() {
+          _sortOpen = !_sortOpen;
+          _filterOpen = false;
+        }),
+      ),
       ColumnVisibilityButton(controller: _colVis, iconOnly: true),
     ];
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   Future<void> _bulkDeleteFaults(BuildContext context, Set<String> ids) async {

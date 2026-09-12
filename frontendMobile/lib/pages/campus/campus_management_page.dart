@@ -6,6 +6,7 @@ import '../../models/campus.dart';
 import 'add_campus_page.dart';
 import 'campus_detail_page.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
 import '../../widgets/column_visibility.dart';
@@ -21,7 +22,8 @@ class CampusManagementPage extends StatefulWidget {
 
 class _CampusManagementPageState extends State<CampusManagementPage> {
   final TextEditingController _searchController = TextEditingController();
-  final SortController _sortCtrl = SortController();
+  final MultiSortController _sortCtrl =
+      MultiSortController('campuses', ['name', 'address', 'buildings']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('campuses', [
     const ColumnDef(key: 'name', label: 'Naam'),
@@ -30,10 +32,14 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
   ]);
   final SelectionController<int> _selection = SelectionController<int>();
   String _query = "";
+  bool _sortOpen = false;
 
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
     CampusService.fetchCampuses();
     _searchController.addListener(() {
       setState(() {
@@ -90,6 +96,12 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
     }).toList();
   }
 
+  void _closePanels() {
+    if (_sortOpen) {
+      setState(() => _sortOpen = false);
+    }
+  }
+
   Future<void> _bulkDeleteCampuses(BuildContext context, Set<int> ids) async {
     int ok = 0;
     int fail = 0;
@@ -142,31 +154,25 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
             );
           }
 
-          final filtered = campuses
+          final filtered = _sortCtrl.apply(
+          campuses
               .where((c) =>
                   c.name.toLowerCase().contains(_query) ||
                   c.address.toLowerCase().contains(_query))
-              .toList();
-
-          if (_sortCtrl.isActive) {
-            filtered.sort((a, b) {
-              final dir = _sortCtrl.direction;
-              switch (_sortCtrl.sortKey) {
-                case 'name':
-                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
-                      dir;
-                case 'address':
-                  return a.address
-                          .toLowerCase()
-                          .compareTo(b.address.toLowerCase()) *
-                      dir;
-                case 'buildings':
-                  return a.buildings.length.compareTo(b.buildings.length) * dir;
-                default:
-                  return 0;
-              }
-            });
-          }
+              .toList(),
+          (c, key) {
+            switch (key) {
+              case 'name':
+                return c.name.toLowerCase();
+              case 'address':
+                return c.address.toLowerCase();
+              case 'buildings':
+                return c.buildings.length;
+              default:
+                return '';
+            }
+          },
+        );
 
           return Column(
             children: [
@@ -181,11 +187,25 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                       onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
+                  SortButton(
+                    controller: _sortCtrl,
+                    selected: _sortOpen,
+                    onPressed: () => setState(() => _sortOpen = !_sortOpen),
+                  ),
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
+              if (_sortOpen)
+                SortPanel(
+                  controller: _sortCtrl,
+                  columns: _colVis.allColumns,
+                  onChanged: () => setState(() {}),
+                ),
               Expanded(
-                child: RefreshIndicator(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _closePanels,
+                  child: RefreshIndicator(
                   onRefresh: () => CampusService.fetchCampuses(),
                   color: AppColors.refreshSpinner,
                   child: CustomScrollView(
@@ -261,6 +281,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
                       const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
                     ],
                   ),
+                ),
                 ),
               ),
             ],

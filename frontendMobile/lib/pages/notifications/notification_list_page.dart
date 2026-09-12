@@ -8,6 +8,7 @@ import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 import 'notification_preferences_page.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 
 class NotificationListPage extends StatefulWidget {
@@ -23,7 +24,9 @@ class _NotificationListPageState extends State<NotificationListPage> {
   int _page = 1;
   bool _hasMore = true;
   String _filterType = '';
-  final SortController _sortCtrl = SortController();
+  bool _sortOpen = false;
+  final MultiSortController _sortCtrl =
+      MultiSortController('notifications', ['type', 'title', 'message', 'date']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('notifications', [
     const ColumnDef(key: 'type', label: 'Tipe'),
@@ -36,6 +39,9 @@ class _NotificationListPageState extends State<NotificationListPage> {
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() => _applySort());
+    });
     _loadNotifications();
     _scrollController.addListener(_onScroll);
   }
@@ -56,6 +62,23 @@ class _NotificationListPageState extends State<NotificationListPage> {
     }
   }
 
+  void _applySort() {
+    _notifications = _sortCtrl.apply(_notifications, (n, key) {
+      switch (key) {
+        case 'title':
+          return n.title.toLowerCase();
+        case 'type':
+          return n.notificationType.toLowerCase();
+        case 'message':
+          return n.message.toLowerCase();
+        case 'date':
+          return DateTime.tryParse(n.createdAt) ?? DateTime(0);
+        default:
+          return '';
+      }
+    });
+  }
+
   Future<void> _loadNotifications() async {
     setState(() => _loading = true);
     final items = await NotificationService.fetchAll(
@@ -68,29 +91,9 @@ class _NotificationListPageState extends State<NotificationListPage> {
       } else {
         _notifications.addAll(items);
       }
-      if (_sortCtrl.isActive) {
-        _notifications.sort((a, b) {
-          final dir = _sortCtrl.direction;
-          switch (_sortCtrl.sortKey) {
-            case 'title':
-              return a.title.toLowerCase().compareTo(b.title.toLowerCase()) *
-                  dir;
-            case 'type':
-              return a.notificationType
-                      .toLowerCase()
-                      .compareTo(b.notificationType.toLowerCase()) *
-                  dir;
-            case 'date':
-              final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
-              final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
-              return da.compareTo(db) * dir;
-            default:
-              return 0;
-          }
-        });
-      }
       _hasMore = items.length >= 20;
       _loading = false;
+      _applySort();
     });
   }
 
@@ -272,12 +275,28 @@ class _NotificationListPageState extends State<NotificationListPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                SortButton(
+                  controller: _sortCtrl,
+                  selected: _sortOpen,
+                  onPressed: () =>
+                      setState(() => _sortOpen = !_sortOpen),
+                ),
+                const SizedBox(width: 4),
                 ColumnVisibilityButton(controller: _colVis),
               ],
             ),
           ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(_applySort),
+            ),
           Expanded(
-            child: _loading && _notifications.isEmpty
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: _loading && _notifications.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _notifications.isEmpty
                     ? const Center(
@@ -363,10 +382,17 @@ class _NotificationListPageState extends State<NotificationListPage> {
                             );
                           },
                         ),
-                      ),
+                ),
+                ),
           ),
         ],
       ),
     );
+  }
+
+  void _closePanels() {
+    if (_sortOpen) {
+      setState(() => _sortOpen = false);
+    }
   }
 }

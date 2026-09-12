@@ -4,13 +4,15 @@ import '../../core/app_colors.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
+import '../../models/room.dart';
 import '../../widgets/fixed_page_header.dart';
-import '../../widgets/header_action_button.dart';
-import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import 'add_building_page.dart';
 import 'building_detail_page.dart';
 import '../rooms/manage_rooms_page.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -32,7 +34,11 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   Campus? _selectedCampus;
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
-  final SortController _sortCtrl = SortController();
+  String _columnFilter = 'all';
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('buildings');
+  final MultiSortController _sortCtrl = MultiSortController('buildings', ['name', 'rooms', 'address']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('buildings', [
     const ColumnDef(key: 'name', label: 'Naam'),
@@ -44,6 +50,20 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      if (widget.initialCampus == null && _filterCtrl.campusId != null) {
+        final campuses = CampusService.campusesNotifier.value;
+        _selectedCampus =
+            campuses.where((c) => c.id == _filterCtrl.campusId).firstOrNull;
+      }
+      setState(() {});
+    });
     if (widget.initialCampus != null) {
       _selectedCampus = widget.initialCampus;
     }
@@ -51,6 +71,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
       CampusService.fetchCampuses();
     }
     _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
       setState(() {
         _query = _searchController.text.toLowerCase();
       });
@@ -106,6 +127,15 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
     }).toList();
   }
 
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
+  }
+
   Future<void> _bulkDeleteBuildings(BuildContext context, Set<int> ids) async {
     int ok = 0;
     int fail = 0;
@@ -144,9 +174,18 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
 
           // Re-resolve die gekose kampus teen die vars `campuses`-lys (nie die
           // ou objekverwysing nie) sodat byvoeg/wysig/verwyder dadelik wys.
-          Campus? selectedCampus = _selectedCampus != null
-              ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
-              : null;
+          // 'n Gehoude terreinfilter word eers toegepas wanneer geen kampus via
+          // navigasie (initialCampus) ingebring is nie.
+          Campus? selectedCampus;
+          if (_selectedCampus != null) {
+            selectedCampus = campuses
+                .where((c) => c.id == _selectedCampus!.id)
+                .firstOrNull;
+          } else if (_filterCtrl.campusId != null) {
+            selectedCampus = campuses
+                .where((c) => c.id == _filterCtrl.campusId)
+                .firstOrNull;
+          }
           _selectedCampus = selectedCampus;
 
           // Default wys alle geboue oor alle terreine (plat lys), sodat die lys
@@ -154,29 +193,42 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
           final buildings = selectedCampus?.buildings ??
               campuses.expand((c) => c.buildings).toList();
 
-          final filtered = buildings
-              .where((b) =>
-                  _query.isEmpty ||
-                  b.name.toLowerCase().contains(_query) ||
-                  b.address.toLowerCase().contains(_query))
-              .toList();
-
-          if (_sortCtrl.isActive) {
-            filtered.sort((a, b) {
-              final dir = _sortCtrl.direction;
-              switch (_sortCtrl.sortKey) {
-                case 'name':
-                  return a.name.toLowerCase().compareTo(b.name.toLowerCase()) *
-                      dir;
-                case 'rooms':
-                  return (a.rooms?.length ?? 0)
-                          .compareTo(b.rooms?.length ?? 0) *
-                      dir;
-                default:
-                  return 0;
-              }
-            });
-          }
+          final filtered = _sortCtrl.apply(
+              buildings
+                  .where((b) {
+                    if (_query.isEmpty) return true;
+                    final searchable = _columnFilter == 'all'
+                        ? [
+                            b.name,
+                            b.address,
+                            b.type,
+                            (b.rooms ?? const <Room>[])
+                                .map((r) => r.name)
+                                .join(' '),
+                            b.id.toString(),
+                          ].join(' ')
+                        : switch (_columnFilter) {
+                            'name' => b.name,
+                            'rooms' => (b.rooms ?? const <Room>[])
+                                .map((r) => r.name)
+                                .join(' '),
+                            'address' => b.address,
+                            _ => '',
+                          };
+                    return searchable.toLowerCase().contains(_query);
+                  })
+                  .toList(),
+              (b, key) {
+                switch (key) {
+                  case 'name':
+                    return b.name.toLowerCase();
+                  case 'rooms':
+                    return b.rooms?.length ?? 0;
+                  default:
+                    return '';
+                }
+              },
+            );
 
           return Column(
             children: [
@@ -185,22 +237,14 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 hintText: "Soek geboue...",
                 onChanged: (_) => setState(() {}),
                 actions: [
-                  HeaderIconAction(
-                    icon: Icons.place_outlined,
-                    tooltip: "Filter op Terrein",
-                    activeBadge: _selectedCampus != null,
-                    onTap: () => showLocationFilterSheet(
-                      context,
-                      depth: LocationDepth.campus,
-                      campusId: _selectedCampus?.id,
-                      onChanged: (campusId, _, __) {
-                        setState(() {
-                          _selectedCampus = campuses
-                              .where((c) => c.id == campusId)
-                              .firstOrNull;
-                        });
-                      },
-                    ),
+                  FilterButton(
+                    controller: _filterCtrl,
+                    selected: _filterOpen,
+                    activeOverride: _selectedCampus != null,
+                    onPressed: () => setState(() {
+                      _filterOpen = !_filterOpen;
+                      _sortOpen = false;
+                    }),
                   ),
                   if (UserSession.can('buildings.manage')) ...[
                     SelectionExitAction<int>(
@@ -208,11 +252,54 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                       onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
+                  SortButton(
+                    controller: _sortCtrl,
+                    selected: _sortOpen,
+                    onPressed: () => setState(() {
+                      _sortOpen = !_sortOpen;
+                      _filterOpen = false;
+                    }),
+                  ),
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
+              if (_filterOpen)
+                FilterPanel(
+                  controller: _filterCtrl,
+                  depth: LocationDepth.campus,
+                  searchController: _searchController,
+                  searchHint: "Soek geboue...",
+                  initialCampusId: _selectedCampus?.id,
+                  onLocationChanged: (campusId, _, __) => setState(() {
+                    _selectedCampus = campuses
+                        .where((c) => c.id == campusId)
+                        .firstOrNull;
+                  }),
+                  columnItems: [
+                    const SearchableDropdownItem(
+                        value: 'all', label: 'Alle kolomme'),
+                    ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                        value: c.key, label: c.label)),
+                  ],
+                  columnValue: _columnFilter,
+                  onColumnChanged: (v) => setState(() => _columnFilter = v),
+                  onReset: () => setState(() {
+                    _selectedCampus = null;
+                    _columnFilter = 'all';
+                  }),
+                  onClose: () => setState(() => _filterOpen = false),
+                ),
+              if (_sortOpen)
+                SortPanel(
+                  controller: _sortCtrl,
+                  columns: _colVis.allColumns,
+                  onChanged: () => setState(() {}),
+                ),
               Expanded(
-                child: filtered.isEmpty
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _closePanels,
+                  child: filtered.isEmpty
                     ? const Center(
                         child: Text("Geen geboue gevind nie.",
                             style: TextStyle(color: Colors.grey)))
@@ -290,6 +377,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                           },
                         ),
                       ),
+                ),
               ),
             ],
           );

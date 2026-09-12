@@ -4,12 +4,8 @@ import './styles/App.css';
 import './logoutInterceptor';
 import { clearAuthSession, isSessionExpired, markUserActivity } from './authSession';
 import { useCurrentUser } from './hooks/useCurrentUser';
-import { AnalyticsProvider, useAnalytics } from './context/AnalyticsContext';
-import { IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import DragHandle from './components/DragHandle';
-import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
 import LoginPage from './pages/LoginPage';
 import DownloadPage from './pages/DownloadPage';
@@ -17,7 +13,6 @@ import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
-import PredictionsPage from './pages/PredictionsPage';
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
@@ -32,6 +27,10 @@ import AIDraftNewPage from './pages/AIDraftNewPage';
 import AIDraftDetailPage from './pages/AIDraftDetailPage';
 import { ToastProvider } from './components/Toast/ToastContext';
 import { NotificationProvider } from './components/Notifications/NotificationContext';
+
+// Voorspellings-blad word net gelaai wanneer die gebruiker dit oopmaak
+// (grafieke/Chart.js word apart gebundel en nie by die hoofkelder gevoeg nie).
+const PredictionsPage = React.lazy(() => import('./pages/PredictionsPage'));
 
 /* =========================================================
     1. DIE BESKERMDE ROETE-MEGANISME
@@ -83,83 +82,16 @@ function RightProtectedRoute({ requiredRight, children }) {
 /* =========================================================
    1c. LAYOUT-VERPAKKER
    Wrappies elke beskermde bladsy in die nuwe layout:
-   Sidebar + Navbar + (Content || Content + AnalyticsPanel).
+   Sidebar + Navbar + Content.
    ========================================================= */
 function AppContent() {
   const location = useLocation();
   const logout = useLogout();
-  const { isOpen, toggle, close } = useAnalytics();
-
-  const hideAnalytics = ['/users/roles', '/users/rights'].some(
-    p => location.pathname === p || location.pathname === p + '/'
-  );
-
-  useEffect(() => {
-    if (hideAnalytics && isOpen) close();
-  }, [hideAnalytics, isOpen, close, location.pathname]);
-
-  // Position the analytics panel below the navbar + controls so the
-  // controls bar never moves/shifts when the panel toggles. Only the
-  // panel's top offset is updated — controls CSS stays untouched.
-  useEffect(() => {
-    const updatePanelTop = () => {
-      const navbar = document.querySelector('.navbar');
-      const navbarH = navbar ? navbar.offsetHeight : 0;
-      // Controls is the first sticky bar inside .main; may be absent on /dashboard etc.
-      const controls = document.querySelector('.main .controls--sticky');
-      const tabs = document.querySelector('.main .fault-tabs');
-      let headerH = navbarH;
-      if (tabs && controls) {
-        // When both exist, tabs sits above controls (tabs top 0, controls top 42px)
-        // Combined height is tabs + controls. Use bounding rect bottom of controls.
-        const controlsBottom = controls.getBoundingClientRect().bottom;
-        const navbarTop = navbar ? navbar.getBoundingClientRect().top : 0;
-        headerH = Math.round(controlsBottom - navbarTop);
-      } else if (controls) {
-        const controlsBottom = controls.getBoundingClientRect().bottom;
-        const navbarTop = navbar ? navbar.getBoundingClientRect().top : 0;
-        // If controls is visible, its bottom relative to viewport top gives total header
-        // but when scrolled it may be sticky; use offsetHeight fallback if bottom is too large
-        // Prefer measuring offsetHeight + navbarH for initial load
-        if (controlsBottom > 0 && controlsBottom < 400) {
-          headerH = Math.round(controlsBottom - navbarTop);
-        } else {
-          headerH = navbarH + controls.offsetHeight + 16; // 16 = margin-bottom
-        }
-      } else if (tabs) {
-        headerH = navbarH + tabs.offsetHeight;
-      } else {
-        headerH = navbarH + 8; // small gap when no controls
-      }
-      // Clamp to sensible range
-      headerH = Math.max(navbarH, Math.min(headerH, 300));
-      document.documentElement.style.setProperty('--analytics-panel-top', `${headerH}px`);
-    };
-
-    updatePanelTop();
-    // Re-measure on route change, resize, and when main content mutates (controls mounts late)
-    window.addEventListener('resize', updatePanelTop);
-    const ro = new ResizeObserver(updatePanelTop);
-    const navbarEl = document.querySelector('.navbar');
-    const mainEl = document.querySelector('.main');
-    if (navbarEl) ro.observe(navbarEl);
-    if (mainEl) ro.observe(mainEl);
-    // Also observe controls if it exists now; poll for late mount
-    const interval = setInterval(updatePanelTop, 500);
-    const timeout = setTimeout(() => clearInterval(interval), 5000);
-
-    return () => {
-      window.removeEventListener('resize', updatePanelTop);
-      ro.disconnect();
-      clearInterval(interval);
-      clearTimeout(timeout);
-    };
-  }, [location.pathname, isOpen]);
 
   return (
     <div className="app-body">
       <Sidebar currentPath={location.pathname} onLogout={logout} />
-      <div className={`app-content${isOpen && !hideAnalytics ? ' panel-open' : ''}`}>
+      <div className="app-content">
         <Navbar />
         <div className="main">
           <Routes>
@@ -175,7 +107,7 @@ function AppContent() {
             <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
             <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
             <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
-            <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
+            <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><React.Suspense fallback={<div className="main"><div className="content">Laai voorspellings...</div></div>}><PredictionsPage /></React.Suspense></RightProtectedRoute>} />
             <Route path="/ai-drafts" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftQueuePage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/new" element={<RightProtectedRoute requiredRight="ai.use"><JobTabs><AIDraftNewPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/:id" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftDetailPage /></JobTabs></RightProtectedRoute>} />
@@ -183,15 +115,8 @@ function AppContent() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
-        {!hideAnalytics && <DragHandle />}
-        {!hideAnalytics && <AnalyticsPanel />}
-        </div>
-        {!hideAnalytics && (
-          <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
-            {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
-          </button>
-        )}
       </div>
+    </div>
   );
 }
 
@@ -209,13 +134,11 @@ function AppShell() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/*" element={
-          <AnalyticsProvider>
-            <ToastProvider>
-              <NotificationProvider>
-                <AppContent />
-              </NotificationProvider>
-            </ToastProvider>
-          </AnalyticsProvider>
+          <ToastProvider>
+            <NotificationProvider>
+              <AppContent />
+            </NotificationProvider>
+          </ToastProvider>
         } />
       </Routes>
     </div>

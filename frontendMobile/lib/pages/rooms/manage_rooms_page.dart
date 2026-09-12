@@ -8,9 +8,10 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../../widgets/fixed_page_header.dart';
-import '../../widgets/header_action_button.dart';
-import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../../widgets/card_data_row.dart';
@@ -41,7 +42,11 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   Building? _selectedBuilding;
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
-  final SortController _sortCtrl = SortController();
+  String _columnFilter = 'all';
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('rooms');
+  final MultiSortController _sortCtrl = MultiSortController('rooms', ['name', 'type', 'capacity']);
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('rooms', [
     const ColumnDef(key: 'name', label: 'Naam'),
@@ -53,6 +58,26 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      if (widget.initialCampus == null && _filterCtrl.campusId != null) {
+        final campuses = CampusService.campusesNotifier.value;
+        final campus =
+            campuses.where((c) => c.id == _filterCtrl.campusId).firstOrNull;
+        _selectedCampus = campus;
+        if (campus != null) {
+          _selectedBuilding = campus.buildings
+              .where((b) => b.id == _filterCtrl.buildingId)
+              .firstOrNull;
+        }
+      }
+      setState(() {});
+    });
     if (widget.initialCampus != null) {
       _selectedCampus = widget.initialCampus;
     }
@@ -63,6 +88,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
       CampusService.fetchCampuses();
     }
     _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
       setState(() {
         _query = _searchController.text.toLowerCase();
       });
@@ -123,6 +149,15 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
       }
       return Expanded(flex: flex, child: child);
     }).toList();
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   Future<void> _bulkDeleteRooms(BuildContext context, Set<int> ids) async {
@@ -271,9 +306,15 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
 
           // Re-resolve die gekose kampus/gebou teen die vars `campuses`-lys (nie
           // die ou objekverwysings nie) sodat byvoeg/wysig/verwyder dadelik wys.
+          // 'n Gehoude filter word eers toegepas wanneer niks via navigasie
+          // (initialCampus/initialBuilding) ingebring is nie.
           Campus? selectedCampus = _selectedCampus != null
               ? campuses.where((c) => c.id == _selectedCampus!.id).firstOrNull
-              : null;
+              : (widget.initialCampus == null && _filterCtrl.campusId != null
+                  ? campuses
+                      .where((c) => c.id == _filterCtrl.campusId)
+                      .firstOrNull
+                  : null);
           _selectedCampus = selectedCampus;
 
           Building? selectedBuilding;
@@ -281,6 +322,17 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             for (final c in campuses) {
               final match = c.buildings
                   .where((b) => b.id == _selectedBuilding!.id)
+                  .firstOrNull;
+              if (match != null) {
+                selectedBuilding = match;
+                break;
+              }
+            }
+          } else if (widget.initialBuilding == null &&
+              _filterCtrl.buildingId != null) {
+            for (final c in campuses) {
+              final match = c.buildings
+                  .where((b) => b.id == _filterCtrl.buildingId)
                   .firstOrNull;
               if (match != null) {
                 selectedBuilding = match;
@@ -297,26 +349,14 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                 hintText: "Soek lokale...",
                 onChanged: (_) => setState(() {}),
                 actions: [
-                  HeaderIconAction(
-                    icon: Icons.place_outlined,
-                    tooltip: "Filter op Ligging",
-                    activeBadge: _selectedBuilding != null,
-                    onTap: () => showLocationFilterSheet(
-                      context,
-                      depth: LocationDepth.building,
-                      campusId: _selectedCampus?.id,
-                      buildingId: _selectedBuilding?.id,
-                      onChanged: (campusId, buildingId, _) {
-                        setState(() {
-                          _selectedCampus = campuses
-                              .where((c) => c.id == campusId)
-                              .firstOrNull;
-                          _selectedBuilding = _selectedCampus?.buildings
-                              .where((b) => b.id == buildingId)
-                              .firstOrNull;
-                        });
-                      },
-                    ),
+                  FilterButton(
+                    controller: _filterCtrl,
+                    selected: _filterOpen,
+                    activeOverride: _selectedBuilding != null,
+                    onPressed: () => setState(() {
+                      _filterOpen = !_filterOpen;
+                      _sortOpen = false;
+                    }),
                   ),
                   if (UserSession.can('rooms.manage')) ...[
                     SelectionExitAction<int>(
@@ -324,11 +364,60 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       onExit: () => setState(() => _selection.exit()),
                     ),
                   ],
+                  SortButton(
+                    controller: _sortCtrl,
+                    selected: _sortOpen,
+                    onPressed: () => setState(() {
+                      _sortOpen = !_sortOpen;
+                      _filterOpen = false;
+                    }),
+                  ),
                   ColumnVisibilityButton(controller: _colVis, iconOnly: true),
                 ],
               ),
+              if (_filterOpen)
+                FilterPanel(
+                  controller: _filterCtrl,
+                  depth: LocationDepth.building,
+                  searchController: _searchController,
+                  searchHint: "Soek lokale...",
+                  initialCampusId: _selectedCampus?.id,
+                  initialBuildingId: _selectedBuilding?.id,
+                  onLocationChanged: (campusId, buildingId, _) =>
+                      setState(() {
+                    _selectedCampus = campuses
+                        .where((c) => c.id == campusId)
+                        .firstOrNull;
+                    _selectedBuilding = _selectedCampus?.buildings
+                        .where((b) => b.id == buildingId)
+                        .firstOrNull;
+                  }),
+                  columnItems: [
+                    const SearchableDropdownItem(
+                        value: 'all', label: 'Alle kolomme'),
+                    ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                        value: c.key, label: c.label)),
+                  ],
+                  columnValue: _columnFilter,
+                  onColumnChanged: (v) => setState(() => _columnFilter = v),
+                  onReset: () => setState(() {
+                    _selectedCampus = null;
+                    _selectedBuilding = null;
+                    _columnFilter = 'all';
+                  }),
+                  onClose: () => setState(() => _filterOpen = false),
+                ),
+              if (_sortOpen)
+                SortPanel(
+                  controller: _sortCtrl,
+                  columns: _colVis.allColumns,
+                  onChanged: () => setState(() {}),
+                ),
               Expanded(
-                child: Padding(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _closePanels,
+                  child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Builder(builder: (context) {
                     final baseRooms = _selectedBuilding != null
@@ -337,35 +426,40 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                             .expand((c) => c.buildings)
                             .expand((b) => b.rooms ?? const <Room>[])
                             .toList();
-                    final filtered = baseRooms
-                        .where((r) =>
-                            _query.isEmpty ||
-                            r.name.toLowerCase().contains(_query) ||
-                            r.type.toLowerCase().contains(_query))
-                        .toList();
-                    if (_sortCtrl.isActive) {
-                      filtered.sort((a, b) {
-                        final dir = _sortCtrl.direction;
-                        switch (_sortCtrl.sortKey) {
+                    final filtered = _sortCtrl.apply(
+                      baseRooms
+                          .where((r) {
+                            if (_query.isEmpty) return true;
+                            final searchable = _columnFilter == 'all'
+                                ? [
+                                    r.name,
+                                    r.type,
+                                    r.id.toString(),
+                                    r.capacity?.toString() ?? '',
+                                    r.roomCode ?? '',
+                                  ].join(' ')
+                                : switch (_columnFilter) {
+                                    'name' => r.name,
+                                    'type' => r.type,
+                                    'capacity' => r.capacity?.toString() ?? '',
+                                    _ => '',
+                                  };
+                            return searchable.toLowerCase().contains(_query);
+                          })
+                          .toList(),
+                      (r, key) {
+                        switch (key) {
                           case 'name':
-                            return a.name
-                                    .toLowerCase()
-                                    .compareTo(b.name.toLowerCase()) *
-                                dir;
+                            return r.name.toLowerCase();
                           case 'type':
-                            return a.type
-                                    .toLowerCase()
-                                    .compareTo(b.type.toLowerCase()) *
-                                dir;
+                            return r.type.toLowerCase();
                           case 'capacity':
-                            return (a.capacity ?? 0)
-                                    .compareTo(b.capacity ?? 0) *
-                                dir;
+                            return r.capacity ?? 0;
                           default:
-                            return 0;
+                            return '';
                         }
-                      });
-                    }
+                      },
+                    );
                     if (filtered.isEmpty) {
                       return const Center(
                           child: Text("Geen lokale geregistreer nie.",
@@ -465,6 +559,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
                       ),
                     );
                   }),
+                ),
                 ),
               ),
             ],

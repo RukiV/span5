@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
@@ -9,6 +8,8 @@ import { useMoveChildren } from '../components/Modal/useMoveChildren';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -38,7 +39,6 @@ function TerrainsPage({ embedded = false }) {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const TERRAIN_COLUMNS = [
     { key: 'id', label: 'ID Terrein', render: (t) => t.location_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (t) => t.location_name, sortKey: 'name', defaultVisible: true },
@@ -52,6 +52,10 @@ function TerrainsPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('terrains-page', TERRAIN_COLUMNS);
   const colWidths = useColumnWidths('terrains-page', TERRAIN_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: TERRAIN_COLUMNS,
+    storageKey: 'terrains-page',
+  });
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
@@ -375,7 +379,7 @@ function TerrainsPage({ embedded = false }) {
     setShowModal(true);
   };
 
-  const filteredTerrains = [...terrains]
+  const filteredTerrains = applySort([...terrains]
     .filter((terrain) => {
       const query = searchTerm.trim().toLowerCase();
       if (!query) return true;
@@ -390,22 +394,24 @@ function TerrainsPage({ embedded = false }) {
         return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
       }
       return String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'id') return (Number(a.location_id || 0) - Number(b.location_id || 0)) * dir;
-      if (sortKey === 'name') return String(a.location_name || '').localeCompare(String(b.location_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(a.location_type || '').localeCompare(String(b.location_type || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'streetnum') return String(a.location_streetnum || '').localeCompare(String(b.location_streetnum || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'streetname') return String(a.location_streetname || '').localeCompare(String(b.location_streetname || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'suburb') return String(a.location_suburb || '').localeCompare(String(b.location_suburb || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'city') return String(a.location_city || '').localeCompare(String(b.location_city || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'province') return String(a.location_province || '').localeCompare(String(b.location_province || ''), 'af', { sensitivity: 'base' }) * dir;
-      return 0;
-    });
+    }),
+    (t, key) => {
+      switch (key) {
+        case 'id': return Number(t.location_id || 0);
+        case 'name': return String(t.location_name || '');
+        case 'type': return String(t.location_type || '');
+        case 'streetnum': return String(t.location_streetnum || '');
+        case 'streetname': return String(t.location_streetname || '');
+        case 'suburb': return String(t.location_suburb || '');
+        case 'city': return String(t.location_city || '');
+        case 'province': return String(t.location_province || '');
+        case 'country': return String(t.location_country || '');
+        default: return '';
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedTerrains, goToPage } = usePagination(filteredTerrains, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, sorts, goToPage]);
   const allSelected = paginatedTerrains.length > 0 && paginatedTerrains.every((x) => selectedIds.includes(x.location_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -433,19 +439,12 @@ function TerrainsPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={[
-              { value: "all", label: "Alle kolomme" },
-              { value: "id", label: "ID" },
-              { value: "name", label: "Naam" },
-              { value: "type", label: "Tipe" },
-              { value: "streetnum", label: "Straatnommer" },
-              { value: "streetname", label: "Straatnaam" },
-            ].find((option) => option.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected?.value || "all")}
-            options={[
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={[
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
@@ -453,8 +452,18 @@ function TerrainsPage({ embedded = false }) {
               { value: "streetnum", label: "Straatnommer" },
               { value: "streetname", label: "Straatnaam" },
             ]}
-            isSearchable={false}
+            onReset={() => setSearchTerm("")}
           />
+        <SortPicker
+            columns={TERRAIN_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
         </div>
         <div className="controls-right">
           {hasRight('locations.manage') && (
@@ -467,7 +476,6 @@ function TerrainsPage({ embedded = false }) {
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker ref={colPickerRef} columns={colVis.columnDefs} visibleColumns={colVis.visibleColumns.map(c => c)} toggleColumn={colVis.toggleColumn} resetVisibility={colVis.resetVisibility} onResetWidths={colWidths.resetWidths} />
           <button className="btn-add" onClick={handleNewTerrain}>+ Nuwe Terrein</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -492,8 +500,8 @@ function TerrainsPage({ embedded = false }) {
               <input type="checkbox" checked={allSelected} onChange={toggleAll} title="Kies alles" onClick={(e) => e.stopPropagation()} />
             </th>
             {colVis.visibleColumns.map((col) => (
-              <ResizableTh key={col.key} col={col} colWidths={colWidths} className={getSortClass(col.sortKey)} onClick={() => handleSort(col.sortKey)} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
-                {col.label}{getSortIndicator(col.sortKey)}
+              <ResizableTh key={col.key} col={col} colWidths={colWidths} onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}>
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '230px' }}>Aksies</th>

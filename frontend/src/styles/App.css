@@ -24,7 +24,7 @@
 
 .app-content {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr;
   grid-template-rows: auto 1fr;
   flex: 1;
   width: 100%;
@@ -39,59 +39,6 @@
   grid-row: 2;
 }
 
-.app-content:not(.panel-open) .drag-handle {
-  display: none;
-}
-
-.app-content:not(.panel-open) .analytics-inline-panel {
-  display: none;
-}
-
-.app-content.panel-open {
-  /* Keep main full-width; panel is fixed overlay below navbar+controls so
-     controls never shift/reflow when the panel toggles. */
-}
-
-.app-content.panel-open .drag-handle {
-  position: fixed;
-  top: var(--analytics-panel-top, 140px);
-  right: calc(var(--analytics-width, 33.33%));
-  height: calc(100vh - var(--analytics-panel-top, 140px));
-  width: 6px;
-  z-index: 11;
-  grid-column: auto;
-  grid-row: auto;
-}
-
-.app-content.panel-open .analytics-inline-panel {
-  position: fixed;
-  top: var(--analytics-panel-top, 140px);
-  right: 0;
-  width: var(--analytics-width, 33.33%);
-  max-width: 50%;
-  min-width: 25%;
-  height: calc(100vh - var(--analytics-panel-top, 140px));
-  height: calc(100dvh - var(--analytics-panel-top, 140px));
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-left: 1px solid #e8d8c4;
-  background: #f4f7fc;
-  z-index: 10;
-  padding: unset;
-  margin: unset;
-  grid-column: auto;
-  grid-row: auto;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-inner.panel-open .drag-handle {
-  flex: 0 0 6px;
-  max-width: 6px;
-  display: block;
-}
-
 :root {
     --wit: #ffffff;
     --bruin: #935e28;
@@ -99,9 +46,6 @@
     --blou-lig: #1a2e54;
     --grys-agtergrond: #f8fafc;
     --border: #e2e8f0;
-    /* Offset for analytics panel so it starts below navbar + controls.
-       Updated at runtime from AppContent via JS (reads actual controls height). */
-    --analytics-panel-top: 140px;
 }
 
 
@@ -272,6 +216,30 @@
     box-sizing: border-box;
 }
 
+.controls-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: #fff;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.controls-checkbox input[type="checkbox"] {
+    margin: 0;
+    width: 15px;
+    height: 15px;
+    accent-color: #935e28;
+    cursor: pointer;
+}
+
 .controls .btn-add,
 .controls .colpick-btn {
     height: 40px;
@@ -350,6 +318,15 @@
 .react-select__indicator--is-focused,
 .select__indicator--is-focused {
     color: #7a4e21 !important;
+}
+
+/* ---------- Dropdown menus: verleng met inhoud (i.p.v. 'n klein skuifwiel) ---------- */
+/* react-select se verstek doodloop tot 300px en maak dit 'n skuifwiel. Deur die
+   maksimum te vervang met 60% van die skerm verleng die lys met sy opsies en
+   skuif eers daarna — eenderse gedrag as die mobiele weergawe. */
+.react-select__menu-list,
+.select__menu-list {
+    max-height: 60vh !important;
 }
 
 /* ---------- Alle invulbare elemente: bruin fokus (normale detek bly grys/swart) ---------- */
@@ -983,30 +960,6 @@ select:not([class*="cascade"]):focus {
 .field-invalid .css-13cymwt-control {
   border-color: #dc3545 !important;
   animation: shake 0.4s ease;
-}
-
-.analytics-fab {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #935e28;
-  color: #fff;
-  border: none;
-  box-shadow: 0 4px 12px rgba(147, 94, 40, 0.4);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-  transition: background 0.2s, transform 0.2s;
-}
-
-.analytics-fab:hover {
-  background: #7a4d20;
-  transform: scale(1.05);
 }
 
 /* ── Android-app-aflaai-bladsy (openbaar) ────────────────────────────── */

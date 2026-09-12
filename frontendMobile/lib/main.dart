@@ -242,8 +242,28 @@ class _StartupGateState extends State<StartupGate> {
   Future<void> _check() async {
     final storedUrl = await ApiClient.getStoredServerUrl();
     if (!mounted) return;
+
+    var needsSetup = storedUrl == null || storedUrl.isEmpty;
+
+    if (!needsSetup) {
+      // Herstel die gestoorde sessie (indien enige) sodat die gebruiker nie
+      // weer moet aanmeld net omdat hy die app oopmaak nie.
+      final hasSession = await ApiClient().restoreSession();
+      if (!mounted) return;
+
+      setState(() {
+        _needsSetup = needsSetup;
+        _ready = true;
+      });
+
+      if (hasSession) {
+        Navigator.of(context).pushReplacementNamed('/home');
+        return;
+      }
+    }
+
     setState(() {
-      _needsSetup = storedUrl == null || storedUrl.isEmpty;
+      _needsSetup = needsSetup;
       _ready = true;
     });
   }

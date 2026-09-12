@@ -99,9 +99,10 @@ class _LoginPageState extends State<LoginPage> {
 
         if (response.statusCode == 200) {
           final token = response.data['access_token'];
+          final refreshToken = response.data['refresh_token'];
 
           // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
-          await ApiClient().saveToken(token);
+          await ApiClient().saveToken(token, refreshToken: refreshToken);
 
           await _fetchProfileAndNavigate();
           return;
@@ -246,7 +247,8 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         final token = response.data['access_token'];
-        await ApiClient().saveToken(token);
+        final refreshToken = response.data['refresh_token'];
+        await ApiClient().saveToken(token, refreshToken: refreshToken);
         await _fetchProfileAndNavigate();
       } else {
         setState(() => _isLoading = false);

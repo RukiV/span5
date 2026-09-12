@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { IoPencil } from 'react-icons/io5';
+import { IoPencil, IoTrashOutline } from 'react-icons/io5';
 import { useMsal } from '@azure/msal-react';
 import '../styles/App.css';
 import '../styles/Dashboard.css';
 import '../styles/Calendar.css';
+import Modal from '../components/Modal/Modal';
 import { authAPI, apiClient, auditsAPI, workOrdersAPI, ticketsAPI, calendarEventsAPI } from '../services/api';
 import { analyticsAPI } from '../services/analyticsAPI';
 import { loginRequest } from '../services/msalConfig';
@@ -44,47 +45,60 @@ const formatDateKey = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const parseTimeFromText = (text) => {
+const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const parseClock = (matched) => {
+  const hourMin = matched.match(/(\d{1,2})(?::(\d{2}))?/);
+  let hours = hourMin ? parseInt(hourMin[1], 10) : 8;
+  const minutes = hourMin && hourMin[2] ? parseInt(hourMin[2], 10) : 0;
+  const suffix = (matched.match(/(am|pm|vm|nm)$/i) || [])[1];
+  if (suffix === 'am' || suffix === 'vm') {
+    hours = hours === 12 ? 0 : hours;
+  } else if (suffix === 'pm' || suffix === 'nm') {
+    hours = hours === 12 ? 12 : hours + 12;
+  }
+  return { hours, minutes };
+};
+
+export const parseTimeFromText = (text) => {
   let cleanTitle = String(text || '').trim();
   let hours = 8;
   let minutes = 0;
+  let endHours = null;
+  let endMinutes = null;
+
+  const endMatch = cleanTitle.match(
+    /(?:\b(?:tot|until|bis)\s+|\s*[-–—]\s*)(\d{1,2}(?::\d{2})?\s*(?:am|pm|vm|nm)?)/i
+  );
+  if (endMatch) {
+    ({ hours: endHours, minutes: endMinutes } = parseClock(endMatch[1]));
+    cleanTitle = cleanTitle.replace(new RegExp(escapeRegExp(endMatch[0]), 'i'), '');
+  }
 
   const lower = cleanTitle.toLowerCase();
   const noonMatch = lower.match(/\bnoon\b|(?:om\s+|at\s+)?(?:die\s+)?\bmiddag\b/);
 
   if (noonMatch) {
-    hours = 12;
-    minutes = 0;
+    ({ hours, minutes } = parseClock('12:00'));
     cleanTitle = cleanTitle.replace(/\bnoon\b|(?:om\s+|at\s+)?(?:die\s+)?\bmiddag\b/gi, '');
   } else {
     const timeMatch = lower.match(
       /(?:om|at)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|vm|nm)?|\d{1,2}(?::\d{2})\s*(?:am|pm|vm|nm)?|\d{1,2}\s*(?:am|pm|vm|nm)/
     );
     if (timeMatch) {
-      const matched = timeMatch[0];
-      const hourMin = matched.match(/(\d{1,2})(?::(\d{2}))?/);
-      let parsedHours = hourMin ? parseInt(hourMin[1], 10) : 8;
-      minutes = hourMin && hourMin[2] ? parseInt(hourMin[2], 10) : 0;
-      const suffix = (matched.match(/(am|pm|vm|nm)$/i) || [])[1];
-      if (suffix === 'am' || suffix === 'vm') {
-        hours = parsedHours === 12 ? 0 : parsedHours;
-      } else if (suffix === 'pm' || suffix === 'nm') {
-        hours = parsedHours === 12 ? 12 : parsedHours + 12;
-      } else {
-        hours = parsedHours;
-      }
-      cleanTitle = cleanTitle.replace(new RegExp(matched.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), '');
+      ({ hours, minutes } = parseClock(timeMatch[0]));
+      cleanTitle = cleanTitle.replace(new RegExp(escapeRegExp(timeMatch[0]), 'i'), '');
     }
   }
 
   cleanTitle = cleanTitle
     .replace(/\s+/g, ' ')
-    .replace(/^(om|at|die)\s+/i, '')
-    .replace(/\s+(om|at|die)\s*$/i, '')
+    .replace(/^(om|at|die|tot|until|bis)\s+/i, '')
+    .replace(/\s+(om|at|die|tot|until|bis)\s*$/i, '')
     .replace(/^[:;\s,.\-—!]+|[:;\s,.\-—!]+$/g, '')
     .trim();
 
-  return { cleanTitle, hours, minutes };
+  return { cleanTitle, hours, minutes, endHours, endMinutes };
 };
 
 const SOURCE_ICONS = {
@@ -138,7 +152,7 @@ const DashboardPage = () => {
   const [syncingEventId, setSyncingEventId] = useState(null);
   const [quickTaskText, setQuickTaskText] = useState('');
   const [editingEvent, setEditingEvent] = useState(null);
-  const formRef = useRef(null);
+  const [showEventModal, setShowEventModal] = useState(false);
 
   const formatActivityTime = (value) => {
     if (!value) return 'Onlangs';
@@ -317,7 +331,7 @@ const DashboardPage = () => {
       return;
     }
 
-    const { cleanTitle, hours, minutes } = parseTimeFromText(text);
+    const { cleanTitle, hours, minutes, endHours, endMinutes } = parseTimeFromText(text);
     if (!cleanTitle) {
       showToast({ type: 'warning', title: 'Vul asseblief ’n taak beskrywing in.' });
       return;
@@ -326,7 +340,14 @@ const DashboardPage = () => {
     const start = new Date(selectedDate);
     start.setHours(hours, minutes, 0, 0);
     const end = new Date(start);
-    end.setHours(end.getHours() + 1);
+    if (endHours != null) {
+      end.setHours(endHours, endMinutes ?? 0, 0, 0);
+      if (end <= start) {
+        end.setDate(end.getDate() + 1);
+      }
+    } else {
+      end.setHours(end.getHours() + 1);
+    }
 
     setIsSubmitting(true);
     try {
@@ -371,14 +392,19 @@ const DashboardPage = () => {
       reminder_minutes: event.reminder_minutes || 60,
     });
     setEditingEvent(event);
-    if (formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    setShowEventModal(true);
   };
 
   const handleCancelEdit = () => {
     setEditingEvent(null);
     resetNewEvent();
+    setShowEventModal(false);
+  };
+
+  const handleOpenCreateModal = () => {
+    resetNewEvent();
+    applySelectedDateToForm(selectedDate);
+    setShowEventModal(true);
   };
 
   const getMicrosoftAccessToken = async () => {
@@ -703,6 +729,7 @@ const DashboardPage = () => {
 
       setEditingEvent(null);
       resetNewEvent();
+      setShowEventModal(false);
     } catch (err) {
       console.error("HANDLE Error:", err);
       showToast({ type: 'error', title: editingEvent ? 'Fout tydens wysiging van afspraak.' : 'Fout tydens skep van afspraak.' });
@@ -904,6 +931,15 @@ const DashboardPage = () => {
                     >
                       Vandag
                     </button>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="calendar-create-btn"
+                        onClick={handleOpenCreateModal}
+                      >
+                        + Nuwe Afspraak
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1039,11 +1075,13 @@ const DashboardPage = () => {
                               )}
                               <button
                                 type="button"
-                                className="btn-delete"
+                                className="calendar-delete-btn"
+                                title="Verwyder"
+                                aria-label="Verwyder"
                                 onClick={() => handleDeleteEvent(event.source_id, event.source)}
                                 disabled={deletingEventId === event.source_id}
                               >
-                                {deletingEventId === event.source_id ? 'Besig...' : 'Verwyder'}
+                                <IoTrashOutline size={16} />
                               </button>
                               {event.source === 'calendar_event' && !event.outlook_synced && hasMsToken && (
                                 <button
@@ -1076,7 +1114,7 @@ const DashboardPage = () => {
                               handleQuickAddTask();
                             }
                           }}
-                          placeholder="Taak + tyd... bv. 'E-pos bestuurder om 18:00'"
+                          placeholder="Taak + tyd... bv. 'E-pos bestuurder om 18:00 tot 19:00'"
                           disabled={isSubmitting}
                           aria-label="Vinnige taak byvoeg"
                         />
@@ -1095,8 +1133,12 @@ const DashboardPage = () => {
                 </div>
 
                 {canManage && (
-                  <div className="calendar-form-card" ref={formRef}>
-                    <h4>{editingEvent ? '✏️ Wysig Kalenderafspraak' : '+ Nuwe Kalenderafspraak Skep'}</h4>
+                  <Modal
+                    isOpen={showEventModal}
+                    onClose={handleCancelEdit}
+                    title={editingEvent ? 'Wysig Kalenderafspraak' : 'Nuwe Kalenderafspraak'}
+                    size="md"
+                  >
                     <form onSubmit={handleCreateEvent} className="calendar-form-grid">
                       <div>
                         <label>Onderwerp *</label>
@@ -1165,23 +1207,21 @@ const DashboardPage = () => {
                         <textarea value={newEvent.description} onChange={(e) => setNewEvent({...newEvent, description: e.target.value})} placeholder="Voeg ekstra besonderhede hier by..." />
                       </div>
                       <div className="calendar-form-full calendar-form-submit">
-                        {editingEvent && (
-                          <button
-                            type="button"
-                            className="btn-delete"
-                            onClick={handleCancelEdit}
-                            disabled={isSubmitting}
-                            style={{ marginTop: 0, marginRight: '10px' }}
-                          >
-                            Kanselleer
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          className="btn-delete"
+                          onClick={handleCancelEdit}
+                          disabled={isSubmitting}
+                          style={{ marginTop: 0, marginRight: '10px' }}
+                        >
+                          Kanselleer
+                        </button>
                         <button type="submit" className="btn-add" disabled={isSubmitting}>
                           {isSubmitting ? 'Besig om te stoor...' : editingEvent ? 'Stoor Wysigings' : 'Skep Afspraak'}
                         </button>
                       </div>
                     </form>
-                  </div>
+                  </Modal>
                 )}
               </div>
             )}
