@@ -68,6 +68,7 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
   }
 
   void _filterAssets() {
+    if (!mounted) return;
     final roomIdStr = widget.roomId.toString();
     final allAssets = AssetService.assetsNotifier.value;
     setState(() {
