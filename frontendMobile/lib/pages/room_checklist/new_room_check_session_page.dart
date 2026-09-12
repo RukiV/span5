@@ -7,6 +7,7 @@ import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/app_snack_bar.dart';
+import '../../core/datetime_utils.dart';
 
 /// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
 ///
@@ -74,7 +75,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   }
 
   String get _dateLabel =>
-      _scheduled == null ? "Kies datum en tyd" : "${_scheduled!.day}/${_scheduled!.month}/${_scheduled!.year} ${_scheduled!.hour}:${_scheduled!.minute}";
+      _scheduled == null ? "Kies datum en tyd" : formatDateTime(_scheduled!);
 
   @override
   Widget build(BuildContext context) {

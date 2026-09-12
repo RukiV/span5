@@ -31,10 +31,12 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
 
   Future<void> _loadCurrentUrl() async {
     final stored = await ApiClient.getStoredServerUrl();
-    _hasServer = stored != null && stored.isNotEmpty;
     if (mounted) {
-      _urlControl.text =
-          stored ?? (ApiClient().baseUrl.startsWith('http') ? ApiClient().baseUrl : '');
+      setState(() {
+        _hasServer = stored != null && stored.isNotEmpty;
+        _urlControl.text =
+            stored ?? (ApiClient().baseUrl.startsWith('http') ? ApiClient().baseUrl : '');
+      });
     }
   }
 

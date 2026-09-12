@@ -100,12 +100,12 @@ class _UsersPageState extends State<UsersPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                _field("Naam", nameController),
+                _field("Naam", nameController, required: true),
                 const SizedBox(height: 16),
-                _field("Van", surnameController),
+                _field("Van", surnameController, required: true),
                 const SizedBox(height: 16),
                 _field("E-pos", emailController,
-                    keyboardType: TextInputType.emailAddress),
+                    keyboardType: TextInputType.emailAddress, required: true),
                 const SizedBox(height: 16),
                 _field("Telefoonnommer", numberController,
                     keyboardType: TextInputType.phone),
@@ -158,12 +158,6 @@ class _UsersPageState extends State<UsersPage> {
                       ),
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
-                        if (nameController.text.trim().isEmpty ||
-                            surnameController.text.trim().isEmpty ||
-                            emailController.text.trim().isEmpty ||
-                            (isEdit ? false : passwordController.text.isEmpty)) {
-                          return;
-                        }
                         if (roleId == null) {
                           if (dialogContext.mounted) {
                             Navigator.pop(dialogContext);
@@ -491,7 +485,7 @@ class _UsersPageState extends State<UsersPage> {
       builder: (context) => AlertDialog(
         backgroundColor: Colors.white,
         title: const Text("Gebruiker verwyder"),
-        content: Text("Seeker om ${user.fullName} te verwyder?"),
+        content: Text("Seker om ${user.fullName} te verwyder?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

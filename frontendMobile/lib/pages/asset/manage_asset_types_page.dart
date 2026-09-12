@@ -40,7 +40,15 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Gee 'n naam vir die bate tipe in"),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final avg = int.tryParse(_avgController.text.trim());
     final min = int.tryParse(_minController.text.trim());
