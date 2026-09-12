@@ -35,7 +35,7 @@ class RoomCheckSession {
         sessionId: json['session_id'] ?? 0,
         roomId: json['room_id'] ?? 0,
         assignedUserId: json['assigned_user_id'] ?? 0,
-        scheduledDatetime: parseServerDatetime(json['scheduled_datetime']),
+        scheduledDatetime: parseWallClockDatetime(json['scheduled_datetime']),
         status: json['status'] ?? 'scheduled',
         calendarEventId: json['calendar_event_id'],
         roomCheckId: json['room_check_id'],
@@ -101,7 +101,7 @@ class RoomCheckSessionService {
         'room_id': roomId,
         'assigned_user_id': assignedUserId,
         if (scheduledDatetime != null)
-          'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
+          'scheduled_datetime': scheduledDatetime.toIso8601String(),
         if (notes != null) 'notes': notes,
       };
       final response =
@@ -126,7 +126,7 @@ class RoomCheckSessionService {
       final payload = <String, dynamic>{
         if (assignedUserId != null) 'assigned_user_id': assignedUserId,
         if (scheduledDatetime != null)
-          'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
+          'scheduled_datetime': scheduledDatetime.toIso8601String(),
         if (status != null) 'status': status,
       };
       final response = await ApiClient()
