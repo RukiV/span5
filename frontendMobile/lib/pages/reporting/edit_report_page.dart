@@ -213,7 +213,7 @@ class _EditReportPageState extends State<EditReportPage> {
 
   /// Vertaal die kieser se ID's na die string-vorm wat [_saveChanges] verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
-    final path = CampusService.locationPath(campusId, buildingId, roomId);
+    final path = CampusService.findLocationPath(campusId, buildingId, roomId);
 
     setState(() {
       _selectedCampusId = campusId;

@@ -191,7 +191,7 @@ class _NewReportPageState extends State<NewReportPage> {
 
   /// Stoor die ID's én die naam-vorm wat die stoor-logika verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
-    final path = CampusService.locationPath(campusId, buildingId, roomId);
+    final path = CampusService.findLocationPath(campusId, buildingId, roomId);
 
     setState(() {
       _selectedCampusId = campusId;

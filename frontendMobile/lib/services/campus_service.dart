@@ -58,7 +58,7 @@ class CampusService {
 
   // --- Helper methods (adapted from old rooms-based approach) ---
 
-  static ({Campus? campus, Building? building, Room? room}) findRoomWithPath(
+  static ({Campus? campus, Building? building, Room? room}) findRoomPath(
       int roomId) {
     for (final campus in _manager.values) {
       for (final building in campus.buildings) {
@@ -72,7 +72,7 @@ class CampusService {
     return (campus: null, building: null, room: null);
   }
 
-  static ({Campus? campus, Building? building, Room? room}) locationPath(
+  static ({Campus? campus, Building? building, Room? room}) findLocationPath(
       int? campusId, int? buildingId, int? roomId) {
     Campus? campus;
     Building? building;
@@ -94,15 +94,15 @@ class CampusService {
   }
 
   static String getRoomName(String roomId) {
-    return findRoomWithPath(int.tryParse(roomId) ?? -1).room?.name ?? "";
+    return findRoomPath(int.tryParse(roomId) ?? -1).room?.name ?? "";
   }
 
   static String getBuildingNameByRoomId(String roomId) {
-    return findRoomWithPath(int.tryParse(roomId) ?? -1).building?.name ?? "";
+    return findRoomPath(int.tryParse(roomId) ?? -1).building?.name ?? "";
   }
 
   static String getCampusNameByRoomId(String roomId) {
-    return findRoomWithPath(int.tryParse(roomId) ?? -1).campus?.name ?? "";
+    return findRoomPath(int.tryParse(roomId) ?? -1).campus?.name ?? "";
   }
 
   static String getCampusName(int campusId) {
