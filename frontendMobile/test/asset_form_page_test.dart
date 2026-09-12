@@ -4,7 +4,7 @@ import 'form_test_utils.dart';
 
 void main() {
   group('AssetFormPage', () {
-    testWidgets('skep-modus: titel, velde, KANS-president vorm knoppie',
+    testWidgets('skep-modus: titel, velde, geen Kanselleer',
         (tester) async {
       await pumpForm(tester, const AssetFormPage());
 
