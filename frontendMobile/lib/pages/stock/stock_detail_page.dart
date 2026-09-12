@@ -4,6 +4,8 @@ import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../services/stock_service.dart';
+import '../../widgets/confirm_delete.dart';
+import '../../widgets/detail_row.dart';
 import 'stock_form_page.dart';
 
 class StockDetailPage extends StatefulWidget {
@@ -70,6 +72,7 @@ class _StockDetailPageState extends State<StockDetailPage> {
                 );
                 if (result == true && mounted) {
                   await StockService.fetchStocks();
+                  if (!mounted) return;
                   final updated = StockService.stocksNotifier.value
                       .where((s) => s.id == _currentStock.id)
                       .firstOrNull;
@@ -130,41 +133,55 @@ class _StockDetailPageState extends State<StockDetailPage> {
       ),
       child: Column(
         children: [
-          _buildDetailRow(
-              "Naam",
-              Text(_currentStock.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Naam",
+              valueWidget: Flexible(
+                child: Text(_currentStock.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Handelsmerk",
-              Text(_currentStock.brand.isEmpty ? "-" : _currentStock.brand,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Handelsmerk",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentStock.brand.isEmpty ? "-" : _currentStock.brand,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Tipe",
-              Text(_currentStock.type.isEmpty ? "-" : _currentStock.type,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Tipe",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentStock.type.isEmpty ? "-" : _currentStock.type,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Hoeveelheid",
-              Text(_currentStock.amount.toString(),
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Hoeveelheid",
+              valueWidget: Flexible(
+                child: Text(_currentStock.amount.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Minimum Voorraad",
-              Text(_currentStock.minimum.toString(),
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Minimum Voorraad",
+              valueWidget: Flexible(
+                child: Text(_currentStock.minimum.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Boks Totaal",
-              Text(_currentStock.boxTotal.toString(),
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Boks Totaal",
+              valueWidget: Flexible(
+                child: Text(_currentStock.boxTotal.toString(),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           if (_currentStock.description != null &&
               _currentStock.description!.isNotEmpty) ...[
             const Divider(height: 24),
-            _buildDetailRow(
-                "Beskrywing",
-                Flexible(
+            DetailRow(
+                label: "Beskrywing",
+                valueWidget: Flexible(
                   child: Text(_currentStock.description!,
                       style: const TextStyle(fontWeight: FontWeight.bold)),
                 )),
@@ -205,47 +222,15 @@ class _StockDetailPageState extends State<StockDetailPage> {
     );
   }
 
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        const SizedBox(width: 16),
-        Flexible(child: value),
-      ],
+  Future<void> _confirmDelete() => confirmDeleteAndRun(
+      context,
+      entityLabel: 'voorraad',
+      itemName: _currentStock.name,
+      delete: () async {
+        final id = _currentStock.id;
+        if (id == null) return false;
+        return StockService.deleteStock(id);
+      },
+      onSuccess: () => Navigator.pop(context),
     );
-  }
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Verwyder Voorraad"),
-        content:
-            Text("Is jy seker jy wil '${_currentStock.name}' verwyder?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Kanselleer"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final id = _currentStock.id;
-              if (id == null) return;
-              final success = await StockService.deleteStock(id);
-              if (!mounted) return;
-              if (success) {
-                if (context.mounted) {
-                  Navigator.pop(dialogContext);
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text("Verwyder",
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    );
-  }
 }

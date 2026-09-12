@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../../models/building.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
+import '../../widgets/confirm_delete.dart';
+import '../../widgets/detail_row.dart';
 import 'building_form_page.dart';
 
 class BuildingDetailPage extends StatefulWidget {
@@ -72,6 +74,7 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
                 if (result == true && mounted) {
                   // Herlaai data vanaf service
                   await CampusService.fetchCampuses();
+                  if (!mounted) return;
                   final updated = CampusService.campusesNotifier.value
                       .expand((c) => c.buildings)
                       .where((b) => b.id == _currentBuilding.id)
@@ -135,45 +138,44 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
       ),
       child: Column(
         children: [
-          _buildDetailRow(
-              "Naam",
-              Text(_currentBuilding.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Naam",
+              valueWidget: Flexible(
+                child: Text(_currentBuilding.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Tipe",
-              Text(_typeLabel(_currentBuilding.type),
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Tipe",
+              valueWidget: Flexible(
+                child: Text(_typeLabel(_currentBuilding.type),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Terrein",
-              Text(_campusName,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Terrein",
+              valueWidget: Flexible(
+                child: Text(_campusName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Adres",
-              Text(_currentBuilding.address.isEmpty
-                  ? "-"
-                  : _currentBuilding.address,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Adres",
+              valueWidget: Flexible(
+                child: Text(_currentBuilding.address.isEmpty
+                    ? "-"
+                    : _currentBuilding.address,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Aantal Lokale",
-              Text("$roomCount",
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Aantal Lokale",
+              valueWidget: Flexible(
+                child: Text("$roomCount",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        const SizedBox(width: 16),
-        Flexible(child: value),
-      ],
     );
   }
 
@@ -229,35 +231,11 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
     );
   }
 
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Verwyder Gebou"),
-        content: Text(
-            "Is jy seker jy wil '${_currentBuilding.name}' verwyder? Alle lokale, bates en voorraad onder hierdie gebou sal ook verwyder word."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Kanselleer"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final success =
-                  await CampusService.removeBuilding(_currentBuilding.id);
-              if (!mounted) return;
-              if (success) {
-                if (context.mounted) {
-                  Navigator.pop(dialogContext);
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text("Verwyder",
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete() => confirmDeleteAndRun(
+      context,
+      entityLabel: 'gebou',
+      itemName: _currentBuilding.name,
+      delete: () => CampusService.removeBuilding(_currentBuilding.id),
+      onSuccess: () => Navigator.pop(context),
     );
-  }
 }
