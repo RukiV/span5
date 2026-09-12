@@ -14,19 +14,19 @@ import '../../widgets/fixed_page_header.dart';
 import 'jobcard_detail_page.dart';
 import '../ai/ai_draft_review_page.dart';
 
-/// JobCardsPage — Werkkaart-lys met gedeelde tab-balk vir Voorgestelde
+/// JobcardsPage — Werkkaart-lys met gedeelde tab-balk vir Voorgestelde
 /// Werksopdragte (spieël die web se JobTabs-patroon).
 ///
 /// Tab 1: Werksopdragte (werkkaartlys)
 /// Tab 2: Voorgestelde Werksopdragte (slegs met ai.approve-reg; toon wag-aantal badge)
-class JobCardsPage extends StatefulWidget {
-  const JobCardsPage({super.key});
+class JobcardsPage extends StatefulWidget {
+  const JobcardsPage({super.key});
 
   @override
-  State<JobCardsPage> createState() => _JobCardsPageState();
+  State<JobcardsPage> createState() => _JobcardsPageState();
 }
 
-class _JobCardsPageState extends State<JobCardsPage>
+class _JobcardsPageState extends State<JobcardsPage>
     with SingleTickerProviderStateMixin {
   // ── Tab controller ──
   late final TabController _tabController;

@@ -6,7 +6,7 @@ import '../stock/stocks_page.dart';
 import '../campus/campuses_page.dart';
 import '../rooms/rooms_page.dart';
 import '../building/buildings_page.dart';
-import '../jobcards/job_cards_page.dart';
+import '../jobcards/jobcards_page.dart';
 import 'dashboard_page.dart';
 import 'voorspellings_page.dart';
 import 'works_assignments_page.dart';
@@ -214,7 +214,7 @@ class _HomePageState extends State<HomePage> {
 
     // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportsPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
-    // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
+    // sien net hul eie toegewysde take (JobcardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
     if (can('jobs.manage') || can('jobs.view')) {
       menu.add({
@@ -226,7 +226,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Werksopdragte',
         'icon': Icons.engineering_outlined,
-        'page': const JobCardsPage()
+        'page': const JobcardsPage()
       });
     }
 

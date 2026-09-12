@@ -18,7 +18,7 @@ import 'report_detail_page.dart';
 
 /// ReportsPage — Foutkaartjie-lys (rapporte).
 ///
-/// Voorgestelde Werksopdragte het na Werksopdragte geskuif (JobCardsPage se tweede tab) —
+/// Voorgestelde Werksopdragte het na Werksopdragte geskuif (JobcardsPage se tweede tab) —
 /// hierdie bladsy is weer 'n skoon foutkaartjie-lys.
 class ReportsPage extends StatefulWidget {
   const ReportsPage({super.key});
