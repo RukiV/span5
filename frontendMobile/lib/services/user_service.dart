@@ -87,10 +87,18 @@ class UserService {
     return "Rol $roleId";
   }
 
+  static Map<String, dynamic> _redactPayload(Map<String, dynamic> payload) {
+    final redacted = Map<String, dynamic>.from(payload);
+    if (redacted.containsKey('user_password')) {
+      redacted['user_password'] = '***';
+    }
+    return redacted;
+  }
+
   static Future<bool> addUser(User user, String password) async {
     try {
       final payload = user.toCreateJson(password);
-      debugPrint("POST /users payload: $payload");
+      debugPrint("POST /users payload: ${_redactPayload(payload)}");
       final response = await ApiClient().client.post('/users', data: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
         await fetchUsers();
@@ -105,7 +113,7 @@ class UserService {
   static Future<bool> updateUser(User user, {String? password}) async {
     try {
       final payload = user.toUpdateJson(password: password);
-      debugPrint("PATCH /users/${user.id} payload: $payload");
+      debugPrint("PATCH /users/${user.id} payload: ${_redactPayload(payload)}");
       final response =
           await ApiClient().client.patch('/users/${user.id}', data: payload);
       if (response.statusCode == 200) {
