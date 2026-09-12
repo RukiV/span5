@@ -179,17 +179,17 @@ class _AssetFormPageState extends State<AssetFormPage> {
 
   String get _breadcrumbPath {
     final campuses = CampusService.campusesNotifier.value;
-    final campus = campuses.where((c) => c.name == selectedCampus).firstOrNull;
-    final building =
-        campus?.buildings.where((b) => b.name == selectedBuilding).firstOrNull;
-    final roomName = selectedLocation?.contains(":") == true
-        ? selectedLocation?.split(":").last
-        : null;
+    final campusId = _campusIdForName(selectedCampus);
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final buildingId = campus
+        ?.buildings
+        .where((b) => b.name == selectedBuilding)
+        .firstOrNull
+        ?.id;
+    final roomId = int.tryParse(selectedLocation?.split(":").first ?? "");
 
-    String path = campus?.name ?? "Kies Kampus";
-    if (building != null) path += " > ${building.name}";
-    if (roomName != null) path += " > $roomName";
-    return path;
+    return LocationBreadcrumbs.buildLocationPath(
+        campusId: campusId, buildingId: buildingId, roomId: roomId);
   }
 
   Future<void> _save() async {

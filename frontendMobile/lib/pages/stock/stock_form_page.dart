@@ -105,18 +105,10 @@ class _StockFormPageState extends State<StockFormPage> {
   }
 
   void _resolveRoomPath(int roomId) {
-    for (final campus in CampusService.campusesNotifier.value) {
-      for (final building in campus.buildings) {
-        for (final room in building.rooms ?? const []) {
-          if (room.id == roomId) {
-            _campusId = campus.id;
-            _buildingId = building.id;
-            _roomId = room.id;
-            return;
-          }
-        }
-      }
-    }
+    final path = CampusService.findRoomPath(roomId);
+    _campusId = path.campus?.id;
+    _buildingId = path.building?.id;
+    _roomId = path.room?.id;
   }
 
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
@@ -136,24 +128,8 @@ class _StockFormPageState extends State<StockFormPage> {
         .firstOrNull;
     if (campus == null) return const SizedBox.shrink();
 
-    String path = campus.name;
-
-    if (_buildingId != null) {
-      final building =
-          campus.buildings.where((b) => b.id == _buildingId).firstOrNull;
-      if (building != null) {
-        path += " > ${building.name}";
-        if (_roomId != null) {
-          final room =
-              building.rooms?.where((r) => r.id == _roomId).firstOrNull;
-          if (room != null) {
-            path += " > ${room.name}";
-          }
-        }
-      }
-    }
-
-    return LocationBreadcrumbs(path: path);
+    return LocationBreadcrumbs(path: LocationBreadcrumbs.buildLocationPath(
+        campusId: _campusId, buildingId: _buildingId, roomId: _roomId));
   }
 
   Widget _buildField(String label, String initial, Function(String) onSet,

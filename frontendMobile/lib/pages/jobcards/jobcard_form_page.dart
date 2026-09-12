@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
 import '../../core/idempotency.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/jobcard.dart';
 import '../../models/quote.dart';
 import '../../models/report.dart';
@@ -25,6 +26,7 @@ import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
+import '../../widgets/app_snack_bar.dart';
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
 /// wanneer die hele werksopdrag gestoor word (of wanneer die kwotasie-keuse
@@ -973,7 +975,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     try {
       final bytes = await DocumentService.downloadQuotePdf(documentId);
       if (bytes == null) {
-        _showSnack("Kon nie PDF laai nie.", error: true);
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie PDF laai nie.", error: true);
         return;
       }
       final dir = await getTemporaryDirectory();
@@ -982,12 +985,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final result = await OpenFilex.open(file.path);
       if (!mounted) return;
       if (result.type != ResultType.done && result.type != ResultType.noAppToOpen) {
-        _showSnack("Kon nie PDF oopmaak nie.", error: true);
+        showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
       }
     } catch (e) {
       debugPrint("PDF viewing error: $e");
       if (!mounted) return;
-      _showSnack("Kon nie PDF oopmaak nie.", error: true);
+      showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
     }
   }
 
@@ -996,12 +999,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   /// die gekose kwotasie aan die werksopdrag (as dit al bestaan).
   Future<void> _saveQuoteSelection(_QuoteDraft quote) async {
     if (!quote.hasContractor || !quote.hasPdf) {
-      _showSnack("Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
+      showAppSnackBar(context, "Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
       return;
     }
     final reason = (quote.selectionReason ?? '').trim();
     if (reason.isEmpty) {
-      _showSnack("Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
+      showAppSnackBar(context, "Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
       return;
     }
     setState(() => _savingQuoteSelection = true);
@@ -1062,7 +1065,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         quote.selectionSaved = true;
         _savingQuoteSelection = false;
       });
-      _showSnack("Kwotasie-keuse gestoor");
+      showAppSnackBar(context, "Kwotasie-keuse gestoor");
     } catch (e) {
       debugPrint("Fout by stoor van kwotasie-keuse: $e");
       _failQuoteSelection("Fout tydens besparing van die kwotasie-keuse.");
@@ -1072,7 +1075,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failQuoteSelection(String message) {
     if (!mounted) return;
     setState(() => _savingQuoteSelection = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   // ===== Tabel 3: Skedulering & Toewysing =====
@@ -1201,7 +1204,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    value == null ? "Kies datum & tyd" : _formatDateTime(value),
+                    value == null ? "Kies datum & tyd" : formatDateTime(value),
                     style: TextStyle(color: value == null ? Colors.grey[600] : Colors.black, fontSize: 14),
                   ),
                 ),
@@ -1406,23 +1409,23 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Future<void> _save() async {
     if (_selectedCampusId == null) {
-      _showSnack("Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_workType.isEmpty) {
-      _showSnack("Kies asseblief 'n werksoort.", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n werksoort.", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_assignedToId == null) {
-      _showSnack("Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
       setState(() => _tabController.index = 2);
       return;
     }
     for (final q in _quotes) {
       if (!q.hasPdf) {
-        _showSnack("Elke kwotasie moet 'n PDF-dokument hê.", error: true);
+        showAppSnackBar(context, "Elke kwotasie moet 'n PDF-dokument hê.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
@@ -1430,12 +1433,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (_selectedQuoteTempId != null) {
       final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
       if (selected != null && !selected.hasContractor) {
-        _showSnack("Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
       if (selected != null && (selected.selectionReason == null || selected.selectionReason!.trim().isEmpty)) {
-        _showSnack("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
@@ -1600,7 +1603,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failSave(String message) {
     if (!mounted) return;
     setState(() => _saving = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   /// Skep (of vervang) die Outlook-afspraak vir 'n geskeduleerde werksopdrag,
@@ -1625,16 +1628,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     } catch (e) {
       debugPrint("Outlook-sinkronisering vir werksopdrag misluk: $e");
     }
-  }
-
-  void _showSnack(String message, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: error ? AppColors.errorRed : AppColors.successGreen,
-      ),
-    );
   }
 
   // ===== Hulp-widgets =====
@@ -1712,11 +1705,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
-}
 
 class _CcUserDialog extends StatefulWidget {
   final List<User> users;

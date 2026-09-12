@@ -20,7 +20,6 @@ import '../../services/ai_service.dart';
 import '../../services/image_service.dart';
 import '../../services/camera_service.dart';
 import '../../models/report.dart';
-import '../../models/room.dart';
 import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
@@ -155,21 +154,16 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedLocation = null;
       return;
     }
-    for (final c in CampusService.campusesNotifier.value) {
-      for (final b in c.buildings) {
-        for (final r in b.rooms ?? const <Room>[]) {
-          if (r.id == roomId) {
-            _selectedCampusId = c.id;
-            _selectedBuildingId = b.id;
-            _selectedRoomId = r.id;
-            selectedCampus = c.name;
-            selectedBuilding = b.name;
-            selectedLocation = '${r.id}:${r.name}';
-            _pendingRoomId = null;
-            return;
-          }
-        }
-      }
+    final path = CampusService.findRoomPath(roomId);
+    if (path.room != null) {
+      _selectedCampusId = path.campus!.id;
+      _selectedBuildingId = path.building!.id;
+      _selectedRoomId = path.room!.id;
+      selectedCampus = path.campus!.name;
+      selectedBuilding = path.building!.name;
+      selectedLocation = '${path.room!.id}:${path.room!.name}';
+      _pendingRoomId = null;
+      return;
     }
     // Boom nog nie gelaai nie — onthou dit en vul aan sodra Campuses arriveer.
     _pendingRoomId = roomId;

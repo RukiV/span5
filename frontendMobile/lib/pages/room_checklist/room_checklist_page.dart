@@ -12,6 +12,7 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../models/report.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/app_snack_bar.dart';
 import '../reporting/new_report_page.dart';
 import '../reporting/scan_page.dart';
 import 'room_check_history_page.dart';
@@ -148,29 +149,36 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     final asset = await AssetService.getAssetBySerialCode(code);
     if (!mounted) return;
     if (asset == null) {
-      _showSnack("Geen bate gevind met hierdie kode nie", AppColors.warningOrange);
+      showAppSnackBar(context, "Geen bate gevind met hierdie kode nie",
+        backgroundColor: AppColors.warningOrange);
       return;
     }
     if (asset.location != _activeRoomId.toString()) {
-      _showSnack("Bate is nie in hierdie lokaal nie", AppColors.warningOrange);
+      showAppSnackBar(context, "Bate is nie in hierdie lokaal nie",
+        backgroundColor: AppColors.warningOrange);
       return;
     }
     final match = _items.where((i) => i.asset.id == asset.id).firstOrNull;
     if (match == null) {
-      _showSnack("Bate is nie in die kontrolelys nie", AppColors.warningOrange);
+      showAppSnackBar(context, "Bate is nie in die kontrolelys nie",
+        backgroundColor: AppColors.warningOrange);
       return;
     }
     if (match.status == _CheckStatus.confirmed) {
-      _showSnack("${asset.name} is reeds bevestig", AppColors.successGreen);
+      showAppSnackBar(context, "${asset.name} is reeds bevestig",
+        backgroundColor: AppColors.successGreen);
       return;
     }
     if (match.status == _CheckStatus.missing && match.previouslyMissing) {
       setState(() => match.status = _CheckStatus.confirmed);
-      _showSnack("${asset.name} gevind en as teenwoordig gemerk (was vermis)", AppColors.successGreen);
+      showAppSnackBar(
+        context, "${asset.name} gevind en as teenwoordig gemerk (was vermis)",
+        backgroundColor: AppColors.successGreen);
       return;
     }
     setState(() => match.status = _CheckStatus.confirmed);
-    _showSnack("${asset.name} bevestig", AppColors.successGreen);
+    showAppSnackBar(context, "${asset.name} bevestig",
+        backgroundColor: AppColors.successGreen);
   }
 
   void _openScanner() async {
@@ -220,9 +228,11 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
         item.status = _CheckStatus.missing;
         item.faultId = int.tryParse(fault.id);
       });
-      _showSnack("${item.asset.name} as vermis gemerk", AppColors.warningOrange);
+      showAppSnackBar(context, "${item.asset.name} as vermis gemerk",
+        backgroundColor: AppColors.warningOrange);
     } else {
-      _showSnack("Kon nie foutkaartjie skep nie", AppColors.errorRed);
+      showAppSnackBar(context, "Kon nie foutkaartjie skep nie",
+        backgroundColor: AppColors.errorRed);
     }
   }
 
@@ -355,12 +365,6 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     );
   }
 
-  void _showSnack(String msg, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: color),
-    );
-  }
-
   Future<void> _complete() async {
     _idempotencyKey ??= Idempotency.generate();
     if (_pendingCount > 0) {
@@ -448,7 +452,8 @@ class _RoomChecklistPageState extends State<RoomChecklistPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      _showSnack("Fout met stoor: $e", AppColors.errorRed);
+      showAppSnackBar(context, "Fout met stoor: $e",
+        backgroundColor: AppColors.errorRed);
     }
   }
 

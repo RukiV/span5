@@ -8,6 +8,7 @@ import '../../core/input_decoration.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
 import '../../services/outlook_token_manager.dart';
+import '../../widgets/app_snack_bar.dart';
 import '../settings/server_config_page.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
@@ -84,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
       String password = _passControl.text;
 
       if (email.isEmpty || password.isEmpty) {
-        _showError("Vul asseblief alle velde in.");
+        showAppSnackBar(context, "Vul asseblief alle velde in.", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -146,11 +147,13 @@ class _LoginPageState extends State<LoginPage> {
               : "Account is gesluit. Probeer later weer aan.";
         }
 
-        _showError(msg);
+        if (!mounted) return;
+        showAppSnackBar(context, msg, error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       } catch (e) {
-        _showError("Onverwagse fout: $e");
+        if (!mounted) return;
+        showAppSnackBar(context, "Onverwagse fout: $e", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -186,23 +189,14 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on DioException catch (e) {
       debugPrint("Profiel laai fout: ${e.message}");
-      _showError("Kon nie profiel laai nie. Teken asseblief weer in.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Kon nie profiel laai nie. Teken asseblief weer in.", error: true, floating: true);
       setState(() => _isLoading = false);
     } catch (e) {
-      _showError("Fout met die verwerking van profiel-data.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Fout met die verwerking van profiel-data.", error: true, floating: true);
       setState(() => _isLoading = false);
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   /// Dialoog om biometrie te aktiveer na die eerste suksesvolle login.
@@ -238,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
     // flutter_appauth (stelsel-webblaaier) ondersteun nie Windows/Linux nie —
     // wys net 'n boodskap.
     if (!Platform.isAndroid && !Platform.isIOS) {
-      _showError("Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.");
+      showAppSnackBar(context, "Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.", error: true, floating: true);
       return;
     }
 
@@ -254,7 +248,8 @@ class _LoginPageState extends State<LoginPage> {
           await OutlookTokenManager.instance.getGraphAccessToken();
       if (accessToken == null) {
         setState(() => _isLoading = false);
-        _showError("Kon nie die Microsoft-token verkry nie.");
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie die Microsoft-token verkry nie.", error: true, floating: true);
         return;
       }
 
@@ -272,7 +267,8 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showError("Outlook SSO Fout: $e");
+      if (!mounted) return;
+      showAppSnackBar(context, "Outlook SSO Fout: $e", error: true, floating: true);
     }
   }
 

@@ -18,3 +18,14 @@ DateTime? parseWallClockDatetime(dynamic value) {
   if (hasOffset) return DateTime.parse(s).toLocal();
   return DateTime.tryParse(s);
 }
+
+/// "dd/MM/yyyy" — gedeelde datumformaat vir lys-/rekordbesigtiging.
+String formatDate(DateTime dt) {
+  return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}";
+}
+
+/// "dd/MM/yyyy HH:mm" — gedeelde datum-en-tyd-formaat.
+String formatDateTime(DateTime dt) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
+}

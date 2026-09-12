@@ -7,6 +7,8 @@ import '../../core/idempotency.dart';
 import '../../services/calendar_service.dart';
 import '../../services/outlook_service.dart';
 import '../../services/outlook_token_manager.dart';
+import '../../core/datetime_utils.dart';
+import '../../widgets/detail_row.dart';
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -365,13 +367,21 @@ class _CalendarPageState extends State<CalendarPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detailRow(Icons.access_time, _detailDateTime(event.startDatetime)),
+            DetailRow(
+                icon: Icons.access_time,
+                value: formatDateTime(event.startDatetime),
+                padding: const EdgeInsets.only(bottom: 6)),
             if (event.endDatetime != null &&
                 !isSameDay(event.startDatetime, event.endDatetime!))
-              _detailRow(Icons.event_available,
-                  "tot ${_detailDateTime(event.endDatetime!)}"),
+              DetailRow(
+                  icon: Icons.event_available,
+                  value: "tot ${formatDateTime(event.endDatetime!)}",
+                  padding: const EdgeInsets.only(bottom: 6)),
             if (event.location != null && event.location!.isNotEmpty)
-              _detailRow(Icons.location_on, event.location!),
+              DetailRow(
+                  icon: Icons.location_on,
+                  value: event.location!,
+                  padding: const EdgeInsets.only(bottom: 6)),
             if (event.description != null && event.description!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -472,24 +482,6 @@ class _CalendarPageState extends State<CalendarPage> {
       ),
     );
   }
-
-  Widget _detailRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: AppColors.gold),
-          const SizedBox(width: 6),
-          Expanded(
-              child: Text(text, style: const TextStyle(color: Colors.black54))),
-        ],
-      ),
-    );
-  }
-
-  String _detailDateTime(DateTime dt) =>
-      "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} "
-      "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
 
   String _eventTimeLabel(CalendarEvent event) {
     final start = event.startDatetime;

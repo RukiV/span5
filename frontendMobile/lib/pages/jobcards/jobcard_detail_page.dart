@@ -11,7 +11,16 @@ import '../../services/image_service.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
+import '../../core/datetime_utils.dart';
+import '../../widgets/detail_row.dart';
+import '../../widgets/app_snack_bar.dart';
 import '../reporting/report_detail_page.dart';
+
+const _rowLabelStyle = TextStyle(color: Colors.grey, fontSize: 13);
+const _rowValueStyle = TextStyle(
+    color: AppColors.navy, fontSize: 13, fontWeight: FontWeight.w500);
+const _rowLabelWidth = 150.0;
+const _rowPadding = EdgeInsets.symmetric(vertical: 4);
 
 /// Kontrakteur-aansig van 'n werksopdrag: leesbare Besonderhede (insluitend die
 /// foutkaartjie se fotos) plus 'n Kontrakteur Werknotas-blad waar werknotas en
@@ -96,12 +105,13 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
       parentType: 'job',
     );
     if (imageId == null) {
-      _showSnack("Kon nie foto oplaai nie.", error: true);
+      if (!mounted) return;
+      showAppSnackBar(context, "Kon nie foto oplaai nie.", error: true);
       return;
     }
     if (!mounted) return;
     setState(() => _ownImageIds.add(imageId));
-    _showSnack("Foto bygevoeg");
+    showAppSnackBar(context, "Foto bygevoeg");
   }
 
   Future<void> _removePhoto(int imageId) async {
@@ -110,7 +120,7 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     if (ok) {
       setState(() => _ownImageIds.remove(imageId));
     } else {
-      _showSnack("Kon nie foto verwyder nie.", error: true);
+      showAppSnackBar(context, "Kon nie foto verwyder nie.", error: true);
     }
   }
 
@@ -122,7 +132,9 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     );
     if (!mounted) return;
     setState(() => _savingNotes = false);
-    _showSnack(ok ? "Werknotas gestoor" : "Kon nie werknotas stoor nie.",
+    showAppSnackBar(
+        context,
+        ok ? "Werknotas gestoor" : "Kon nie werknotas stoor nie.",
         error: !ok);
   }
 
@@ -175,7 +187,8 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     final ok = await JobcardService.requestCompletion(widget.job.id);
     if (!mounted) return;
     setState(() => _requesting = false);
-    _showSnack(
+    showAppSnackBar(
+      context,
       ok
           ? "Voltooiingsversoek aan $target gestuur"
           : "Kon nie voltooiingsversoek stuur nie.",
@@ -216,7 +229,7 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
         .where((r) => r.id == faultId.toString())
         .firstOrNull;
     if (report == null) {
-      _showSnack("Foutkaartjie nie gevind nie.", error: true);
+      showAppSnackBar(context, "Foutkaartjie nie gevind nie.", error: true);
       return;
     }
     await Navigator.push(
@@ -337,36 +350,71 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
                   ],
                 ),
                 const Divider(height: 20),
-                _infoRow("Beskrywing", job.description),
-                if (job.type != null) _infoRow("Tipe", job.type!),
-                _infoRow("Prioriteit", job.priority ?? "-"),
-                if (job.nature != null) _infoRow("Natuur", job.nature!),
+                DetailRow(label: "Beskrywing", value: job.description,
+                    labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                    labelWidth: _rowLabelWidth, padding: _rowPadding),
+                if (job.type != null)
+                  DetailRow(label: "Tipe", value: job.type!,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
+                DetailRow(label: "Prioriteit", value: job.priority ?? "-",
+                    labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                    labelWidth: _rowLabelWidth, padding: _rowPadding),
+                if (job.nature != null)
+                  DetailRow(label: "Natuur", value: job.nature!,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.createdDatetime != null &&
                     UserSession.can('jobs.manage'))
-                  _infoRow("Geskep", _formatDateTime(job.createdDatetime!)),
+                  DetailRow(label: "Geskep", value: formatDateTime(job.createdDatetime!),
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.scheduledDatetime != null)
-                  _infoRow("Begin datum en tyd",
-                      _formatDateTime(job.scheduledDatetime!)),
+                  DetailRow(label: "Begin datum en tyd",
+                      value: formatDateTime(job.scheduledDatetime!),
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.scheduledEndDatetime != null)
-                  _infoRow("Einddatum en tyd",
-                      _formatDateTime(job.scheduledEndDatetime!)),
+                  DetailRow(label: "Einddatum en tyd",
+                      value: formatDateTime(job.scheduledEndDatetime!),
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.finishedDatetime != null)
-                  _infoRow(
-                      "Voltooi op", _formatDateTime(job.finishedDatetime!)),
-                _infoRow("Verantwoordelike personeellid", _assignedLabel),
+                  DetailRow(label: "Voltooi op",
+                      value: formatDateTime(job.finishedDatetime!),
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
+                DetailRow(label: "Verantwoordelike personeellid", value: _assignedLabel,
+                    labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                    labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.contractorId != null)
-                  _infoRow("Kontrakteur", _contractorLabel),
-                if (_campusLabel.isNotEmpty) _infoRow("Kampus", _campusLabel),
+                  DetailRow(label: "Kontrakteur", value: _contractorLabel,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
+                if (_campusLabel.isNotEmpty)
+                  DetailRow(label: "Kampus", value: _campusLabel,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (_buildingLabel.isNotEmpty)
-                  _infoRow("Gebou", _buildingLabel),
-                if (_roomLabel.isNotEmpty) _infoRow("Lokaal", _roomLabel),
-                if (job.assetId != null) _infoRow("Bate", _assetLabel),
+                  DetailRow(label: "Gebou", value: _buildingLabel,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
+                if (_roomLabel.isNotEmpty)
+                  DetailRow(label: "Lokaal", value: _roomLabel,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
+                if (job.assetId != null)
+                  DetailRow(label: "Bate", value: _assetLabel,
+                      labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                      labelWidth: _rowLabelWidth, padding: _rowPadding),
                 if (job.faultId != null) ...[
                   const Divider(height: 20),
                   InkWell(
                     onTap: _openFault,
-                    child: _infoRow(
-                        "Gekoppel aan Foutkaartjie", "#${job.faultId}"),
+                    child: DetailRow(
+                        label: "Gekoppel aan Foutkaartjie", value: "#${job.faultId}",
+                        labelStyle: _rowLabelStyle, valueStyle: _rowValueStyle,
+                        labelWidth: _rowLabelWidth, padding: _rowPadding),
                   ),
                 ],
               ],
@@ -553,29 +601,6 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
     );
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 150,
-            child: Text(label,
-                style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(value,
-                style: const TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500)),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _sectionTitle(String title) {
     return Text(title.toUpperCase(),
         style: const TextStyle(
@@ -583,11 +608,6 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
             fontWeight: FontWeight.bold,
             fontSize: 12,
             letterSpacing: 1.2));
-  }
-
-  String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
 
   void _showDeleteDialog(BuildContext context) {
@@ -648,16 +668,6 @@ class _JobcardDetailPageState extends State<JobcardDetailPage>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showSnack(String message, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: error ? AppColors.errorRed : AppColors.successGreen,
       ),
     );
   }

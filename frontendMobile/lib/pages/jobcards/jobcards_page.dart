@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/status_colors.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/ai_service.dart';
@@ -353,7 +354,7 @@ class _JobcardsPageState extends State<JobcardsPage>
           flex = 2;
           child = Text(
             job.createdDatetime != null
-                ? _formatDate(job.createdDatetime!)
+                ? formatDate(job.createdDatetime!)
                 : '-',
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 13, color: Colors.grey),
@@ -397,10 +398,6 @@ class _JobcardsPageState extends State<JobcardsPage>
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime date) {
-    return "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
   }
 
   // ══════════════════════════════════════════════════════════════════════════

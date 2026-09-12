@@ -9,6 +9,7 @@ import '../../services/report_service.dart';
 import '../../services/image_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
+import '../../widgets/detail_row.dart';
 
 class ReportDetailPage extends StatefulWidget {
   final Report report;
@@ -106,22 +107,23 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const SizedBox(height: 25),
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
-            _buildDetailRow("Kampus",
-                CampusService.getCampusNameByRoomId(_currentReport.location)),
-            _buildDetailRow("Gebou",
-                CampusService.getBuildingNameByRoomId(_currentReport.location)),
-            _buildDetailRow(
-                "Lokaal", CampusService.getRoomName(_currentReport.location)),
-            if (_currentReport.isOutdoor) _buildDetailRow("Buite Lokaal", "Ja"),
+            DetailRow(label: "Kampus",
+                value: CampusService.getCampusNameByRoomId(_currentReport.location)),
+            DetailRow(label: "Gebou",
+                value: CampusService.getBuildingNameByRoomId(_currentReport.location)),
+            DetailRow(label: "Lokaal",
+                value: CampusService.getRoomName(_currentReport.location)),
+            if (_currentReport.isOutdoor)
+              const DetailRow(label: "Buite Lokaal", value: "Ja"),
             if (_mapPoint != null) ...[
               const SizedBox(height: 12),
               _buildMapCard(),
             ],
             if (UserSession.can('faults.view'))
-              _buildDetailRow("Bate ID",
-                  _currentReport.assetSerialCode ?? _currentReport.assetId),
-            _buildDetailRow("Werksoort", _currentReport.category),
-            _buildDetailRow("Opskrif", _currentReport.title),
+              DetailRow(label: "Bate ID",
+                  value: _currentReport.assetSerialCode ?? _currentReport.assetId),
+            DetailRow(label: "Werksoort", value: _currentReport.category),
+            DetailRow(label: "Opskrif", value: _currentReport.title),
             if (_currentReport.description.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
@@ -427,27 +429,6 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-              width: 100,
-              child: Text(label,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14))),
-          Expanded(
-              child: Text(value,
-                  style: const TextStyle(
-                      color: AppColors.navy,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14))),
-        ],
-      ),
     );
   }
 

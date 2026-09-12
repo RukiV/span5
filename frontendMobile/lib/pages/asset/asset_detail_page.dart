@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/campus_service.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/detail_row.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
@@ -143,50 +144,41 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
       ),
       child: Column(
         children: [
-          _buildDetailRow(
-              "Kampus",
-              Text(CampusService.getCampusNameByRoomId(_currentAsset.location),
+          DetailRow(
+              label: "Kampus",
+              valueWidget: Text(
+                  CampusService.getCampusNameByRoomId(_currentAsset.location),
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Gebou",
-              Text(
+          DetailRow(
+              label: "Gebou",
+              valueWidget: Text(
                   CampusService.getBuildingNameByRoomId(_currentAsset.location),
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Lokaal",
-              Text(CampusService.getRoomName(_currentAsset.location),
+          DetailRow(
+              label: "Lokaal",
+              valueWidget: Text(CampusService.getRoomName(_currentAsset.location),
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Plasing",
-              Text(_currentAsset.isOutdoor ? "Buite" : "Binne",
+          DetailRow(
+              label: "Plasing",
+              valueWidget: Text(_currentAsset.isOutdoor ? "Buite" : "Binne",
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Kategorie",
-              Text(_currentAsset.category,
+          DetailRow(
+              label: "Kategorie",
+              valueWidget: Text(_currentAsset.category,
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Handelsmerk",
-              Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand,
+          DetailRow(
+              label: "Handelsmerk",
+              valueWidget: Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand,
                   style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Status", StatusBadge(status: _currentAsset.status)),
+          DetailRow(label: "Status", valueWidget: StatusBadge(status: _currentAsset.status)),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        value,
-      ],
     );
   }
 
