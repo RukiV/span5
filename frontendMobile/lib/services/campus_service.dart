@@ -121,16 +121,6 @@ class CampusService {
     return "";
   }
 
-  static Campus? getCampusByName(String name) {
-    try {
-      return _manager.values.firstWhere(
-        (c) => c.name == name || name.contains(c.name),
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-
   // --- Campus CRUD ---
 
   static Future<bool> addCampus(Campus campus) async {

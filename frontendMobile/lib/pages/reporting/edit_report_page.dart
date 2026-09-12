@@ -37,6 +37,8 @@ class _EditReportPageState extends State<EditReportPage> {
   String? _selectedCampus;
   String? _selectedBuilding;
   String? _selectedLocation;
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
   bool _isLoading = false;
 
   static const int _maxPhotos = 3;
@@ -72,6 +74,8 @@ class _EditReportPageState extends State<EditReportPage> {
         CampusService.getCampusNameByRoomId(widget.report.location);
     _selectedBuilding =
         CampusService.getBuildingNameByRoomId(widget.report.location);
+    _selectedCampusId = _initialCampusId;
+    _selectedBuildingId = _initialBuildingId;
     _selectedLocation = widget.report.location;
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -159,6 +163,8 @@ class _EditReportPageState extends State<EditReportPage> {
       if (userHasNotChanged) {
         _selectedCampus = CampusService.getCampusNameByRoomId(original);
         _selectedBuilding = CampusService.getBuildingNameByRoomId(original);
+        _selectedCampusId = _initialCampusId;
+        _selectedBuildingId = _initialBuildingId;
         _selectedLocation = original;
       }
     });
@@ -210,6 +216,8 @@ class _EditReportPageState extends State<EditReportPage> {
     final path = CampusService.locationPath(campusId, buildingId, roomId);
 
     setState(() {
+      _selectedCampusId = campusId;
+      _selectedBuildingId = buildingId;
       _selectedCampus = path.campus?.name;
       _selectedBuilding = path.building?.name;
       _selectedLocation =
@@ -253,20 +261,8 @@ class _EditReportPageState extends State<EditReportPage> {
       roomId = roomId.split(":").first;
     }
 
-    int? resolvedLocationId;
-    int? resolvedBuildingId;
-    if (_selectedCampus != null) {
-      final campus = CampusService.getCampusByName(_selectedCampus!);
-      if (campus != null) {
-        resolvedLocationId = campus.id;
-        if (_selectedBuilding != null) {
-          final building = campus.buildings
-              .where((b) => b.name == _selectedBuilding)
-              .firstOrNull;
-          resolvedBuildingId = building?.id;
-        }
-      }
-    }
+    int? resolvedLocationId = _selectedCampusId;
+    int? resolvedBuildingId = _selectedBuildingId;
 
     final updatedReport = widget.report.copyWith(
       title: _titleController.text,

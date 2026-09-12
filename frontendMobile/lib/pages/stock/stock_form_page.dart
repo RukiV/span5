@@ -81,9 +81,7 @@ class _StockFormPageState extends State<StockFormPage> {
     if (_campusId != null) return;
     try {
       _campusId = CampusService.campusesNotifier.value
-          .firstWhere((c) =>
-              c.name == UserSession.userCampus ||
-              UserSession.userCampus.contains(c.name))
+          .firstWhere((c) => c.id == UserSession.locationId)
           .id;
     } catch (_) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {

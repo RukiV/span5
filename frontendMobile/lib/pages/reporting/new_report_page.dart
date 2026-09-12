@@ -606,20 +606,8 @@ class _NewReportPageState extends State<NewReportPage> {
       final String roomId =
           selectedLocation != null ? selectedLocation!.split(":").first : "";
 
-      int? resolvedLocationId;
-      int? resolvedBuildingId;
-      if (selectedCampus != null) {
-        final campus = CampusService.getCampusByName(selectedCampus!);
-        if (campus != null) {
-          resolvedLocationId = campus.id;
-          if (selectedBuilding != null) {
-            final building = campus.buildings
-                .where((b) => b.name == selectedBuilding)
-                .firstOrNull;
-            resolvedBuildingId = building?.id;
-          }
-        }
-      }
+      int? resolvedLocationId = _selectedCampusId;
+      int? resolvedBuildingId = _selectedBuildingId;
 
       final newReport = Report(
         id: "0",

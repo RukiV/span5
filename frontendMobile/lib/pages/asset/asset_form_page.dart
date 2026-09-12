@@ -91,9 +91,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
     if (selectedCampus != null) return;
     try {
       selectedCampus = CampusService.campusesNotifier.value
-          .firstWhere((c) =>
-              c.name == UserSession.userCampus ||
-              UserSession.userCampus.contains(c.name))
+          .firstWhere((c) => c.id == UserSession.locationId)
           .name;
     } catch (_) {
       if (CampusService.campusesNotifier.value.isNotEmpty) {
