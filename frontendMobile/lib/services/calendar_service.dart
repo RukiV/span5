@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../core/api_client.dart';
-import '../core/datetime_utils.dart' as datetime_utils;
+import '../core/datetime_utils.dart';
 import '../core/idempotency.dart';
 import 'outlook_service.dart';
 
 /// Keep a non-null fallback for calendar slots; delegates the naive wall-clock
 /// parse to the shared helper.
-DateTime parseWallClockDatetime(String? value) {
-  return datetime_utils.parseWallClockDatetime(value) ?? DateTime.now();
+DateTime calendarDatetimeOrNow(String? value) {
+  return parseWallClockDatetime(value) ?? DateTime.now();
 }
 
 class CalendarEvent {
@@ -51,10 +51,10 @@ class CalendarEvent {
       title: json['title'] ?? '',
       description: json['description'],
       startDatetime: json['start_datetime'] != null
-          ? parseWallClockDatetime(json['start_datetime'])
+          ? calendarDatetimeOrNow(json['start_datetime'])
           : DateTime.now(),
       endDatetime: json['end_datetime'] != null
-          ? parseWallClockDatetime(json['end_datetime'])
+          ? calendarDatetimeOrNow(json['end_datetime'])
           : null,
       allDay: json['all_day'] ?? false,
       location: json['location'],
