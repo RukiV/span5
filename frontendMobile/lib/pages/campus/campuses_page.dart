@@ -9,15 +9,15 @@ import '../../widgets/list_page_scaffold.dart';
 import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
 
-class CampusManagementPage extends StatefulWidget {
+class CampusesPage extends StatefulWidget {
   final void Function(Campus campus) onCampusSelected;
-  const CampusManagementPage({super.key, required this.onCampusSelected});
+  const CampusesPage({super.key, required this.onCampusSelected});
 
   @override
-  State<CampusManagementPage> createState() => _CampusManagementPageState();
+  State<CampusesPage> createState() => _CampusesPageState();
 }
 
-class _CampusManagementPageState extends State<CampusManagementPage> {
+class _CampusesPageState extends State<CampusesPage> {
   @override
   void initState() {
     super.initState();

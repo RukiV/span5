@@ -16,18 +16,18 @@ import '../../widgets/selection_manager.dart';
 import 'new_report_page.dart';
 import 'report_detail_page.dart';
 
-/// ReportingPage — Foutkaartjie-lys (rapporte).
+/// ReportsPage — Foutkaartjie-lys (rapporte).
 ///
 /// Voorgestelde Werksopdragte het na Werksopdragte geskuif (JobCardsPage se tweede tab) —
 /// hierdie bladsy is weer 'n skoon foutkaartjie-lys.
-class ReportingPage extends StatefulWidget {
-  const ReportingPage({super.key});
+class ReportsPage extends StatefulWidget {
+  const ReportsPage({super.key});
 
   @override
-  State<ReportingPage> createState() => _ReportingPageState();
+  State<ReportsPage> createState() => _ReportsPageState();
 }
 
-class _ReportingPageState extends State<ReportingPage> {
+class _ReportsPageState extends State<ReportsPage> {
   // ── Fault list state ──
   String _statusFilter = "Alles";
   int? _selectedCampusId;

@@ -13,17 +13,17 @@ import '../../widgets/column_visibility.dart';
 import '../../widgets/list_page_scaffold.dart';
 import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
-import '../asset/asset_page.dart';
+import '../asset/assets_page.dart';
 import '../reporting/scan_page.dart';
 import '../room_checklist/room_checklist_page.dart';
 import 'room_form_page.dart';
 
-class ManageRoomsPage extends StatefulWidget {
+class RoomsPage extends StatefulWidget {
   final Campus? initialCampus;
   final Building? initialBuilding;
   final void Function(Room room)? onRoomSelected;
 
-  const ManageRoomsPage({
+  const RoomsPage({
     super.key,
     this.initialCampus,
     this.initialBuilding,
@@ -31,10 +31,10 @@ class ManageRoomsPage extends StatefulWidget {
   });
 
   @override
-  State<ManageRoomsPage> createState() => _ManageRoomsPageState();
+  State<RoomsPage> createState() => _RoomsPageState();
 }
 
-class _ManageRoomsPageState extends State<ManageRoomsPage> {
+class _RoomsPageState extends State<RoomsPage> {
   Campus? _selectedCampus;
   Building? _selectedBuilding;
 
@@ -53,7 +53,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
   }
 
   @override
-  void didUpdateWidget(covariant ManageRoomsPage oldWidget) {
+  void didUpdateWidget(covariant RoomsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialCampus != null) {
       _selectedCampus = widget.initialCampus;

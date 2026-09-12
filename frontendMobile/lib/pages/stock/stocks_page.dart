@@ -13,14 +13,14 @@ import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
 import 'stock_form_page.dart';
 
-class StockPage extends StatefulWidget {
-  const StockPage({super.key});
+class StocksPage extends StatefulWidget {
+  const StocksPage({super.key});
 
   @override
-  State<StockPage> createState() => _StockPageState();
+  State<StocksPage> createState() => _StocksPageState();
 }
 
-class _StockPageState extends State<StockPage> {
+class _StocksPageState extends State<StocksPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;

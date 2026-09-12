@@ -11,22 +11,22 @@ import '../../widgets/list_page_scaffold.dart';
 import '../../widgets/selectable_row.dart';
 import '../../widgets/selection_manager.dart';
 import 'building_form_page.dart';
-import '../rooms/manage_rooms_page.dart';
+import '../rooms/rooms_page.dart';
 
-class BuildingsListPage extends StatefulWidget {
+class BuildingsPage extends StatefulWidget {
   final Campus? initialCampus;
   final void Function(Building building)? onBuildingSelected;
-  const BuildingsListPage({
+  const BuildingsPage({
     super.key,
     this.initialCampus,
     this.onBuildingSelected,
   });
 
   @override
-  State<BuildingsListPage> createState() => _BuildingsListPageState();
+  State<BuildingsPage> createState() => _BuildingsPageState();
 }
 
-class _BuildingsListPageState extends State<BuildingsListPage> {
+class _BuildingsPageState extends State<BuildingsPage> {
   Campus? _selectedCampus;
 
   @override
@@ -247,7 +247,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => ManageRoomsPage(
+                                    builder: (context) => RoomsPage(
                                       initialCampus: _selectedCampus,
                                       initialBuilding: b,
                                     ),
