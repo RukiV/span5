@@ -8,6 +8,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../models/room.dart';
 import '../../widgets/header_action_button.dart';
+import '../../widgets/list_load_error.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../widgets/column_visibility.dart';
 import '../../widgets/list_page_scaffold.dart';
@@ -221,27 +222,9 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   Widget _buildLoadError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, color: AppColors.errorRed, size: 40),
-            const SizedBox(height: 12),
-            Text(
-              CampusService.lastError ?? "Kon nie die kampuslys laai nie.",
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.errorRed),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => CampusService.fetchCampuses(),
-              child: const Text("Probeer weer"),
-            ),
-          ],
-        ),
-      ),
+    return ListLoadError(
+      message: CampusService.lastError,
+      onRetry: () => CampusService.fetchCampuses(),
     );
   }
 
