@@ -41,6 +41,11 @@ class SearchableListScaffold<T> extends StatefulWidget {
   final Widget? floatingActionButton;
   final Color backgroundColor;
 
+  /// Reken die tans-versteekte geselekteerde rye uit vir die bulk-verwyder
+  /// bevestiging. Die bladsy verskaf 'n suiwer funksie van sy eie filter-staat
+  /// plus die soek-query; wanneer dit `null` is word geen waarskuwing gewys nie.
+  final Set<T> Function(String query)? visibleIdsProvider;
+
   const SearchableListScaffold({
     super.key,
     required this.searchHint,
@@ -55,6 +60,7 @@ class SearchableListScaffold<T> extends StatefulWidget {
     this.bulkDeleteChildWarning,
     this.floatingActionButton,
     this.backgroundColor = AppColors.background,
+    this.visibleIdsProvider,
   });
 
   @override
@@ -117,6 +123,15 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
                   confirmMessage: widget.bulkDeleteMessage
                       .replaceAll('{count}', '${_selection.count}'),
                   childWarning: widget.bulkDeleteChildWarning,
+                  hiddenSelectedCount: widget.visibleIdsProvider == null
+                      ? null
+                      : () {
+                          final visible =
+                              widget.visibleIdsProvider!(_query).toSet();
+                          return _selection.selectedIds
+                              .where((id) => !visible.contains(id))
+                              .length;
+                        },
                   onDelete: (context, ids) async {
                     await widget.onBulkDelete(context, ids);
                     _selection.exit();

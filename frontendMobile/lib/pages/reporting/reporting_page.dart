@@ -152,6 +152,23 @@ class _ReportingPageState extends State<ReportingPage> {
     return ValueListenableBuilder<List<Report>>(
       valueListenable: ReportService.reportsNotifier,
       builder: (context, allReports, _) {
+        List<Report> visibleRowsFor(String query) => allReports.where((r) {
+              final matchesSearch = query.isEmpty ||
+                  r.id.toLowerCase().contains(query) ||
+                  r.title.toLowerCase().contains(query) ||
+                  r.location.toLowerCase().contains(query);
+              final matchesStatus =
+                  _statusFilter == "Alles" || (r.phase == _statusFilter);
+              final matchesCampus = _selectedCampusId == null ||
+                  _campusIdForReport(r) == _selectedCampusId;
+              final matchesBuilding = _selectedBuildingId == null ||
+                  _buildingIdForReport(r) == _selectedBuildingId;
+              return matchesSearch &&
+                  matchesStatus &&
+                  matchesCampus &&
+                  matchesBuilding;
+            }).toList();
+
         return SearchableListScaffold<String>(
           searchHint: "Soek verslae...",
           columns: const [
@@ -198,6 +215,8 @@ class _ReportingPageState extends State<ReportingPage> {
           bulkDeleteTitle: 'Verwyder Foutkaartjies',
           bulkDeleteMessage:
               'Wil jy {count} geselekteerde foutkaartjie(s) verwyder?',
+          visibleIdsProvider: (q) =>
+              visibleRowsFor(q).map((r) => r.id).toSet(),
           onBulkDelete: _bulkDeleteFaults,
           onRefresh: () => ReportService.fetchReports(),
           floatingActionButton: FloatingActionButton.extended(
@@ -212,23 +231,7 @@ class _ReportingPageState extends State<ReportingPage> {
             onPressed: () => _handleNewReport(context),
           ),
           content: (context, state) {
-            final query = state.query;
-            List<Report> filtered = allReports.where((r) {
-              final matchesSearch = query.isEmpty ||
-                  r.id.toLowerCase().contains(query) ||
-                  r.title.toLowerCase().contains(query) ||
-                  r.location.toLowerCase().contains(query);
-              final matchesStatus =
-                  _statusFilter == "Alles" || (r.phase == _statusFilter);
-              final matchesCampus = _selectedCampusId == null ||
-                  _campusIdForReport(r) == _selectedCampusId;
-              final matchesBuilding = _selectedBuildingId == null ||
-                  _buildingIdForReport(r) == _selectedBuildingId;
-              return matchesSearch &&
-                  matchesStatus &&
-                  matchesCampus &&
-                  matchesBuilding;
-            }).toList();
+            final filtered = visibleRowsFor(state.query);
 
             return RefreshIndicator(
               onRefresh: () => ReportService.fetchReports(),

@@ -131,6 +131,43 @@ class _StockPageState extends State<StockPage> {
     return ValueListenableBuilder<List<Stock>>(
       valueListenable: StockService.stocksNotifier,
       builder: (context, allStocks, _) {
+        List<Stock> visibleRowsFor(String query) {
+          final campuses = CampusService.campusesNotifier.value;
+          final campusRoomIds = _selectedCampusId != null
+              ? campuses
+                  .where((c) => c.id == _selectedCampusId)
+                  .expand((c) => c.buildings)
+                  .expand((b) => b.rooms ?? [])
+                  .map((r) => r.id)
+                  .toSet()
+              : null;
+          final buildingRoomIds = _selectedBuildingId != null
+              ? campuses
+                  .expand((c) => c.buildings)
+                  .where((b) => b.id == _selectedBuildingId)
+                  .expand((b) => b.rooms ?? [])
+                  .map((r) => r.id)
+                  .toSet()
+              : null;
+          return allStocks.where((s) {
+            if (campusRoomIds != null &&
+                (s.roomId == null || !campusRoomIds.contains(s.roomId))) {
+              return false;
+            }
+            if (buildingRoomIds != null &&
+                (s.roomId == null || !buildingRoomIds.contains(s.roomId))) {
+              return false;
+            }
+            if (_selectedRoomId != null && s.roomId != _selectedRoomId) {
+              return false;
+            }
+            return s.name.toLowerCase().contains(query) ||
+                s.brand.toLowerCase().contains(query) ||
+                s.type.toLowerCase().contains(query) ||
+                (s.id?.toString().contains(query) ?? false);
+          }).toList();
+        }
+
         return SearchableListScaffold<int>(
           searchHint: "Soek voorraad...",
           columns: const [
@@ -169,6 +206,10 @@ class _StockPageState extends State<StockPage> {
           bulkDeleteTitle: 'Verwyder Voorraad',
           bulkDeleteMessage:
               'Wil jy {count} geselekteerde voorraad-item(s) verwyder?',
+          visibleIdsProvider: (q) => visibleRowsFor(q)
+              .map((s) => s.id)
+              .whereType<int>()
+              .toSet(),
           onBulkDelete: _bulkDeleteStock,
           onRefresh: () => StockService.fetchStocks(),
           floatingActionButton: UserSession.can('stock.manage')
@@ -191,43 +232,7 @@ class _StockPageState extends State<StockPage> {
                 )
               : null,
           content: (context, state) {
-            final query = state.query;
-            final campuses = CampusService.campusesNotifier.value;
-
-            final campusRoomIds = _selectedCampusId != null
-                ? campuses
-                    .where((c) => c.id == _selectedCampusId)
-                    .expand((c) => c.buildings)
-                    .expand((b) => b.rooms ?? [])
-                    .map((r) => r.id)
-                    .toSet()
-                : null;
-            final buildingRoomIds = _selectedBuildingId != null
-                ? campuses
-                    .expand((c) => c.buildings)
-                    .where((b) => b.id == _selectedBuildingId)
-                    .expand((b) => b.rooms ?? [])
-                    .map((r) => r.id)
-                    .toSet()
-                : null;
-
-            List<Stock> filtered = allStocks.where((s) {
-              if (campusRoomIds != null &&
-                  (s.roomId == null || !campusRoomIds.contains(s.roomId))) {
-                return false;
-              }
-              if (buildingRoomIds != null &&
-                  (s.roomId == null || !buildingRoomIds.contains(s.roomId))) {
-                return false;
-              }
-              if (_selectedRoomId != null && s.roomId != _selectedRoomId) {
-                return false;
-              }
-              return s.name.toLowerCase().contains(query) ||
-                  s.brand.toLowerCase().contains(query) ||
-                  s.type.toLowerCase().contains(query) ||
-                  (s.id?.toString().contains(query) ?? false);
-            }).toList();
+            final filtered = visibleRowsFor(state.query);
 
             return RefreshIndicator(
               onRefresh: () => StockService.fetchStocks(),

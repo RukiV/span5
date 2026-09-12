@@ -143,6 +143,13 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
         final buildings = selectedCampus?.buildings ??
             campuses.expand((c) => c.buildings).toList();
 
+        List<Building> visibleRowsFor(String query) => buildings
+            .where((b) =>
+                query.isEmpty ||
+                b.name.toLowerCase().contains(query) ||
+                b.address.toLowerCase().contains(query))
+            .toList();
+
         return SearchableListScaffold<int>(
           searchHint: "Soek geboue...",
           columns: const [
@@ -174,6 +181,8 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
               'Wil jy {count} geselekteerde gebou/geboue verwyder?',
           bulkDeleteChildWarning:
               'Alle onderliggende lokale, bates, voorraad, foute en take sal ook verwyder word.',
+          visibleIdsProvider: (q) =>
+              visibleRowsFor(q).map((b) => b.id).toSet(),
           onBulkDelete: _bulkDeleteBuildings,
           onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: UserSession.can('buildings.manage')
@@ -200,12 +209,7 @@ class _BuildingsListPageState extends State<BuildingsListPage> {
                 )
               : null,
           content: (context, state) {
-            final filtered = buildings
-                .where((b) =>
-                    state.query.isEmpty ||
-                    b.name.toLowerCase().contains(state.query) ||
-                    b.address.toLowerCase().contains(state.query))
-                .toList();
+            final filtered = visibleRowsFor(state.query);
 
             if (filtered.isEmpty) {
               return const Center(

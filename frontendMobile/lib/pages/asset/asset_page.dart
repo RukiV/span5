@@ -219,6 +219,14 @@ class _AssetsPageState extends State<AssetsPage> {
           confirmTitle: 'Verwyder Bates',
           confirmMessage:
               'Wil jy ${_selection.count} geselekteerde bate/bates verwyder?',
+          hiddenSelectedCount: () {
+            final visible = _visibleAssets(_searchController.text.toLowerCase())
+                .map((a) => a.id)
+                .toSet();
+            return _selection.selectedIds
+                .where((id) => !visible.contains(id))
+                .length;
+          },
           onDelete: _bulkDeleteAssets,
         ),
       ],
@@ -226,68 +234,63 @@ class _AssetsPageState extends State<AssetsPage> {
     ];
   }
 
+  List<Asset> _visibleAssets(String query) {
+    final campuses = CampusService.campusesNotifier.value;
+
+    final campusRoomIds = _selectedCampusId != null
+        ? campuses
+            .where((c) => c.id == _selectedCampusId)
+            .expand((c) => c.buildings)
+            .expand((b) => b.rooms ?? [])
+            .map((r) => r.id.toString())
+            .toSet()
+        : null;
+    final buildingRoomIds = _selectedBuildingId != null
+        ? campuses
+            .expand((c) => c.buildings)
+            .where((b) => b.id == _selectedBuildingId)
+            .expand((b) => b.rooms ?? [])
+            .map((r) => r.id.toString())
+            .toSet()
+        : null;
+
+    return AssetService.assetsNotifier.value.where((a) {
+      if (_activeRoomFilter != null && a.location != _activeRoomFilter) {
+        return false;
+      }
+
+      if (campusRoomIds != null && !campusRoomIds.contains(a.location)) {
+        return false;
+      }
+
+      if (buildingRoomIds != null && !buildingRoomIds.contains(a.location)) {
+        return false;
+      }
+
+      if (_selectedRoomId != null &&
+          a.location != _selectedRoomId.toString()) {
+        return false;
+      }
+
+      if (_statusFilter != "Almal") {
+        String mapped = "active";
+        if (_statusFilter == "Onderhoud") mapped = "maintenance";
+        if (_statusFilter == "Afgedank") mapped = "retired";
+        if (_statusFilter == "Onaktief") mapped = "inactive";
+        if (a.status.toLowerCase() != mapped) return false;
+      }
+
+      return a.name.toLowerCase().contains(query) ||
+          a.serialCode.toLowerCase().contains(query) ||
+          a.id.toLowerCase().contains(query);
+    }).toList();
+  }
+
   Widget _buildAssetListSliver() {
     return ValueListenableBuilder<List<Asset>>(
       valueListenable: AssetService.assetsNotifier,
       builder: (context, allAssets, _) {
-        final campuses = CampusService.campusesNotifier.value;
-
-        // Build valid room ID sets for cascade filter
-        final campusRoomIds = _selectedCampusId != null
-            ? campuses
-                .where((c) => c.id == _selectedCampusId)
-                .expand((c) => c.buildings)
-                .expand((b) => b.rooms ?? [])
-                .map((r) => r.id.toString())
-                .toSet()
-            : null;
-        final buildingRoomIds = _selectedBuildingId != null
-            ? campuses
-                .expand((c) => c.buildings)
-                .where((b) => b.id == _selectedBuildingId)
-                .expand((b) => b.rooms ?? [])
-                .map((r) => r.id.toString())
-                .toSet()
-            : null;
-
-        final filtered = allAssets.where((a) {
-          // Room filter from constructor
-          if (_activeRoomFilter != null && a.location != _activeRoomFilter) {
-            return false;
-          }
-
-          // Campus filter
-          if (campusRoomIds != null && !campusRoomIds.contains(a.location)) {
-            return false;
-          }
-
-          // Building filter
-          if (buildingRoomIds != null &&
-              !buildingRoomIds.contains(a.location)) {
-            return false;
-          }
-
-          // Room filter
-          if (_selectedRoomId != null &&
-              a.location != _selectedRoomId.toString()) {
-            return false;
-          }
-
-          // Status filter
-          if (_statusFilter != "Almal") {
-            String mapped = "active";
-            if (_statusFilter == "Onderhoud") mapped = "maintenance";
-            if (_statusFilter == "Afgedank") mapped = "retired";
-            if (_statusFilter == "Onaktief") mapped = "inactive";
-            if (a.status.toLowerCase() != mapped) return false;
-          }
-
-          // Search query
-          final q = _searchController.text.toLowerCase();
-          return a.name.toLowerCase().contains(q) ||
-              a.serialCode.toLowerCase().contains(q) ||
-              a.id.toLowerCase().contains(q);
-        }).toList();
+        final filtered = _visibleAssets(_searchController.text.toLowerCase());
 
         if (filtered.isEmpty) {
           return const SliverFillRemaining(

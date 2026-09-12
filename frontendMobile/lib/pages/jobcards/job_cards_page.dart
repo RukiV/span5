@@ -171,26 +171,27 @@ class _JobCardsPageState extends State<JobCardsPage>
   // TAB 1 — WERKSOPDRAGTE
   // ══════════════════════════════════════════════════════════════════════════
 
+  List<Jobcard> _visibleJobs(String query) {
+    return JobcardService.jobcardsNotifier.value.where((j) {
+      final isActive = j.status == "Besig" ||
+          j.status == "Geskeduleer" ||
+          j.status == "Voltooi" ||
+          j.status == "Oop" ||
+          j.status == "Wag" ||
+          j.status == "Gekanselleer";
+      if (!isActive) return false;
+      if (query.isEmpty) return true;
+      return j.description.toLowerCase().contains(query) ||
+          j.id.toString().contains(query) ||
+          (j.type?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
   Widget _buildJobListTab() {
     return ValueListenableBuilder<List<Jobcard>>(
       valueListenable: JobcardService.jobcardsNotifier,
       builder: (context, jobcards, child) {
-        final activeJobs = jobcards
-            .where((j) =>
-                j.status == "Besig" ||
-                j.status == "Geskeduleer" ||
-                j.status == "Voltooi" ||
-                j.status == "Oop" ||
-                j.status == "Wag" ||
-                j.status == "Gekanselleer")
-            .toList();
-
-        final filtered = activeJobs.where((j) {
-          if (_searchQuery.isEmpty) return true;
-          return j.description.toLowerCase().contains(_searchQuery) ||
-              j.id.toString().contains(_searchQuery) ||
-              (j.type?.toLowerCase().contains(_searchQuery) ?? false);
-        }).toList();
+        final filtered = _visibleJobs(_searchQuery);
 
         return RefreshIndicator(
           onRefresh: () => JobcardService.fetchJobs(),
@@ -228,6 +229,13 @@ class _JobCardsPageState extends State<JobCardsPage>
           confirmTitle: 'Verwyder Werksopdragte',
           confirmMessage:
               'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
+          hiddenSelectedCount: () {
+            final visible =
+                _visibleJobs(_searchQuery).map((j) => j.id).toSet();
+            return _selection.selectedIds
+                .where((id) => !visible.contains(id))
+                .length;
+          },
           onDelete: _bulkDeleteJobs,
         ),
       ],

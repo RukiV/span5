@@ -83,6 +83,12 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
     return ValueListenableBuilder<List<Campus>>(
       valueListenable: CampusService.campusesNotifier,
       builder: (context, allCampuses, _) {
+        List<Campus> visibleRowsFor(String query) => allCampuses
+            .where((c) =>
+                c.name.toLowerCase().contains(query) ||
+                c.address.toLowerCase().contains(query))
+            .toList();
+
         return SearchableListScaffold<int>(
           searchHint: "Soek terreine...",
           columns: const [
@@ -96,6 +102,8 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               'Wil jy {count} geselekteerde terrein/terreine verwyder?',
           bulkDeleteChildWarning:
               'Alle onderliggende geboue, lokale, bates, voorraad, foute en take sal ook verwyder word.',
+          visibleIdsProvider: (q) =>
+              visibleRowsFor(q).map((c) => c.id).toSet(),
           onBulkDelete: _bulkDeleteCampuses,
           onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: UserSession.can('locations.manage')
@@ -137,11 +145,7 @@ class _CampusManagementPageState extends State<CampusManagementPage> {
               );
             }
 
-            final filtered = campuses
-                .where((c) =>
-                    c.name.toLowerCase().contains(state.query) ||
-                    c.address.toLowerCase().contains(state.query))
-                .toList();
+            final filtered = visibleRowsFor(state.query);
 
             return RefreshIndicator(
               onRefresh: () => CampusService.fetchCampuses(),

@@ -279,6 +279,21 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
         }
         _selectedBuilding = selectedBuilding;
 
+        List<Room> visibleRowsFor(String query) {
+          final baseRooms = _selectedBuilding != null
+              ? (_selectedBuilding!.rooms ?? <Room>[])
+              : campuses
+                  .expand((c) => c.buildings)
+                  .expand((b) => b.rooms ?? const <Room>[])
+                  .toList();
+          return baseRooms
+              .where((r) =>
+                  query.isEmpty ||
+                  r.name.toLowerCase().contains(query) ||
+                  r.type.toLowerCase().contains(query))
+              .toList();
+        }
+
         return SearchableListScaffold<int>(
           searchHint: "Soek lokale...",
           columns: const [
@@ -314,6 +329,8 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
               'Wil jy {count} geselekteerde lokaal/lokale verwyder?',
           bulkDeleteChildWarning:
               'Alle onderliggende bates, voorraad, foute en take sal ook verwyder word.',
+          visibleIdsProvider: (q) =>
+              visibleRowsFor(q).map((r) => r.id).toSet(),
           onBulkDelete: _bulkDeleteRooms,
           onRefresh: () => CampusService.fetchCampuses(),
           floatingActionButton: Column(
@@ -350,18 +367,7 @@ class _ManageRoomsPageState extends State<ManageRoomsPage> {
             ],
           ),
           content: (context, state) {
-            final baseRooms = _selectedBuilding != null
-                ? (_selectedBuilding!.rooms ?? <Room>[])
-                : campuses
-                    .expand((c) => c.buildings)
-                    .expand((b) => b.rooms ?? const <Room>[])
-                    .toList();
-            final filtered = baseRooms
-                .where((r) =>
-                    state.query.isEmpty ||
-                    r.name.toLowerCase().contains(state.query) ||
-                    r.type.toLowerCase().contains(state.query))
-                .toList();
+            final filtered = visibleRowsFor(state.query);
             if (filtered.isEmpty) {
               return const Center(
                   child: Text("Geen lokale geregistreer nie.",

@@ -45,6 +45,11 @@ class BulkDeleteAction<T> extends StatelessWidget {
   final String confirmMessage;
   final String? childWarning;
 
+  /// Returner die aantal geselekteerde rye wat tans deur die soektog/filters
+  /// versteek is. Wanneer dit > 0 is, wys die bevestiging 'n waarskuwing.
+  /// Null skakel die waarskuwing af.
+  final int Function()? hiddenSelectedCount;
+
   const BulkDeleteAction({
     super.key,
     required this.controller,
@@ -52,6 +57,7 @@ class BulkDeleteAction<T> extends StatelessWidget {
     required this.confirmTitle,
     required this.confirmMessage,
     this.childWarning,
+    this.hiddenSelectedCount,
   });
 
   @override
@@ -92,6 +98,33 @@ class BulkDeleteAction<T> extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(confirmMessage),
+            if (hiddenSelectedCount != null && hiddenSelectedCount!() > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 25 / 255),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_off,
+                        color: AppColors.warningOrange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "${hiddenSelectedCount!()} van die geselekteerde rye is tans deur die soektog/filters versteek — hulle sal steeds verwyder word.",
+                        style: const TextStyle(
+                          color: Color(0xFF935E28),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (childWarning != null) ...[
               const SizedBox(height: 12),
               Container(
