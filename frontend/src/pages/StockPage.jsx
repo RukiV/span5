@@ -22,6 +22,9 @@ import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import StockDetailView from '../components/DetailView/StockDetailView';
+import '../components/DetailView/DetailView.css';
 
 function StockPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -627,6 +630,32 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
     </>
   );
 
+  const viewModalContent = showModal && isViewMode && isEditing && (() => {
+    const room = rooms.find(r => String(r.room_id) === String(newStock.room_id));
+    const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newStock.building_id));
+    const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newStock.location_id));
+    return (
+      <Modal
+        isOpen={true}
+        onClose={handleCloseModal}
+        title={`Bekyk Voorraad`}
+        size="md"
+        headerActions={
+          hasRight('stock.manage') ? (
+            <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+          ) : null
+        }
+      >
+        <StockDetailView
+          stock={newStock}
+          roomName={room?.room_name}
+          buildingName={building?.building_name}
+          terrainName={terrain?.location_name}
+        />
+      </Modal>
+    );
+  })();
+
   const modalContent = (
     <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
@@ -863,7 +892,8 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {viewModalContent}
+        {showModal && !isViewMode && modalContent}
         {imageViewerContent}
       {dialog}
       </>
@@ -1048,7 +1078,8 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
         </div>
 
-      {showModal && modalContent}
+      {viewModalContent}
+      {showModal && !isViewMode && modalContent}
       {imageViewerContent}
       {dialog}
     </div>

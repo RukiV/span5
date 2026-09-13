@@ -24,6 +24,9 @@
 
 .btn-view { background: green; color: white; }
 
+.btn-history { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; color: white; background-color: #3b82f6; display: inline-flex; align-items: center; justify-content: center; }
+.btn-history:hover { background-color: #0056b3; }
+
 
 .btn-cancel {
     background-color: #eee; 

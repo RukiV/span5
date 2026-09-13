@@ -22,6 +22,9 @@ import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import TicketDetailView from '../components/DetailView/TicketDetailView';
+import '../components/DetailView/DetailView.css';
 
 
 function TicketPage() {
@@ -714,7 +717,48 @@ function TicketPage() {
         </div>
       )}
 
-      {showModal && (
+      {showModal && isViewMode && isEditing && (() => {
+  const room = rooms.find(r => String(r.room_id) === String(newTicket.room_id));
+  const building = buildings.find(b => String(b.building_id) === String(newTicket.building_id));
+  const terrain = terrains.find(t => String(t.location_id) === String(newTicket.location_id));
+  const asset = assets.find(a => String(a.asset_id) === String(newTicket.asset_id));
+  const imageUrls = ticketImages.map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  return (
+    <Modal
+      isOpen={true}
+      onClose={handleCloseModal}
+      title={`Bekyk Foutkaartjie`}
+      size="md"
+      headerActions={
+        hasRight('faults.manage') ? (
+          <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+        ) : null
+      }
+    >
+      <TicketDetailView
+        ticket={{
+          ...newTicket,
+          fault_id: editingId,
+          fault_description: `${newTicket.title}: ${newTicket.description}`,
+          fault_type: newTicket.category,
+          fault_status: newTicket.status,
+          fault_priority: newTicket.priority,
+          fault_reportdatetime: null,
+          fault_updatedatetime: null,
+        }}
+        images={imageUrls}
+        assetName={asset?.asset_name}
+        roomName={room?.room_name}
+        buildingName={building?.building_name}
+        terrainName={terrain?.location_name}
+      />
+    </Modal>
+  );
+})()}
+      {showModal && !isViewMode && (
         <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content">
             <div className="modal-header">

@@ -21,6 +21,9 @@ import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../uti
 import '../styles/App.css';
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
+import Modal from '../components/Modal/Modal';
+import BuildingDetailView from '../components/DetailView/BuildingDetailView';
+import '../components/DetailView/DetailView.css';
 
 function BuildingsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -715,7 +718,31 @@ function BuildingsPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Gebou`}
+            size="md"
+            headerActions={
+              hasRight('buildings.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <BuildingDetailView
+              building={newBuilding}
+              terrainName={terrains.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name}
+              rooms={rooms}
+              onNavigateToRoom={(r) => {
+                handleCloseModal();
+                navigate('/rooms', { state: { room: r } });
+              }}
+            />
+          </Modal>
+        )}
+
+        {showModal && !isViewMode && modalContent}
 
         {showRoomsModal && selectedBuilding && (
           <div className="modal" style={{ display: "flex" }}>
@@ -767,7 +794,31 @@ function BuildingsPage({ embedded = false }) {
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (
+        <Modal
+          isOpen={true}
+          onClose={handleCloseModal}
+          title={`Bekyk Gebou`}
+          size="md"
+          headerActions={
+            hasRight('buildings.manage') ? (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            ) : null
+          }
+        >
+          <BuildingDetailView
+            building={newBuilding}
+            terrainName={terrains.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name}
+            rooms={rooms}
+            onNavigateToRoom={(r) => {
+              handleCloseModal();
+              navigate('/rooms', { state: { room: r } });
+            }}
+          />
+        </Modal>
+      )}
+
+      {showModal && !isViewMode && modalContent}
 
       {showRoomsModal && selectedBuilding && (
         <div className="modal" style={{ display: "flex" }}>

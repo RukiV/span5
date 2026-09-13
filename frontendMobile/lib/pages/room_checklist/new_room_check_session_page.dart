@@ -6,6 +6,8 @@ import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/app_snack_bar.dart';
+import '../../core/datetime_utils.dart';
 
 /// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
 ///
@@ -22,6 +24,7 @@ class NewRoomCheckSessionPage extends StatefulWidget {
 
 class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   bool _loading = true;
+  bool _creating = false;
   int? _campusId;
   int? _roomId;
   int? _assignedUserId;
@@ -72,7 +75,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   }
 
   String get _dateLabel =>
-      _scheduled == null ? "Kies datum en tyd" : "${_scheduled!.day}/${_scheduled!.month}/${_scheduled!.year} ${_scheduled!.hour}:${_scheduled!.minute}";
+      _scheduled == null ? "Kies datum en tyd" : formatDateTime(_scheduled!);
 
   @override
   Widget build(BuildContext context) {
@@ -144,16 +147,30 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _roomId == null || _assignedUserId == null
+                      onPressed: _roomId == null ||
+                              _assignedUserId == null ||
+                              _creating
                           ? null
                           : () async {
                               final navigator = Navigator.of(context);
-                              await RoomCheckSessionService.createSession(
+                              setState(() => _creating = true);
+                              final session = await RoomCheckSessionService
+                                  .createSession(
                                 roomId: _roomId!,
                                 assignedUserId: _assignedUserId!,
                                 scheduledDatetime: _scheduled,
                               );
-                              if (mounted) navigator.pop(true);
+                              if (!context.mounted) return;
+                              if (session == null) {
+                                setState(() => _creating = false);
+                                showAppSnackBar(
+                                  context,
+                                  "Kon nie die lokale kontrole skeduleer nie.",
+                                  error: true,
+                                );
+                                return;
+                              }
+                              navigator.pop(true);
                             },
                       child: const Text("Skeduleer"),
                     ),

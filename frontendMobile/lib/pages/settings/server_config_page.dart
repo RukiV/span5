@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
+import '../../widgets/app_snack_bar.dart';
 
 /// ServerConfigPage: Eerste-launch / instellingsskerm waar die gebruiker die
 /// bediener-URL invoer (bv. https://jou-tunnel.trycloudflare.com of 'n LAN-IP).
@@ -30,10 +31,12 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
 
   Future<void> _loadCurrentUrl() async {
     final stored = await ApiClient.getStoredServerUrl();
-    _hasServer = stored != null && stored.isNotEmpty;
     if (mounted) {
-      _urlControl.text =
-          stored ?? (ApiClient().baseUrl.startsWith('http') ? ApiClient().baseUrl : '');
+      setState(() {
+        _hasServer = stored != null && stored.isNotEmpty;
+        _urlControl.text =
+            stored ?? (ApiClient().baseUrl.startsWith('http') ? ApiClient().baseUrl : '');
+      });
     }
   }
 
@@ -49,7 +52,7 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
   Future<void> _save() async {
     final error = _validate(_urlControl.text);
     if (error != null) {
-      _showError(error);
+      showAppSnackBar(context, error, error: true, floating: true);
       return;
     }
 
@@ -65,20 +68,9 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      _showError("Kon nie die bediener-URL stoor nie: $e");
+      showAppSnackBar(context, "Kon nie die bediener-URL stoor nie: $e", error: true, floating: true);
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override

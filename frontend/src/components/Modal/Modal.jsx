@@ -14,6 +14,7 @@ function Modal({
   title,
   children,
   footer,
+  headerActions,
   size = 'md',
   closeOnBackdrop = true,
   closeOnEsc = true,
@@ -60,9 +61,12 @@ function Modal({
       >
         <div className="modal-panel-header">
           <h3>{title}</h3>
-          {showCloseButton && (
-            <span className="modal-close" onClick={onClose}>&times;</span>
-          )}
+          <div className="modal-header-actions">
+            {headerActions}
+            {showCloseButton && (
+              <span className="modal-close" onClick={onClose}>&times;</span>
+            )}
+          </div>
         </div>
         <div className="modal-panel-body">
           {children}

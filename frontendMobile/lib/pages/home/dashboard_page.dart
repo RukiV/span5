@@ -4,8 +4,10 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/asset_service.dart';
+import '../../services/jobcard_service.dart';
 import '../../models/report.dart';
 import '../../models/asset.dart';
+import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
 import 'calendar_page.dart';
 
@@ -42,6 +44,7 @@ class _DashboardPageState extends State<DashboardPage> {
     await Future.wait([
       ReportService.fetchReports(),
       AssetService.fetchAssets(),
+      JobcardService.fetchJobs(),
     ]);
   }
 
@@ -84,9 +87,6 @@ class _DashboardPageState extends State<DashboardPage> {
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
-                final voltooi =
-                    reports.where((r) => r.phase == "Voltooi").length;
-                final werksopdragteTotaal = reports.length;
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
@@ -103,19 +103,25 @@ class _DashboardPageState extends State<DashboardPage> {
                           "Foutkaartjies",
                           cardWidth,
                         ),
-                        _buildMiniStatCard(
-                          context,
-                          "Werksopdragte",
-                          werksopdragteTotaal.toString(),
-                          "",
-                          AppColors.successGreen, // Werksopdragte is nou Groen
-                          "Werksopdragte",
-                          cardWidth,
+                        ValueListenableBuilder<List<Jobcard>>(
+                          valueListenable:
+                              JobcardService.jobcardsNotifier,
+                          builder: (context, jobcards, _) {
+                            return _buildMiniStatCard(
+                              context,
+                              "Werksopdragte",
+                              jobcards.length.toString(),
+                              "",
+                              AppColors.successGreen,
+                              "Werksopdragte",
+                              cardWidth,
+                            );
+                          },
                         ),
                         _buildMiniStatCard(
                           context,
                           "Verslae",
-                          voltooi.toString(),
+                          reports.length.toString(),
                           "",
                           AppColors.infoBlue,
                           "Foutkaartjies",

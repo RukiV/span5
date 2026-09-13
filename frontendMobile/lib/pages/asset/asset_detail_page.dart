@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/campus_service.dart';
 import '../../widgets/status_badge.dart';
+import '../../widgets/detail_row.dart';
 import '../../core/app_colors.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../services/report_service.dart';
 import '../../models/user_session.dart';
 import '../reporting/report_detail_page.dart';
-import 'edit_asset_page.dart';
+import 'asset_form_page.dart';
 import '../room_checklist/room_checklist_page.dart';
 
 class AssetDetailPage extends StatefulWidget {
@@ -35,7 +36,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
   @override
   Widget build(BuildContext context) {
     final relatedReports = ReportService.reportsNotifier.value
-        .where((r) => r.assetId == _currentAsset.id || r.assetId == _currentAsset.serialCode)
+        .where((r) =>
+            r.assetId == _currentAsset.id ||
+            r.assetId == _currentAsset.serialCode)
         .toList();
 
     return Scaffold(
@@ -52,7 +55,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => RoomChecklistPage(roomId: int.parse(_currentAsset.location)),
+                  builder: (_) => RoomChecklistPage(
+                      roomId: int.parse(_currentAsset.location)),
                 ),
               ),
             ),
@@ -62,11 +66,14 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
               onPressed: () async {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => EditAssetPage(asset: _currentAsset)),
+                  MaterialPageRoute(
+                      builder: (context) =>
+                          AssetFormPage(asset: _currentAsset)),
                 );
                 if (result == true && mounted) {
                   setState(() {
-                    final updated = AssetService.assetsNotifier.value.firstWhere(
+                    final updated =
+                        AssetService.assetsNotifier.value.firstWhere(
                       (a) => a.id == _currentAsset.id,
                       orElse: () => _currentAsset,
                     );
@@ -91,9 +98,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
             _buildSectionHeader("Besonderhede"),
             const SizedBox(height: 12),
             _buildInfoCard(),
-            
+
             const SizedBox(height: 25),
-            
+
             // Identifikasie Seksie
             _buildSectionHeader("Identifikasie"),
             const SizedBox(height: 12),
@@ -105,8 +112,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
             _buildSectionHeader("Verslag Geskiedenis"),
             const SizedBox(height: 12),
             relatedReports.isEmpty
-              ? _buildEmptyState("Geen rapporterings vir hierdie bate nie.")
-              : _buildReportList(relatedReports),
+                ? _buildEmptyState("Geen rapporterings vir hierdie bate nie.")
+                : _buildReportList(relatedReports),
           ],
         ),
       ),
@@ -131,35 +138,47 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
       ),
       child: Column(
         children: [
-          _buildDetailRow("Kampus", Text(CampusService.getCampusNameByRoomId(_currentAsset.location), style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Kampus",
+              valueWidget: Text(
+                  CampusService.getCampusNameByRoomId(_currentAsset.location),
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Gebou", Text(CampusService.getBuildingNameByRoomId(_currentAsset.location), style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Gebou",
+              valueWidget: Text(
+                  CampusService.getBuildingNameByRoomId(_currentAsset.location),
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Lokaal", Text(CampusService.getRoomName(_currentAsset.location), style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Lokaal",
+              valueWidget: Text(CampusService.getRoomName(_currentAsset.location),
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Plasing", Text(_currentAsset.isOutdoor ? "Buite" : "Binne", style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Plasing",
+              valueWidget: Text(_currentAsset.isOutdoor ? "Buite" : "Binne",
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Kategorie", Text(_currentAsset.category, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Kategorie",
+              valueWidget: Text(_currentAsset.category,
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Handelsmerk", Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Handelsmerk",
+              valueWidget: Text(_currentAsset.brand.isEmpty ? "-" : _currentAsset.brand,
+                  style: const TextStyle(fontWeight: FontWeight.bold))),
           const Divider(height: 24),
-          _buildDetailRow("Status", StatusBadge(status: _currentAsset.status)),
+          DetailRow(label: "Status", valueWidget: StatusBadge(status: _currentAsset.status)),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        value,
-      ],
     );
   }
 
@@ -171,12 +190,19 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+          ],
         ),
         child: Column(
           children: [
-            Text(_currentAsset.serialCode, 
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.gold, fontSize: 18, letterSpacing: 1.5)),
+            Text(_currentAsset.serialCode,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.gold,
+                    fontSize: 18,
+                    letterSpacing: 1.5)),
             const SizedBox(height: 20),
             QrImageView(
               data: _currentAsset.serialCode,
@@ -194,7 +220,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
       ),
       child: ListView.separated(
         shrinkWrap: true,
@@ -204,10 +232,16 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         itemBuilder: (context, index) {
           final r = relatedReports[index];
           return ListTile(
-            title: Text(r.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            subtitle: Text(r.timestamp.toString().split('.')[0], style: const TextStyle(fontSize: 12)),
+            title: Text(r.title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: Text(r.timestamp.toString().split('.')[0],
+                style: const TextStyle(fontSize: 12)),
             trailing: StatusBadge(status: r.phase),
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ReportDetailPage(report: r))),
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => ReportDetailPage(report: r))),
           );
         },
       ),
@@ -222,7 +256,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(message, style: TextStyle(color: Colors.grey[600], fontSize: 13, fontStyle: FontStyle.italic)),
+      child: Text(message,
+          style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 13,
+              fontStyle: FontStyle.italic)),
     );
   }
 
@@ -233,7 +271,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
         title: const Text("Verwyder Bate"),
         content: Text("Is jy seker jy wil '${_currentAsset.name}' verwyder?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("Kanselleer")),
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text("Kanselleer")),
           TextButton(
             onPressed: () async {
               final success = await AssetService.deleteAsset(_currentAsset.id);
@@ -245,11 +285,11 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 }
               }
             },
-            child: const Text("Verwyder", style: TextStyle(color: Colors.redAccent)),
+            child: const Text("Verwyder",
+                style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
     );
   }
-
 }

@@ -56,10 +56,12 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
     try {
       final response = await ApiClient().client.get('/room-checks', queryParameters: {'room_id': widget.roomId});
       final List data = response.data as List;
-      setState(() {
-        _checks = data.map((j) => _RoomCheckRecord.fromJson(j as Map<String, dynamic>)).toList();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _checks = data.map((j) => _RoomCheckRecord.fromJson(j as Map<String, dynamic>)).toList();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -70,19 +72,27 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
     }
   }
 
-  int _countConfirmed(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'confirmed').length;
+  List<dynamic> _decodeSummary(String s) {
+    try {
+      final decoded = jsonDecode(s);
+      return decoded is List ? decoded : const [];
+    } catch (_) {
+      return const [];
+    }
   }
 
-  int _countMissing(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'missing').length;
+  int _countConfirmed(List<dynamic> items) {
+    return items.where((e) => e is Map && e['status'] == 'confirmed').length;
   }
 
-  int _countFaultReported(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'fault_reported').length;
+  int _countMissing(List<dynamic> items) {
+    return items.where((e) => e is Map && e['status'] == 'missing').length;
+  }
+
+  int _countFaultReported(List<dynamic> items) {
+    return items
+        .where((e) => e is Map && e['status'] == 'fault_reported')
+        .length;
   }
 
   @override
@@ -111,9 +121,10 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
   }
 
   Widget _buildCheckCard(_RoomCheckRecord check) {
-    final confirmed = _countConfirmed(check.summary);
-    final missing = _countMissing(check.summary);
-    final faultReported = _countFaultReported(check.summary);
+    final summaryItems = _decodeSummary(check.summary);
+    final confirmed = _countConfirmed(summaryItems);
+    final missing = _countMissing(summaryItems);
+    final faultReported = _countFaultReported(summaryItems);
     final total = confirmed + missing + faultReported;
 
     final dateStr = "${check.checkedDatetime.day}/${check.checkedDatetime.month}/${check.checkedDatetime.year} "
