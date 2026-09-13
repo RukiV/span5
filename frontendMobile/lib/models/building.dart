@@ -5,7 +5,7 @@ class Building {
   final String name;
   final String streetNum;
   final String streetName;
-  final String type;
+  final List<String> types;
   final int locationId;
   final List<Room>? rooms;
 
@@ -14,7 +14,7 @@ class Building {
     required this.name,
     this.streetNum = '',
     this.streetName = '',
-    this.type = 'other',
+    this.types = const ['other'],
     required this.locationId,
     this.rooms,
   });
@@ -24,7 +24,13 @@ class Building {
     name: json['building_name'] ?? '',
     streetNum: json['building_streetnum'] ?? '',
     streetName: json['building_streetname'] ?? '',
-    type: _frontendBuildingType(json['building_type'] ?? 'other'),
+    types: (json['building_types'] as List?)
+        ?.map((t) => _frontendBuildingType(t.toString()))
+        .toList() ??
+        // backward compat: single string field
+        (json['building_type'] != null
+            ? [_frontendBuildingType(json['building_type'])]
+            : const ['other']),
     locationId: json['location_id'] ?? 0,
     rooms: json['rooms'] != null
         ? (json['rooms'] as List).map((r) => Room.fromJson(r)).toList()
@@ -49,6 +55,9 @@ class Building {
       case 'KAFERERIA':
       case 'Kafeteria':
         return 'kafeteria';
+      case 'RESIDENTIAL':
+      case 'Koshuis':
+        return 'residential';
       case 'OTHER':
       case 'Ander':
         return 'other';
@@ -59,7 +68,7 @@ class Building {
 
   Map<String, dynamic> toJson() => {
     'building_name': name,
-    'building_type': _backendBuildingType(type),
+    'building_types': types.map(_backendBuildingType).toList(),
     'location_id': locationId,
   };
 
@@ -78,6 +87,9 @@ class Building {
         return 'warehouse';
       case 'kafeteria':
         return 'Kafeteria';
+      case 'residential':
+      case 'koshuis':
+        return 'Koshuis';
       case 'other':
       case 'ander':
         return 'Ander';
@@ -91,7 +103,7 @@ class Building {
     String? name,
     String? streetNum,
     String? streetName,
-    String? type,
+    List<String>? types,
     int? locationId,
     List<Room>? rooms,
   }) {
@@ -100,7 +112,7 @@ class Building {
       name: name ?? this.name,
       streetNum: streetNum ?? this.streetNum,
       streetName: streetName ?? this.streetName,
-      type: type ?? this.type,
+      types: types ?? this.types,
       locationId: locationId ?? this.locationId,
       rooms: rooms ?? this.rooms,
     );

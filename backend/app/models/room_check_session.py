@@ -41,3 +41,4 @@ class RoomCheckSessionRead(RoomCheckSessionBase):
     created_at: datetime
     room_name: Optional[str] = None
     assigned_user_name: Optional[str] = None
+    completed_datetime: Optional[datetime] = None

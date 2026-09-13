@@ -2,8 +2,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
-import { MdHistory } from "react-icons/md";
-import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
+import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient, roomChecksAPI  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
@@ -24,9 +23,8 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
-import Modal from '../components/Modal/Modal';
-import AssetDetailView from '../components/DetailView/AssetDetailView';
-import '../components/DetailView/DetailView.css';
+
+const idemKey = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 // Prevent react-select from toggling a dropdown closed when you click the control again.
 // Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
@@ -85,7 +83,18 @@ function AssetPage({ embedded = false }) {
     { key: 'assettype', label: 'Tipe', render: (a) => getAssettypeName(a), sortKey: 'assettype', defaultVisible: true },
     { key: 'isoutdoor', label: 'Buite', render: (a) => a.asset_isoutdoor ? 'Ja' : 'Nee', sortKey: 'isoutdoor', defaultVisible: false },
     { key: 'room', label: 'Lokaal', render: (a) => getRoomName(a), sortKey: 'room', defaultVisible: true },
-    { key: 'status', label: 'Status', render: (a) => getStatusLabel(a.asset_status), sortKey: 'status', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (a) => {
+      const miss = missingMap[a.asset_id];
+      const label = getStatusLabel(a.asset_status);
+      if (!miss) return label;
+      const tooltip = `Vermis by laaste kontrole${miss.latest_checked ? ` (${new Date(miss.latest_checked).toLocaleString('af-ZA')})` : ''}${miss.original_fault_id ? ` \u2014 Fout #${miss.original_fault_id}` : ''}`;
+      return (
+        <span>
+          {label}{' '}
+          <span className="missing-badge" title={tooltip}>Vermis</span>
+        </span>
+      );
+    }, sortKey: 'status', defaultVisible: true },
     { key: 'created', label: 'Geskep', render: (a) => a.asset_created_datetime ? new Date(a.asset_created_datetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('asset-page', ASSET_COLUMNS);
@@ -112,6 +121,15 @@ function AssetPage({ embedded = false }) {
   const [imagesToDelete, setImagesToDelete] = useState([]);
   const [activeImageViewer, setActiveImageViewer] = useState(null);
   const MAX_ASSET_IMAGES = 1;
+
+  const [missingMap, setMissingMap] = useState({});
+  const [showFoundModal, setShowFoundModal] = useState(false);
+  const [foundAsset, setFoundAsset] = useState(null);
+  const [foundLocId, setFoundLocId] = useState("");
+  const [foundBldId, setFoundBldId] = useState("");
+  const [foundRoomId, setFoundRoomId] = useState("");
+  const [foundSaving, setFoundSaving] = useState(false);
+  const foundCascadeMenu = useCascadeMenu();
 
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [isEditingType, setIsEditingType] = useState(false);
@@ -209,6 +227,81 @@ function AssetPage({ embedded = false }) {
       console.error("Error fetching assets:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const canSeeMissing = hasRight("room_checks.manage") || hasRight("roomchecks.execute");
+  const canManageChecks = hasRight("room_checks.manage");
+
+  const fetchMissing = async () => {
+    try {
+      const response = await roomChecksAPI.missing();
+      const list = response.data || [];
+      const map = {};
+      for (const m of list) map[m.asset_id] = m;
+      setMissingMap(map);
+    } catch (error) {
+      console.error("Error fetching missing assets:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (canSeeMissing) fetchMissing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeMissing]);
+
+  const openFoundModal = (asset) => {
+    setFoundAsset(asset);
+    setFoundLocId("");
+    setFoundBldId("");
+    setFoundRoomId("");
+    setShowFoundModal(true);
+  };
+
+  const foundErrorMessage = (err) => {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+    return "Kon nie die bate as gevind aanteken nie.";
+  };
+
+  const markFoundInOwnRoom = async () => {
+    if (!foundAsset) return;
+    setFoundSaving(true);
+    try {
+      await roomChecksAPI.create(
+        { room_id: Number(foundAsset.room_id), summary: JSON.stringify([{ asset_id: foundAsset.asset_id, status: "confirmed" }]) },
+        { headers: { "X-Idempotency-Key": idemKey() } }
+      );
+      showToast({ type: "success", title: "Sukses", message: "Bate is in sy aangewese lokaal as gevind aangeteken." });
+      setShowFoundModal(false);
+      if (canSeeMissing) fetchMissing();
+    } catch (err) {
+      showToast({ type: "error", title: "Fout", message: foundErrorMessage(err) });
+    } finally {
+      setFoundSaving(false);
+    }
+  };
+
+  const markFoundInOtherRoom = async () => {
+    if (!foundAsset || !foundRoomId) {
+      showToast({ type: "warning", title: "Kies 'n lokaal", message: "Kies asseblief die lokaal waar die bate gevind is." });
+      return;
+    }
+    setFoundSaving(true);
+    try {
+      const info = missingMap[foundAsset.asset_id] || {};
+      await roomChecksAPI.markMissingFound(
+        { asset_id: foundAsset.asset_id, room_id: Number(foundRoomId), original_fault_id: info.original_fault_id ?? null },
+        { headers: { "X-Idempotency-Key": idemKey() } }
+      );
+      showToast({ type: "success", title: "Sukses", message: "Bate is in die ander lokaal as gevind aangeteken." });
+      setShowFoundModal(false);
+      if (canSeeMissing) fetchMissing();
+    } catch (err) {
+      showToast({ type: "error", title: "Fout", message: foundErrorMessage(err) });
+    } finally {
+      setFoundSaving(false);
     }
   };
 
@@ -907,8 +1000,15 @@ onMenuClose={filterCascade.onMenuClose}
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
-                  <button className="btn-history" title="Geskiedenis" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}><MdHistory size={18} /></button>
-                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
+                    <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
+                  </div>
+                  {canManageChecks && missingMap[item.asset_id] && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                      <button className="btn-brown" onClick={() => openFoundModal(item)}>Merk as gevind</button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))
@@ -1194,53 +1294,7 @@ onMenuClose={modalCascadeMenu.onMenuClose}
       <>
         {pageContent}
 
-        {showModal && isViewMode && isEditing && (() => {
-          const room = rooms.find(r => String(r.room_id) === String(newAsset.room_id));
-          const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newAsset.building_id));
-          const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newAsset.location_id));
-          const assetType = assettypes.find(t => String(t.assettype_id) === String(newAsset.assettype_id));
-          const imageUrls = assetImages.map(img => ({
-            ...img,
-            url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
-          }));
-          return (
-            <Modal
-              isOpen={true}
-              onClose={handleCloseModal}
-              title={`Bekyk Bate`}
-              size="md"
-              headerActions={
-                hasRight('assets.manage') ? (
-                  <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
-                ) : null
-              }
-            >
-              <AssetDetailView
-                asset={{
-                  ...newAsset,
-                  asset_id: editingId,
-                }}
-                assetTypeName={assetType?.assettype_name}
-                roomName={room?.room_name}
-                buildingName={building?.building_name}
-                terrainName={terrain?.location_name}
-                images={imageUrls}
-                onViewHistory={() => {
-                  const asset = assets.find(a => String(a.asset_id) === String(editingId));
-                  if (asset) {
-                    handleCloseModal();
-                    setSelectedAsset(asset);
-                    fetchAssetHistory(asset.asset_id);
-                    fetchAssetImages(asset.asset_id);
-                    setShowHistoryModal(true);
-                  }
-                }}
-              />
-            </Modal>
-          );
-        })()}
-
-        {showModal && !isViewMode && modalContent}
+        {showModal && modalContent}
         {imageViewerContent}
 
         {/* History Modal */}
@@ -1331,6 +1385,26 @@ onMenuClose={modalCascadeMenu.onMenuClose}
                     />
                   </div>
                   <div className="input-group">
+                    <label>Min Lewensduur (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_min_lifespan}
+                      onChange={(e) => setNewType({ ...newType, assettype_min_lifespan: e.target.value })}
+                    />
+                  </div>
+                  <div className="input-group">
+                    <label>Maks Lewensduur (maande)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newType.assettype_max_lifespan}
+                      onChange={(e) => setNewType({ ...newType, assettype_max_lifespan: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="input-row">
+                  <div className="input-group">
                     <label>Diensinterval (maande)</label>
                     <input
                       type="number"
@@ -1386,10 +1460,133 @@ onMenuClose={modalCascadeMenu.onMenuClose}
             </div>
           </div>
         )}
+      {foundModalContent}
       {dialog}
       </>
     );
   }
+
+  const foundModalContent = showFoundModal && foundAsset && (() => {
+    const currentFoundDisplayValue = (() => {
+      if (foundRoomId && foundBldId) return { value: foundRoomId, label: rooms?.find(r => String(r.room_id) === String(foundRoomId))?.room_name || foundRoomId };
+      if (foundBldId && foundLocId) return { value: foundBldId, label: buildings?.find(b => String(b.building_id) === String(foundBldId))?.building_name || foundBldId };
+      if (foundLocId) return { value: foundLocId, label: terrains?.find(t => String(t.location_id) === String(foundLocId))?.location_name || foundLocId };
+      return null;
+    })();
+    const foundCascadeCount = [foundLocId, foundBldId, foundRoomId].filter(Boolean).length;
+    const foundBreadcrumbData = [{ level: -1, name: "Terreine" }];
+    if (foundLocId) foundBreadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(foundLocId))?.location_name || foundLocId });
+    if (foundBldId) foundBreadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(foundBldId))?.building_name || foundBldId });
+    if (foundRoomId) foundBreadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(foundRoomId))?.room_name || foundRoomId });
+
+    const clearFoundFromLevel = (levelIndex) => {
+      if (levelIndex <= 0) { setFoundLocId(""); setFoundBldId(""); setFoundRoomId(""); }
+      else if (levelIndex === 1) { setFoundBldId(""); setFoundRoomId(""); }
+      else if (levelIndex === 2) { setFoundRoomId(""); }
+    };
+
+    const FoundCascadeControl = ({ children, ...props }) => (
+      <components.Control {...props}>
+        {children}
+        {foundCascadeCount > 0 && (
+          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFoundFromLevel(foundCascadeCount - 1); }} title="Terug na vorige vlak" style={{ background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" }}>
+            <IoReturnUpBack size={24} />
+          </span>
+        )}
+      </components.Control>
+    );
+
+    return (
+      <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && !foundSaving) setShowFoundModal(false); }}>
+        <div className="modal-content" style={{ maxWidth: "620px" }}>
+          <div className="modal-header">
+            <h3>Merk as gevind &mdash; {foundAsset.asset_name}</h3>
+            <span className="close" onClick={() => { if (!foundSaving) setShowFoundModal(false); }}>&times;</span>
+          </div>
+          <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+            {/* Option A: confirm in own room */}
+            <div style={{ background: "#f9f5ef", border: "1px solid #e2d5c0", borderRadius: "6px", padding: "14px" }}>
+              <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b3f1d" }}>Gevind in sy aangewese lokaal</h4>
+              <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6b7280" }}>
+                Die bate word in die lokaal bevestig. 'n Kort kontrole-rekord word in die geskiedenis aangeteken.
+              </p>
+              <button className="btn-brown" disabled={foundSaving} onClick={markFoundInOwnRoom}>
+                {foundSaving ? "Besig..." : "Bevestig in hierdie lokaal"}
+              </button>
+            </div>
+
+            {/* Option B: found in another room */}
+            <div style={{ background: "#f9f5ef", border: "1px solid #e2d5c0", borderRadius: "6px", padding: "14px" }}>
+              <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b3f1d" }}>Gevind in 'n ander lokaal</h4>
+              <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6b7280" }}>
+                Kies die lokaal waar die bate werklik is. 'n Fout word outomaties geskep.
+              </p>
+              <div style={{ position: "relative", marginBottom: "10px" }} ref={foundCascadeMenu.containerRef}>
+                <label style={{ fontSize: "13px", color: "#6b7280", marginBottom: "4px", display: "block" }}>Lokaal waarin gevind</label>
+                <div className="control-cascade-breadcrumb" style={{ marginBottom: "6px" }}>
+                  {foundBreadcrumbData.map((item, i) => {
+                    const isLast = i === foundBreadcrumbData.length - 1;
+                    const showArrow = isLast ? foundCascadeCount < 3 : true;
+                    return (
+                      <React.Fragment key={i}>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFoundFromLevel(item.level + 1)} disabled={foundSaving} style={{ border: "none", cursor: foundSaving ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+                <Select
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][foundCascadeCount]}
+                  isClearable
+                  isDisabled={foundSaving || foundCascadeCount >= 3}
+                  closeMenuOnSelect={false}
+                  menuIsOpen={foundCascadeMenu.menuIsOpen}
+                  onMenuOpen={foundCascadeMenu.onMenuOpen}
+                  onMenuClose={foundCascadeMenu.onMenuClose}
+                  components={{ Control: FoundCascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                  styles={{
+                    control: (base) => ({ ...base, minHeight: "40px", height: "40px", display: "flex", alignItems: "center" }),
+                    valueContainer: (base) => ({ ...base, padding: "0 12px", display: "flex", alignItems: "center" }),
+                    singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: "38px", whiteSpace: "nowrap" }),
+                  }}
+                  options={allLocationOptions}
+                  filterOption={(option, rawInput) => {
+                    if (rawInput) {
+                      if (foundCascadeCount === 0) return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (foundCascadeCount === 1) return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(foundLocId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (foundCascadeCount === 2) return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(foundBldId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                    }
+                    if (foundCascadeCount === 0) return option.data._cascadeLevel === 0;
+                    if (foundCascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(foundLocId);
+                    if (foundCascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(foundBldId);
+                    return false;
+                  }}
+                  value={currentFoundDisplayValue}
+                  onChange={(selected) => {
+                    if (!selected) { setFoundLocId(""); setFoundBldId(""); setFoundRoomId(""); return; }
+                    const f = selected._fields || {};
+                    setFoundLocId(f.location_id || "");
+                    setFoundBldId(f.building_id || "");
+                    setFoundRoomId(f.room_id || "");
+                  }}
+                />
+              </div>
+              <button className="btn-brown" disabled={foundSaving || !foundRoomId} onClick={markFoundInOtherRoom}>
+                {foundSaving ? "Besig..." : "Stoor in nuwe lokaal"}
+              </button>
+            </div>
+
+          </div>
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={() => { if (!foundSaving) setShowFoundModal(false); }}>Kanselleer</button>
+          </div>
+        </div>
+      </div>
+    );
+  })();
 
   return (
     <div className="main">
@@ -1397,53 +1594,7 @@ onMenuClose={modalCascadeMenu.onMenuClose}
         {pageContent}
       </div>
 
-      {showModal && isViewMode && isEditing && (() => {
-        const room = rooms.find(r => String(r.room_id) === String(newAsset.room_id));
-        const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newAsset.building_id));
-        const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newAsset.location_id));
-        const assetType = assettypes.find(t => String(t.assettype_id) === String(newAsset.assettype_id));
-        const imageUrls = assetImages.map(img => ({
-          ...img,
-          url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
-        }));
-        return (
-          <Modal
-            isOpen={true}
-            onClose={handleCloseModal}
-            title={`Bekyk Bate`}
-            size="md"
-            headerActions={
-              hasRight('assets.manage') ? (
-                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
-              ) : null
-            }
-          >
-            <AssetDetailView
-              asset={{
-                ...newAsset,
-                asset_id: editingId,
-              }}
-              assetTypeName={assetType?.assettype_name}
-              roomName={room?.room_name}
-              buildingName={building?.building_name}
-              terrainName={terrain?.location_name}
-              images={imageUrls}
-              onViewHistory={() => {
-                const asset = assets.find(a => String(a.asset_id) === String(editingId));
-                if (asset) {
-                  handleCloseModal();
-                  setSelectedAsset(asset);
-                  fetchAssetHistory(asset.asset_id);
-                  fetchAssetImages(asset.asset_id);
-                  setShowHistoryModal(true);
-                }
-              }}
-            />
-          </Modal>
-        );
-      })()}
-
-      {showModal && !isViewMode && modalContent}
+      {showModal && modalContent}
       {imageViewerContent}
 
       {/* History Modal */}
@@ -1613,6 +1764,8 @@ onMenuClose={modalCascadeMenu.onMenuClose}
           </div>
         </div>
       )}
+      {foundModalContent}
+      {foundModalContent}
       {dialog}
     </div>
   );

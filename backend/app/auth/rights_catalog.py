@@ -98,6 +98,8 @@ _FK_RIGHTS = {
     "contractors.view", "contractors.manage",
     "quotes.view", "quotes.manage",
     "notifications.view", "notifications.manage",
+    "users.view", "users.manage",
+    "roles.manage", "rights.manage",
     "predictions.view", "reports.view", "analytics.view", "audit.view",
     "ai.use", "ai.approve",
 }

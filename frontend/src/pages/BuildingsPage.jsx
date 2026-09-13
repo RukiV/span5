@@ -44,7 +44,7 @@ function BuildingsPage({ embedded = false }) {
   const BUILDING_COLUMNS = [
     { key: 'id', label: 'ID', render: (b) => b.building_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (b) => b.building_name, sortKey: 'name', defaultVisible: true },
-    { key: 'type', label: 'Tipe', render: (b) => translateBuildingType(b.building_type), sortKey: 'type', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (b) => formatBuildingTypes(b.building_types), sortKey: 'type', defaultVisible: true },
     { key: 'terrain', label: 'Terrein', render: (b) => getTerrainName(b.location_id), sortKey: 'terrain', defaultVisible: true },
   ];
   const colVis = useColumnVisibility('buildings-page', BUILDING_COLUMNS);
@@ -64,11 +64,8 @@ function BuildingsPage({ embedded = false }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [newBuilding, setNewBuilding] = useState({
-    building_name: "",
-    building_type: "",
-    location_id: "",
-  });
+  const newBuildingDefault = { building_name: "", building_types: [], location_id: "" };
+  const [newBuilding, setNewBuilding] = useState(newBuildingDefault);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
 
@@ -79,10 +76,16 @@ function BuildingsPage({ embedded = false }) {
       "Laboratorium": "Laboratorium",
       "warehouse": "Pakhuis",
       "Kafeteria": "Kafeteria",
+      "Koshuis": "Koshuis",
       "Ander": "Ander",
     };
     return translations[type] || type;
   };
+
+  const formatBuildingTypes = (types) =>
+    (Array.isArray(types) ? types : types ? [types] : [])
+      .map(translateBuildingType)
+      .join(", ") || "Ander";
 
   useEffect(() => {
     const loadData = async () => {
@@ -193,6 +196,7 @@ function BuildingsPage({ embedded = false }) {
     const errors = {};
     if (!newBuilding.building_name?.trim()) errors.building_name = true;
     if (!newBuilding.location_id) errors.location_id = true;
+    if (!newBuilding.building_types || newBuilding.building_types.length === 0) errors.building_types = true;
     if (Object.keys(errors).length > 0) {
       setInvalidFields(errors);
       const firstKey = Object.keys(errors)[0];
@@ -204,7 +208,7 @@ function BuildingsPage({ embedded = false }) {
 
     const buildingData = {
       building_name: newBuilding.building_name,
-      building_type: newBuilding.building_type,
+      building_types: newBuilding.building_types,
       location_id: Number(newBuilding.location_id),
     };
 
@@ -356,7 +360,7 @@ function BuildingsPage({ embedded = false }) {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_type: item.building_type || "",
+      building_types: Array.isArray(item.building_types) ? item.building_types : (item.building_type ? [item.building_type] : []),
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -367,14 +371,14 @@ function BuildingsPage({ embedded = false }) {
     setIsEditing(false);
     setIsViewMode(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
+    setNewBuilding(newBuildingDefault);
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
     setIsViewMode(false);
     setEditingId(null);
-    setNewBuilding({ building_name: "", building_type: "Ander", location_id: "" });
+    setNewBuilding(newBuildingDefault);
     setShowModal(true);
   };
 
@@ -392,7 +396,7 @@ function BuildingsPage({ embedded = false }) {
       const values = {
         id: building.building_id,
         name: building.building_name,
-        type: translateBuildingType(building.building_type),
+        type: formatBuildingTypes(building.building_types),
         terrain: getTerrainName(building.location_id),
       };
       if (filterColumn === 'all') {
@@ -404,7 +408,7 @@ function BuildingsPage({ embedded = false }) {
       if (!sortKey) return 0;
       const dir = sortDirection === 'asc' ? 1 : -1;
       if (sortKey === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(translateBuildingType(a.building_type)).localeCompare(String(translateBuildingType(b.building_type)), 'af', { sensitivity: 'base' }) * dir;
+      if (sortKey === 'type') return String(formatBuildingTypes(a.building_types)).localeCompare(String(formatBuildingTypes(b.building_types)), 'af', { sensitivity: 'base' }) * dir;
       if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
       return 0;
     });
@@ -435,6 +439,7 @@ function BuildingsPage({ embedded = false }) {
     { value: "Laboratorium", label: "Laboratorium" },
     { value: "warehouse", label: "Pakhuis" },
     { value: "Kafeteria", label: "Kafeteria" },
+    { value: "Koshuis", label: "Koshuis" },
     { value: "Ander", label: "Ander" }
   ];
 
@@ -633,20 +638,24 @@ function BuildingsPage({ embedded = false }) {
               }}
             />
           </div>
-          <div className="input-group">
-            <label>Tipe</label>
+        </div>
+        <div className="input-row">
+          <div className={invalidFields.building_types ? "input-group field-invalid building-types-picker" : "input-group building-types-picker"}>
+            <label>Tipes</label>
             <Select
               className="basic-single"
               classNamePrefix="select"
-              value={buildingTypeOptions.find(o => o.value === newBuilding.building_type)}
-              onChange={(selected) => setNewBuilding({ ...newBuilding, building_type: selected ? selected.value : "" })}
+              isMulti
+              maxMenuHeight={180}
+              value={buildingTypeOptions.filter(o => newBuilding.building_types.includes(o.value))}
+              onChange={(selected) => setNewBuilding({ ...newBuilding, building_types: selected ? selected.map(o => o.value) : [] })}
               options={buildingTypeOptions}
               isSearchable={false}
               isDisabled={isViewMode}
+              placeholder="Kies een of meer tipes..."
               styles={{
-                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                control: (base) => ({ ...base, minHeight: '40px', alignItems: 'center' }),
+                valueContainer: (base) => ({ ...base, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }),
               }}
             />
           </div>

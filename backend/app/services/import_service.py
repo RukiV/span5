@@ -33,6 +33,7 @@ from ..models.job import Jobcard, JobcardCreate, JobcardUpdate
 from ..models.location import (
     Building,
     BuildingCreate,
+    BuildingTypeLink,
     BuildingUpdate,
     Location,
     LocationCreate,
@@ -134,6 +135,24 @@ def coerce_value(kind: Any, raw: Any):
     return sanitize_text(text)
 
 
+def coerce_enum_list(kind: Any, raw: Any):
+    """Koppel 'n komma/kommapunt-geskeide string na 'n lys enum-lede.
+
+    Gebruik vir velde wat 'n multi-waarde aanvaar (bv. 'n gebou se tipes),
+    waar 'n enkele sel verskeie tipes kan bevat: "Onderwys, Kafeteria".
+    """
+    parts = str(raw).split(",")
+    out = []
+    for part in parts:
+        for member in kind:
+            p = part.strip()
+            if p.lower() in (member.value.lower(), member.name.lower(), member.name.replace("_", " ").lower()):
+                if member not in out:
+                    out.append(member)
+                break
+    return out
+
+
 @dataclass
 class FieldSpec:
     target: str
@@ -206,8 +225,8 @@ TABLES: dict[str, TableSpec] = {
         fields=(
             FieldSpec("building_name", "Naam", required=True,
                       aliases=("naam", "gebou naam", "gebou", "name", "building name")),
-            FieldSpec("building_type", "Tipe", kind=BuildingType,
-                      aliases=("tipe", "type", "gebou tipe", "soort")),
+            FieldSpec("building_types", "Tipes", kind=BuildingType,
+                      aliases=("tipes", "tipe", "type", "gebou tipe", "soort", "gebou tipes")),
         ),
         refs=(RefSpec("location_id", "location_ref", "location", "Terrein", required=True,
                       aliases=("kampus", "terrein", "location", "campus", "kampus naam")),),
@@ -515,10 +534,22 @@ def build_export(session: Session, requested: list[dict], template: bool = False
         if not template:
             if ref_maps is None:
                 ref_maps = _load_ref_display(session)
+            building_types_map = None
+            if spec.key == "building":
+                building_types_map = {}
+                for link in session.exec(select(BuildingTypeLink)).all():
+                    building_types_map.setdefault(link.building_id, []).append(link.building_type.value)
+                building_types_map = {
+                    bid: ", ".join(sorted(vals))
+                    for bid, vals in building_types_map.items()
+                }
             for rec in session.exec(select(spec.model)).all():
                 vals = []
                 for f in field_specs:
-                    if f.kind == "quote_list":
+                    if f.target == "building_types":
+                        pk = getattr(rec, spec.pk_field)
+                        vals.append(building_types_map.get(pk, "") if building_types_map is not None else "")
+                    elif f.kind == "quote_list":
                         if quote_display is None:
                             quote_display = {
                                 q.quote_id: (q.quote_date, getattr(q, "contractor_id", None))
@@ -1118,6 +1149,13 @@ def run_import(
                             errors.extend(q_errs)
                             if ids:
                                 payload["quote_ids"] = ",".join(str(i) for i in ids)
+                            continue
+                        if fspec.target == "building_types" and isinstance(fspec.kind, type) and issubclass(fspec.kind, enum.Enum):
+                            vals = coerce_enum_list(fspec.kind, raw)
+                            if not vals and fspec.required:
+                                errors.append(f"'{fspec.label}' is verplig")
+                            else:
+                                payload[fspec.target] = vals
                             continue
                         val = coerce_value(fspec.kind, raw)
                         if val is None and fspec.required:

@@ -33,7 +33,7 @@ from sqlmodel import Session, select
 from ..models.asset import Asset, Assettype
 from ..models.fault import Faultcard
 from ..models.job import Jobcard
-from ..models.location import Building, Room
+from ..models.location import Building, BuildingTypeLink, Room
 from ..models.user import User
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,11 @@ def _impact_for_asset(session: Session, asset: Asset) -> int:
         return 1
     b = session.get(Building, room.building_id) if room.building_id else None
     r_score = IMPACT_MAP_ROOM.get(_enum_val(room.room_type), 1)
-    b_score = IMPACT_MAP_BUILDING.get(_enum_val(b.building_type) if b else "Ander", 1)
+    if b:
+        bt_rows = session.exec(select(BuildingTypeLink).where(BuildingTypeLink.building_id == b.building_id)).all()
+        b_score = max((IMPACT_MAP_BUILDING.get(_enum_val(bt.building_type), 1) for bt in bt_rows), default=1)
+    else:
+        b_score = 1
     return max(r_score, b_score)
 
 

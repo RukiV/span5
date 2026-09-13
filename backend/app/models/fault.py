@@ -6,6 +6,10 @@ from .base import Base
 from .enums import FaultStatus, Priority, Type
 from .validators import sanitize_text
 
+# Preset-voorvoegsel wat 'n "bate gevind in verkeerde lokaal"-foutkaartjie
+# identifiseer. Gedeel deur room_check.py (skepping) en fault.py (oplossing).
+WRONG_ROOM_FAULT_PREFIX = "Bate gevind in verkeerde lokaal"
+
 class FaultcardBase(SQLModel):
     """Base model for faultcard data."""
     fault_description: str

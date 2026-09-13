@@ -20,11 +20,12 @@ import '../../services/ai_service.dart';
 import '../../services/image_service.dart';
 import '../../services/camera_service.dart';
 import '../../models/report.dart';
+import '../../models/room.dart';
 import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../services/room_service.dart';
-import '../../core/idempotency.dart';
+import '../../services/wrong_room_service.dart';
 
 class NewReportPage extends StatefulWidget {
   final String? prefillSerialCode;
@@ -77,11 +78,10 @@ class _NewReportPageState extends State<NewReportPage> {
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
   /// kieser; word teruggestel wanneer die soekveld skoongemaak word.
   bool _assetResolved = false;
-  String? _idempotencyKey;
+  AssetState? _assetState;
   @override
   void initState() {
     super.initState();
-    _idempotencyKey = Idempotency.generate();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -138,6 +138,10 @@ class _NewReportPageState extends State<NewReportPage> {
       _assetResolved = true;
       _resolvedAsset = asset;
     });
+
+    final state = await WrongRoomService.getAssetState(asset.id);
+    if (!mounted) return;
+    setState(() => _assetState = state);
   }
 
   /// Bepaal die volledige pad (terrein/gebou/lokaal) direk vanaf die
@@ -154,16 +158,21 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedLocation = null;
       return;
     }
-    final path = CampusService.findRoomPath(roomId);
-    if (path.room != null) {
-      _selectedCampusId = path.campus!.id;
-      _selectedBuildingId = path.building!.id;
-      _selectedRoomId = path.room!.id;
-      selectedCampus = path.campus!.name;
-      selectedBuilding = path.building!.name;
-      selectedLocation = '${path.room!.id}:${path.room!.name}';
-      _pendingRoomId = null;
-      return;
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        for (final r in b.rooms ?? const <Room>[]) {
+          if (r.id == roomId) {
+            _selectedCampusId = c.id;
+            _selectedBuildingId = b.id;
+            _selectedRoomId = r.id;
+            selectedCampus = c.name;
+            selectedBuilding = b.name;
+            selectedLocation = '${r.id}:${r.name}';
+            _pendingRoomId = null;
+            return;
+          }
+        }
+      }
     }
     // Boom nog nie gelaai nie — onthou dit en vul aan sodra Campuses arriveer.
     _pendingRoomId = roomId;
@@ -188,17 +197,22 @@ class _NewReportPageState extends State<NewReportPage> {
 
   /// Stoor die ID's én die naam-vorm wat die stoor-logika verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
-    final path = CampusService.findLocationPath(campusId, buildingId, roomId);
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room = (building?.rooms ?? const <Room>[])
+        .where((r) => r.id == roomId)
+        .firstOrNull;
 
     setState(() {
       _selectedCampusId = campusId;
       _selectedBuildingId = buildingId;
       _selectedRoomId = roomId;
       _pendingRoomId = null;
-      selectedCampus = path.campus?.name;
-      selectedBuilding = path.building?.name;
-      selectedLocation =
-          path.room == null ? null : '${path.room!.id}:${path.room!.name}';
+      selectedCampus = campus?.name;
+      selectedBuilding = building?.name;
+      selectedLocation = room == null ? null : '${room.id}:${room.name}';
       _locationError = null;
     });
   }
@@ -258,8 +272,7 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-            "AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
+        content: Text("AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
         backgroundColor: AppColors.successGreen,
       ),
     );
@@ -281,6 +294,53 @@ class _NewReportPageState extends State<NewReportPage> {
     );
   }
 
+  Widget? _buildWrongRoomBanner() {
+    final state = _assetState;
+    if (state == null || state.isClear) return null;
+    final isWrongRoom = state.isWrongRoom;
+    final color = isWrongRoom ? AppColors.warningOrange : AppColors.errorRed;
+    final foundRoom = state.foundRoomName ?? 'onbekende lokaal';
+    final message = isWrongRoom
+        ? "Gevind in $foundRoom — wag om terug te skuif. "
+            "Maak die foutkaartjie klaar om die bate terug te skuif."
+        : "Bate vermis in $foundRoom (laaste kontrole). "
+            "As dit hier gevind word, rapporteer dit as gevind.";
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(isWrongRoom ? Icons.place : Icons.highlight_off,
+              color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isWrongRoom ? "BATE GEVIND IN VERKEERDE LOKAAL" : "BATE VERMIS",
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(message, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   /// Opskrif & Beskrywing — staan bo-aan die vorm sodat die gebruiker eers die
   /// fout self beskryf en dan die ligging nasien.
   Widget _buildTitleDescriptionBox() {
@@ -366,6 +426,7 @@ class _NewReportPageState extends State<NewReportPage> {
                                   onPressed: () => setState(() {
                                     serialController.clear();
                                     _assetResolved = false;
+                                    _assetState = null;
                                   }),
                                 )
                               : null,
@@ -434,6 +495,16 @@ class _NewReportPageState extends State<NewReportPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text("Foutkaartjie Nasien",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              if (_buildWrongRoomBanner() != null) ...[
+                const SizedBox(height: 8),
+                _buildWrongRoomBanner()!,
+              ],
+              const SizedBox(height: 8),
               _buildTitleDescriptionBox(),
               const SizedBox(height: 24),
               LocationCascadePicker(
@@ -515,7 +586,7 @@ class _NewReportPageState extends State<NewReportPage> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isSubmitting ? null : _submitReport,
+                            onPressed: _isSubmitting ? null : _submitReport,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: Colors.white,
@@ -538,169 +609,183 @@ class _NewReportPageState extends State<NewReportPage> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
     try {
-      // Die ligging-kieser is nie 'n FormField nie, so die
-      // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
-      // buite enige terrein het reeds 'n spesifieke fout van
-      final hasPath = selectedLocation != null;
-      final hasCoords = _mapLocation != null;
-      if (hasCoords && _selectedCampusId == null) {
-        setState(() => _locationError =
-            "Punt val nie binne 'n terrein nie — kies 'n ander plek");
-        return;
-      }
-      if (_correctingLocation) {
-        if (_isOutdoor == true) {
-          if (!hasPath && !hasCoords && _selectedCampusId == null) {
-            setState(
-                () => _locationError = "Kies 'n ligging (terrein of kaart)");
-            return;
-          }
-        } else if (!hasPath && !hasCoords) {
-          setState(() => _locationError =
-              "Kies 'n volledige ligging of kies 'n ligging op die kaart");
-          return;
-        }
-      } else if (!hasPath && !hasCoords) {
-        // Geen bate is geskandeer (of die ligging is leeg) —
-        // onthul die korreksie-afdeling sodat die gebruiker kan kies.
-        setState(() {
-          _correctingLocation = true;
-          _locationError = "Kies 'n ligging";
-        });
-        return;
-      }
-      if (!_formKey.currentState!.validate()) {
-        return;
-      }
+                // Die ligging-kieser is nie 'n FormField nie, so die
+                // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
+                // buite enige terrein het reeds 'n spesifieke fout van
+                // _resolveCampusFromPoint — moenie dit oorskryf nie.
+                // (Met die ALLOW_OFF_CAMPUS-dev-vlag is 'n terreinvrye
+                // kaartpunt geldig en word dit hier toegelaat.)
+                final hasPath = selectedLocation != null;
+                final hasCoords = _mapLocation != null;
+                if (hasCoords &&
+                    _selectedCampusId == null &&
+                    !LocationPage.allowOffCampus) {
+                  setState(() => _locationError =
+                      "Punt val nie binne 'n terrein nie — kies 'n ander plek");
+                  return;
+                }
+                if (_correctingLocation) {
+                  if (_isOutdoor == true) {
+                    if (!hasPath && !hasCoords && _selectedCampusId == null) {
+                      setState(() => _locationError =
+                          "Kies 'n ligging (terrein of kaart)");
+                      return;
+                    }
+                  } else if (!hasPath && !hasCoords) {
+                    setState(() => _locationError =
+                        "Kies 'n volledige ligging of kies 'n ligging op die kaart");
+                    return;
+                  }
+                } else if (!hasPath && !hasCoords) {
+                  // Geen bate is geskandeer (of die ligging is leeg) —
+                  // onthul die korreksie-afdeling sodat die gebruiker kan kies.
+                  setState(() {
+                    _correctingLocation = true;
+                    _locationError = "Kies 'n ligging";
+                  });
+                  return;
+                }
+                if (!_formKey.currentState!.validate()) {
+                  return;
+                }
 
-      int? finalAssetIdInt;
-      String? finalAssetSerialCode;
-      final serial = serialController.text.trim();
-      final Asset? asset =
-          (_resolvedAsset != null && _resolvedAsset!.serialCode == serial)
-              ? _resolvedAsset
-              : (serial.isNotEmpty
-                  ? await AssetService.getAssetBySerialCode(serial)
-                  : null);
-      if (serial.isNotEmpty && asset == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text(
-                    "Kon nie bate met kode vind nie — kontroleer die kode"),
-                backgroundColor: AppColors.errorRed),
-          );
-        }
-        return;
-      }
-      if (asset != null) {
-        finalAssetIdInt = int.tryParse(asset.id);
-        finalAssetSerialCode = asset.serialCode;
-      }
+                int? finalAssetIdInt;
+                String? finalAssetSerialCode;
+                final serial = serialController.text.trim();
+                final Asset? asset = (_resolvedAsset != null &&
+                        _resolvedAsset!.serialCode == serial)
+                    ? _resolvedAsset
+                    : (serial.isNotEmpty
+                        ? await AssetService.getAssetBySerialCode(serial)
+                        : null);
+                if (serial.isNotEmpty && asset == null) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Kon nie bate met kode vind nie — kontroleer die kode"),
+                        backgroundColor: AppColors.errorRed),
+                    );
+                  }
+                  return;
+                }
+                if (asset != null) {
+                  finalAssetIdInt = int.tryParse(asset.id);
+                  finalAssetSerialCode = asset.serialCode;
+                }
 
-      final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
+                final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
 
-      final String roomId =
-          selectedLocation != null ? selectedLocation!.split(":").first : "";
+                final String roomId = selectedLocation != null
+                    ? selectedLocation!.split(":").first
+                    : "";
 
-      int? resolvedLocationId = _selectedCampusId;
-      int? resolvedBuildingId = _selectedBuildingId;
+                int? resolvedLocationId;
+                int? resolvedBuildingId;
+                if (selectedCampus != null) {
+                  final campus = CampusService.getCampusByName(selectedCampus!);
+                  if (campus != null) {
+                    resolvedLocationId = campus.id;
+                    if (selectedBuilding != null) {
+                      final building = campus.buildings
+                          .where((b) => b.name == selectedBuilding)
+                          .firstOrNull;
+                      resolvedBuildingId = building?.id;
+                    }
+                  }
+                }
 
-      final newReport = Report(
-        id: "0",
-        assetId: finalAssetId,
-        assetSerialCode: finalAssetSerialCode,
-        location: roomId,
-        title: titleController.text.trim(),
-        description: descController.text.trim(),
-        category: selectedCategory ?? "Onderhoud",
-        priority: UserSession.can('faults.view')
-            ? (selectedPriority ?? "Medium")
-            : "Laag",
-        phase: "Ontvang",
-        user: UserSession.userId.toString(),
-        timestamp: DateTime.now(),
-        locationId: resolvedLocationId,
-        buildingId: resolvedBuildingId,
-        latitude: _mapLocation?.latitude,
-        longitude: _mapLocation?.longitude,
-        isOutdoor: _isOutdoor ?? false,
-        rawStatus: null,
-      );
+                final newReport = Report(
+                  id: "0",
+                  assetId: finalAssetId,
+                  assetSerialCode: finalAssetSerialCode,
+                  location: roomId,
+                  title: titleController.text.trim(),
+                  description: descController.text.trim(),
+                  category: selectedCategory ?? "Onderhoud",
+                  priority: UserSession.can('faults.view')
+                      ? (selectedPriority ?? "Medium")
+                      : "Laag",
+                  phase: "Ontvang",
+                  user: UserSession.userId.toString(),
+                  timestamp: DateTime.now(),
+                  locationId: resolvedLocationId,
+                  buildingId: resolvedBuildingId,
+                  latitude: _mapLocation?.latitude,
+                  longitude: _mapLocation?.longitude,
+                  isOutdoor: _isOutdoor ?? false,
+                  rawStatus: null,
+                );
 
-      try {
-        // 1. Skep die kaartjie eers sodat ons sy id het om
-        //    fotos aan te koppel (parent_type 'ticket').
-        final created = await ReportService.addReport(newReport,
-            idempotencyKey: _idempotencyKey);
-        if (!mounted) return;
-        if (created == null) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                  content: Text("Fout met stoor. Probeer weer."),
-                  backgroundColor: AppColors.errorRed),
-            );
-          }
-          return;
-        }
+                try {
+                  // 1. Skep die kaartjie eers sodat ons sy id het om
+                  //    fotos aan te koppel (parent_type 'ticket').
+                  final created = await ReportService.addReport(newReport);
+                  if (!mounted) return;
+                  if (created == null) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text("Fout met stoor. Probeer weer."),
+                            backgroundColor: AppColors.errorRed),
+                      );
+                    }
+                    return;
+                  }
 
-        // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
-        final faultId = int.tryParse(created.id);
-        int failedUploads = 0;
-        if (faultId != null) {
-          // Kaart-skermgreep word as 'n ekstra kaartjiefoto gelaai.
-          if (_mapScreenshot != null) {
-            final screenshotId = await ImageService.uploadImageBytes(
-              _mapScreenshot!,
-              parentId: faultId,
-              parentType: 'ticket',
-              filename: 'kaart_$faultId.png',
-            );
-            if (screenshotId == null) failedUploads++;
-          }
-          for (final photo in _photoFiles) {
-            final imageId = await ImageService.uploadImage(
-              photo,
-              parentId: faultId,
-              parentType: 'ticket',
-            );
-            if (imageId == null) failedUploads++;
-          }
-        }
+                  // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
+                  final faultId = int.tryParse(created.id);
+                  int failedUploads = 0;
+                  if (faultId != null) {
+                    // Kaart-skermgreep word as 'n ekstra kaartjiefoto gelaai.
+                    if (_mapScreenshot != null) {
+                      final screenshotId = await ImageService.uploadImageBytes(
+                        _mapScreenshot!,
+                        parentId: faultId,
+                        parentType: 'ticket',
+                        filename: 'kaart_$faultId.png',
+                      );
+                      if (screenshotId == null) failedUploads++;
+                    }
+                    for (final photo in _photoFiles) {
+                      final imageId = await ImageService.uploadImage(
+                        photo,
+                        parentId: faultId,
+                        parentType: 'ticket',
+                      );
+                      if (imageId == null) failedUploads++;
+                    }
+                  }
 
-        if (!mounted || !context.mounted) return;
-        if (failedUploads > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  "Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
-              backgroundColor: AppColors.warningOrange,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text("Foutkaartjie suksesvol gestuur!"),
-                backgroundColor: AppColors.successGreen),
-          );
-        }
-        _idempotencyKey = Idempotency.generate();
-        Navigator.pop(context, true);
-      } catch (e) {
-        if (mounted && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text("Netwerkfout: $e"),
-                backgroundColor: AppColors.errorRed),
-          );
-        }
-      }
+                  if (!mounted || !context.mounted) return;
+                  if (failedUploads > 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                            "Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
+                        backgroundColor: AppColors.warningOrange,
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text("Foutkaartjie suksesvol gestuur!"),
+                          backgroundColor: AppColors.successGreen),
+                    );
+                  }
+                  Navigator.pop(context, true);
+                } catch (e) {
+                  if (mounted && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text("Netwerkfout: $e"),
+                          backgroundColor: AppColors.errorRed),
+                    );
+                  }
+                }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
-
   Future<void> _pickMapLocation() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
@@ -735,6 +820,16 @@ class _NewReportPageState extends State<NewReportPage> {
       }
     }
     if (nearest == null) {
+      if (LocationPage.allowOffCampus) {
+        // Dev-modus: van-kampus is toegelaat — die terrein bly leeg, maar
+        // die kaartpunt/skermgreep word behou sonder 'n fout.
+        setState(() {
+          _selectedCampusId = null;
+          selectedCampus = null;
+          _locationError = null;
+        });
+        return;
+      }
       setState(() {
         _selectedCampusId = null;
         selectedCampus = null;

@@ -163,6 +163,27 @@ def createDBandTables():
             if "location_radius" not in columns:
                 connection.execute(text("ALTER TABLE location ADD COLUMN IF NOT EXISTS location_radius DOUBLE PRECISION DEFAULT 110"))
 
+        if "building" in inspector.get_table_names():
+            building_cols = {column["name"] for column in inspector.get_columns("building")}
+            # Multiple building types per building: die enkel-tipe-kolom word na
+            # die nuwe koppeltabel (building_type_link) gemigreer en dan verwyder.
+            if "building_type" in building_cols:
+                if "building_type_link" in inspector.get_table_names():
+                    link_cols = {
+                        col["name"]: col["type"]
+                        for col in inspector.get_columns("building_type_link")
+                    }
+                    link_type = getattr(link_cols.get("building_type"), "name", None)
+                    if link_type:
+                        connection.execute(text(f"""
+                            INSERT INTO building_type_link (building_id, building_type)
+                            SELECT building_id, building_type::text::{link_type}
+                            FROM building
+                            WHERE building_type IS NOT NULL
+                            ON CONFLICT DO NOTHING
+                        """))
+                    connection.execute(text("ALTER TABLE building DROP COLUMN IF EXISTS building_type"))
+
         # user_number moes vergroot word weens versleuteling (Fernet >20 chars).
         if "user" in inspector.get_table_names():
             cols = {c["name"] for c in inspector.get_columns("user")}
