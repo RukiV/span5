@@ -5,7 +5,7 @@ import { authAPI } from '../services/api';
 import { loginRequest } from '../services/msalConfig';
 import '../styles/App.css';
 import '../styles/Login.css';
-import logo from '../assets/logo.jpg';
+import logo from '../assets/logo.png';
 import { clearAuthSession, markUserActivity } from '../authSession';
 
 function LoginPage() {
@@ -120,35 +120,32 @@ function LoginPage() {
       <div className="login-card">
         <img src={logo} alt="FBS Logo" className="login-logo" />
         <h1 className="login-system">FBS - Fasiliteitsbestuurstelsel</h1>
-        <h2>Teken In</h2>
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
-          <div className="form-group">
-            <label htmlFor="username">Gebruikersnaam:</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Wagwoord:</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-            />
-          </div>
-          <button type="submit" className="btn-login" disabled={loading}>
-            {loading ? 'Besig...' : 'Teken In'}
-          </button>
-        </form>
+        {error && <div className="error-message">{error}</div>}
+        <div className="form-group">
+          <label htmlFor="username">E-pos adres:</label>
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            disabled={loading}
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">Wagwoord:</label>
+          <input
+            type="password"
+            id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            disabled={loading}
+          />
+        </div>
+        <button type="button" className="btn-login" onClick={handleSubmit} disabled={loading}>
+          {loading ? 'Besig...' : 'Teken In'}
+        </button>
         <div className="divider">of</div>
         <button
           type="button"

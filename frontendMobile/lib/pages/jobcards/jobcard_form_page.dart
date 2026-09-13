@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/jobcard.dart';
 import '../../models/quote.dart';
 import '../../models/report.dart';
@@ -22,7 +24,9 @@ import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
+import '../../widgets/app_snack_bar.dart';
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
 /// wanneer die hele werksopdrag gestoor word (of wanneer die kwotasie-keuse
@@ -36,6 +40,7 @@ class _QuoteDraft {
   final List<QuoteDocument> existingDocs = [];
   String? selectionReason;
   bool selectionSaved = false;
+  String? idempotencyKey;
 
   _QuoteDraft(this.tempId);
 
@@ -71,6 +76,13 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
   String _contractorName = '';
   File? _pdfFile;
   bool _isNewContractor = false;
+  final bool _canAddContractor = UserSession.can('contractors.manage');
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_canAddContractor) _isNewContractor = false;
+  }
 
   Future<void> _pickQuotePdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -141,21 +153,29 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
             const Text("Kontrakteur",
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 12,
-              children: [
-                ChoiceChip(
-                  label: const Text("Bestaande kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: !_isNewContractor,
-                  onSelected: (_) =>
-                      setState(() => _isNewContractor = false),
-                ),
-                ChoiceChip(
-                  label: const Text("Nuwe kontrakteur", style: TextStyle(fontSize: 12)),
-                  selected: _isNewContractor,
-                  onSelected: (_) => setState(() => _isNewContractor = true),
-                ),
-              ],
+            RadioGroup<int>(
+              groupValue: _isNewContractor ? 2 : 1,
+              onChanged: (v) => setState(() => _isNewContractor = (v == 2)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Radio<int>(value: 1),
+                      Text("Bestaande kontrakteur",
+                          style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                  if (_canAddContractor)
+                    const Row(
+                      children: [
+                        Radio<int>(value: 2),
+                        Text("Nuwe kontrakteur",
+                            style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 14),
             if (_isNewContractor)
@@ -171,7 +191,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                 onChanged: (v) => _contractorName = v,
               )
             else
-              SearchableDropdown<int?>(
+              InlineSearchableDropdown<int?>(
                 label: "Kies kontrakteur",
                 hint: "Kies Kontrakteur",
                 value: _contractorId,
@@ -190,7 +210,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                     icon: const Icon(Icons.picture_as_pdf, color: AppColors.errorRed),
                     label: Text(
                       _pdfFile != null
-                          ? _pdfFile!.path.split('/').last
+                          ? "PDF gekies"
                           : "Laai PDF op (verpligtend)",
                       style: const TextStyle(fontSize: 13),
                       overflow: TextOverflow.ellipsis,
@@ -222,6 +242,271 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                   ),
                   onPressed: _submit,
                   child: const Text("Voeg By", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatedContractor {
+  final int userId;
+  final String name;
+
+  const _CreatedContractor({required this.userId, required this.name});
+}
+
+class _CreateContractorDialog extends StatefulWidget {
+  final String initialName;
+  final String initialSurname;
+
+  const _CreateContractorDialog({
+    required this.initialName,
+    required this.initialSurname,
+  });
+
+  @override
+  State<_CreateContractorDialog> createState() => _CreateContractorDialogState();
+}
+
+class _CreateContractorDialogState extends State<_CreateContractorDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _surnameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+    _surnameController = TextEditingController(text: widget.initialSurname);
+    _emailController = TextEditingController();
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _surnameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final name = _nameController.text.trim();
+    final surname = _surnameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (name.isEmpty || surname.isEmpty || email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Vul asseblief al die verpligte velde in."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    if (!RegExp(r'^[\w\.-]+@[\w\.-]+\.\w+$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geldige e-posadres word vereis."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    if (password.length < 8 ||
+        !password.contains(RegExp(r'[a-z]')) ||
+        !password.contains(RegExp(r'[A-Z]')) ||
+        !password.contains(RegExp(r'[0-9]')) ||
+        !password.contains(RegExp(r'[^a-zA-Z0-9]'))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Wagwoord moet minstens 8 karakters, 'n hoofletter, 'n syfer en 'n simbool bevat."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      final created = await UserService.addContractor(
+        User(
+          name: name,
+          surname: surname,
+          email: email,
+          status: "active",
+          roleId: 4,
+        ),
+        password,
+      );
+      if (!mounted) return;
+      final createdId = created?.id;
+      if (created == null || createdId == null) {
+        setState(() => _submitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Kon nie kontrakteur skep nie — kontroleer die e-pos en probeer weer."),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      Navigator.pop(
+        context,
+        _CreatedContractor(userId: createdId, name: created.displayName),
+      );
+    } catch (e) {
+      debugPrint("Fout by skep van kontrakteur: $e");
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Fout by skep van kontrakteur. Probeer asseblief weer."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
+  }
+
+  Widget _webField({
+    required String label,
+    TextEditingController? controller,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    List<String>? autofillHints,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          obscureText: obscureText,
+          autofillHints: autofillHints,
+          keyboardType: keyboardType,
+          style: const TextStyle(fontSize: 14),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Voeg Kontrakteur By",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _submitting
+                        ? null
+                        : () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Die gekose kwotasie het 'n kontrakteur met slegs 'n naam. Skep die gebruiker hier sodat hy by die lys van kontrakteurs gevoeg word.",
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            _webField(
+              label: "Voornaam *",
+              controller: _nameController,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "Van *",
+              controller: _surnameController,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "E-pos *",
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 12),
+            _webField(
+              label: "Wagwoord *",
+              controller: _passwordController,
+              obscureText: true,
+              autofillHints: const [],
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              "Vereistes: minstens 8 karakters, 'n hoofletter, 'n syfer en 'n simbool.",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _submitting ? null : () => Navigator.pop(context),
+                  child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text("Skep Kontrakteur",
+                          style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -282,6 +567,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   final List<_QuoteDraft> _quotes = [];
   int? _selectedQuoteTempId;
   int _quoteCounter = 0;
+  bool _quotesLoading = false;
+  final Set<int> _removedQuoteIds = {};
 
   final List<int> _existingImageIds = [];
   final Set<int> _removedImageIds = {};
@@ -291,11 +578,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   bool _saving = false;
   bool _savingQuoteSelection = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    if (!widget.isEditing) {
+      _idempotencyKey = Idempotency.generate();
+    }
 
     _status = widget.jobcard?.status ?? "Oop";
     _priority = widget.jobcard?.priority ?? "Normal";
@@ -427,25 +719,30 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   }
 
   Future<void> _loadQuotesForJob() async {
-    for (final qid in widget.jobcard!.quoteIds) {
-      final quote = await QuoteService.fetchQuoteById(qid);
-      if (quote == null) continue;
-      final draft = _QuoteDraft(_newTempId())
-        ..quoteId = quote.id
-        ..contractorId = quote.contractorId
-        ..contractorName = quote.contractorName
-        ..selectionReason = quote.selectionReason
-        ..selectionSaved =
-            (quote.selectionReason ?? '').trim().isNotEmpty;
-      draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
-      if (mounted) {
-        setState(() {
-          _quotes.add(draft);
-          if (widget.jobcard!.quoteId == qid) {
-            _selectedQuoteTempId = draft.tempId;
-          }
-        });
+    _quotesLoading = true;
+    try {
+      for (final qid in widget.jobcard!.quoteIds) {
+        final quote = await QuoteService.fetchQuoteById(qid);
+        if (quote == null) continue;
+        final draft = _QuoteDraft(_newTempId())
+          ..quoteId = quote.id
+          ..contractorId = quote.contractorId
+          ..contractorName = quote.contractorName
+          ..selectionReason = quote.selectionReason
+          ..selectionSaved =
+              (quote.selectionReason ?? '').trim().isNotEmpty;
+        draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
+        if (mounted) {
+          setState(() {
+            _quotes.add(draft);
+            if (widget.jobcard!.quoteId == qid) {
+              _selectedQuoteTempId = draft.tempId;
+            }
+          });
+        }
       }
+    } finally {
+      if (mounted) setState(() => _quotesLoading = false);
     }
   }
 
@@ -603,7 +900,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         width: double.infinity,
         height: 48,
         child: ElevatedButton(
-          onPressed: _saving ? null : _save,
+          onPressed: (_saving || _quotesLoading) ? null : _save,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -629,7 +926,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle("Status"),
           Row(
             children: [
               Expanded(child: _buildDropdown("Status", _status, _statuses, _onStatusSelected,
@@ -652,13 +948,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             ],
           ),
           const SizedBox(height: 20),
-          _buildTextField("Hoofbeskrywing (Kort Beskrywing)", _briefController),
+          _buildTextField("Hoofbeskrywing", _briefController),
           const SizedBox(height: 20),
-          _sectionTitle("Ligging & Koppeling"),
-          const SizedBox(height: 12),
           LocationCascadePicker(
             label: "Ligging",
-            errorText: _selectedCampusId == null ? 'Kies \'n ligging' : null,
+            error: _selectedCampusId == null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,
             initialRoomId: _selectedRoomId,
@@ -675,7 +969,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           ValueListenableBuilder<List<Report>>(
             valueListenable: ReportService.reportsNotifier,
             builder: (context, reports, _) {
-              return SearchableDropdown<String>(
+              return InlineSearchableDropdown<String>(
                 label: "Koppel foutkaartjie (opsioneel)",
                 hint: "Soek & kies foutkaartjie",
                 value: _faultId?.toString(),
@@ -726,7 +1020,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       return int.tryParse(a.location) == _selectedRoomId;
     }).toList();
 
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: "Bate",
       hint: "Kies Bate (opsioneel)",
       value: _selectedAssetId,
@@ -766,6 +1060,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 20),
           _sectionTitle("Kwotasies"),
           const SizedBox(height: 12),
+          if (_quotesLoading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           if (_quotes.isEmpty)
             Container(
               padding: const EdgeInsets.all(20),
@@ -849,9 +1148,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               Expanded(
                 child: Text(
                   quote.pdfFile != null
-                      ? quote.pdfFile!.path.split('/').last
-                      : (quote.existingDocs.isNotEmpty ? quote.existingDocs.first.filename : "Geen PDF"),
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                      ? "PDF aangeheg"
+                      : (quote.existingDocs.isNotEmpty ? "PDF aangeheg" : "Geen PDF"),
+                  style: const TextStyle(color: AppColors.successGreen, fontSize: 13, fontWeight: FontWeight.w600),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -886,6 +1185,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 IconButton(
                   tooltip: "Verwyder kwotasie",
                   onPressed: () => setState(() {
+                    if (quote.quoteId != null) _removedQuoteIds.add(quote.quoteId!);
                     _quotes.remove(quote);
                     if (_selectedQuoteTempId == quote.tempId) _selectedQuoteTempId = null;
                   }),
@@ -955,7 +1255,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     try {
       final bytes = await DocumentService.downloadQuotePdf(documentId);
       if (bytes == null) {
-        _showSnack("Kon nie PDF laai nie.", error: true);
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie PDF laai nie.", error: true);
         return;
       }
       final dir = await getTemporaryDirectory();
@@ -964,12 +1265,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final result = await OpenFilex.open(file.path);
       if (!mounted) return;
       if (result.type != ResultType.done && result.type != ResultType.noAppToOpen) {
-        _showSnack("Kon nie PDF oopmaak nie.", error: true);
+        showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
       }
     } catch (e) {
       debugPrint("PDF viewing error: $e");
       if (!mounted) return;
-      _showSnack("Kon nie PDF oopmaak nie.", error: true);
+      showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
     }
   }
 
@@ -978,24 +1279,44 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   /// die gekose kwotasie aan die werksopdrag (as dit al bestaan).
   Future<void> _saveQuoteSelection(_QuoteDraft quote) async {
     if (!quote.hasContractor || !quote.hasPdf) {
-      _showSnack("Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
+      showAppSnackBar(context, "Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
       return;
     }
     final reason = (quote.selectionReason ?? '').trim();
     if (reason.isEmpty) {
-      _showSnack("Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
+      showAppSnackBar(context, "Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
       return;
     }
+
+    // Nuwe kontrakteur wat net 'n naam het — vra vir die volledige gebruikersdata
+    // voordat die kwotasie-keuse gestoor word, en voeg hom by die kontrakteurslys.
+    if (quote.contractorId == null && (quote.contractorName ?? '').trim().isNotEmpty) {
+      final parts = quote.contractorName!.trim().split(RegExp(r'\s+'));
+      final surname = parts.length > 1 ? parts.removeLast() : "";
+      final created = await showDialog<_CreatedContractor>(
+        context: context,
+        builder: (context) => _CreateContractorDialog(
+          initialName: parts.join(" "),
+          initialSurname: surname,
+        ),
+      );
+      if (created == null || !mounted) return;
+      quote
+        ..contractorId = created.userId
+        ..contractorName = created.name;
+    }
+
     setState(() => _savingQuoteSelection = true);
     try {
       if (quote.quoteId == null) {
+        quote.idempotencyKey ??= Idempotency.generate();
         final created = await QuoteService.addQuote(Quote(
           contractorId: quote.contractorId,
           contractorName: quote.contractorName,
           date: DateTime.now(),
           status: 'Pending',
           selectionReason: reason,
-        ));
+        ), idempotencyKey: quote.idempotencyKey);
         if (created == null) {
           _failQuoteSelection("Kon nie kwotasie stoor nie.");
           return;
@@ -1043,7 +1364,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         quote.selectionSaved = true;
         _savingQuoteSelection = false;
       });
-      _showSnack("Kwotasie-keuse gestoor");
+      showAppSnackBar(context, "Kwotasie-keuse gestoor");
     } catch (e) {
       debugPrint("Fout by stoor van kwotasie-keuse: $e");
       _failQuoteSelection("Fout tydens besparing van die kwotasie-keuse.");
@@ -1053,7 +1374,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failQuoteSelection(String message) {
     if (!mounted) return;
     setState(() => _savingQuoteSelection = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   // ===== Tabel 3: Skedulering & Toewysing =====
@@ -1093,7 +1414,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Personeel lid",
                     hint: "Kies personeel lid",
                     value: _assignedToId,
@@ -1105,7 +1426,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                     onChanged: (v) => setState(() => _assignedToId = v),
                   ),
                   const SizedBox(height: 14),
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Kontrakteur (opsioneel)",
                     hint: "Kies kontrakteur",
                     enabled: _lockedContractorId == null,
@@ -1182,7 +1503,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    value == null ? "Kies datum & tyd" : _formatDateTime(value),
+                    value == null ? "Kies datum & tyd" : formatDateTime(value),
                     style: TextStyle(color: value == null ? Colors.grey[600] : Colors.black, fontSize: 14),
                   ),
                 ),
@@ -1235,6 +1556,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             controller: _notesController,
             maxLines: 6,
             decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
               hintText: "Gedetailleerde beskrywing van werk wat gedoen moet word...",
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -1385,23 +1708,23 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Future<void> _save() async {
     if (_selectedCampusId == null) {
-      _showSnack("Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_workType.isEmpty) {
-      _showSnack("Kies asseblief 'n werksoort.", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n werksoort.", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_assignedToId == null) {
-      _showSnack("Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
       setState(() => _tabController.index = 2);
       return;
     }
     for (final q in _quotes) {
       if (!q.hasPdf) {
-        _showSnack("Elke kwotasie moet 'n PDF-dokument hê.", error: true);
+        showAppSnackBar(context, "Elke kwotasie moet 'n PDF-dokument hê.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
@@ -1409,14 +1732,33 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (_selectedQuoteTempId != null) {
       final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
       if (selected != null && !selected.hasContractor) {
-        _showSnack("Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
       if (selected != null && (selected.selectionReason == null || selected.selectionReason!.trim().isEmpty)) {
-        _showSnack("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
         setState(() => _tabController.index = 1);
         return;
+      }
+      // Nuwe kontrakteur wat net 'n naam het — vra vir die volledige
+      // gebruikersdata tydens die finale stoor en voeg hom by die lys.
+      if (selected != null &&
+          selected.contractorId == null &&
+          (selected.contractorName ?? '').trim().isNotEmpty) {
+        final parts = selected.contractorName!.trim().split(RegExp(r'\s+'));
+        final surname = parts.length > 1 ? parts.removeLast() : "";
+        final created = await showDialog<_CreatedContractor>(
+          context: context,
+          builder: (context) => _CreateContractorDialog(
+            initialName: parts.join(" "),
+            initialSurname: surname,
+          ),
+        );
+        if (created == null || !mounted) return;
+        selected
+          ..contractorId = created.userId
+          ..contractorName = created.name;
       }
     }
 
@@ -1459,17 +1801,24 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       // 1. Stoor/dateer die werksopdrag self.
       final saved = widget.isEditing
           ? await JobcardService.updateJob(widget.jobcard!.id, payload)
-          : await JobcardService.createJob(payload);
+          : await JobcardService.createJob(payload,
+              idempotencyKey: _idempotencyKey);
       if (saved == null) {
         _failSave("Kon nie werksopdrag stoor nie.");
         return;
       }
+      if (!widget.isEditing) {
+        _idempotencyKey = Idempotency.generate();
+      }
       final jobId = saved.id;
 
       // 2. Stoor kwotasies en laai PDF's op.
-      final createdQuoteIds = <int>[];
-      int? selectedCreatedQuoteId;
-      for (final q in _quotes) {
+      int? selectedQuoteId;
+      final selectedDraft = _selectedQuoteTempId != null
+          ? _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull
+          : null;
+      if (selectedDraft?.quoteId != null) selectedQuoteId = selectedDraft!.quoteId;
+      for (final q in List<_QuoteDraft>.from(_quotes)) {
         try {
           final quoteToSave = Quote(
             id: q.quoteId ?? 0,
@@ -1482,10 +1831,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           );
           final quote = q.quoteId != null
               ? await QuoteService.updateQuote(q.quoteId!, quoteToSave)
-              : await QuoteService.addQuote(quoteToSave);
+              : await QuoteService.addQuote(quoteToSave,
+                  idempotencyKey: (q.idempotencyKey ??=
+                      Idempotency.generate()));
           if (quote == null) continue;
-          createdQuoteIds.add(quote.id);
-          if (q.tempId == _selectedQuoteTempId) selectedCreatedQuoteId = quote.id;
+          q.quoteId = quote.id;
+          if (q.tempId == _selectedQuoteTempId) selectedQuoteId = quote.id;
 
           if (q.pdfFile != null) {
             await DocumentService.uploadQuotePdf(quote.id, q.pdfFile!);
@@ -1495,12 +1846,36 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         }
       }
 
-      // 3. Koppel kwotasies aan die werksopdrag.
+      // 3. Koppel kwotasies aan die werksopdrag. Bou die lys uit die
+      //    bestaande quote_ids en pas slegs die gebruiker se werklike
+      //    veranderinge toe (verwyderings + nuutskeppings), sodat 'n
+      //    kwotasie wat nie gelaai kon word nie nie stilweg ontkoppel
+      //    word nie. Slaan die PATCH oor as niks aan kwotasies verander
+      //    is nie.
       if (jobId > 0) {
-        await JobcardService.updateJob(jobId, {
-          'quote_id': selectedCreatedQuoteId,
-          'quote_ids': createdQuoteIds.isEmpty ? null : createdQuoteIds.join(','),
-        });
+        final existingQuoteIds = widget.jobcard?.quoteIds ?? const <int>[];
+        final keptExisting = existingQuoteIds
+            .where((id) => !_removedQuoteIds.contains(id))
+            .toSet();
+        final draftQuoteIds =
+            _quotes.map((q) => q.quoteId).whereType<int>().toSet();
+        final newQuoteIds = <int>[
+          ...keptExisting,
+          ...draftQuoteIds.where((id) => !keptExisting.contains(id)),
+        ];
+        final oldQuoteIdSet = existingQuoteIds.toSet();
+        final newQuoteIdSet = newQuoteIds.toSet();
+        final quoteIdsChanged =
+            oldQuoteIdSet.difference(newQuoteIdSet).isNotEmpty ||
+                newQuoteIdSet.difference(oldQuoteIdSet).isNotEmpty;
+        final quoteIdChanged = selectedQuoteId != widget.jobcard?.quoteId;
+
+        if (quoteIdsChanged || quoteIdChanged) {
+          await JobcardService.updateJob(jobId, {
+            'quote_id': selectedQuoteId,
+            'quote_ids': newQuoteIds.isEmpty ? null : newQuoteIds.join(','),
+          });
+        }
       }
 
       // 4. Beelde: verwyder gemerkte, laai nuwes op.
@@ -1546,7 +1921,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failSave(String message) {
     if (!mounted) return;
     setState(() => _saving = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   /// Skep (of vervang) die Outlook-afspraak vir 'n geskeduleerde werksopdrag,
@@ -1573,16 +1948,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     }
   }
 
-  void _showSnack(String message, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: error ? AppColors.errorRed : AppColors.successGreen,
-      ),
-    );
-  }
-
   // ===== Hulp-widgets =====
 
   Widget _sectionTitle(String title) {
@@ -1600,6 +1965,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
@@ -1645,7 +2012,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged,
       {bool required = false, bool error = false}) {
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: label,
       hint: "Kies $label",
       value: value,
@@ -1656,11 +2023,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
-}
 
 class _CcUserDialog extends StatefulWidget {
   final List<User> users;

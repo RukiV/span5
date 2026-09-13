@@ -51,7 +51,7 @@ class _ScanPageState extends State<ScanPage> {
                   controller: cameraController,
                   onDetect: (capture) {
                     if (_isDetected) return;
-                    final String? code = capture.barcodes.first.rawValue;
+                    final String? code = capture.barcodes.firstOrNull?.rawValue;
                     if (code != null && code.isNotEmpty) {
                       _isDetected = true;
                       Navigator.pop(context, code);

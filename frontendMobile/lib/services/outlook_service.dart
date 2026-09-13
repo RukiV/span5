@@ -163,27 +163,82 @@ class OutlookService {
   }
 
   /// Verwyder alle Outlook-afsprake wat die `FBS-WO-<id>`-merker dra.
+  ///
+  /// Gebruik 'n verfynde navraag (`$filter` op die onderwerp) asook
+  /// `$orderby=lastModifiedDateTime` en `@odata.nextLink`-deurblaaiing eerder
+  /// as om die eerste 100 gebeurtenisse blind te skandeer, sodat 'n besige
+  /// kalender die merker-afspraak nie verberg nie. As die onderwerp-filter nie
+  /// deur die kliënt se Graph ondersteun word nie, word teruggeval op 'n
+  /// gesorteerde deurblaai tot die merker gevind is. Enige mislukking word
+  /// gerapporteer en nooit na bo opgewers nie (die stoor van die werksopdrag
+  /// word dus nooit geblokkeer nie).
   Future<void> deleteWorkOrderEvents(int jobId) async {
     try {
       final dio = await _graphDio();
       if (dio == null) return;
 
       final marker = 'FBS-WO-$jobId';
-      final response = await dio.get(
-        '/me/events',
-        queryParameters: {r'$top': 100, r'$select': 'id,subject,bodyPreview'},
-      );
-      final events = response.data?['value'] as List? ?? [];
+      try {
+        await _scanAndDeleteEvents(dio, marker, queryParameters: {
+          r'$top': 100,
+          r'$select': 'id,subject,bodyPreview',
+          r'$orderby': 'lastModifiedDateTime desc',
+          r'$filter': "contains(subject,'$marker')",
+        });
+      } on DioException {
+        await _scanAndDeleteEvents(dio, marker,
+            queryParameters: {
+              r'$top': 100,
+              r'$select': 'id,subject,bodyPreview',
+              r'$orderby': 'lastModifiedDateTime desc',
+            },
+            stopAfterCleanPage: true);
+      }
+    } catch (e) {
+      debugPrint('Kon Outlook-afsprake vir werksopdrag nie verwyder nie: $e');
+    }
+  }
+
+  /// Blaai deur `/me/events` en verwyder elke gebeurtenis wat [marker] in sy
+  /// onderwerp of liggaam dra. Eerste bladsy gebruik [queryParameters]; latere
+  /// bladsye volg die bediener se `@odata.nextLink`.
+  ///
+  /// Keer normaal terug wanneer die deurblaai voltooi is en gooi 'n
+  /// [DioException] by 'n Graph-fout. As [stopAfterCleanPage] waar is en daar
+  /// reeds 'n treffer was ('n bladsy met merker-afsprake), word daar gestop
+  /// sodra 'n volgende bladsy niks meer bevat nie.
+  Future<void> _scanAndDeleteEvents(
+    Dio dio,
+    String marker, {
+    Map<String, dynamic>? queryParameters,
+    bool stopAfterCleanPage = false,
+  }) async {
+    Uri? next;
+    var foundMatches = false;
+    while (true) {
+      final response = next == null
+          ? await dio.get('/me/events', queryParameters: queryParameters)
+          : await dio.getUri(next);
+      final data = response.data as Map<String, dynamic>?;
+      final events = data?['value'] as List? ?? [];
+
+      var matches = 0;
       for (final ev in events) {
         final evMap = ev as Map<String, dynamic>;
         final subject = evMap['subject'] ?? '';
         final body = evMap['bodyPreview'] ?? '';
         if (subject.contains(marker) || body.contains(marker)) {
+          matches++;
           await dio.delete('/me/events/${evMap['id']}');
         }
       }
-    } catch (e) {
-      debugPrint('Kon Outlook-afsprake vir werksopdrag nie verwyder nie: $e');
+
+      if (stopAfterCleanPage && foundMatches && matches == 0) return;
+      foundMatches = foundMatches || matches > 0;
+
+      final link = data?['@odata.nextLink'];
+      if (link is! String || link.isEmpty) return;
+      next = Uri.parse(link);
     }
   }
 

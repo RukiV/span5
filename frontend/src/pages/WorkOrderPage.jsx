@@ -24,6 +24,9 @@ import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import Modal from '../components/Modal/Modal';
+import WorkOrderDetailView from '../components/DetailView/WorkOrderDetailView';
+import '../components/DetailView/DetailView.css';
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -86,6 +89,11 @@ function WorkOrderPage() {
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showCreateContractorModal, setShowCreateContractorModal] = useState(false);
+  const [pendingQuoteIdForContractor, setPendingQuoteIdForContractor] = useState(null);
+  const [newContractorForm, setNewContractorForm] = useState({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+  const [contractorFormErrors, setContractorFormErrors] = useState({});
+  const [isCreatingContractor, setIsCreatingContractor] = useState(false);
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
 
@@ -1187,12 +1195,104 @@ function WorkOrderPage() {
 
   const handleSelectQuote = (quoteId) => {
     const nextSelectedId = quoteId === selectedQuoteId ? null : quoteId;
-    setSelectedQuoteId(nextSelectedId);
-    if (nextSelectedId) {
-      if (!quoteSelectionReasons[nextSelectedId]) {
-        setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
-      }
+    if (!nextSelectedId) {
+      setSelectedQuoteId(null);
+      return;
     }
+
+    const quote = quotes.find((q) => q.id === nextSelectedId);
+    const isNameOnlyContractor = quote && !quote.contractor_id && String(quote.contractor_name || "").trim();
+    if (isNameOnlyContractor) {
+      const parts = String(quote.contractor_name).trim().split(/\s+/);
+      const surname = parts.length > 1 ? parts.pop() : "";
+      const name = parts.join(" ") || String(quote.contractor_name).trim();
+      setPendingQuoteIdForContractor(nextSelectedId);
+      setNewContractorForm({ user_name: name, user_surname: surname, user_email: "", user_password: "" });
+      setContractorFormErrors({});
+      setShowCreateContractorModal(true);
+      return;
+    }
+
+    setSelectedQuoteId(nextSelectedId);
+    if (!quoteSelectionReasons[nextSelectedId]) {
+      setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
+    }
+  };
+
+  const handleCreateContractor = async () => {
+    try {
+      const errors = {};
+      if (!newContractorForm.user_name?.trim()) errors.user_name = true;
+      if (!newContractorForm.user_surname?.trim()) errors.user_surname = true;
+      const email = newContractorForm.user_email?.trim() || "";
+      if (!email) {
+        errors.user_email = true;
+      } else if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
+        errors.user_email = true;
+        showToast({ type: 'warning', title: 'Geldige e-posadres word vereis.' });
+      }
+      const pw = newContractorForm.user_password || "";
+      if (!pw) {
+        errors.user_password = true;
+      } else if (pw.length < 8 || pw.length > 128 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/.test(pw)) {
+        errors.user_password = true;
+        showToast({ type: 'warning', title: 'Wagwoord moet minstens 8 karakters, \'n hoofletter, \'n syfer en \'n simbool bevat.' });
+      }
+      setContractorFormErrors(errors);
+      if (Object.keys(errors).length > 0) return;
+
+      setIsCreatingContractor(true);
+      const response = await usersAPI.createContractor({
+        user_name: newContractorForm.user_name.trim(),
+        user_surname: newContractorForm.user_surname.trim(),
+        user_email: newContractorForm.user_email.trim(),
+        user_password: newContractorForm.user_password,
+        user_status: "active",
+        role_id: 4,
+        location_id: null,
+      });
+      const createdUser = response?.data || response;
+      setContractorFormErrors({});
+
+      const contractorId = createdUser?.user_id ?? null;
+      if (contractorId) {
+        setQuotes((prev) => prev.map((q) =>
+          q.id === pendingQuoteIdForContractor
+            ? { ...q, contractor_id: Number(contractorId), contractor_mode: "existing" }
+            : q
+        ));
+      }
+      fetchUsers();
+
+      setSelectedQuoteId(pendingQuoteIdForContractor);
+      if (pendingQuoteIdForContractor && !quoteSelectionReasons[pendingQuoteIdForContractor]) {
+        setQuoteSelectionReasons((prev) => ({ ...prev, [pendingQuoteIdForContractor]: "" }));
+      }
+
+      setShowCreateContractorModal(false);
+      setPendingQuoteIdForContractor(null);
+      setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+      showToast({ type: 'success', title: 'Kontrakteur is suksesvol by die lys gevoeg.' });
+    } catch (error) {
+      console.error("Fout by skep van kontrakteur:", error);
+      const status = error?.response?.status;
+      if (status === 409) {
+        showToast({ type: 'error', title: 'Daar is reeds \'n gebruiker met hierdie e-posadres.' });
+      } else if (error?.response?.data?.detail) {
+        showToast({ type: 'error', title: String(error.response.data.detail) });
+      } else {
+        showToast({ type: 'error', title: 'Fout by skep van kontrakteur. Probeer asseblief weer.' });
+      }
+    } finally {
+      setIsCreatingContractor(false);
+    }
+  };
+
+  const handleCloseCreateContractorModal = () => {
+    if (isCreatingContractor) return;
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setContractorFormErrors({});
   };
 
   const handleCloseModal = () => {
@@ -1217,6 +1317,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setConnectionType("");
     setConnectionTargetId("");
     setSelectedTerrein(null);
@@ -1266,6 +1371,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setFormData({
       job_desc: "",
       job_type: "",
@@ -1607,8 +1717,55 @@ function WorkOrderPage() {
           </table>
       <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredWorkOrders.length} pageSize={100} />
         </div>
+{showModal && isViewMode && isEditing && (() => {
+  const terrain = terrains.find(t => String(t.location_id) === String(formData.location_id));
+  const building = buildings.find(b => String(b.building_id) === String(formData.building_id));
+  const room = rooms.find(r => String(r.room_id) === String(formData.room_id));
+  const asset = assets.find(a => String(a.asset_id) === String(formData.asset_id));
+  const assignedUser = users.find(u => String(u.user_id) === String(formData.assigned_to));
+  const faultTicket = tickets.find(t => String(t.fault_id) === String(formData.fault_id));
+  const jobImageUrls = (jobImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  const ticketImageUrls = (ticketImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  return (
+    <Modal
+      isOpen={true}
+      onClose={handleCloseModal}
+      title={`Werksopdrag #${editingId}`}
+      size="md"
+      headerActions={
+        hasRight('jobs.manage') ? (
+          <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+        ) : null
+      }
+    >
+      <WorkOrderDetailView
+        order={{
+          ...formData,
+          jobcard_id: editingId,
+          job_desc: formData.brief_description || formData.job_desc,
+        }}
+        assignedName={assignedUser ? `${assignedUser.user_name} ${assignedUser.user_surname || ''}`.trim() : null}
+        contractorName={null}
+        terrainName={terrain?.location_name}
+        buildingName={building?.building_name}
+        roomName={room?.room_name}
+        assetName={asset?.asset_name}
+        faultId={formData.fault_id}
+        ticketTitle={faultTicket ? (faultTicket.fault_description || '').split(':')[0]?.trim() : null}
+        ticketImages={ticketImageUrls}
+        jobImages={jobImageUrls}
+      />
+    </Modal>
+  );
+})()}
 {/* MODAL: Werksopdrag-Kaart */}
-      {showModal && (
+      {showModal && !isViewMode && (
         <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content-workorder" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
@@ -2300,7 +2457,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(getJobImageUrl(image.image_id))}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleDeleteExistingImage(image.image_id)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleDeleteExistingImage(image.image_id)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                     {selectedImagePreviewUrls.map((url, index) => (
@@ -2312,7 +2469,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(url)}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleRemoveSelectedPreview(index)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleRemoveSelectedPreview(index)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                   </div>
@@ -2372,15 +2529,12 @@ function WorkOrderPage() {
                             {quoteDocuments[quote.id]?.[0] ? (
                               <>
                                 <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quote.id][0].document_id)}>Bekyk</button>
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : quotePdfFiles[quote.id] ? (
                               <>
-                                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginRight: '0.5rem' }}>{quotePdfFiles[quote.id].name}</span>
-                                {quotePdfPreviewUrls[quote.id] && (
-                                  <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')}>Bekyk</button>
-                                )}
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')} disabled={!quotePdfPreviewUrls[quote.id]}>Bekyk</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : (
                               <span style={{ color: '#999', fontSize: '0.8rem' }}>-</span>
@@ -2408,8 +2562,9 @@ function WorkOrderPage() {
                               type="button"
                               onClick={() => handleDeleteQuote(quote.id)}
                               className="btn-delete"
+                              title="Verwyder"
                             >
-                              Verwyder
+                              <IoTrashOutline size={18} />
                             </button>
                           </td>
                         </tr>
@@ -2518,17 +2673,13 @@ function WorkOrderPage() {
                       <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
                         {quotePdfFiles[quoteEditId || "new"] ? (
                           <>
-                            <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
-                            {quotePdfPreviewUrls[quoteEditId || "new"] && (
-                              <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                            )}
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginRight: '0.5rem' }} disabled={!quotePdfPreviewUrls[quoteEditId || "new"]}>Bekyk</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId || "new")}><IoTrashOutline size={18} /></button>
                           </>
                         ) : quoteDocuments[quoteEditId]?.[0] && (
                           <>
-                            <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
-                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                            <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
+                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginRight: '0.5rem' }}>Bekyk</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId)}><IoTrashOutline size={18} /></button>
                           </>
                         )}
                       </div>
@@ -2538,6 +2689,78 @@ function WorkOrderPage() {
                     <button className="btn-cancel" onClick={handleCloseQuoteModal}>Kanselleer</button>
                     <button className="btn-add" onClick={handleAddQuote}>
                       {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showCreateContractorModal && (
+              <div className="modal" style={{ zIndex: 1250 }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>Voeg Kontrakteur By</h3>
+                    <span className="close" onClick={handleCloseCreateContractorModal}>&times;</span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '1rem' }}>
+                    Die gekose kwotasie het 'n kontrakteur met slegs 'n naam. Skep die gebruiker hier sodat hy by die lys van kontrakteurs gevoeg word.
+                  </p>
+                  <div className="form-group">
+                    <label>Voornaam *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_name ? "field-invalid" : ""}
+                      value={newContractorForm.user_name}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_name: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_name; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Van *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_surname ? "field-invalid" : ""}
+                      value={newContractorForm.user_surname}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_surname: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_surname; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>E-pos *</label>
+                    <input
+                      type="email"
+                      className={contractorFormErrors.user_email ? "field-invalid" : ""}
+                      value={newContractorForm.user_email}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_email: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_email; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Wagwoord *</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className={contractorFormErrors.user_password ? "field-invalid" : ""}
+                      value={newContractorForm.user_password}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_password: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_password; return n; });
+                      }}
+                    />
+                    <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                      Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
+                    </small>
+                  </div>
+                  <div className="modal-footer">
+                    <button className="btn-cancel" onClick={handleCloseCreateContractorModal} disabled={isCreatingContractor}>Kanselleer</button>
+                    <button className="btn-add" onClick={handleCreateContractor} disabled={isCreatingContractor}>
+                      {isCreatingContractor ? 'Besig om te skep...' : 'Skep Kontrakteur'}
                     </button>
                   </div>
                 </div>

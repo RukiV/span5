@@ -181,6 +181,7 @@ export const usersAPI = {
   getAll: () => apiClient.get('/users'),
   getById: (id) => apiClient.get(`/users/${id}`),
   create: (data) => apiClient.post('/users', data),
+  createContractor: (data) => apiClient.post('/users/contractors', data),
   update: (id, data) => apiClient.patch(`/users/${id}`, data),
   delete: (id) => apiClient.delete(`/users/${id}`),
   getAssignable: () => apiClient.get('/users/assignable'),

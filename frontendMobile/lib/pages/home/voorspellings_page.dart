@@ -24,6 +24,12 @@ class _VoorspellingsPageState extends State<VoorspellingsPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _refreshData();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: _refreshData,

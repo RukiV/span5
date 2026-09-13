@@ -18,6 +18,9 @@ import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../utils/deleteUtils";
 import '../styles/App.css';
 import "../styles/Rooms.css";
+import Modal from '../components/Modal/Modal';
+import CampusDetailView from '../components/DetailView/CampusDetailView';
+import '../components/DetailView/DetailView.css';
 
 function TerrainsPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -42,7 +45,7 @@ function TerrainsPage({ embedded = false }) {
     { key: 'type', label: 'Tipe', render: (t) => t.location_type, sortKey: 'type', defaultVisible: true },
     { key: 'streetnum', label: 'Straatnommer', render: (t) => t.location_streetnum || '-', sortKey: 'streetnum', defaultVisible: true },
     { key: 'streetname', label: 'Straatnaam', render: (t) => t.location_streetname || '-', sortKey: 'streetname', defaultVisible: true },
-    { key: 'suburb', label: 'Suburb', render: (t) => t.location_suburb || '-', sortKey: 'suburb', defaultVisible: true },
+    { key: 'suburb', label: 'Voorstad', render: (t) => t.location_suburb || '-', sortKey: 'suburb', defaultVisible: true },
     { key: 'city', label: 'Stad', render: (t) => t.location_city || '-', sortKey: 'city', defaultVisible: true },
     { key: 'province', label: 'Provinsie', render: (t) => t.location_province || '-', sortKey: 'province', defaultVisible: true },
     { key: 'country', label: 'Land', render: (t) => t.location_country || '-', sortKey: 'country', defaultVisible: false },
@@ -599,7 +602,7 @@ function TerrainsPage({ embedded = false }) {
         </div>
         <div className="input-row">
           <div className="input-group">
-            <label>Suburb *</label>
+            <label>Voorstad *</label>
             <input
               ref={el => fieldRefs.current.location_suburb = el}
               type="text"
@@ -672,7 +675,30 @@ function TerrainsPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {showModal && isViewMode && isEditing && (
+          <Modal
+            isOpen={true}
+            onClose={handleCloseModal}
+            title={`Bekyk Terrein`}
+            size="md"
+            headerActions={
+              hasRight('locations.manage') ? (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              ) : null
+            }
+          >
+            <CampusDetailView
+              campus={newTerrain}
+              buildings={buildings}
+              onNavigateToBuilding={(b) => {
+                handleCloseModal();
+                navigate('/buildings', { state: { building: b } });
+              }}
+            />
+          </Modal>
+        )}
+
+        {showModal && !isViewMode && modalContent}
 
         {showBuildingsModal && selectedTerrain && (
           <div className="modal" style={{ display: "flex" }}>
@@ -718,7 +744,29 @@ function TerrainsPage({ embedded = false }) {
         {pageContent}
       </div>
 
-      {showModal && modalContent}
+      {showModal && isViewMode && isEditing && (
+        <Modal
+          isOpen={true}
+          onClose={handleCloseModal}
+          title={`Bekyk Terrein`}
+          size="md"
+          headerActions={
+            hasRight('locations.manage') ? (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            ) : null
+          }
+        >
+          <CampusDetailView
+            campus={newTerrain}
+            buildings={buildings}
+            onNavigateToBuilding={(b) => {
+              handleCloseModal();
+              navigate('/buildings', { state: { building: b } });
+            }}
+          />
+        </Modal>
+      )}
+      {showModal && !isViewMode && modalContent}
       {showBuildingsModal && selectedTerrain && (
         <div className="modal" style={{ display: "flex" }}>
           <div className="modal-content">

@@ -41,6 +41,10 @@ class OutlookTokenManager {
   /// lees oor dieselfde sessie te vermy.
   String? _cachedAccessToken;
 
+  /// Vervaldatum wat by [_cachedAccessToken] hoort. Die cache is net geldig
+  /// solank hierdie tydstip in die toekoms lê.
+  DateTime? _cachedExpiry;
+
   /// Lê 'n volledige Outlook/Graph-aanmelding via die stelsel-webblaaier
   /// (ASWebAuthenticationSession / Custom Tabs) af en bêre die tokens.
   Future<bool> signIn() async {
@@ -65,7 +69,11 @@ class OutlookTokenManager {
   /// Gee 'n geldige Graph-access token terug (verfris indien nodig),
   /// of null as die gebruiker nie via Outlook aangemeld is nie.
   Future<String?> getGraphAccessToken() async {
-    if (_cachedAccessToken != null) return _cachedAccessToken;
+    if (_cachedAccessToken != null &&
+        _cachedExpiry != null &&
+        _cachedExpiry!.isAfter(DateTime.now())) {
+      return _cachedAccessToken;
+    }
 
     final access = await _storage.read(key: _keyAccessToken);
     if (access == null) return null;
@@ -76,6 +84,7 @@ class OutlookTokenManager {
 
     if (expiry != null && expiry.isAfter(DateTime.now())) {
       _cachedAccessToken = access;
+      _cachedExpiry = expiry;
       return access;
     }
 
@@ -117,6 +126,7 @@ class OutlookTokenManager {
       await _storage.write(key: _keyRefreshToken, value: result.refreshToken!);
     }
     if (result.accessTokenExpirationDateTime != null) {
+      _cachedExpiry = result.accessTokenExpirationDateTime;
       await _storage.write(
         key: _keyExpiry,
         value: result.accessTokenExpirationDateTime!.toIso8601String(),
@@ -127,6 +137,7 @@ class OutlookTokenManager {
   /// Vee die Outlook-tokens uit (word op uitlog geroep).
   Future<void> signOut() async {
     _cachedAccessToken = null;
+    _cachedExpiry = null;
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyExpiry);

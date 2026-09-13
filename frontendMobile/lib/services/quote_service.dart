@@ -1,29 +1,31 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import '../models/quote.dart';
 import '../core/api_client.dart';
 import '../core/idempotency.dart';
+import 'cached_list_manager.dart';
 
 class QuoteService {
-  static final List<Quote> _quotes = [];
-  static final ValueNotifier<List<Quote>> quotesNotifier = ValueNotifier(_quotes);
+  static final CachedListManager<Quote> _manager = CachedListManager(
+    load: _load,
+  );
 
-  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
-  static String? _pendingKey;
-
-  static Future<void> fetchQuotes() async {
-    try {
-      final response = await ApiClient().client.get('/quotes');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        _quotes.clear();
-        _quotes.addAll(data.map((json) => Quote.fromJson(json)).toList());
-        quotesNotifier.value = List.from(_quotes);
-      }
-    } catch (e) {
-      debugPrint("Error fetching quotes: $e");
+  static Future<List<Quote>> _load() async {
+    final response = await ApiClient().client.get('/quotes');
+    if (response.statusCode == 200) {
+      final List<dynamic> data = response.data;
+      return data.map((json) => Quote.fromJson(json)).toList();
     }
+    throw Exception('Unexpected quotes response (${response.statusCode})');
   }
+
+  static ValueNotifier<List<Quote>> get quotesNotifier => _manager.notifier;
+
+  @visibleForTesting
+  static void resetForTest() =>
+      _manager.reset();
+
+  static Future<void> fetchQuotes() => _manager.fetch();
 
   static Future<Quote?> fetchQuoteById(int id) async {
     try {
@@ -37,18 +39,17 @@ class QuoteService {
     return null;
   }
 
-  static Future<Quote?> addQuote(Quote quote) async {
+  static Future<Quote?> addQuote(Quote quote, {String? idempotencyKey}) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
-        '/quotes',
-        data: quote.toJson(),
-        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
-      );
+            '/quotes',
+            data: quote.toJson(),
+            options: Options(headers: {'X-Idempotency-Key': key}),
+          );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         final created = Quote.fromJson(response.data);
-        await fetchQuotes();
+        await _manager.fetch();
         return created;
       }
     } catch (e) {
@@ -59,10 +60,11 @@ class QuoteService {
 
   static Future<Quote?> updateQuote(int id, Quote quote) async {
     try {
-      final response = await ApiClient().client.patch('/quotes/$id', data: quote.toJson());
+      final response =
+          await ApiClient().client.patch('/quotes/$id', data: quote.toJson());
       if (response.statusCode == 200) {
         final updated = Quote.fromJson(response.data);
-        await fetchQuotes();
+        await _manager.fetch();
         return updated;
       }
     } catch (e) {

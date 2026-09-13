@@ -3,11 +3,13 @@ import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
+import '../../core/status_colors.dart';
+import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
-import '../../widgets/sort_utils.dart';
-import '../../widgets/column_visibility.dart';
+import '../../widgets/selection_manager.dart';
+import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 
 class WorksAssignmentsPage extends StatefulWidget {
@@ -20,13 +22,7 @@ class WorksAssignmentsPage extends StatefulWidget {
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis =
-      ColumnVisibilityController('works-assignments', [
-    const ColumnDef(key: 'description', label: 'Beskrywing'),
-    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
-    const ColumnDef(key: 'status', label: 'Status'),
-  ]);
+  final SelectionController<int> _selection = SelectionController<int>();
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
@@ -58,26 +54,43 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
     }
   }
 
+  bool get _canManage => UserSession.can('jobs.manage');
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.gold,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        onPressed: () async {
-          await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => const JobcardFormPage()),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text("Nuwe Werksopdrag",
-            style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5)),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_canManage)
+            BulkDeleteFloatingAction<int>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Werksopdragte',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde werksopdrag(te) verwyder?',
+              onDelete: _bulkDeleteJobs,
+            ),
+          if (_canManage) const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            backgroundColor: AppColors.gold,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            onPressed: () async {
+              await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(builder: (_) => const JobcardFormPage()),
+              );
+            },
+            icon: const Icon(Icons.add),
+            label: const Text("Nuwe Werksopdrag",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5)),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -86,6 +99,11 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
             hintText: "Soek werksopdragte...",
             onChanged: (_) => setState(() {}),
             actions: [
+              if (_canManage)
+                SelectionExitAction<int>(
+                  controller: _selection,
+                  onExit: () => setState(() => _selection.exit()),
+                ),
               HeaderIconAction(
                 icon: Icons.place_outlined,
                 tooltip: "Filter op Ligging",
@@ -105,7 +123,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
-              ColumnVisibilityButton(controller: _colVis, iconOnly: true),
             ],
           ),
           Expanded(
@@ -133,31 +150,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }
                   return true;
                 }).toList();
-
-                if (_sortCtrl.isActive) {
-                  filtered.sort((a, b) {
-                    final dir = _sortCtrl.direction;
-                    switch (_sortCtrl.sortKey) {
-                      case 'description':
-                        return a.description
-                                .toLowerCase()
-                                .compareTo(b.description.toLowerCase()) *
-                            dir;
-                      case 'type':
-                        return (a.type ?? '')
-                                .toLowerCase()
-                                .compareTo((b.type ?? '').toLowerCase()) *
-                            dir;
-                      case 'status':
-                        return a.status
-                                .toLowerCase()
-                                .compareTo(b.status.toLowerCase()) *
-                            dir;
-                      default:
-                        return 0;
-                    }
-                  });
-                }
 
                 if (filtered.isEmpty) {
                   return RefreshIndicator(
@@ -191,17 +183,27 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
+                        color: _selection.isSelected(job.id)
+                            ? AppColors.lavender
+                            : null,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
-                          leading: CircleAvatar(
-                            backgroundColor: _getStatusColor(job.status)
-                                .withValues(alpha: 0.2),
-                            child: Icon(Icons.assignment,
-                                color: _getStatusColor(job.status)),
-                          ),
+leading: _selection.isSelecting
+                              ? Checkbox(
+                                  value: _selection.isSelected(job.id),
+                                  onChanged: (_) => setState(
+                                      () => _selection.toggle(job.id)),
+                                )
+                              : CircleAvatar(
+                                  backgroundColor:
+                                      jobStatusColor(job.status)
+                                          .withValues(alpha: 0.2),
+                                  child: Icon(Icons.assignment,
+                                      color: jobStatusColor(job.status)),
+                                ),
                           title: Text(
                             job.description,
                             style: const TextStyle(
@@ -221,16 +223,27 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                           trailing: const Icon(Icons.chevron_right,
                               color: AppColors.gold),
                           onTap: () async {
+                            if (_selection.isSelecting) {
+                              setState(() => _selection.toggle(job.id));
+                              return;
+                            }
                             final changed = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    JobcardFormPage(jobcard: job),
+                                    JobcardDetailPage(job: job),
                               ),
                             );
                             if (changed == true) {
                               await JobcardService.fetchJobs();
                             }
+                          },
+                          onLongPress: () {
+                            if (!_canManage) return;
+                            setState(() {
+                              _selection.enter();
+                              _selection.toggle(job.id);
+                            });
                           },
                         ),
                       );
@@ -245,27 +258,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
     );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Wag':
-        return Colors.orange;
-      case 'Oop':
-        return Colors.blue;
-      case 'Geskeduleer':
-        return Colors.teal;
-      case 'Besig':
-        return Colors.blue;
-      case 'Voltooi':
-        return Colors.green;
-      case 'Gekanselleer':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Widget _buildStatusBadge(String status) {
-    final color = _getStatusColor(status);
+    final color = jobStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
@@ -279,5 +273,34 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
             TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
+  }
+
+  Future<void> _bulkDeleteJobs(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      try {
+        if (await JobcardService.deleteJob(id)) {
+          ok++;
+        } else {
+          fail++;
+        }
+      } catch (e) {
+        fail++;
+      }
+    }
+    await JobcardService.fetchJobs();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok werksopdrag(te) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 }
