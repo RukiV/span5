@@ -14,12 +14,19 @@ class ColumnDef {
 }
 
 /// Manages which columns are shown/hidden.
-class ColumnVisibilityController {
-  final String storageKey;
+class ColumnVisibilityController extends ChangeNotifier {
+  final String? storageKey;
   final List<ColumnDef> _allColumns;
   final Set<String> _hidden = {};
 
-  ColumnVisibilityController(this.storageKey, this._allColumns) {
+  ColumnVisibilityController([
+    Object? storageKeyOrColumns,
+    List<ColumnDef>? columns,
+  ])  : storageKey =
+            storageKeyOrColumns is String ? storageKeyOrColumns : null,
+        _allColumns = storageKeyOrColumns is String
+            ? columns ?? const <ColumnDef>[]
+            : (storageKeyOrColumns as List<ColumnDef>?) ?? const <ColumnDef>[] {
     // Start with all default-visible columns shown
     for (final col in _allColumns) {
       if (!col.defaultVisible) _hidden.add(col.key);
@@ -38,6 +45,7 @@ class ColumnVisibilityController {
     } else {
       _hidden.add(key);
     }
+    notifyListeners();
   }
 
   void reset() {
@@ -45,6 +53,7 @@ class ColumnVisibilityController {
     for (final col in _allColumns) {
       if (!col.defaultVisible) _hidden.add(col.key);
     }
+    notifyListeners();
   }
 
   int get hiddenCount => _hidden.length;
@@ -55,7 +64,7 @@ class ColumnVisibilityController {
 class ColumnVisibilityButton extends StatefulWidget {
   final ColumnVisibilityController controller;
 
-  /// In [FixedPageHeader] word slegs die ikoon gewys om spasie te spaar.
+  /// When true, only the icon is shown to save header space.
   final bool iconOnly;
 
   const ColumnVisibilityButton({
@@ -75,8 +84,7 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
     final RenderBox? button =
         _buttonKey.currentContext?.findRenderObject() as RenderBox?;
     final RenderBox? overlay =
-        Navigator.of(context).overlay?.context.findRenderObject()
-            as RenderBox?;
+        Navigator.of(context).overlay?.context.findRenderObject() as RenderBox?;
     if (button == null || overlay == null) return;
 
     final position = RelativeRect.fromRect(

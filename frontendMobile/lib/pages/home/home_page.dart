@@ -14,6 +14,7 @@ import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
 import '../../models/user_session.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/count_badge.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/asset_service.dart';
@@ -344,23 +345,13 @@ class _HomePageState extends State<HomePage> {
                       Positioned(
                         right: 4,
                         top: 2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
+                        child: CountBadge(count,
                             color: Colors.red,
                             shape: BoxShape.circle,
-                          ),
-                          constraints:
-                              const BoxConstraints(minWidth: 18, minHeight: 18),
-                          child: Text(
-                            count > 99 ? '99+' : '$count',
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+                            padding: const EdgeInsets.all(4),
+                            fontSize: 10,
+                            minSize: const Size(18, 18),
+                            maxCount: 99),
                       ),
                   ],
                 );

@@ -33,7 +33,7 @@ cd "$ROOT"
 echo ""
 echo "--- Mobile Tests ---"
 cd "$ROOT/frontendMobile"
-flutter test test/TEST_login_page_test.dart test/TEST_api_client_test.dart test/TEST_auth_config_test.dart test/TEST_secure_storage_test.dart test/TEST_ai_service.dart --no-pub 2>&1 || echo "  (flutter not available? skipping mobile tests)"
+flutter test test/ test/TEST_ai_service.dart test/TEST_session_api.dart --no-pub 2>&1 || echo "  (flutter not available? skipping mobile tests)"
 cd "$ROOT"
 
 echo ""

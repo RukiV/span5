@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../models/user_session.dart';
 import '../../services/asset_type_service.dart';
 import '../../models/asset_type.dart';
@@ -19,10 +20,12 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
   final _maxController = TextEditingController();
   final SelectionController<int> _selection = SelectionController<int>();
   bool _isSaving = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
+    _idempotencyKey = Idempotency.generate();
     AssetTypeService.fetchTypes();
   }
 
@@ -37,16 +40,25 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Gee 'n naam vir die bate tipe in"),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final avg = int.tryParse(_avgController.text.trim());
     final min = int.tryParse(_minController.text.trim());
     final max = int.tryParse(_maxController.text.trim());
-    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max);
+    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max, idempotencyKey: _idempotencyKey);
     if (!mounted) return;
     setState(() {
       _isSaving = false;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         _nameController.clear();
         _avgController.clear();
         _minController.clear();
@@ -199,7 +211,6 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
                         const SizedBox(height: 8),
                         ...types.map((t) {
                           final type = t;
-                          final typeId = type.id;
                           return Card(
                             margin: const EdgeInsets.only(bottom: 8),
                             elevation: 1,

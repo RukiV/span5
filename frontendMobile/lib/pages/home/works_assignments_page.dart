@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/filter_button.dart';
 import '../../widgets/filter_utils.dart';
+import '../../widgets/header_action_button.dart';
+import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
+import '../../core/status_colors.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
@@ -131,6 +134,25 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   controller: _selection,
                   onExit: () => setState(() => _selection.exit()),
                 ),
+              HeaderIconAction(
+                icon: Icons.place_outlined,
+                tooltip: "Filter op Ligging",
+                activeBadge: _selectedCampusId != null ||
+                    _selectedBuildingId != null ||
+                    _selectedRoomId != null,
+                onTap: () => showLocationFilterSheet(
+                  context,
+                  depth: LocationDepth.room,
+                  campusId: _selectedCampusId,
+                  buildingId: _selectedBuildingId,
+                  roomId: _selectedRoomId,
+                  onChanged: (campusId, buildingId, roomId) => setState(() {
+                    _selectedCampusId = campusId;
+                    _selectedBuildingId = buildingId;
+                    _selectedRoomId = roomId;
+                  }),
+                ),
+              ),
               FilterButton(
                 controller: _filterCtrl,
                 selected: _filterOpen,
@@ -290,10 +312,10 @@ final filtered = _sortCtrl.apply(
                                       () => _selection.toggle(job.id)),
                                 )
                               : CircleAvatar(
-                                  backgroundColor: _getStatusColor(job.status)
+                                  backgroundColor: jobStatusColor(job.status)
                                       .withValues(alpha: 0.2),
                                   child: Icon(Icons.assignment,
-                                      color: _getStatusColor(job.status)),
+                                      color: jobStatusColor(job.status)),
                                 ),
                           title: Text(
                             job.description,
@@ -359,27 +381,8 @@ final filtered = _sortCtrl.apply(
     }
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Wag':
-        return Colors.orange;
-      case 'Oop':
-        return Colors.blue;
-      case 'Geskeduleer':
-        return Colors.teal;
-      case 'Besig':
-        return Colors.blue;
-      case 'Voltooi':
-        return Colors.green;
-      case 'Gekanselleer':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   Widget _buildStatusBadge(String status) {
-    final color = _getStatusColor(status);
+    final color = jobStatusColor(status);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(

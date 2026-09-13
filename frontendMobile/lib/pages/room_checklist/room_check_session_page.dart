@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/app_snack_bar.dart';
 import '../../widgets/selection_manager.dart';
 import 'new_room_check_session_page.dart';
 import 'room_checklist_page.dart';
@@ -121,9 +123,11 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        scheduled?.toString() ??
-                            (session.scheduledDatetime?.toString() ??
-                                "Kies datum en tyd"),
+                        scheduled != null
+                            ? formatDateTime(scheduled!)
+                            : session.scheduledDatetime != null
+                                ? formatDateTime(session.scheduledDatetime!)
+                                : "Kies datum en tyd",
                         style: TextStyle(
                           color: scheduled == null &&
                                   session.scheduledDatetime == null
@@ -160,13 +164,18 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
   }
 
   Future<void> _confirmDelete(RoomCheckSession session) async {
+    final copy = switch (session.status) {
+      'completed' =>
+        "Hierdie kontrole is reeds voltooi. Is jy seker jy wil dit verwyder?",
+      'cancelled' =>
+        "Hierdie kontrole is gekanselleer. Is jy seker jy wil dit verwyder?",
+      _ => "N Kontrole is geskeduleer of aan die gang. Verwydering sal die skedule en gekoppelde gebeure verwyder. Is jy seker?",
+    };
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text("Verwyder Skedule"),
-        content: const Text(
-          "N Aktiewe kontrole is aan die gang. Is jy seker dat jy dit wil uitvee?",
-        ),
+        content: Text(copy),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -179,21 +188,12 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
         ],
       ),
     );
-    if (confirmed != true) return;
-    try {
-      await RoomCheckSessionService.deleteSession(session.sessionId);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "N Aktiewe kontrole is aan die gang. Is jy seker dat jy dit wil uitvee?",
-            ),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
-      }
-    }
+    if (confirmed != true || !mounted) return;
+    final ok = await RoomCheckSessionService.deleteSession(session.sessionId);
+    if (!mounted) return;
+    showAppSnackBar(context,
+        ok ? "Kontrolesessie verwyder" : "Kon nie die kontrolesessie verwyder nie.",
+        error: !ok);
   }
 
   Widget _statusBadge(String status) {
@@ -260,8 +260,7 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
                 final session = sessions[index];
                 final dateStr = session.scheduledDatetime == null
                     ? "Geen datum"
-                    : "${session.scheduledDatetime!.day}/${session.scheduledDatetime!.month}/${session.scheduledDatetime!.year} "
-                        "${session.scheduledDatetime!.hour.toString().padLeft(2, '0')}:${session.scheduledDatetime!.minute.toString().padLeft(2, '0')}";
+                    : formatDateTime(session.scheduledDatetime!);
 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -456,15 +455,11 @@ class _RoomCheckSessionPageState extends State<RoomCheckSessionPage> {
     );
     if (context.mounted) {
       setState(() => _selection.exit());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(fail == 0
+      showAppSnackBar(context,
+          fail == 0
               ? "$ok lokaal-kontrole(s) verwyder."
-              : "$ok verwyder, $fail kon nie verwyder word nie."),
-          backgroundColor:
-              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
-        ),
-      );
+              : "$ok verwyder, $fail kon nie verwyder word nie.",
+          error: fail != 0);
     }
   }
 }

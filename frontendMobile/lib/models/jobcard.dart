@@ -136,7 +136,10 @@ class Jobcard {
   static List<int> _parseQuoteIds(dynamic raw) {
     if (raw == null) return [];
     if (raw is List) {
-      return raw.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+      return raw
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .where((e) => e != 0)
+          .toList();
     }
     return raw
         .toString()

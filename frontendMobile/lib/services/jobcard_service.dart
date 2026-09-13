@@ -1,44 +1,56 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import '../models/jobcard.dart';
-import '../models/user_session.dart';
 import '../core/api_client.dart';
 import '../core/idempotency.dart';
+import '../models/jobcard.dart';
+import '../models/user_session.dart';
+import 'cached_list_manager.dart';
 
 class JobcardService {
-  static final List<Jobcard> _jobcards = [];
-  static final ValueNotifier<List<Jobcard>> jobcardsNotifier = ValueNotifier(_jobcards);
+  static final CachedListManager<Jobcard> _manager = CachedListManager(
+    load: _load,
+  );
 
-  static Future<void> fetchJobs() async {
-    try {
-      final response = await ApiClient().client.get('/job');
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        _jobcards.clear();
-        
-        final List<Jobcard> allJobs = data.map((json) => Jobcard.fromJson(json)).toList();
-        
-        // As die gebruiker 'n kontrakteur is, sien hulle slegs hul eie toegewysde take.
-        if (UserSession.isContractor) {
-          _jobcards.addAll(allJobs.where((j) => j.contractorId == UserSession.userId));
-        } else {
-          _jobcards.addAll(allJobs);
-        }
+  static String? _pendingCompleteKey;
 
-        jobcardsNotifier.value = List.from(_jobcards);
+  static Future<List<Jobcard>> _load() async {
+    final response = await ApiClient().client.get('/job');
+    if (response.statusCode == 200) {
+      final List<dynamic> data = response.data;
+      final allJobs = data.map((json) => Jobcard.fromJson(json)).toList();
+      if (UserSession.isContractor) {
+        return allJobs
+            .where((j) => j.contractorId == UserSession.userId)
+            .toList();
       }
-    } catch (e) {
-      debugPrint("Fout met laai van werksopdragte: $e");
+      return allJobs;
     }
+    throw Exception('Unexpected jobcards response (${response.statusCode})');
   }
 
-  static Future<Jobcard?> createJob(Map<String, dynamic> payload) async {
+  static ValueNotifier<List<Jobcard>> get jobcardsNotifier => _manager.notifier;
+
+  @visibleForTesting
+  static void resetForTest() =>
+      _manager.reset();
+
+  static Future<void> fetchJobs() => _manager.fetch();
+
+  static Future<Jobcard?> createJob(
+      Map<String, dynamic> payload, {
+      String? idempotencyKey,
+    }) async {
     try {
-      final response = await ApiClient().client.post('/job', data: payload);
+      final key = idempotencyKey ?? Idempotency.generate();
+      final response = await ApiClient().client.post(
+            '/job',
+            data: payload,
+            options: Options(headers: {'X-Idempotency-Key': key}),
+          );
       if (response.statusCode == 200 || response.statusCode == 201) {
         final created = Jobcard.fromJson(response.data);
-        _jobcards.insert(0, created);
-        jobcardsNotifier.value = List.from(_jobcards);
+        final items = List<Jobcard>.from(_manager.values)..insert(0, created);
+        _manager.replaceAll(items);
         return created;
       }
     } catch (e) {
@@ -47,15 +59,18 @@ class JobcardService {
     return null;
   }
 
-  static Future<Jobcard?> updateJob(int jobId, Map<String, dynamic> payload) async {
+  static Future<Jobcard?> updateJob(
+      int jobId, Map<String, dynamic> payload) async {
     try {
-      final response = await ApiClient().client.patch('/job/$jobId', data: payload);
+      final response =
+          await ApiClient().client.patch('/job/$jobId', data: payload);
       if (response.statusCode == 200) {
         final updated = Jobcard.fromJson(response.data);
-        final index = _jobcards.indexWhere((j) => j.id == jobId);
+        final items = List<Jobcard>.from(_manager.values);
+        final index = items.indexWhere((j) => j.id == jobId);
         if (index != -1) {
-          _jobcards[index] = updated;
-          jobcardsNotifier.value = List.from(_jobcards);
+          items[index] = updated;
+          _manager.replaceAll(items);
         }
         return updated;
       }
@@ -65,16 +80,18 @@ class JobcardService {
     return null;
   }
 
-  /// Kontrakteur stoor sy werknotas by die werksopdrag.
   static Future<bool> updateJobNotes(int jobId, String notes) async {
     try {
-      final response = await ApiClient().client.patch('/job/$jobId', data: {'job_notes': notes});
+      final response = await ApiClient()
+          .client
+          .patch('/job/$jobId', data: {'job_notes': notes});
       if (response.statusCode == 200) {
         final updated = Jobcard.fromJson(response.data);
-        final index = _jobcards.indexWhere((j) => j.id == jobId);
+        final items = List<Jobcard>.from(_manager.values);
+        final index = items.indexWhere((j) => j.id == jobId);
         if (index != -1) {
-          _jobcards[index] = updated;
-          jobcardsNotifier.value = List.from(_jobcards);
+          items[index] = updated;
+          _manager.replaceAll(items);
         }
         return true;
       }
@@ -84,17 +101,13 @@ class JobcardService {
     return false;
   }
 
-  /// Kontrakteur versoek die verantwoordelike personeellid om die werksopdrag
-  /// te voltooi. 'n Pending X-Idempotency-Key voorkom duplikaat-versoeke.
-  static String? _pendingCompleteKey;
-
-  /// Verwyder 'n werksopdrag (jobs.manage). Gee true terug by sukses.
   static Future<bool> deleteJob(int jobId) async {
     try {
       final response = await ApiClient().client.delete('/job/$jobId');
       if (response.statusCode == 204 || response.statusCode == 200) {
-        _jobcards.removeWhere((j) => j.id == jobId);
-        jobcardsNotifier.value = List.from(_jobcards);
+        final items = List<Jobcard>.from(_manager.values)
+          ..removeWhere((j) => j.id == jobId);
+        _manager.replaceAll(items);
         return true;
       }
     } catch (e) {
@@ -107,9 +120,10 @@ class JobcardService {
     _pendingCompleteKey ??= Idempotency.generate();
     try {
       final response = await ApiClient().client.post(
-        '/job/$jobId/complete-request',
-        options: Options(headers: {'X-Idempotency-Key': _pendingCompleteKey!}),
-      );
+            '/job/$jobId/complete-request',
+            options:
+                Options(headers: {'X-Idempotency-Key': _pendingCompleteKey!}),
+          );
       if (response.statusCode == 200) {
         _pendingCompleteKey = null;
         return true;

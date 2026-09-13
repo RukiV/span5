@@ -4,9 +4,11 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
+import '../../core/input_decoration.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
 import '../../services/outlook_token_manager.dart';
+import '../../widgets/app_snack_bar.dart';
 import '../settings/server_config_page.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
@@ -83,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
       String password = _passControl.text;
 
       if (email.isEmpty || password.isEmpty) {
-        _showError("Vul asseblief alle velde in.");
+        showAppSnackBar(context, "Vul asseblief alle velde in.", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -101,8 +103,11 @@ class _LoginPageState extends State<LoginPage> {
           final token = response.data['access_token'];
           final refreshToken = response.data['refresh_token'];
 
-          // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
-          await ApiClient().saveToken(token, refreshToken: refreshToken);
+          // SEKURE BERGING: Gebruik ApiClient om die token(s) geënkripteerd te stoor.
+          await ApiClient().saveToken(token);
+          if (refreshToken != null) {
+            await ApiClient().saveRefreshToken(refreshToken);
+          }
 
           await _fetchProfileAndNavigate();
           return;
@@ -124,15 +129,31 @@ class _LoginPageState extends State<LoginPage> {
           debugPrint("   Login 401 detail: $detail");
         } else if (e.response?.statusCode == 403) {
           // Hanteer die platform-hekwagter boodskap vanaf die backend.
-          msg = e.response?.data['detail'] ??
-              "Jy het nie toegang tot hierdie stelsel nie.";
+          // Oppas: die liggaam is nie noodwendig 'n JSON-kaart nie.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Jy het nie toegang tot hierdie stelsel nie.";
+        } else if (e.response?.statusCode == 429) {
+          // Rekening gesluit ná te veel mislukte pogings — wys die werklike
+          // slotboodskap (met oorblywende tyd) vanaf die bediener.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Account is gesluit. Probeer later weer aan.";
         }
 
-        _showError(msg);
+        if (!mounted) return;
+        showAppSnackBar(context, msg, error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       } catch (e) {
-        _showError("Onverwagse fout: $e");
+        if (!mounted) return;
+        showAppSnackBar(context, "Onverwagse fout: $e", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -168,23 +189,14 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on DioException catch (e) {
       debugPrint("Profiel laai fout: ${e.message}");
-      _showError("Kon nie profiel laai nie. Teken asseblief weer in.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Kon nie profiel laai nie. Teken asseblief weer in.", error: true, floating: true);
       setState(() => _isLoading = false);
     } catch (e) {
-      _showError("Fout met die verwerking van profiel-data.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Fout met die verwerking van profiel-data.", error: true, floating: true);
       setState(() => _isLoading = false);
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   /// Dialoog om biometrie te aktiveer na die eerste suksesvolle login.
@@ -220,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
     // flutter_appauth (stelsel-webblaaier) ondersteun nie Windows/Linux nie —
     // wys net 'n boodskap.
     if (!Platform.isAndroid && !Platform.isIOS) {
-      _showError("Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.");
+      showAppSnackBar(context, "Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.", error: true, floating: true);
       return;
     }
 
@@ -236,7 +248,8 @@ class _LoginPageState extends State<LoginPage> {
           await OutlookTokenManager.instance.getGraphAccessToken();
       if (accessToken == null) {
         setState(() => _isLoading = false);
-        _showError("Kon nie die Microsoft-token verkry nie.");
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie die Microsoft-token verkry nie.", error: true, floating: true);
         return;
       }
 
@@ -248,14 +261,18 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final token = response.data['access_token'];
         final refreshToken = response.data['refresh_token'];
-        await ApiClient().saveToken(token, refreshToken: refreshToken);
+        await ApiClient().saveToken(token);
+        if (refreshToken != null) {
+          await ApiClient().saveRefreshToken(refreshToken);
+        }
         await _fetchProfileAndNavigate();
       } else {
         setState(() => _isLoading = false);
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showError("Outlook SSO Fout: $e");
+      if (!mounted) return;
+      showAppSnackBar(context, "Outlook SSO Fout: $e", error: true, floating: true);
     }
   }
 
@@ -331,7 +348,15 @@ class _LoginPageState extends State<LoginPage> {
                         TextField(
                           controller: _userControl,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: _inputDecoration("e-pos adres"),
+                          decoration: appInputDecoration(
+                              hintText: "e-pos adres",
+                              hintStyle: const TextStyle(color: Colors.black26),
+                              labelStyle: null,
+                              fillColor: AppColors.inputFill,
+                              borderColor: Colors.black12,
+                              focusedBorderColor: Colors.black38,
+                              focusedBorderWidth: 1,
+                              radius: 8),
                         ),
                         const SizedBox(height: 20),
 
@@ -339,7 +364,17 @@ class _LoginPageState extends State<LoginPage> {
                         TextField(
                           controller: _passControl,
                           obscureText: _obscurePassword,
-                          decoration: _inputDecoration("wagwoord").copyWith(
+                          decoration: appInputDecoration(
+                                  hintText: "wagwoord",
+                                  hintStyle:
+                                      const TextStyle(color: Colors.black26),
+                                  labelStyle: null,
+                                  fillColor: AppColors.inputFill,
+                                  borderColor: Colors.black12,
+                                  focusedBorderColor: Colors.black38,
+                                  focusedBorderWidth: 1,
+                                  radius: 8)
+                              .copyWith(
                             suffixIcon: IconButton(
                               icon: Icon(
                                 _obscurePassword
@@ -447,38 +482,15 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         const DecoratedBox(
           decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/background.jpg'),
-                fit: BoxFit.cover,
-                alignment: Alignment.topRight,
-              ),
+            image: DecorationImage(
+              image: AssetImage('assets/images/background.jpg'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topRight,
+            ),
           ),
         ),
         child,
       ],
-    );
-  }
-
-  /// Styl vir die inset-velde (soos web).
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black26),
-      fillColor: AppColors.white,
-      filled: true,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: Color(0xFFCCCCCC)),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: Color(0xFFCCCCCC)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(4),
-        borderSide: const BorderSide(color: AppColors.gold),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
     );
   }
 

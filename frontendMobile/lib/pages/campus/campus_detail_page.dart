@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../models/campus.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
-import 'edit_campus_page.dart';
+import '../../widgets/confirm_delete.dart';
+import '../../widgets/detail_row.dart';
+import 'campus_form_page.dart';
 
 class CampusDetailPage extends StatefulWidget {
   final Campus campus;
@@ -41,7 +42,7 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
                   context,
                   MaterialPageRoute(
                     builder: (context) =>
-                        EditCampusPage(campus: _currentCampus),
+                        CampusFormPage(campus: _currentCampus, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {
@@ -111,45 +112,87 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
       ),
       child: Column(
         children: [
-          _buildDetailRow("Naam",
-              Text(_currentCampus.name, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Naam",
+              valueWidget: Flexible(
+                child: Text(_currentCampus.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Tipe / Kode",
-              Text(_currentCampus.code, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Tipe / Kode",
+              valueWidget: Flexible(
+                child: Text(_currentCampus.code,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Straatnommer",
-              Text(_currentCampus.streetNum.isEmpty ? "-" : _currentCampus.streetNum, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Straatnommer",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.streetNum.isEmpty
+                        ? "-"
+                        : _currentCampus.streetNum,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Straatnaam",
-              Text(_currentCampus.streetName.isEmpty ? "-" : _currentCampus.streetName, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Straatnaam",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.streetName.isEmpty
+                        ? "-"
+                        : _currentCampus.streetName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Voorstad",
-              Text(_currentCampus.suburb.isEmpty ? "-" : _currentCampus.suburb, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Voorstad",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.suburb.isEmpty
+                        ? "-"
+                        : _currentCampus.suburb,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Stad",
-              Text(_currentCampus.city.isEmpty ? "-" : _currentCampus.city, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Stad",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.city.isEmpty ? "-" : _currentCampus.city,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Provinsie",
-              Text(_currentCampus.province.isEmpty ? "-" : _currentCampus.province, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Provinsie",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.province.isEmpty
+                        ? "-"
+                        : _currentCampus.province,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Land",
-              Text(_currentCampus.country.isEmpty ? "-" : _currentCampus.country, style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Land",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.country.isEmpty
+                        ? "-"
+                        : _currentCampus.country,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow("Radius",
-              Text("${_currentCampus.radius.toStringAsFixed(0)} m", style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Radius",
+              valueWidget: Flexible(
+                child: Text(
+                    "${_currentCampus.radius.toStringAsFixed(0)} m",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        const SizedBox(width: 16),
-        Flexible(child: value),
-      ],
     );
   }
 
@@ -213,7 +256,6 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final b = _currentCampus.buildings[index];
-          final roomCount = b.rooms?.length ?? 0;
           return ListTile(
             leading: const Icon(Icons.location_city,
                 color: AppColors.navy, size: 28),
@@ -244,35 +286,11 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
     );
   }
 
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Verwyder Terrein"),
-        content:
-            Text("Is jy seker jy wil '${_currentCampus.name}' verwyder? Alle geboue, lokale en bates onder hierdie terrein sal ook verwyder word."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Kanselleer"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final success =
-                  await CampusService.removeCampus(_currentCampus.id);
-              if (!mounted) return;
-              if (success) {
-                if (context.mounted) {
-                  Navigator.pop(dialogContext);
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text("Verwyder",
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete() => confirmDeleteAndRun(
+      context,
+      entityLabel: 'terrein',
+      itemName: _currentCampus.name,
+      delete: () => CampusService.removeCampus(_currentCampus.id),
+      onSuccess: () => Navigator.pop(context),
     );
-  }
 }

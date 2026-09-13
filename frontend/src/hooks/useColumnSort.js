@@ -23,35 +23,12 @@ function loadSorts(storageKey, columns, defaultSorts) {
   }
 }
 
-/**
- * useColumnSort — Multi-column sort state management with persistence.
- *
- * Supports an ordered list of sort criteria (primary first). Persists per-page
- * to localStorage under `colsort_<storageKey>` (cleared automatically when the
- * app logs out). Use applySort with a per-page `getSortValue(row, key)`
- * getter to sort rows.
- *
- * Usage:
- *   const { sorts, addSort, removeSort, toggleDirection, moveSort,
- *           clearSorts, applySort } = useColumnSort({
- *     columns: COLUMNS,
- *     storageKey: 'users-page',
- *     defaultSorts: [{ key: 'id', direction: 'asc' }],
- *   });
- *
- *   // In your filter chain:
- *   const ordered = applySort(filtered, (row, key) => {
- *     switch (key) {
- *       case 'id': return Number(row.user_id);
- *       case 'name': return String(row.user_name);
- *       ...
- *     }
- *   });
- */
 export default function useColumnSort({
   columns = [],
   storageKey = null,
   defaultSorts = [],
+  defaultSortKey = null,
+  defaultDirection = 'asc',
 } = {}) {
   const [sorts, setSorts] = useState(() =>
     loadSorts(storageKey, columns, defaultSorts),
@@ -62,7 +39,6 @@ export default function useColumnSort({
     try {
       localStorage.setItem(STORAGE_PREFIX + storageKey, JSON.stringify(sorts));
     } catch (e) {
-      // ignore storage errors (private mode etc.)
     }
   }, [storageKey, sorts]);
 
@@ -128,6 +104,36 @@ export default function useColumnSort({
     [sorts],
   );
 
+  const [sortKey, setSortKey] = useState(defaultSortKey);
+  const [sortDirection, setSortDirection] = useState(defaultDirection);
+
+  const handleSort = useCallback((key) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDirection('asc');
+      return key;
+    });
+  }, []);
+
+  const getSortIndicator = useCallback(
+    (key) => {
+      if (sortKey !== key) return '';
+      return sortDirection === 'asc' ? ' ▲' : ' ▼';
+    },
+    [sortKey, sortDirection],
+  );
+
+  const getSortClass = useCallback(
+    (key) => {
+      if (sortKey !== key) return 'sortable';
+      return sortDirection === 'asc' ? 'sortable sorted-asc' : 'sortable sorted-desc';
+    },
+    [sortKey, sortDirection],
+  );
+
   return {
     sorts,
     addSort,
@@ -136,5 +142,10 @@ export default function useColumnSort({
     moveSort,
     clearSorts,
     applySort,
+    handleSort,
+    sortKey,
+    sortDirection,
+    getSortIndicator,
+    getSortClass,
   };
 }

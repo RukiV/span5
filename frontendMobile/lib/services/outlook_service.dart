@@ -2,10 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'outlook_token_manager.dart';
 
-/// OutlookService: Direkte MS Graph-kalenderoproepe, dieselfde as die web se
-/// CalendarPage/WorkOrderPage (frontend/src/pages/...). Die Graph-token kom
-/// vanaf [OutlookTokenManager]. Alle oproepe degradeer grasieus (log + leë
-/// resultaat) sodat 'n ontbrekende Outlook-sessie die app nooit blokkeer nie.
 class OutlookService {
   OutlookService._();
 
@@ -30,9 +26,6 @@ class OutlookService {
     ));
   }
 
-  /// Haal die gebruiker se Outlook-kalender vir [start]..[end] op en gee dit
-  /// terug in dieselfde JSON-vorm as die backend se /calendar/events, sodat
-  /// CalendarService dit deur CalendarEvent.fromJson kan laat loop.
   Future<List<Map<String, dynamic>>> fetchCalendarView(
       DateTime start, DateTime end) async {
     try {
@@ -75,8 +68,6 @@ class OutlookService {
     }
   }
 
-  /// Sinkroniseer 'n plaaslike afspraak na Outlook. Gee die nuwe
-  /// Outlook-event-ID terug, of null by fout.
   Future<String?> createEvent({
     required String title,
     String? description,
@@ -109,7 +100,6 @@ class OutlookService {
     }
   }
 
-  /// Verwyder 'n Outlook-afspraak by sy Graph-ID.
   Future<bool> deleteEvent(String outlookEventId) async {
     try {
       final dio = await _graphDio();
@@ -122,8 +112,6 @@ class OutlookService {
     }
   }
 
-  /// Skep 'n Outlook-afspraak vir 'n geskeduleerde werksopdrag, met dieselfde
-  /// `FBS-WO-<id>`-merker as die web se WorkOrderPage.
   Future<bool> createWorkOrderEvent({
     required int jobId,
     String? description,
@@ -162,28 +150,65 @@ class OutlookService {
     }
   }
 
-  /// Verwyder alle Outlook-afsprake wat die `FBS-WO-<id>`-merker dra.
   Future<void> deleteWorkOrderEvents(int jobId) async {
     try {
       final dio = await _graphDio();
       if (dio == null) return;
 
       final marker = 'FBS-WO-$jobId';
-      final response = await dio.get(
-        '/me/events',
-        queryParameters: {r'$top': 100, r'$select': 'id,subject,bodyPreview'},
-      );
-      final events = response.data?['value'] as List? ?? [];
+      try {
+        await _scanAndDeleteEvents(dio, marker, queryParameters: {
+          r'$top': 100,
+          r'$select': 'id,subject,bodyPreview',
+          r'$orderby': 'lastModifiedDateTime desc',
+          r'$filter': "contains(subject,'$marker')",
+        });
+      } on DioException {
+        await _scanAndDeleteEvents(dio, marker,
+            queryParameters: {
+              r'$top': 100,
+              r'$select': 'id,subject,bodyPreview',
+              r'$orderby': 'lastModifiedDateTime desc',
+            },
+            stopAfterCleanPage: true);
+      }
+    } catch (e) {
+      debugPrint('Kon Outlook-afsprake vir werksopdrag nie verwyder nie: $e');
+    }
+  }
+
+  Future<void> _scanAndDeleteEvents(
+    Dio dio,
+    String marker, {
+    Map<String, dynamic>? queryParameters,
+    bool stopAfterCleanPage = false,
+  }) async {
+    Uri? next;
+    var foundMatches = false;
+    while (true) {
+      final response = next == null
+          ? await dio.get('/me/events', queryParameters: queryParameters)
+          : await dio.getUri(next);
+      final data = response.data as Map<String, dynamic>?;
+      final events = data?['value'] as List? ?? [];
+
+      var matches = 0;
       for (final ev in events) {
         final evMap = ev as Map<String, dynamic>;
         final subject = evMap['subject'] ?? '';
         final body = evMap['bodyPreview'] ?? '';
         if (subject.contains(marker) || body.contains(marker)) {
+          matches++;
           await dio.delete('/me/events/${evMap['id']}');
         }
       }
-    } catch (e) {
-      debugPrint('Kon Outlook-afsprake vir werksopdrag nie verwyder nie: $e');
+
+      if (stopAfterCleanPage && foundMatches && matches == 0) return;
+      foundMatches = foundMatches || matches > 0;
+
+      final link = data?['@odata.nextLink'];
+      if (link is! String || link.isEmpty) return;
+      next = Uri.parse(link);
     }
   }
 

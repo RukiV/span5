@@ -1,0 +1,22 @@
+.drag-handle {
+  width: 6px;
+  cursor: col-resize;
+  background: #d0d8e8;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.drag-handle:hover,
+.drag-handle:active {
+  background: #935e28;
+}
+
+.drag-handle::after {
+  content: '';
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+}

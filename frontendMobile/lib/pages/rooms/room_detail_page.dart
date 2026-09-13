@@ -4,7 +4,9 @@ import '../../core/app_colors.dart';
 import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
-import 'edit_room_page.dart';
+import '../../widgets/confirm_delete.dart';
+import '../../widgets/detail_row.dart';
+import 'room_form_page.dart';
 
 class RoomDetailPage extends StatefulWidget {
   final Room room;
@@ -74,11 +76,12 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => EditRoomPage(room: _currentRoom),
+                    builder: (context) => RoomFormPage(room: _currentRoom, startEditing: true),
                   ),
                 );
                 if (result == true && mounted) {
                   await CampusService.fetchCampuses();
+                  if (!mounted) return;
                   // Herresolwe die kamer
                   for (final c in CampusService.campusesNotifier.value) {
                     for (final b in c.buildings) {
@@ -151,43 +154,42 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
       ),
       child: Column(
         children: [
-          _buildDetailRow(
-              "Naam",
-              Text(_currentRoom.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Naam",
+              valueWidget: Flexible(
+                child: Text(_currentRoom.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Tipe",
-              Text(_typeLabel(_currentRoom.type),
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Tipe",
+              valueWidget: Flexible(
+                child: Text(_typeLabel(_currentRoom.type),
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Gebou",
-              Text(_buildingName,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Gebou",
+              valueWidget: Flexible(
+                child: Text(_buildingName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Terrein",
-              Text(_campusName,
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Terrein",
+              valueWidget: Flexible(
+                child: Text(_campusName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
           const Divider(height: 24),
-          _buildDetailRow(
-              "Kapasiteit",
-              Text(_currentRoom.capacity?.toString() ?? "-",
-                  style: const TextStyle(fontWeight: FontWeight.bold))),
+          DetailRow(
+              label: "Kapasiteit",
+              valueWidget: Flexible(
+                child: Text(_currentRoom.capacity?.toString() ?? "-",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
         ],
       ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, Widget value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        const SizedBox(width: 16),
-        Flexible(child: value),
-      ],
     );
   }
 
@@ -225,35 +227,11 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
     );
   }
 
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text("Verwyder Lokaal"),
-        content:
-            Text("Is jy seker jy wil '${_currentRoom.name}' verwyder?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text("Kanselleer"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final success =
-                  await CampusService.removeRoom(_currentRoom.id);
-              if (!mounted) return;
-              if (success) {
-                if (context.mounted) {
-                  Navigator.pop(dialogContext);
-                  Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text("Verwyder",
-                style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
+  Future<void> _confirmDelete() => confirmDeleteAndRun(
+      context,
+      entityLabel: 'lokaal',
+      itemName: _currentRoom.name,
+      delete: () => CampusService.removeRoom(_currentRoom.id),
+      onSuccess: () => Navigator.pop(context),
     );
-  }
 }

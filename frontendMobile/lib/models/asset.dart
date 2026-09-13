@@ -14,7 +14,7 @@ class Asset {
   final String campus;
 
   Asset({
-    required this.campus,
+    this.campus = '',
     required this.id,
     required this.serialCode,
     required this.name,
@@ -53,14 +53,14 @@ class Asset {
   }
 
   Map<String, dynamic> toJson() => {
-    'asset_name': name,
-    'asset_brand': brand,
-    'asset_status': _backendAssetStatus(status),
-    'room_id': int.tryParse(location) ?? 0,
-    'assettype_id': assetTypeId,
-    'asset_serial': serialCode,
-    'asset_isoutdoor': isOutdoor,
-  };
+        'asset_name': name,
+        'asset_brand': brand,
+        'asset_status': _backendAssetStatus(status),
+        'room_id': int.tryParse(location) ?? 0,
+        'assettype_id': assetTypeId,
+        'asset_serial': serialCode,
+        'asset_isoutdoor': isOutdoor,
+      };
 
   static String _backendAssetStatus(String s) {
     switch (s.toLowerCase()) {
@@ -86,7 +86,7 @@ class Asset {
   factory Asset.fromJson(Map<String, dynamic> json) {
     final typeId = json['assettype_id'] as int? ?? 1;
     return Asset(
-      campus: '',
+      campus: json['campus_name']?.toString() ?? '',
       id: json['asset_id']?.toString() ?? '',
       serialCode: json['asset_serial'] ?? '',
       name: json['asset_name'] ?? 'Onbekende Bate',
@@ -95,7 +95,8 @@ class Asset {
       category: AssetTypeService.getTypeName(typeId),
       location: json['room_id']?.toString() ?? '1',
       status: _frontendAssetStatus(json['asset_status'] ?? 'active'),
-      isOutdoor: json['asset_isoutdoor'] == true || json['asset_isoutdoor'] == 1,
+      isOutdoor:
+          json['asset_isoutdoor'] == true || json['asset_isoutdoor'] == 1,
     );
   }
 

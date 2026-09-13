@@ -26,7 +26,8 @@ class UserSession {
   /// Gooi 'n [StateError] as die API payload 'n geldige role_id ontbreeks.
   static void initialize(Map<String, dynamic> data) {
     userId = data['user_id'] ?? 0;
-    userName = "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
+    userName =
+        "${data['user_name'] ?? ''} ${data['user_surname'] ?? ''}".trim();
     userEmail = data['user_email'] ?? "";
     userCampus = data['location_name'] ?? "";
     locationId = data['location_id'];
@@ -74,9 +75,10 @@ class UserSession {
   static bool get isAdmin => role == UserRole.admin;
   static bool get isManager => role == UserRole.manager;
   static bool get isContractor => role == UserRole.contractor;
-  
+
   /// Bepaal of die gebruiker administratiewe aksies mag uitvoer.
-  static bool get hasAdminPrivileges => role == UserRole.admin || role == UserRole.manager;
+  static bool get hasAdminPrivileges =>
+      role == UserRole.admin || role == UserRole.manager;
 
   /// Maak die sessie skoon tydens logout.
   static void clear() {

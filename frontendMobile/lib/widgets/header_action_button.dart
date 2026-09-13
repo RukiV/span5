@@ -50,7 +50,8 @@ class HeaderIconAction extends StatelessWidget {
               : Icon(icon, color: iconColor),
           tooltip: tooltip,
           style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: loading ? 0 : 30 / 255),
+            backgroundColor:
+                Colors.white.withValues(alpha: loading ? 0 : 30 / 255),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),

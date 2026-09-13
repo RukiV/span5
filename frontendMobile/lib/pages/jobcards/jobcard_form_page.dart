@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/jobcard.dart';
 import '../../models/quote.dart';
 import '../../models/report.dart';
@@ -22,7 +24,9 @@ import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
+import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
+import '../../widgets/app_snack_bar.dart';
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
 /// wanneer die hele werksopdrag gestoor word (of wanneer die kwotasie-keuse
@@ -36,6 +40,7 @@ class _QuoteDraft {
   final List<QuoteDocument> existingDocs = [];
   String? selectionReason;
   bool selectionSaved = false;
+  String? idempotencyKey;
 
   _QuoteDraft(this.tempId);
 
@@ -71,6 +76,13 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
   String _contractorName = '';
   File? _pdfFile;
   bool _isNewContractor = false;
+  final bool _canAddContractor = UserSession.can('contractors.manage');
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_canAddContractor) _isNewContractor = false;
+  }
 
   Future<void> _pickQuotePdf() async {
     final result = await FilePicker.platform.pickFiles(
@@ -144,21 +156,24 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
             RadioGroup<int>(
               groupValue: _isNewContractor ? 2 : 1,
               onChanged: (v) => setState(() => _isNewContractor = (v == 2)),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  const Row(
                     children: [
                       Radio<int>(value: 1),
-                      Text("Bestaande kontrakteur", style: TextStyle(fontSize: 13)),
+                      Text("Bestaande kontrakteur",
+                          style: TextStyle(fontSize: 13)),
                     ],
                   ),
-                  Row(
-                    children: [
-                      Radio<int>(value: 2),
-                      Text("Nuwe kontrakteur", style: TextStyle(fontSize: 13)),
-                    ],
-                  ),
+                  if (_canAddContractor)
+                    const Row(
+                      children: [
+                        Radio<int>(value: 2),
+                        Text("Nuwe kontrakteur",
+                            style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -176,7 +191,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                 onChanged: (v) => _contractorName = v,
               )
             else
-              SearchableDropdown<int?>(
+              InlineSearchableDropdown<int?>(
                 label: "Kies kontrakteur",
                 hint: "Kies Kontrakteur",
                 value: _contractorId,
@@ -322,7 +337,7 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
 
     setState(() => _submitting = true);
     try {
-      final ok = await UserService.addContractor(
+      final created = await UserService.addContractor(
         User(
           name: name,
           surname: surname,
@@ -333,7 +348,8 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
         password,
       );
       if (!mounted) return;
-      if (!ok) {
+      final createdId = created?.id;
+      if (created == null || createdId == null) {
         setState(() => _submitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -343,23 +359,9 @@ class _CreateContractorDialogState extends State<_CreateContractorDialog> {
         );
         return;
       }
-      final created = UserService.users
-          .where((u) => u.email == email)
-          .firstOrNull;
-      if (created == null || created.id == null) {
-        if (!mounted) return;
-        setState(() => _submitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Kontrakteur is geskep maar die lys kon nie verfris word nie."),
-            backgroundColor: AppColors.errorRed,
-          ),
-        );
-        return;
-      }
       Navigator.pop(
         context,
-        _CreatedContractor(userId: created.id!, name: created.displayName),
+        _CreatedContractor(userId: createdId, name: created.displayName),
       );
     } catch (e) {
       debugPrint("Fout by skep van kontrakteur: $e");
@@ -565,6 +567,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   final List<_QuoteDraft> _quotes = [];
   int? _selectedQuoteTempId;
   int _quoteCounter = 0;
+  bool _quotesLoading = false;
+  final Set<int> _removedQuoteIds = {};
 
   final List<int> _existingImageIds = [];
   final Set<int> _removedImageIds = {};
@@ -574,11 +578,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   bool _saving = false;
   bool _savingQuoteSelection = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+
+    if (!widget.isEditing) {
+      _idempotencyKey = Idempotency.generate();
+    }
 
     _status = widget.jobcard?.status ?? "Oop";
     _priority = widget.jobcard?.priority ?? "Normal";
@@ -710,25 +719,30 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   }
 
   Future<void> _loadQuotesForJob() async {
-    for (final qid in widget.jobcard!.quoteIds) {
-      final quote = await QuoteService.fetchQuoteById(qid);
-      if (quote == null) continue;
-      final draft = _QuoteDraft(_newTempId())
-        ..quoteId = quote.id
-        ..contractorId = quote.contractorId
-        ..contractorName = quote.contractorName
-        ..selectionReason = quote.selectionReason
-        ..selectionSaved =
-            (quote.selectionReason ?? '').trim().isNotEmpty;
-      draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
-      if (mounted) {
-        setState(() {
-          _quotes.add(draft);
-          if (widget.jobcard!.quoteId == qid) {
-            _selectedQuoteTempId = draft.tempId;
-          }
-        });
+    _quotesLoading = true;
+    try {
+      for (final qid in widget.jobcard!.quoteIds) {
+        final quote = await QuoteService.fetchQuoteById(qid);
+        if (quote == null) continue;
+        final draft = _QuoteDraft(_newTempId())
+          ..quoteId = quote.id
+          ..contractorId = quote.contractorId
+          ..contractorName = quote.contractorName
+          ..selectionReason = quote.selectionReason
+          ..selectionSaved =
+              (quote.selectionReason ?? '').trim().isNotEmpty;
+        draft.existingDocs.addAll(await DocumentService.listQuoteDocuments(qid));
+        if (mounted) {
+          setState(() {
+            _quotes.add(draft);
+            if (widget.jobcard!.quoteId == qid) {
+              _selectedQuoteTempId = draft.tempId;
+            }
+          });
+        }
       }
+    } finally {
+      if (mounted) setState(() => _quotesLoading = false);
     }
   }
 
@@ -886,7 +900,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         width: double.infinity,
         height: 48,
         child: ElevatedButton(
-          onPressed: _saving ? null : _save,
+          onPressed: (_saving || _quotesLoading) ? null : _save,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -912,7 +926,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle("Status"),
           Row(
             children: [
               Expanded(child: _buildDropdown("Status", _status, _statuses, _onStatusSelected,
@@ -935,13 +948,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             ],
           ),
           const SizedBox(height: 20),
-          _buildTextField("Hoofbeskrywing (Kort Beskrywing)", _briefController),
+          _buildTextField("Hoofbeskrywing", _briefController),
           const SizedBox(height: 20),
-          _sectionTitle("Ligging & Koppeling"),
-          const SizedBox(height: 12),
           LocationCascadePicker(
             label: "Ligging",
-            errorText: _selectedCampusId == null ? 'Kies \'n ligging' : null,
+            error: _selectedCampusId == null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,
             initialRoomId: _selectedRoomId,
@@ -958,7 +969,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           ValueListenableBuilder<List<Report>>(
             valueListenable: ReportService.reportsNotifier,
             builder: (context, reports, _) {
-              return SearchableDropdown<String>(
+              return InlineSearchableDropdown<String>(
                 label: "Koppel foutkaartjie (opsioneel)",
                 hint: "Soek & kies foutkaartjie",
                 value: _faultId?.toString(),
@@ -1009,7 +1020,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       return int.tryParse(a.location) == _selectedRoomId;
     }).toList();
 
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: "Bate",
       hint: "Kies Bate (opsioneel)",
       value: _selectedAssetId,
@@ -1049,6 +1060,11 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           const SizedBox(height: 20),
           _sectionTitle("Kwotasies"),
           const SizedBox(height: 12),
+          if (_quotesLoading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
           if (_quotes.isEmpty)
             Container(
               padding: const EdgeInsets.all(20),
@@ -1169,6 +1185,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 IconButton(
                   tooltip: "Verwyder kwotasie",
                   onPressed: () => setState(() {
+                    if (quote.quoteId != null) _removedQuoteIds.add(quote.quoteId!);
                     _quotes.remove(quote);
                     if (_selectedQuoteTempId == quote.tempId) _selectedQuoteTempId = null;
                   }),
@@ -1238,7 +1255,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     try {
       final bytes = await DocumentService.downloadQuotePdf(documentId);
       if (bytes == null) {
-        _showSnack("Kon nie PDF laai nie.", error: true);
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie PDF laai nie.", error: true);
         return;
       }
       final dir = await getTemporaryDirectory();
@@ -1247,12 +1265,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       final result = await OpenFilex.open(file.path);
       if (!mounted) return;
       if (result.type != ResultType.done && result.type != ResultType.noAppToOpen) {
-        _showSnack("Kon nie PDF oopmaak nie.", error: true);
+        showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
       }
     } catch (e) {
       debugPrint("PDF viewing error: $e");
       if (!mounted) return;
-      _showSnack("Kon nie PDF oopmaak nie.", error: true);
+      showAppSnackBar(context, "Kon nie PDF oopmaak nie.", error: true);
     }
   }
 
@@ -1261,12 +1279,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   /// die gekose kwotasie aan die werksopdrag (as dit al bestaan).
   Future<void> _saveQuoteSelection(_QuoteDraft quote) async {
     if (!quote.hasContractor || !quote.hasPdf) {
-      _showSnack("Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
+      showAppSnackBar(context, "Gee 'n kontrakteur en laai 'n PDF-dokument op.", error: true);
       return;
     }
     final reason = (quote.selectionReason ?? '').trim();
     if (reason.isEmpty) {
-      _showSnack("Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
+      showAppSnackBar(context, "Gee asseblief 'n rede waarom hierdie kwotasie gekies is.", error: true);
       return;
     }
 
@@ -1291,13 +1309,14 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     setState(() => _savingQuoteSelection = true);
     try {
       if (quote.quoteId == null) {
+        quote.idempotencyKey ??= Idempotency.generate();
         final created = await QuoteService.addQuote(Quote(
           contractorId: quote.contractorId,
           contractorName: quote.contractorName,
           date: DateTime.now(),
           status: 'Pending',
           selectionReason: reason,
-        ));
+        ), idempotencyKey: quote.idempotencyKey);
         if (created == null) {
           _failQuoteSelection("Kon nie kwotasie stoor nie.");
           return;
@@ -1345,7 +1364,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         quote.selectionSaved = true;
         _savingQuoteSelection = false;
       });
-      _showSnack("Kwotasie-keuse gestoor");
+      showAppSnackBar(context, "Kwotasie-keuse gestoor");
     } catch (e) {
       debugPrint("Fout by stoor van kwotasie-keuse: $e");
       _failQuoteSelection("Fout tydens besparing van die kwotasie-keuse.");
@@ -1355,7 +1374,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failQuoteSelection(String message) {
     if (!mounted) return;
     setState(() => _savingQuoteSelection = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   // ===== Tabel 3: Skedulering & Toewysing =====
@@ -1395,7 +1414,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Personeel lid",
                     hint: "Kies personeel lid",
                     value: _assignedToId,
@@ -1407,7 +1426,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                     onChanged: (v) => setState(() => _assignedToId = v),
                   ),
                   const SizedBox(height: 14),
-                  SearchableDropdown<int?>(
+                  InlineSearchableDropdown<int?>(
                     label: "Kontrakteur (opsioneel)",
                     hint: "Kies kontrakteur",
                     enabled: _lockedContractorId == null,
@@ -1484,7 +1503,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    value == null ? "Kies datum & tyd" : _formatDateTime(value),
+                    value == null ? "Kies datum & tyd" : formatDateTime(value),
                     style: TextStyle(color: value == null ? Colors.grey[600] : Colors.black, fontSize: 14),
                   ),
                 ),
@@ -1537,6 +1556,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             controller: _notesController,
             maxLines: 6,
             decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
               hintText: "Gedetailleerde beskrywing van werk wat gedoen moet word...",
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -1687,23 +1708,23 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Future<void> _save() async {
     if (_selectedCampusId == null) {
-      _showSnack("Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n terrein (location_id is verpligtend).", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_workType.isEmpty) {
-      _showSnack("Kies asseblief 'n werksoort.", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n werksoort.", error: true);
       setState(() => _tabController.index = 0);
       return;
     }
     if (_assignedToId == null) {
-      _showSnack("Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
+      showAppSnackBar(context, "Kies asseblief 'n personeel lid (verantwoordelik vir die werksopdrag).", error: true);
       setState(() => _tabController.index = 2);
       return;
     }
     for (final q in _quotes) {
       if (!q.hasPdf) {
-        _showSnack("Elke kwotasie moet 'n PDF-dokument hê.", error: true);
+        showAppSnackBar(context, "Elke kwotasie moet 'n PDF-dokument hê.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
@@ -1711,12 +1732,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     if (_selectedQuoteTempId != null) {
       final selected = _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull;
       if (selected != null && !selected.hasContractor) {
-        _showSnack("Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n kontrakteur (naam) vir die gekose kwotasie.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
       if (selected != null && (selected.selectionReason == null || selected.selectionReason!.trim().isEmpty)) {
-        _showSnack("Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
+        showAppSnackBar(context, "Gee asseblief 'n rede waarom die gekose kwotasie gekies is.", error: true);
         setState(() => _tabController.index = 1);
         return;
       }
@@ -1780,17 +1801,24 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       // 1. Stoor/dateer die werksopdrag self.
       final saved = widget.isEditing
           ? await JobcardService.updateJob(widget.jobcard!.id, payload)
-          : await JobcardService.createJob(payload);
+          : await JobcardService.createJob(payload,
+              idempotencyKey: _idempotencyKey);
       if (saved == null) {
         _failSave("Kon nie werksopdrag stoor nie.");
         return;
       }
+      if (!widget.isEditing) {
+        _idempotencyKey = Idempotency.generate();
+      }
       final jobId = saved.id;
 
       // 2. Stoor kwotasies en laai PDF's op.
-      final createdQuoteIds = <int>[];
-      int? selectedCreatedQuoteId;
-      for (final q in _quotes) {
+      int? selectedQuoteId;
+      final selectedDraft = _selectedQuoteTempId != null
+          ? _quotes.where((q) => q.tempId == _selectedQuoteTempId).firstOrNull
+          : null;
+      if (selectedDraft?.quoteId != null) selectedQuoteId = selectedDraft!.quoteId;
+      for (final q in List<_QuoteDraft>.from(_quotes)) {
         try {
           final quoteToSave = Quote(
             id: q.quoteId ?? 0,
@@ -1803,10 +1831,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           );
           final quote = q.quoteId != null
               ? await QuoteService.updateQuote(q.quoteId!, quoteToSave)
-              : await QuoteService.addQuote(quoteToSave);
+              : await QuoteService.addQuote(quoteToSave,
+                  idempotencyKey: (q.idempotencyKey ??=
+                      Idempotency.generate()));
           if (quote == null) continue;
-          createdQuoteIds.add(quote.id);
-          if (q.tempId == _selectedQuoteTempId) selectedCreatedQuoteId = quote.id;
+          q.quoteId = quote.id;
+          if (q.tempId == _selectedQuoteTempId) selectedQuoteId = quote.id;
 
           if (q.pdfFile != null) {
             await DocumentService.uploadQuotePdf(quote.id, q.pdfFile!);
@@ -1816,12 +1846,36 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         }
       }
 
-      // 3. Koppel kwotasies aan die werksopdrag.
+      // 3. Koppel kwotasies aan die werksopdrag. Bou die lys uit die
+      //    bestaande quote_ids en pas slegs die gebruiker se werklike
+      //    veranderinge toe (verwyderings + nuutskeppings), sodat 'n
+      //    kwotasie wat nie gelaai kon word nie nie stilweg ontkoppel
+      //    word nie. Slaan die PATCH oor as niks aan kwotasies verander
+      //    is nie.
       if (jobId > 0) {
-        await JobcardService.updateJob(jobId, {
-          'quote_id': selectedCreatedQuoteId,
-          'quote_ids': createdQuoteIds.isEmpty ? null : createdQuoteIds.join(','),
-        });
+        final existingQuoteIds = widget.jobcard?.quoteIds ?? const <int>[];
+        final keptExisting = existingQuoteIds
+            .where((id) => !_removedQuoteIds.contains(id))
+            .toSet();
+        final draftQuoteIds =
+            _quotes.map((q) => q.quoteId).whereType<int>().toSet();
+        final newQuoteIds = <int>[
+          ...keptExisting,
+          ...draftQuoteIds.where((id) => !keptExisting.contains(id)),
+        ];
+        final oldQuoteIdSet = existingQuoteIds.toSet();
+        final newQuoteIdSet = newQuoteIds.toSet();
+        final quoteIdsChanged =
+            oldQuoteIdSet.difference(newQuoteIdSet).isNotEmpty ||
+                newQuoteIdSet.difference(oldQuoteIdSet).isNotEmpty;
+        final quoteIdChanged = selectedQuoteId != widget.jobcard?.quoteId;
+
+        if (quoteIdsChanged || quoteIdChanged) {
+          await JobcardService.updateJob(jobId, {
+            'quote_id': selectedQuoteId,
+            'quote_ids': newQuoteIds.isEmpty ? null : newQuoteIds.join(','),
+          });
+        }
       }
 
       // 4. Beelde: verwyder gemerkte, laai nuwes op.
@@ -1867,7 +1921,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   void _failSave(String message) {
     if (!mounted) return;
     setState(() => _saving = false);
-    _showSnack(message, error: true);
+    showAppSnackBar(context, message, error: true);
   }
 
   /// Skep (of vervang) die Outlook-afspraak vir 'n geskeduleerde werksopdrag,
@@ -1894,16 +1948,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     }
   }
 
-  void _showSnack(String message, {bool error = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: error ? AppColors.errorRed : AppColors.successGreen,
-      ),
-    );
-  }
-
   // ===== Hulp-widgets =====
 
   Widget _sectionTitle(String title) {
@@ -1921,6 +1965,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           controller: controller,
           maxLines: maxLines,
           decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
@@ -1966,7 +2012,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged,
       {bool required = false, bool error = false}) {
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: label,
       hint: "Kies $label",
       value: value,
@@ -1977,11 +2023,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     );
   }
 
-  String _formatDateTime(DateTime dt) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return "${two(dt.day)}/${two(dt.month)}/${dt.year} ${two(dt.hour)}:${two(dt.minute)}";
   }
-}
 
 class _CcUserDialog extends StatefulWidget {
   final List<User> users;

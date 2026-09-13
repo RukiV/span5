@@ -4,14 +4,14 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/asset_service.dart';
+import '../../services/jobcard_service.dart';
 import '../../models/report.dart';
 import '../../models/asset.dart';
+import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
 import 'calendar_page.dart';
 
 class DashboardPage extends StatefulWidget {
-  /// Vra 'n bladsy aan op naam (bv. "Werksopdragte"). Die naam moet ooreenstem
-  /// met 'n inskrywing in HomePage se menu, anders word die versoek geïgnoreer.
   final void Function(String title)? onTabRequested;
 
   const DashboardPage({super.key, this.onTabRequested});
@@ -26,7 +26,6 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    // Outomatiese verfrissing elke 5 minute
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       _refreshData();
     });
@@ -42,6 +41,7 @@ class _DashboardPageState extends State<DashboardPage> {
     await Future.wait([
       ReportService.fetchReports(),
       AssetService.fetchAssets(),
+      JobcardService.fetchJobs(),
     ]);
   }
 
@@ -59,7 +59,6 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Naam en Datum
             Text(
               "Goeiedag, ${UserSession.userName}",
               style: const TextStyle(
@@ -74,19 +73,12 @@ class _DashboardPageState extends State<DashboardPage> {
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
             const SizedBox(height: 25),
-
-            // Seksie: Rapportering Opsomming
             _buildSectionHeader("Rapportering"),
             const SizedBox(height: 12),
-
-            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
             ValueListenableBuilder<List<Report>>(
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
-                final voltooi =
-                    reports.where((r) => r.phase == "Voltooi").length;
-                final werksopdragteTotaal = reports.length;
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
@@ -103,19 +95,25 @@ class _DashboardPageState extends State<DashboardPage> {
                           "Foutkaartjies",
                           cardWidth,
                         ),
-                        _buildMiniStatCard(
-                          context,
-                          "Werksopdragte",
-                          werksopdragteTotaal.toString(),
-                          "",
-                          AppColors.successGreen, // Werksopdragte is nou Groen
-                          "Werksopdragte",
-                          cardWidth,
+                        ValueListenableBuilder<List<Jobcard>>(
+                          valueListenable:
+                              JobcardService.jobcardsNotifier,
+                          builder: (context, jobcards, _) {
+                            return _buildMiniStatCard(
+                              context,
+                              "Werksopdragte",
+                              jobcards.length.toString(),
+                              "",
+                              AppColors.successGreen,
+                              "Werksopdragte",
+                              cardWidth,
+                            );
+                          },
                         ),
                         _buildMiniStatCard(
                           context,
                           "Verslae",
-                          voltooi.toString(),
+                          reports.length.toString(),
                           "",
                           AppColors.infoBlue,
                           "Foutkaartjies",
@@ -129,15 +127,11 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
 
             const SizedBox(height: 30),
-
-            // Seksie: Bates
             _buildSectionHeader("Bates"),
             const SizedBox(height: 12),
-
             ValueListenableBuilder<List<Asset>>(
               valueListenable: AssetService.assetsNotifier,
               builder: (context, assets, _) {
-                // Totale Bates Kaart
                 return _buildWideStatCard(
                   context,
                   "Totale Bates",
@@ -150,8 +144,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
 
             const SizedBox(height: 30),
-
-            // Seksie: Kalender (ingebed)
             _buildSectionHeader("Kalender"),
             const SizedBox(height: 12),
             const CalendarPage(),

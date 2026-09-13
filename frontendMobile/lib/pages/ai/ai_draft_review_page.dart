@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/input_decoration.dart';
 import '../../models/job_draft.dart';
 import '../../services/ai_service.dart';
 import '../../widgets/ai_suggestions_panel.dart';
@@ -30,10 +31,14 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
 
   // Afrikaanse verduidelikings per werksoort (spieël web se JOB_TYPE_HELP).
   static const _typeHelp = {
-    'REPAIR': "Herstelwerk: daar is 'n fout — vind die probleem en maak dit reg sodat alles weer werk.",
-    'MAINTENANCE': 'Onderhoud: roetinewerk om afbreek te voorkom — dienseer, skoonmaak of vervang van verbruiksonderdele.',
-    'INSPECTION': 'Kyk of alles met die bate werk en ondersoek die bate fisies vir enige probleme.',
-    'INSTALLATION': "Installasie: 'n nuwe toestel of onderdeel word opgesit en in werking gestel.",
+    'REPAIR':
+        "Herstelwerk: daar is 'n fout — vind die probleem en maak dit reg sodat alles weer werk.",
+    'MAINTENANCE':
+        'Onderhoud: roetinewerk om afbreek te voorkom — dienseer, skoonmaak of vervang van verbruiksonderdele.',
+    'INSPECTION':
+        'Kyk of alles met die bate werk en ondersoek die bate fisies vir enige probleme.',
+    'INSTALLATION':
+        "Installasie: 'n nuwe toestel of onderdeel word opgesit en in werking gestel.",
   };
   static const _typeFallbackHelp =
       'Kies die soort werk: Herstel (iets is gebreek), Onderhoud (roetine-diens), Inspeksie (kyk of alles werk) of Installasie (nuwe toestel opsit).';
@@ -81,15 +86,18 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       _selectedType = _types.any((t) => t.$1 == detail.suggestedType)
           ? detail.suggestedType
           : _types.first.$1;
-      _selectedPriority = _priorities.any((p) => p.$1 == detail.suggestedPriority)
-          ? detail.suggestedPriority
-          : _priorities.first.$1;
-      _selectedAssetId = detail.assetCandidates.any((c) => c.id == detail.resolvedAssetId)
-          ? detail.resolvedAssetId
-          : null;
-      _selectedRoomId = detail.roomCandidates.any((c) => c.id == detail.resolvedRoomId)
-          ? detail.resolvedRoomId
-          : null;
+      _selectedPriority =
+          _priorities.any((p) => p.$1 == detail.suggestedPriority)
+              ? detail.suggestedPriority
+              : _priorities.first.$1;
+      _selectedAssetId =
+          detail.assetCandidates.any((c) => c.id == detail.resolvedAssetId)
+              ? detail.resolvedAssetId
+              : null;
+      _selectedRoomId =
+          detail.roomCandidates.any((c) => c.id == detail.resolvedRoomId)
+              ? detail.resolvedRoomId
+              : null;
     });
   }
 
@@ -101,7 +109,9 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       cleanedDescription: _cleanedController.text.trim().isEmpty
           ? null
           : _cleanedController.text.trim(),
-      title: _titleController.text.trim().isEmpty ? null : _titleController.text.trim(),
+      title: _titleController.text.trim().isEmpty
+          ? null
+          : _titleController.text.trim(),
       faultType: _selectedType,
       faultPriority: _selectedPriority,
       assetId: _selectedAssetId,
@@ -129,7 +139,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Kon nie die konsep goedkeur nie: ${result.error ?? 'Onbekende fout'}"),
+          content: Text(
+              "Kon nie die konsep goedkeur nie: ${result.error ?? 'Onbekende fout'}"),
           backgroundColor: AppColors.errorRed,
         ),
       );
@@ -164,7 +175,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Kon nie die konsep verwerp nie: ${result.error ?? 'Onbekende fout'}"),
+          content: Text(
+              "Kon nie die konsep verwerp nie: ${result.error ?? 'Onbekende fout'}"),
           backgroundColor: AppColors.errorRed,
         ),
       );
@@ -190,7 +202,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+              child: const Text("Kanselleer",
+                  style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               onPressed: () {
@@ -209,7 +222,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                 backgroundColor: AppColors.errorRed,
                 foregroundColor: Colors.white,
               ),
-              child: const Text("Verwerp", style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text("Verwerp",
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -226,7 +240,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       appBar: AppBar(
         title: Text(
           "Konsep #${widget.draftId}",
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style:
+              const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: AppColors.navy,
         elevation: 0,
@@ -244,7 +259,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_loadError!, style: const TextStyle(color: AppColors.errorRed)),
+              Text(_loadError!,
+                  style: const TextStyle(color: AppColors.errorRed)),
               const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: _load,
@@ -257,7 +273,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
     }
     final detail = _detail;
     if (detail == null) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.gold));
     }
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -277,45 +294,59 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               children: [
                 TextFormField(
                   controller: _titleController,
-                  decoration: _inputDecoration("Opskrif"),
+                  decoration:
+                      appInputDecoration(label: "Opskrif", labelStyle: null),
                 ),
                 const SizedBox(height: 15),
                 TextFormField(
                   controller: _cleanedController,
                   maxLines: 3,
-                  decoration: _inputDecoration("Geskande beskrywing").copyWith(
+                  decoration: appInputDecoration(
+                          label: "Geskande beskrywing", labelStyle: null)
+                      .copyWith(
                     suffixIcon: Tooltip(
                       message:
                           "Die oorspronklike foutbeskrywing, netjies herskryf: spelfoute en herhaling reggemaak en die kernprobleem duidelik gestate — sonder om inligting by te voeg of te versin. Dit word die werkkaart se beskrywing by goedkeuring.",
                       triggerMode: TooltipTriggerMode.tap,
                       showDuration: const Duration(seconds: 6),
-                      child: const Icon(Icons.help_outline, size: 20, color: AppColors.gold),
+                      child: const Icon(Icons.help_outline,
+                          size: 20, color: AppColors.gold),
                     ),
                   ),
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedType,
-                  decoration: _inputDecoration("Werksoort").copyWith(
+                  decoration:
+                      appInputDecoration(label: "Werksoort", labelStyle: null)
+                          .copyWith(
                     suffixIcon: Tooltip(
                       message: _typeHelp[_selectedType] ?? _typeFallbackHelp,
                       triggerMode: TooltipTriggerMode.tap,
                       showDuration: const Duration(seconds: 6),
-                      child: const Icon(Icons.help_outline, size: 20, color: AppColors.gold),
+                      child: const Icon(Icons.help_outline,
+                          size: 20, color: AppColors.gold),
                     ),
                   ),
                   items: _types
-                      .map((t) => DropdownMenuItem<String>(value: t.$1, child: Text(t.$2)))
+                      .map((t) => DropdownMenuItem<String>(
+                          value: t.$1, child: Text(t.$2)))
                       .toList(),
-                  onChanged: _submitting ? null : (v) => setState(() => _selectedType = v),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _selectedType = v),
                 ),
                 const SizedBox(height: 15),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedPriority,
-                  decoration: _inputDecoration("Prioriteit"),
+                  decoration:
+                      appInputDecoration(label: "Prioriteit", labelStyle: null),
                   items: _priorities
-                      .map((p) => DropdownMenuItem<String>(value: p.$1, child: Text(p.$2)))
+                      .map((p) => DropdownMenuItem<String>(
+                          value: p.$1, child: Text(p.$2)))
                       .toList(),
-                  onChanged: _submitting ? null : (v) => setState(() => _selectedPriority = v),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _selectedPriority = v),
                 ),
               ],
             ),
@@ -341,10 +372,14 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                     _titleController.text = s.value;
                     break;
                   case 'suggested_type':
-                    if (_types.any((t) => t.$1 == s.value)) _selectedType = s.value;
+                    if (_types.any((t) => t.$1 == s.value)) {
+                      _selectedType = s.value;
+                    }
                     break;
                   case 'suggested_priority':
-                    if (_priorities.any((p) => p.$1 == s.value)) _selectedPriority = s.value;
+                    if (_priorities.any((p) => p.$1 == s.value)) {
+                      _selectedPriority = s.value;
+                    }
                     break;
                 }
               });
@@ -356,32 +391,42 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               children: [
                 DropdownButtonFormField<int>(
                   initialValue: _selectedAssetId,
-                  decoration: _inputDecoration("Bate"),
+                  decoration:
+                      appInputDecoration(label: "Bate", labelStyle: null),
                   items: [
-                    const DropdownMenuItem<int>(value: null, child: Text("Geen bate")),
+                    const DropdownMenuItem<int>(
+                        value: null, child: Text("Geen bate")),
                     ...detail.assetCandidates.map(
                       (c) => DropdownMenuItem<int>(
                         value: c.id,
-                        child: Text('${c.name} — ${c.detail}', overflow: TextOverflow.ellipsis),
+                        child: Text('${c.name} — ${c.detail}',
+                            overflow: TextOverflow.ellipsis),
                       ),
                     ),
                   ],
-                  onChanged: _submitting ? null : (v) => setState(() => _selectedAssetId = v),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _selectedAssetId = v),
                 ),
                 const SizedBox(height: 15),
                 DropdownButtonFormField<int>(
                   initialValue: _selectedRoomId,
-                  decoration: _inputDecoration("Lokaal"),
+                  decoration:
+                      appInputDecoration(label: "Lokaal", labelStyle: null),
                   items: [
-                    const DropdownMenuItem<int>(value: null, child: Text("Geen lokaal")),
+                    const DropdownMenuItem<int>(
+                        value: null, child: Text("Geen lokaal")),
                     ...detail.roomCandidates.map(
                       (c) => DropdownMenuItem<int>(
                         value: c.id,
-                        child: Text('${c.name} — ${c.detail}', overflow: TextOverflow.ellipsis),
+                        child: Text('${c.name} — ${c.detail}',
+                            overflow: TextOverflow.ellipsis),
                       ),
                     ),
                   ],
-                  onChanged: _submitting ? null : (v) => setState(() => _selectedRoomId = v),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _selectedRoomId = v),
                 ),
               ],
             ),
@@ -394,7 +439,9 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               children: [
                 _ReviewBadge(
                   label: detail.aiStatus == 'ok' ? 'AI' : 'Beperk',
-                  color: detail.aiStatus == 'ok' ? AppColors.successGreen : AppColors.warningOrange,
+                  color: detail.aiStatus == 'ok'
+                      ? AppColors.successGreen
+                      : AppColors.warningOrange,
                 ),
                 _ReviewBadge(
                   label: detail.source == 'auto' ? 'Outomaties' : 'Handmatig',
@@ -416,7 +463,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text(
                 "GOEDKEUR",
@@ -433,7 +481,8 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.errorRed,
                 side: const BorderSide(color: AppColors.errorRed),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text(
                 "VERWERP",
@@ -465,40 +514,25 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12, letterSpacing: 1.1),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.grey,
+                fontSize: 12,
+                letterSpacing: 1.1),
           ),
           const SizedBox(height: 15),
           child,
         ],
       ),
-    );
-  }
-
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.gold, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
     );
   }
 }
@@ -521,7 +555,8 @@ class _ReviewBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }

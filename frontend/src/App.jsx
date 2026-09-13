@@ -4,8 +4,12 @@ import './styles/App.css';
 import './logoutInterceptor';
 import { clearAuthSession, isSessionExpired, markUserActivity } from './authSession';
 import { useCurrentUser } from './hooks/useCurrentUser';
+import { AnalyticsProvider, useAnalytics } from './context/AnalyticsContext';
+import { IoEyeOutline, IoEyeOffOutline } from 'react-icons/io5';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import DragHandle from './components/DragHandle';
+import AnalyticsPanel from './components/AnalyticsPanel';
 import { useLogout } from './pages/Page';
 import LoginPage from './pages/LoginPage';
 import DownloadPage from './pages/DownloadPage';
@@ -82,16 +86,83 @@ function RightProtectedRoute({ requiredRight, children }) {
 /* =========================================================
    1c. LAYOUT-VERPAKKER
    Wrappies elke beskermde bladsy in die nuwe layout:
-   Sidebar + Navbar + Content.
+   Sidebar + Navbar + (Content || Content + AnalyticsPanel).
    ========================================================= */
 function AppContent() {
   const location = useLocation();
   const logout = useLogout();
+  const { isOpen, toggle, close } = useAnalytics();
+
+  const hideAnalytics = ['/users/roles', '/users/rights'].some(
+    p => location.pathname === p || location.pathname === p + '/'
+  );
+
+  useEffect(() => {
+    if (hideAnalytics && isOpen) close();
+  }, [hideAnalytics, isOpen, close, location.pathname]);
+
+  // Position the analytics panel below the navbar + controls so the
+  // controls bar never moves/shifts when the panel toggles. Only the
+  // panel's top offset is updated — controls CSS stays untouched.
+  useEffect(() => {
+    const updatePanelTop = () => {
+      const navbar = document.querySelector('.navbar');
+      const navbarH = navbar ? navbar.offsetHeight : 0;
+      // Controls is the first sticky bar inside .main; may be absent on /dashboard etc.
+      const controls = document.querySelector('.main .controls--sticky');
+      const tabs = document.querySelector('.main .fault-tabs');
+      let headerH = navbarH;
+      if (tabs && controls) {
+        // When both exist, tabs sits above controls (tabs top 0, controls top 42px)
+        // Combined height is tabs + controls. Use bounding rect bottom of controls.
+        const controlsBottom = controls.getBoundingClientRect().bottom;
+        const navbarTop = navbar ? navbar.getBoundingClientRect().top : 0;
+        headerH = Math.round(controlsBottom - navbarTop);
+      } else if (controls) {
+        const controlsBottom = controls.getBoundingClientRect().bottom;
+        const navbarTop = navbar ? navbar.getBoundingClientRect().top : 0;
+        // If controls is visible, its bottom relative to viewport top gives total header
+        // but when scrolled it may be sticky; use offsetHeight fallback if bottom is too large
+        // Prefer measuring offsetHeight + navbarH for initial load
+        if (controlsBottom > 0 && controlsBottom < 400) {
+          headerH = Math.round(controlsBottom - navbarTop);
+        } else {
+          headerH = navbarH + controls.offsetHeight + 16; // 16 = margin-bottom
+        }
+      } else if (tabs) {
+        headerH = navbarH + tabs.offsetHeight;
+      } else {
+        headerH = navbarH + 8; // small gap when no controls
+      }
+      // Clamp to sensible range
+      headerH = Math.max(navbarH, Math.min(headerH, 300));
+      document.documentElement.style.setProperty('--analytics-panel-top', `${headerH}px`);
+    };
+
+    updatePanelTop();
+    // Re-measure on route change, resize, and when main content mutates (controls mounts late)
+    window.addEventListener('resize', updatePanelTop);
+    const ro = new ResizeObserver(updatePanelTop);
+    const navbarEl = document.querySelector('.navbar');
+    const mainEl = document.querySelector('.main');
+    if (navbarEl) ro.observe(navbarEl);
+    if (mainEl) ro.observe(mainEl);
+    // Also observe controls if it exists now; poll for late mount
+    const interval = setInterval(updatePanelTop, 500);
+    const timeout = setTimeout(() => clearInterval(interval), 5000);
+
+    return () => {
+      window.removeEventListener('resize', updatePanelTop);
+      ro.disconnect();
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [location.pathname, isOpen]);
 
   return (
     <div className="app-body">
       <Sidebar currentPath={location.pathname} onLogout={logout} />
-      <div className="app-content">
+      <div className={`app-content${isOpen && !hideAnalytics ? ' panel-open' : ''}`}>
         <Navbar />
         <div className="main">
           <Routes>
@@ -115,7 +186,14 @@ function AppContent() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </div>
+        {!hideAnalytics && <DragHandle />}
+        {!hideAnalytics && <AnalyticsPanel />}
       </div>
+      {!hideAnalytics && (
+        <button className="analytics-fab" onClick={toggle} title="Analitiese Paneel">
+          {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
+        </button>
+      )}
     </div>
   );
 }
@@ -134,11 +212,13 @@ function AppShell() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/*" element={
-          <ToastProvider>
-            <NotificationProvider>
-              <AppContent />
-            </NotificationProvider>
-          </ToastProvider>
+          <AnalyticsProvider>
+            <ToastProvider>
+              <NotificationProvider>
+                <AppContent />
+              </NotificationProvider>
+            </ToastProvider>
+          </AnalyticsProvider>
         } />
       </Routes>
     </div>

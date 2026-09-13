@@ -4,13 +4,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../core/auth_config.dart';
 
-/// OutlookTokenManager: Hou die Microsoft/Outlook (MS Graph) token vir die
-/// mobiele app, dieselfde rol as `sessionStorage.ms_access_token` in die web.
-///
-/// Die web-frontend stoor die Graph-token na 'n Outlook-aanmelding en gebruik
-/// dit vir direkte MS Graph-kalenderoproepe. Hier doen ons dieselfde met
-/// FlutterSecureStorage: die access token word gebêre en outomaties verfris
-/// met die refresh token wanneer dit verval.
 class OutlookTokenManager {
   OutlookTokenManager._();
 
@@ -37,12 +30,9 @@ class OutlookTokenManager {
         endSessionEndpoint: _endSessionEndpoint,
       );
 
-  /// Hou die gefetchedte Graph-token in geheue om herhaalde secure-storage
-  /// lees oor dieselfde sessie te vermy.
   String? _cachedAccessToken;
+  DateTime? _cachedExpiry;
 
-  /// Lê 'n volledige Outlook/Graph-aanmelding via die stelsel-webblaaier
-  /// (ASWebAuthenticationSession / Custom Tabs) af en bêre die tokens.
   Future<bool> signIn() async {
     try {
       final result = await _appAuth.authorizeAndExchangeCode(
@@ -62,10 +52,12 @@ class OutlookTokenManager {
     }
   }
 
-  /// Gee 'n geldige Graph-access token terug (verfris indien nodig),
-  /// of null as die gebruiker nie via Outlook aangemeld is nie.
   Future<String?> getGraphAccessToken() async {
-    if (_cachedAccessToken != null) return _cachedAccessToken;
+    if (_cachedAccessToken != null &&
+        _cachedExpiry != null &&
+        _cachedExpiry!.isAfter(DateTime.now())) {
+      return _cachedAccessToken;
+    }
 
     final access = await _storage.read(key: _keyAccessToken);
     if (access == null) return null;
@@ -76,6 +68,7 @@ class OutlookTokenManager {
 
     if (expiry != null && expiry.isAfter(DateTime.now())) {
       _cachedAccessToken = access;
+      _cachedExpiry = expiry;
       return access;
     }
 
@@ -117,6 +110,7 @@ class OutlookTokenManager {
       await _storage.write(key: _keyRefreshToken, value: result.refreshToken!);
     }
     if (result.accessTokenExpirationDateTime != null) {
+      _cachedExpiry = result.accessTokenExpirationDateTime;
       await _storage.write(
         key: _keyExpiry,
         value: result.accessTokenExpirationDateTime!.toIso8601String(),
@@ -124,9 +118,9 @@ class OutlookTokenManager {
     }
   }
 
-  /// Vee die Outlook-tokens uit (word op uitlog geroep).
   Future<void> signOut() async {
     _cachedAccessToken = null;
+    _cachedExpiry = null;
     await _storage.delete(key: _keyAccessToken);
     await _storage.delete(key: _keyRefreshToken);
     await _storage.delete(key: _keyExpiry);

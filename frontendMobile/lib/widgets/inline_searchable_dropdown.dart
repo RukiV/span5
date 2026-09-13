@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
-
 import '../core/app_colors.dart';
-import 'anchored_dropdown.dart';
 import 'searchable_dropdown.dart' show SearchableDropdownItem;
 
-/// 'n Keuselys wat soos 'n regte dropdown lyk en werk (soos die web se
-/// react-select): 'n veld met 'n pyltjie wat 'n oorvleuelende soekbare keuselys
-/// oopmaak direk onder hom. Die lys verleng met sy opsies in plaas van 'n
-/// vasgestelde skuifwiel te wees — tot 'n hoogte-kap om van die skerm af te bly.
+/// 'n Keuselys met twee modusse:
+/// * **Blaai-modus** (default): 'n Nie-redigeerbare veld wat lyk soos 'n
+///   teksboks. Tik om die lys oop/ toe te maak. 'n Soek-ikoon regs gee
+///   toegang tot soek-modus.
+/// * **Soek-modus**: 'n Regte [TextField] met sleutelbord vir filtering.
 class InlineSearchableDropdown<T> extends StatefulWidget {
-  /// Opskrif bo die veld. Laat weg vir inlyn-filters wat reeds 'n konteks het.
   final String? label;
   final String hint;
   final T? value;
@@ -17,31 +15,26 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   final ValueChanged<T?> onChanged;
   final String? Function(T?)? validator;
 
-  /// Wanneer vals is die veld dof en geen keuse moontlik nie.
   final bool enabled;
-
-  /// Opsionele knoppie regs in die veld.
   final Widget? trailing;
+  final bool required;
+  final bool error;
 
-  /// Bly die lys oop nadat 'n opsie gekies is (vir trap-vlak-kiesers soos die
-  /// terrein/gebou/lokaal-kaskade). Default sluit na keuse.
+  /// Bly die lys oop nadat 'n opsie gekies is (vir kaskades).
   final bool closeOnSelect;
 
   /// Herstel die oorspronklike waarde se teks wanneer die veld verloor word
-  /// sonder 'n keuse. Word vir die oorvleuelende menu nie meer gebruik nie maar
-  /// bly vir terugwaartse verenigbaarheid.
+  /// sonder 'n keuse.
   final bool restoreOnBlur;
 
-  /// Vuur wanneer die menu oopmaak — bv. om 'n voltooide kaskade terug te stel
-  /// na vlak 0 ("tik om te verander").
+  /// Vuur wanneer die veld fokus kry (slegs in soek-modus).
   final VoidCallback? onFocus;
 
-  /// Vuur wanneer die menu oopmaak (true) of toemaak (false).
+  /// Vuur wanneer die lys oopmaak (true) of toemaak (false).
   final ValueChanged<bool>? onSearchModeChanged;
 
   /// Maksimum hoogte vir die opsie-lys. Laat weg (null) sodat die lys sy
-  /// natuurlike hoogte kry — dit "verleng" met die aantal opsies in plaas van
-  /// 'n vasgestelde skuifwiel te wees. Gee 'n waarde om te skuif bokant dit.
+  /// natuurlike hoogte kry tot `240` in plaas van 'n skuifwiel te wees.
   final double? maxHeight;
 
   const InlineSearchableDropdown({
@@ -54,6 +47,8 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.validator,
     this.enabled = true,
     this.trailing,
+    this.required = false,
+    this.error = false,
     this.closeOnSelect = true,
     this.restoreOnBlur = true,
     this.onFocus,
@@ -68,14 +63,17 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
 
 class _InlineSearchableDropdownState<T>
     extends State<InlineSearchableDropdown<T>> {
-  /// Gedeelde register oor alle instansies heen (statiese lede van 'n
-  /// generiese klas word gedeel) sodat net EEN dropdown oop kan wees.
   static final Set<_InlineSearchableDropdownState<Object?>> _openStates = {};
 
-  final GlobalKey _fieldKey = GlobalKey();
-  final LayerLink _layerLink = LayerLink();
-  OverlayEntry? _overlayEntry;
+  final TextEditingController _text = TextEditingController();
+  final FocusNode _focus = FocusNode();
+  final FocusNode _browseFocus = FocusNode();
+  final GlobalKey _listKey = GlobalKey();
   bool _open = false;
+
+  String? _preFocusText;
+
+  bool _searchMode = false;
 
   String? _labelOf(T? v) {
     if (v == null) return null;
@@ -85,112 +83,315 @@ class _InlineSearchableDropdownState<T>
     return null;
   }
 
-  String get _displayText =>
-      _labelOf(widget.value) ?? widget.hint;
+  @override
+  void initState() {
+    super.initState();
+    _text.text = _labelOf(widget.value) ?? '';
+    _focus.addListener(_onFocusChanged);
+    _browseFocus.addListener(_onBrowseFocusChanged);
+  }
 
-  bool get _hasValue => widget.value != null;
+  @override
+  void didUpdateWidget(InlineSearchableDropdown<T> old) {
+    super.didUpdateWidget(old);
+    if (!widget.enabled) {
+      _closeAll();
+    }
+    if (widget.hint != old.hint || widget.value != old.value) {
+      final lbl = _labelOf(widget.value);
+      final newText = lbl ?? '';
+      if (_text.text != newText) _text.text = newText;
+    }
+  }
 
   @override
   void dispose() {
     _openStates.remove(this);
-    _overlayEntry?.remove();
+    _focus.removeListener(_onFocusChanged);
+    _focus.dispose();
+    _browseFocus.removeListener(_onBrowseFocusChanged);
+    _browseFocus.dispose();
+    _text.dispose();
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(covariant InlineSearchableDropdown<T> old) {
-    super.didUpdateWidget(old);
-    if (!widget.enabled && _open) {
-      _closeMenu();
-    }
-    // Die kaskade se opsies verander terwyl die menu oop is ('n vlak is gekies
-    // en die volgende vlak se lyste moet wys). Herbou die oop menu in plek.
-    if (_open &&
-        (widget.items != old.items ||
-            widget.hint != old.hint ||
-            widget.value != old.value)) {
-      _overlayEntry?.markNeedsBuild();
-    }
-    if (widget.hint != old.hint || widget.value != old.value) {
-      setState(() {});
+  void _onFocusChanged() {
+    if (!mounted) return;
+    if (!_searchMode) return;
+    if (_focus.hasFocus) {
+      widget.onFocus?.call();
+    } else {
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted && !_focus.hasFocus) {
+          _exitSearchMode();
+        }
+      });
     }
   }
 
-  void _closeMenu() {
-    _overlayEntry?.remove();
-    _overlayEntry = null;
+  void _onBrowseFocusChanged() {
+    if (!mounted) return;
+    if (_searchMode) return;
+    if (!_browseFocus.hasFocus && _open) {
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (mounted && !_browseFocus.hasFocus && !_searchMode) {
+          _closeList();
+        }
+      });
+    }
+  }
+
+  void _toggleList() {
+    if (!widget.enabled) return;
     if (_open) {
-      _open = false;
-      _openStates.remove(this);
-      widget.onSearchModeChanged?.call(false);
-      if (mounted) setState(() {});
+      _closeList();
+    } else {
+      _openList();
     }
   }
 
-  void _openMenu() {
-    if (!widget.enabled || _overlayEntry != null) return;
+  void _enterSearchMode() {
+    if (!widget.enabled) return;
+    _openList();
+    setState(() => _searchMode = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  void _exitSearchMode() {
+    _searchMode = false;
+    _closeList();
+  }
+
+  void _openList() {
     for (final other in _openStates.toList()) {
-      if (other != this && other.mounted && other._open) other._closeMenu();
+      if (other != this && other.mounted) {
+        other._closeAll();
+      }
     }
     _openStates.add(this);
+    _preFocusText = null;
+    if (_text.text.isNotEmpty) {
+      _preFocusText = _text.text;
+      _text.clear();
+    }
     setState(() => _open = true);
-    widget.onFocus?.call();
     widget.onSearchModeChanged?.call(true);
-    _createMenu();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollListIntoView();
+      if (mounted && !_searchMode) _browseFocus.requestFocus();
+    });
   }
 
-  void _createMenu() {
-    final ctx = _fieldKey.currentContext;
+  void _closeList() {
+    if (!_open) return;
+    setState(() => _open = false);
+    _openStates.remove(this);
+    if (widget.restoreOnBlur && _preFocusText != null) {
+      _text.text = _preFocusText!;
+    }
+    _preFocusText = null;
+    widget.onSearchModeChanged?.call(false);
+  }
+
+  void _closeAll() {
+    _searchMode = false;
+    _focus.unfocus();
+    _browseFocus.unfocus();
+    _closeList();
+  }
+
+  void _scrollListIntoView() {
+    final ctx = _listKey.currentContext;
     if (ctx == null) return;
-    final RenderBox? box = ctx.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final width = box.size.width;
-    _overlayEntry = openAnchoredDropdown(
-      context: context,
-      layerLink: _layerLink,
-      onDismiss: _closeMenu,
-      child: _SearchableOverlay<T>(
-        items: widget.items,
-        selectedValue: widget.value,
-        width: width,
-        maxHeight: _resolvedMaxHeight(ctx),
-        onSelected: _select,
-      ),
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.15,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
     );
   }
 
-  /// Bepaal hoe ver die oop lys mag groei: die gegewe kap, andersins die
-  /// natuurlike hoogte — maar nooit verder as die spasie wat op die skerm
-  /// oorbly onder die veld nie, sodat die menu nooit van die skerm af hardloop.
-  double _resolvedMaxHeight(BuildContext ctx) {
-    final screen = MediaQuery.sizeOf(ctx).height;
-    final bottom = boxBottomGlobalY(ctx);
-    final availableBelow = screen - bottom - 8;
-    final cap = widget.maxHeight ?? screen * 0.45;
-    return cap.clamp(160.0, availableBelow);
+  List<SearchableDropdownItem<T>> get _filtered {
+    final q = _text.text.trim().toLowerCase();
+    if (q.isEmpty) return widget.items;
+    return widget.items
+        .where((i) => i.label.toLowerCase().contains(q))
+        .toList();
   }
 
-  double boxBottomGlobalY(BuildContext ctx) {
-    final RenderBox? box = ctx.findRenderObject() as RenderBox?;
-    if (box == null) return MediaQuery.sizeOf(ctx).height;
-    return box.localToGlobal(Offset.zero).dy + box.size.height;
-  }
-
-  void _select(T? value) {
-    widget.onChanged(value);
+  void _select(SearchableDropdownItem<T> item) {
+    _text.text = item.label;
+    _preFocusText = null;
+    widget.onChanged(item.value);
     if (widget.closeOnSelect) {
-      _closeMenu();
-    } else {
-      // Bly oop sodat die kaskade sy volgende vlak se opsies kan wys.
-      setState(() {});
-      _overlayEntry?.markNeedsBuild();
+      _closeAll();
     }
   }
 
   void _clear() {
+    _text.clear();
+    _preFocusText = null;
     widget.onChanged(null);
     setState(() {});
-    _overlayEntry?.markNeedsBuild();
+  }
+
+  Widget _buildLabel() {
+    return Text(
+      widget.required ? '${widget.label} *' : widget.label!,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontWeight: FontWeight.bold,
+        fontSize: 13,
+        color: widget.error ? AppColors.errorRed : AppColors.navy,
+      ),
+    );
+  }
+
+  Widget _buildOptionList() {
+    return Material(
+      key: _listKey,
+      color: Colors.white,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: widget.maxHeight ?? 240),
+        child: _filtered.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Geen opsies nie',
+                    style: TextStyle(color: Colors.grey)),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: _filtered.length,
+                itemBuilder: (context, index) {
+                  final item = _filtered[index];
+                  final isSelected = widget.value == item.value;
+                  return ListTile(
+                    dense: true,
+                    title: Text(
+                      item.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    selected: isSelected,
+                    selectedTileColor: AppColors.gold.withAlpha(30),
+                    onTap: () => _select(item),
+                  );
+                },
+              ),
+      ),
+    );
+  }
+
+  /// Blaai-modus: nie-redigeerbare veld met soek-ikoon regs.
+  Widget _buildBrowseField() {
+    final displayText = _text.text.isNotEmpty ? _text.text : null;
+
+    return Focus(
+      focusNode: _browseFocus,
+      child: InkWell(
+        onTap: widget.enabled ? _toggleList : null,
+        borderRadius: BorderRadius.circular(10),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: widget.enabled ? Colors.white : Colors.grey[200],
+            hintText: widget.hint,
+            hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.gold, width: 2),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                  color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            suffixIcon: widget.enabled
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.trailing != null) widget.trailing!,
+                      IconButton(
+                        icon: const Icon(Icons.search, size: 20),
+                        onPressed: _enterSearchMode,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  )
+                : widget.trailing,
+          ),
+          child: Text(
+            displayText ?? '',
+            style: TextStyle(
+              color: displayText != null ? Colors.black : Colors.grey[600],
+              fontSize: 14,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Soek-modus: redigeerbare veld met sleutelbord.
+  Widget _buildSearchField() {
+    return TextField(
+      controller: _text,
+      focusNode: _focus,
+      enabled: widget.enabled,
+      readOnly: false,
+      showCursor: true,
+      style: const TextStyle(fontSize: 14),
+      scrollPadding: const EdgeInsets.only(bottom: 220),
+      onChanged: (_) {
+        setState(() {});
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _scrollListIntoView());
+      },
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: widget.enabled ? Colors.white : Colors.grey[200],
+        hintText: widget.hint,
+        hintStyle: TextStyle(color: Colors.grey[600], fontSize: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.gold, width: 2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+              color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey[300]!),
+        ),
+        suffixIcon: widget.enabled && _text.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 20),
+                onPressed: _clear,
+                visualDensity: VisualDensity.compact,
+              )
+            : null,
+      ),
+    );
   }
 
   @override
@@ -199,194 +400,15 @@ class _InlineSearchableDropdownState<T>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.label != null) ...[
-          Text(
-            widget.label!,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              color: AppColors.navy,
-            ),
-          ),
+          _buildLabel(),
           const SizedBox(height: 6),
         ],
-        CompositedTransformTarget(
-          link: _layerLink,
-          child: InkWell(
-            key: _fieldKey,
-            borderRadius: BorderRadius.circular(10),
-            onTap: widget.enabled
-                ? (_open ? _closeMenu : _openMenu)
-                : null,
-            child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-              decoration: BoxDecoration(
-                color: widget.enabled ? Colors.white : Colors.grey[200],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: _open ? AppColors.gold : Colors.grey[300]!,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _displayText,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _hasValue ? Colors.black : Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_drop_down,
-                    color: widget.enabled ? Colors.grey[700] : Colors.grey[400],
-                  ),
-                  if (widget.enabled && _hasValue)
-                    IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: _clear,
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                      constraints:
-                          const BoxConstraints(minWidth: 28, minHeight: 28),
-                    ),
-                  if (widget.trailing != null) widget.trailing!,
-                ],
-              ),
-            ),
-          ),
-        ),
+        _searchMode ? _buildSearchField() : _buildBrowseField(),
+        if (_open && widget.enabled) ...[
+          const SizedBox(height: 6),
+          _buildOptionList(),
+        ],
       ],
-    );
-  }
-}
-
-/// Die oorvleuelende keuselys wat onder die veld oopmaak: 'n soekveld bo wat
-/// die opsies lewendig filter, en die lys wat met sy opsies verleng.
-class _SearchableOverlay<T> extends StatefulWidget {
-  final List<SearchableDropdownItem<T>> items;
-  final T? selectedValue;
-  final double width;
-  final double maxHeight;
-  final ValueChanged<T?> onSelected;
-
-  const _SearchableOverlay({
-    required this.items,
-    required this.selectedValue,
-    required this.width,
-    required this.maxHeight,
-    required this.onSelected,
-  });
-
-  @override
-  State<_SearchableOverlay<T>> createState() => _SearchableOverlayState<T>();
-}
-
-class _SearchableOverlayState<T> extends State<_SearchableOverlay<T>> {
-  final TextEditingController _search = TextEditingController();
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  List<SearchableDropdownItem<T>> get _filtered {
-    final q = _search.text.trim().toLowerCase();
-    if (q.isEmpty) return widget.items;
-    return widget.items
-        .where((i) => i.label.toLowerCase().contains(q))
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filtered;
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: SizedBox(
-        width: widget.width,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-              child: TextField(
-                controller: _search,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Soek...',
-                  hintStyle:
-                      TextStyle(color: Colors.grey[600], fontSize: 14),
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _search.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            _search.clear();
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: widget.maxHeight),
-              child: filtered.isEmpty
-                  ? const SizedBox(
-                      width: double.infinity,
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('Geen opsies nie',
-                            style: TextStyle(color: Colors.grey)),
-                      ),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      physics: const ClampingScrollPhysics(),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        final isSelected =
-                            widget.selectedValue == item.value;
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            item.label,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: isSelected
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedTileColor: AppColors.gold.withAlpha(30),
-                          onTap: () => widget.onSelected(item.value),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import '../core/api_client.dart';
+import '../core/datetime_utils.dart';
 import '../core/idempotency.dart';
 import 'outlook_service.dart';
 
-/// Parse a backend datetime string, treating a naive (no-offset) value as UTC so
-/// it is converted to the device's local timezone. Keeps the app correct even if
-/// a response ever lacks the explicit "Z" that the backend normally supplies.
 DateTime parseUtcDatetime(String? value) {
   if (value == null || value.isEmpty) return DateTime.now();
   final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
   return DateTime.parse(hasOffset ? value : '${value}Z').toLocal();
+}
+
+DateTime calendarDatetimeOrNow(String? value) {
+  return parseWallClockDatetime(value) ?? DateTime.now();
 }
 
 class CalendarEvent {
@@ -53,10 +55,10 @@ class CalendarEvent {
       title: json['title'] ?? '',
       description: json['description'],
       startDatetime: json['start_datetime'] != null
-          ? parseUtcDatetime(json['start_datetime'])
+          ? calendarDatetimeOrNow(json['start_datetime'])
           : DateTime.now(),
       endDatetime: json['end_datetime'] != null
-          ? parseUtcDatetime(json['end_datetime'])
+          ? calendarDatetimeOrNow(json['end_datetime'])
           : null,
       allDay: json['all_day'] ?? false,
       location: json['location'],
@@ -70,24 +72,22 @@ class CalendarEvent {
   }
 
   Map<String, dynamic> toJson() => {
-    'title': title,
-    'description': description,
-    'start_datetime': startDatetime.toIso8601String(),
-    'end_datetime': endDatetime?.toIso8601String(),
-    'all_day': allDay,
-    'location': location,
-    'color': color,
-    'notify_email': notifyEmail,
-    'reminder_minutes': reminderMinutes,
-  };
+        'title': title,
+        'description': description,
+        'start_datetime': startDatetime.toIso8601String(),
+        'end_datetime': endDatetime?.toIso8601String(),
+        'all_day': allDay,
+        'location': location,
+        'color': color,
+        'notify_email': notifyEmail,
+        'reminder_minutes': reminderMinutes,
+      };
 }
 
 class CalendarService {
   static final List<CalendarEvent> _events = [];
-  static final ValueNotifier<List<CalendarEvent>> eventsNotifier = ValueNotifier(_events);
-
-  // Pending X-Idempotency-Key; reused until the create succeeds, then cleared.
-  static String? _pendingKey;
+  static final ValueNotifier<List<CalendarEvent>> eventsNotifier =
+      ValueNotifier(_events);
 
   static Future<void> fetchEvents(DateTime start, DateTime end) async {
     try {
@@ -102,8 +102,6 @@ class CalendarService {
         final List<dynamic> data = response.data;
         final local = data.map((j) => CalendarEvent.fromJson(j)).toList();
 
-        // Voeg die gebruiker se Outlook-kalender by (dieselfde as die web se
-        // CalendarPage wat die twee lyste saamvoeg).
         final outlook = await OutlookService.instance
             .fetchCalendarView(start, end)
             .then((raw) => raw.map((j) => CalendarEvent.fromJson(j)).toList());
@@ -117,16 +115,18 @@ class CalendarService {
     }
   }
 
-  static Future<bool> addEvent(CalendarEvent event) async {
+  static Future<bool> addEvent(
+      CalendarEvent event, {
+      String? idempotencyKey,
+    }) async {
     try {
-      _pendingKey ??= Idempotency.generate();
+      final key = idempotencyKey ?? Idempotency.generate();
       final response = await ApiClient().client.post(
-        '/calendar/events',
-        data: event.toJson(),
-        options: Options(headers: {'X-Idempotency-Key': _pendingKey!}),
-      );
+            '/calendar/events',
+            data: event.toJson(),
+            options: Options(headers: {'X-Idempotency-Key': key}),
+          );
       if (response.statusCode == 200 || response.statusCode == 201) {
-        _pendingKey = null;
         await fetchEvents(
           DateTime.now().subtract(const Duration(days: 30)),
           DateTime.now().add(const Duration(days: 60)),
@@ -139,10 +139,9 @@ class CalendarService {
     return false;
   }
 
-  /// Verwyder 'n suiver Outlook-event (bron 'outlook') uit die plaaslike lys
-  /// nadat hy by MS Graph uitgevee is.
   static void removeOutlookEvent(String outlookEventId) {
-    _events.removeWhere((e) => e.source == 'outlook' && e.outlookEventId == outlookEventId);
+    _events.removeWhere(
+        (e) => e.source == 'outlook' && e.outlookEventId == outlookEventId);
     eventsNotifier.value = List.from(_events);
   }
 
@@ -178,11 +177,13 @@ class CalendarService {
           break;
         }
       }
-      // As die afspraak na Outlook gesinkroniseer is, verwyder hom ook daar.
-      if (event != null && event.outlookSynced && event.outlookEventId != null) {
+      if (event != null &&
+          event.outlookSynced &&
+          event.outlookEventId != null) {
         await OutlookService.instance.deleteEvent(event.outlookEventId!);
       }
-      final response = await ApiClient().client.delete('/calendar/events/$eventId');
+      final response =
+          await ApiClient().client.delete('/calendar/events/$eventId');
       if (response.statusCode == 204 || response.statusCode == 200) {
         _events.removeWhere((e) => e.eventId == eventId);
         eventsNotifier.value = List.from(_events);
