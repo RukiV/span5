@@ -48,8 +48,6 @@
 }
 
 .app-content.panel-open {
-  /* Keep main full-width; panel is fixed overlay below navbar+controls so
-     controls never shift/reflow when the panel toggles. */
 }
 
 .app-content.panel-open .drag-handle {
@@ -99,8 +97,6 @@
     --blou-lig: #1a2e54;
     --grys-agtergrond: #f8fafc;
     --border: #e2e8f0;
-    /* Offset for analytics panel so it starts below navbar + controls.
-       Updated at runtime from AppContent via JS (reads actual controls height). */
     --analytics-panel-top: 140px;
 }
 
@@ -272,6 +268,30 @@
     box-sizing: border-box;
 }
 
+.controls-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: #fff;
+    font-size: 14px;
+    color: #374151;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.controls-checkbox input[type="checkbox"] {
+    margin: 0;
+    width: 15px;
+    height: 15px;
+    accent-color: #935e28;
+    cursor: pointer;
+}
+
 .controls .btn-add,
 .controls .colpick-btn {
     height: 40px;
@@ -350,6 +370,15 @@
 .react-select__indicator--is-focused,
 .select__indicator--is-focused {
     color: #7a4e21 !important;
+}
+
+/* ---------- Dropdown menus: verleng met inhoud (i.p.v. 'n klein skuifwiel) ---------- */
+/* react-select se verstek doodloop tot 300px en maak dit 'n skuifwiel. Deur die
+   maksimum te vervang met 60% van die skerm verleng die lys met sy opsies en
+   skuif eers daarna — eenderse gedrag as die mobiele weergawe. */
+.react-select__menu-list,
+.select__menu-list {
+    max-height: 60vh !important;
 }
 
 /* ---------- Alle invulbare elemente: bruin fokus (normale detek bly grys/swart) ---------- */

@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_session.dart';
+import '../widgets/filter_utils.dart';
+import '../widgets/sort_utils.dart';
 import 'navigation.dart';
 
 /// API-pad wat agter die bediener-oorsprong aangeheg word (bv. /api/v1).
@@ -16,11 +18,13 @@ const apiPath = '/api/v1';
 /// - HTTP client is a singleton so there is exactly one point of configuration.
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
+
+  static const _authTokenKey = 'auth_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _retriedOnceKey = 'retried_once';
 
   late final Dio _dio;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
 
   /// Huidige in-vlug /auth/refresh-aanroep sodat gelyktydige 401's nie elk hul
   /// eie verversing begin nie (single-flight).
@@ -31,7 +35,24 @@ class ApiClient {
 
   factory ApiClient() => _instance;
 
-  ApiClient._internal() {
+  /// Toetse-slegs konstruktor: laat 'n fake secure-kas en/of 'n gemokte Dio
+  /// inspuit sodat die token- en sessie-logika sonder 'n toestel getoets kan word.
+  @visibleForTesting
+  ApiClient.forTesting({FlutterSecureStorage? storage, Dio? dio})
+      : _storage = storage ?? const FlutterSecureStorage() {
+    if (dio != null) {
+      _dio = dio;
+    } else {
+      _baseUrlFromDefaults();
+    }
+  }
+
+  ApiClient._internal()
+      : _storage = const FlutterSecureStorage() {
+    _baseUrlFromDefaults();
+  }
+
+  void _baseUrlFromDefaults() {
     // Valbak-URL. Opstart lees die gestoorde bediener-URL (eerste-launch/
     // instellings) en pas dit asynchronies toe via setBaseUrl() sodat 'n enkele
     // APK met enige bediener (LAN-IP, tunnel-URL of domein) kan verbind.
@@ -56,7 +77,7 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _storage.read(key: 'auth_token');
+          final token = await _storage.read(key: _authTokenKey);
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -111,6 +132,62 @@ class ApiClient {
     );
   }
 
+  /// 'n Kaal Dio sonder interseptors en sonder outomatiese Authorization-kop,
+  /// sodat sessie-herstel/-verfrissing nie dubbel-refresh of na-login-navigasie
+  /// veroorsaak nie. Dit deel die adapter van [_dio] sodat toetse (en alternatiewe
+  /// netwerk-aanpassings) dieselfde vervoerlaag gebruik.
+  Dio _bareDio() => Dio(
+        BaseOptions(
+          baseUrl: _dio.options.baseUrl,
+          connectTimeout: _dio.options.connectTimeout,
+          receiveTimeout: _dio.options.receiveTimeout,
+        ),
+      )..httpClientAdapter = _dio.httpClientAdapter;
+
+  /// Probeer die gestoorde sessie op app-opstart herstel:
+  /// - geen gestoorde token -> geen sessie om te herstel nie;
+  /// - geldige token -> laai die profiel en stel die [UserSession];
+  /// - verstreke access-token -> verfris eers met die refresh_token.
+  /// 'n Netwerkfout (bediener onbereikbaar) keer [false] terug sonder om die
+  /// sessie uit te vee — die gebruiker verloor nie sy aanmelding omdat hy
+  /// buite bereik is nie.
+  Future<bool> restoreSession() async {
+    final token = await _storage.read(key: _authTokenKey);
+    if (token == null || token.isEmpty) return false;
+
+    final restoreDio = _bareDio();
+
+    Future<bool> fetchProfile(String tk) async {
+      try {
+        final response = await restoreDio.get(
+          '/auth/me',
+          options: Options(headers: {'Authorization': 'Bearer $tk'}),
+        );
+        if (response.statusCode != 200) return false;
+        UserSession.initialize(response.data);
+        ApiClient.authNotifier.value = true;
+        return true;
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 401) return false;
+        rethrow;
+      }
+    }
+
+    try {
+      if (await fetchProfile(token)) return true;
+
+      // Token is verstreke/ongeldig — probeer een keer met die refresh_token.
+      if (await _refreshSession()) {
+        final newToken = await _storage.read(key: _authTokenKey);
+        if (newToken != null && await fetchProfile(newToken)) return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Session restore failed: $e");
+      return false;
+    }
+  }
+
   /// Attempts to refresh the session using the /auth/refresh endpoint.
   /// Single-flight: gelyktydige 401's wag op dieselfde verversingsaanroep.
   Future<bool> _refreshSession() {
@@ -124,19 +201,12 @@ class ApiClient {
   Future<bool> _doRefresh() async {
     try {
       final refreshToken = await _storage.read(key: _refreshTokenKey);
-      if (refreshToken == null) {
+      if (refreshToken == null || refreshToken.isEmpty) {
         debugPrint("Session refresh failed: no refresh token stored");
         return false;
       }
 
-      final refreshDio = Dio(
-        BaseOptions(
-          baseUrl: _dio.options.baseUrl,
-          connectTimeout: _dio.options.connectTimeout,
-          receiveTimeout: _dio.options.receiveTimeout,
-          headers: Map<String, dynamic>.of(_dio.options.headers),
-        ),
-      );
+      final refreshDio = _bareDio();
       final response = await refreshDio.post(
         '/auth/refresh',
         options: Options(
@@ -149,10 +219,7 @@ class ApiClient {
             response.data['access_token'] ?? response.data['session_token'];
         final newRefreshToken = response.data['refresh_token'];
         if (newToken != null) {
-          await saveToken(newToken);
-          if (newRefreshToken != null) {
-            await saveRefreshToken(newRefreshToken);
-          }
+          await saveToken(newToken, refreshToken: newRefreshToken);
           return true;
         }
       }
@@ -164,7 +231,7 @@ class ApiClient {
 
   /// Retries a request with the latest authorization token.
   Future<Response> _retry(RequestOptions requestOptions) async {
-    final token = await _storage.read(key: 'auth_token');
+    final token = await _storage.read(key: _authTokenKey);
     final options = Options(
       method: requestOptions.method,
       headers: {
@@ -209,9 +276,15 @@ class ApiClient {
     return const FlutterSecureStorage().read(key: 'server_url');
   }
 
-  /// Stores the authentication token securely.
-  Future<void> saveToken(String token) async {
-    await _storage.write(key: 'auth_token', value: token);
+  /// Stores the authentication token securely (en die refresh-token, indien
+  /// deur die backend verskaf) sodat die sessie oor app-herlaaie behoue bly.
+  Future<void> saveToken(String token, {String? refreshToken}) async {
+    if (token.isNotEmpty) {
+      await _storage.write(key: _authTokenKey, value: token);
+    }
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    }
     ApiClient.authNotifier.value = true;
   }
 
@@ -222,8 +295,12 @@ class ApiClient {
 
   /// Removes the authentication token from secure storage.
   Future<void> clearToken() async {
-    await _storage.delete(key: 'auth_token');
+    await _storage.delete(key: _authTokenKey);
     await _storage.delete(key: _refreshTokenKey);
+    // Gebruikersspesifieke voorkeure (sorteervoorkeure) saam uitvee sodat die
+    // volgende gebruiker nie die vorige s'n oorerf nie.
+    await MultiSortController.clearAll();
+    await FilterController.clearAll();
     ApiClient.authNotifier.value = false;
   }
 }

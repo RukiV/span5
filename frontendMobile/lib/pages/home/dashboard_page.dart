@@ -12,8 +12,6 @@ import '../../models/user_session.dart';
 import 'calendar_page.dart';
 
 class DashboardPage extends StatefulWidget {
-  /// Vra 'n bladsy aan op naam (bv. "Werksopdragte"). Die naam moet ooreenstem
-  /// met 'n inskrywing in HomePage se menu, anders word die versoek geïgnoreer.
   final void Function(String title)? onTabRequested;
 
   const DashboardPage({super.key, this.onTabRequested});
@@ -28,7 +26,6 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    // Outomatiese verfrissing elke 5 minute
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       _refreshData();
     });
@@ -62,7 +59,6 @@ class _DashboardPageState extends State<DashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: Naam en Datum
             Text(
               "Goeiedag, ${UserSession.userName}",
               style: const TextStyle(
@@ -77,12 +73,8 @@ class _DashboardPageState extends State<DashboardPage> {
               style: TextStyle(fontSize: 13, color: Colors.grey[600]),
             ),
             const SizedBox(height: 25),
-
-            // Seksie: Rapportering Opsomming
             _buildSectionHeader("Rapportering"),
             const SizedBox(height: 12),
-
-            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
             ValueListenableBuilder<List<Report>>(
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
@@ -135,15 +127,11 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
 
             const SizedBox(height: 30),
-
-            // Seksie: Bates
             _buildSectionHeader("Bates"),
             const SizedBox(height: 12),
-
             ValueListenableBuilder<List<Asset>>(
               valueListenable: AssetService.assetsNotifier,
               builder: (context, assets, _) {
-                // Totale Bates Kaart
                 return _buildWideStatCard(
                   context,
                   "Totale Bates",
@@ -156,8 +144,6 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
 
             const SizedBox(height: 30),
-
-            // Seksie: Kalender (ingebed)
             _buildSectionHeader("Kalender"),
             const SizedBox(height: 12),
             const CalendarPage(),

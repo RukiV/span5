@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../widgets/fixed_page_header.dart';
+import '../../widgets/filter_button.dart';
+import '../../widgets/filter_utils.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
@@ -8,6 +10,9 @@ import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
+import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
@@ -22,19 +27,44 @@ class WorksAssignmentsPage extends StatefulWidget {
 class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   final TextEditingController _searchController = TextEditingController();
   String _query = "";
+  String _columnFilter = 'all';
+  final MultiSortController _sortCtrl =
+      MultiSortController('works-assignments', ['description', 'type', 'status']);
   final SelectionController<int> _selection = SelectionController<int>();
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('works-assignments', [
+    const ColumnDef(key: 'description', label: 'Beskrywing'),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+  ]);
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('works-assignments');
 
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+    _filterCtrl.initialize().then((_) {
+      if (!mounted) return;
+      _selectedCampusId = _filterCtrl.campusId;
+      _selectedBuildingId = _filterCtrl.buildingId;
+      _selectedRoomId = _filterCtrl.roomId;
+      _searchController.text = _filterCtrl.search;
+      _columnFilter = _filterCtrl.columnKey;
+      setState(() {});
+    });
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
     _searchController.addListener(() {
+      _filterCtrl.setSearch(_searchController.text);
       setState(() {
         _query = _searchController.text.toLowerCase();
       });
@@ -123,33 +153,117 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
+              FilterButton(
+                controller: _filterCtrl,
+                selected: _filterOpen,
+                onPressed: () => setState(() {
+                  _filterOpen = !_filterOpen;
+                  _sortOpen = false;
+                }),
+              ),
+              SortButton(
+                controller: _sortCtrl,
+                selected: _sortOpen,
+                onPressed: () => setState(() {
+                  _sortOpen = !_sortOpen;
+                  _filterOpen = false;
+                }),
+              ),
+              ColumnVisibilityButton(controller: _colVis, iconOnly: true),
             ],
           ),
+          if (_filterOpen)
+            FilterPanel(
+              controller: _filterCtrl,
+              depth: LocationDepth.room,
+              searchController: _searchController,
+              searchHint: "Soek werksopdragte...",
+              initialCampusId: _selectedCampusId,
+              initialBuildingId: _selectedBuildingId,
+              initialRoomId: _selectedRoomId,
+              onLocationChanged: (campusId, buildingId, roomId) =>
+                  setState(() {
+                _selectedCampusId = campusId;
+                _selectedBuildingId = buildingId;
+                _selectedRoomId = roomId;
+              }),
+              columnItems: [
+                const SearchableDropdownItem(
+                    value: 'all', label: 'Alle kolomme'),
+                ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                    value: c.key, label: c.label)),
+              ],
+              columnValue: _columnFilter,
+              onColumnChanged: (v) => setState(() => _columnFilter = v),
+              onReset: () => setState(() {
+                _selectedCampusId = null;
+                _selectedBuildingId = null;
+                _selectedRoomId = null;
+                _columnFilter = 'all';
+              }),
+              onClose: () => setState(() => _filterOpen = false),
+            ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(() {}),
+            ),
           Expanded(
-            child: ValueListenableBuilder<List<Jobcard>>(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: ValueListenableBuilder<List<Jobcard>>(
               valueListenable: JobcardService.jobcardsNotifier,
               builder: (context, jobcards, child) {
-                final filtered = jobcards.where((job) {
-                  if (_selectedCampusId != null &&
-                      job.locationId != _selectedCampusId) {
+final filtered = _sortCtrl.apply(
+              jobcards.where((job) {
+                if (_selectedCampusId != null &&
+                    job.locationId != _selectedCampusId) {
+                  return false;
+                }
+                if (_selectedBuildingId != null &&
+                    job.buildingId != _selectedBuildingId) {
+                  return false;
+                }
+                if (_selectedRoomId != null &&
+                    job.roomId != _selectedRoomId) {
+                  return false;
+                }
+                if (_query.isNotEmpty) {
+                  final searchable = _columnFilter == 'all'
+                      ? [
+                          job.description,
+                          job.type ?? '',
+                          job.status,
+                          job.id.toString(),
+                          job.fullDescription,
+                        ].join(' ')
+                      : switch (_columnFilter) {
+                          'description' => job.description,
+                          'type' => job.type ?? '',
+                          'status' => job.status,
+                          _ => '',
+                        };
+                  if (!searchable.toLowerCase().contains(_query)) {
                     return false;
                   }
-                  if (_selectedBuildingId != null &&
-                      job.buildingId != _selectedBuildingId) {
-                    return false;
-                  }
-                  if (_selectedRoomId != null &&
-                      job.roomId != _selectedRoomId) {
-                    return false;
-                  }
-                  if (_query.isNotEmpty &&
-                      !job.description.toLowerCase().contains(_query) &&
-                      !(job.type?.toLowerCase().contains(_query) ?? false) &&
-                      !job.status.toLowerCase().contains(_query)) {
-                    return false;
-                  }
-                  return true;
-                }).toList();
+                }
+                return true;
+              }).toList(),
+              (job, key) {
+                switch (key) {
+                  case 'description':
+                    return job.description.toLowerCase();
+                  case 'type':
+                    return (job.type ?? '').toLowerCase();
+                  case 'status':
+                    return job.status.toLowerCase();
+                  default:
+                    return '';
+                }
+              },
+            );
 
                 if (filtered.isEmpty) {
                   return RefreshIndicator(
@@ -191,16 +305,15 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
-leading: _selection.isSelecting
+                          leading: _selection.isSelecting
                               ? Checkbox(
                                   value: _selection.isSelected(job.id),
                                   onChanged: (_) => setState(
                                       () => _selection.toggle(job.id)),
                                 )
                               : CircleAvatar(
-                                  backgroundColor:
-                                      jobStatusColor(job.status)
-                                          .withValues(alpha: 0.2),
+                                  backgroundColor: jobStatusColor(job.status)
+                                      .withValues(alpha: 0.2),
                                   child: Icon(Icons.assignment,
                                       color: jobStatusColor(job.status)),
                                 ),
@@ -249,13 +362,23 @@ leading: _selection.isSelecting
                       );
                     },
                   ),
-                );
-              },
+);
+                },
+              ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
   }
 
   Widget _buildStatusBadge(String status) {

@@ -51,6 +51,10 @@ class LocationCascadePicker extends StatefulWidget {
   /// keuse-veld vertoon word. Bly in plek ongeag die geselekteerde waarde.
   final Widget? trailing;
 
+  /// Maksimum hoogte vir die opsie-lys. Laat weg (null) sodat die lys met sy
+  /// natuurlike hoogte verleng in plaas van 'n skuifwiel te word.
+  final double? dropdownMaxHeight;
+
   const LocationCascadePicker({
     super.key,
     this.depth = LocationDepth.room,
@@ -64,6 +68,7 @@ class LocationCascadePicker extends StatefulWidget {
     this.showBreadcrumb = true,
     this.editing = false,
     this.trailing,
+    this.dropdownMaxHeight,
   });
 
   @override
@@ -512,6 +517,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     error: widget.error,
                     closeOnSelect: false,
                     restoreOnBlur: false,
+                    maxHeight: widget.dropdownMaxHeight,
                     onFocus: () {
                       // "Tik om te verander": 'n voltooide kaskade spring terug
                       // na vlak 0 sodat die hele pad oor gekies kan word.

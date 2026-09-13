@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
-import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/notification_service.dart';
 import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 import 'notification_preferences_page.dart';
+import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
+import '../../widgets/column_visibility.dart';
 
 class NotificationListPage extends StatefulWidget {
   const NotificationListPage({super.key});
@@ -22,11 +24,24 @@ class _NotificationListPageState extends State<NotificationListPage> {
   int _page = 1;
   bool _hasMore = true;
   String _filterType = '';
+  bool _sortOpen = false;
+  final MultiSortController _sortCtrl =
+      MultiSortController('notifications', ['type', 'title', 'message', 'date']);
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('notifications', [
+    const ColumnDef(key: 'type', label: 'Tipe'),
+    const ColumnDef(key: 'title', label: 'Titel'),
+    const ColumnDef(key: 'message', label: 'Boodskap', defaultVisible: false),
+    const ColumnDef(key: 'date', label: 'Datum'),
+  ]);
   final _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _sortCtrl.initialize().then((_) {
+      if (mounted) setState(() => _applySort());
+    });
     _loadNotifications();
     _scrollController.addListener(_onScroll);
   }
@@ -47,6 +62,23 @@ class _NotificationListPageState extends State<NotificationListPage> {
     }
   }
 
+  void _applySort() {
+    _notifications = _sortCtrl.apply(_notifications, (n, key) {
+      switch (key) {
+        case 'title':
+          return n.title.toLowerCase();
+        case 'type':
+          return n.notificationType.toLowerCase();
+        case 'message':
+          return n.message.toLowerCase();
+        case 'date':
+          return DateTime.tryParse(n.createdAt) ?? DateTime(0);
+        default:
+          return '';
+      }
+    });
+  }
+
   Future<void> _loadNotifications() async {
     setState(() => _loading = true);
     final items = await NotificationService.fetchAll(
@@ -61,6 +93,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
       }
       _hasMore = items.length >= 20;
       _loading = false;
+      _applySort();
     });
   }
 
@@ -120,8 +153,11 @@ class _NotificationListPageState extends State<NotificationListPage> {
 
   String _timeAgo(String dateStr) {
     try {
-      final dt = parseServerDatetime(dateStr);
-      if (dt == null) return '';
+      // Backend writes naive UTC datetimes. If no timezone offset is present,
+      // treat the value as UTC so it is converted to the device's local time
+      // (10:00 UTC -> 12:00 for a UTC+2 user).
+      final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(dateStr);
+      final dt = DateTime.parse(hasOffset ? dateStr : '${dateStr}Z').toLocal();
       final diff = DateTime.now().difference(dt);
       if (diff.inSeconds < 60) return 'Nou net';
       if (diff.inMinutes < 60) return '${diff.inMinutes}m gelede';
@@ -238,11 +274,29 @@ class _NotificationListPageState extends State<NotificationListPage> {
                     },
                   ),
                 ),
+                const SizedBox(width: 8),
+                SortButton(
+                  controller: _sortCtrl,
+                  selected: _sortOpen,
+                  onPressed: () =>
+                      setState(() => _sortOpen = !_sortOpen),
+                ),
+                const SizedBox(width: 4),
+                ColumnVisibilityButton(controller: _colVis),
               ],
             ),
           ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(_applySort),
+            ),
           Expanded(
-            child: _loading && _notifications.isEmpty
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: _loading && _notifications.isEmpty
                 ? const Center(child: CircularProgressIndicator())
                 : _notifications.isEmpty
                     ? const Center(
@@ -328,10 +382,17 @@ class _NotificationListPageState extends State<NotificationListPage> {
                             );
                           },
                         ),
-                      ),
+                ),
+                ),
           ),
         ],
       ),
     );
+  }
+
+  void _closePanels() {
+    if (_sortOpen) {
+      setState(() => _sortOpen = false);
+    }
   }
 }

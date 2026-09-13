@@ -5,8 +5,12 @@ import '../core/datetime_utils.dart';
 import '../core/idempotency.dart';
 import 'outlook_service.dart';
 
-/// Keep a non-null fallback for calendar slots; delegates the naive wall-clock
-/// parse to the shared helper.
+DateTime parseUtcDatetime(String? value) {
+  if (value == null || value.isEmpty) return DateTime.now();
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
+  return DateTime.parse(hasOffset ? value : '${value}Z').toLocal();
+}
+
 DateTime calendarDatetimeOrNow(String? value) {
   return parseWallClockDatetime(value) ?? DateTime.now();
 }
@@ -98,8 +102,6 @@ class CalendarService {
         final List<dynamic> data = response.data;
         final local = data.map((j) => CalendarEvent.fromJson(j)).toList();
 
-        // Voeg die gebruiker se Outlook-kalender by (dieselfde as die web se
-        // CalendarPage wat die twee lyste saamvoeg).
         final outlook = await OutlookService.instance
             .fetchCalendarView(start, end)
             .then((raw) => raw.map((j) => CalendarEvent.fromJson(j)).toList());
@@ -137,8 +139,6 @@ class CalendarService {
     return false;
   }
 
-  /// Verwyder 'n suiver Outlook-event (bron 'outlook') uit die plaaslike lys
-  /// nadat hy by MS Graph uitgevee is.
   static void removeOutlookEvent(String outlookEventId) {
     _events.removeWhere(
         (e) => e.source == 'outlook' && e.outlookEventId == outlookEventId);
@@ -177,7 +177,6 @@ class CalendarService {
           break;
         }
       }
-      // As die afspraak na Outlook gesinkroniseer is, verwyder hom ook daar.
       if (event != null &&
           event.outlookSynced &&
           event.outlookEventId != null) {

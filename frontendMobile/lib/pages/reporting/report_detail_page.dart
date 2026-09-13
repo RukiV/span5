@@ -10,11 +10,14 @@ import '../../services/image_service.dart';
 import '../../models/user_session.dart';
 import '../../models/report.dart';
 import '../../widgets/detail_row.dart';
+import 'dart:typed_data';
 
 class ReportDetailPage extends StatefulWidget {
   final Report report;
+  final Uint8List? screenshot;
 
-  const ReportDetailPage({super.key, required this.report});
+  const ReportDetailPage(
+      {super.key, required this.report, this.screenshot});
 
   @override
   State<ReportDetailPage> createState() => _ReportDetailPageState();

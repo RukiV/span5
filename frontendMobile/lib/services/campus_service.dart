@@ -14,8 +14,6 @@ class CampusService {
 
   static ValueNotifier<List<Campus>> get campusesNotifier => _manager.notifier;
 
-  /// Laaste laai-fout (bv. bediener-onbereikbaar). Die UI lees dit om 'n
-  /// foutboodskap + "Probeer weer"-knoppie te wys na 'n mislukte laai.
   static String? get lastError => _manager.lastError;
 
   static Future<List<Campus>> _load() async {
@@ -55,8 +53,6 @@ class CampusService {
   }
 
   static Future<void> fetchCampuses() => _manager.fetch();
-
-  // --- Helper methods (adapted from old rooms-based approach) ---
 
   static ({Campus? campus, Building? building, Room? room}) findRoomPath(
       int roomId) {
@@ -121,7 +117,15 @@ class CampusService {
     return "";
   }
 
-  // --- Campus CRUD ---
+  static Campus? getCampusByName(String name) {
+    try {
+      return _manager.values.firstWhere(
+        (c) => c.name == name || name.contains(c.name),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   static Future<bool> addCampus(Campus campus, {String? idempotencyKey}) async {
     try {
@@ -173,8 +177,6 @@ class CampusService {
     return false;
   }
 
-  // --- Building CRUD ---
-
   static Future<bool> addBuilding(
       Building building, {
       String? idempotencyKey,
@@ -225,8 +227,6 @@ class CampusService {
     }
     return false;
   }
-
-  // --- Room CRUD ---
 
   static Future<bool> addRoom(Room room, {String? idempotencyKey}) async {
     try {

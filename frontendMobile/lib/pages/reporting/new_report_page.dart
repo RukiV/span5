@@ -543,7 +543,7 @@ class _NewReportPageState extends State<NewReportPage> {
       // buite enige terrein het reeds 'n spesifieke fout van
       final hasPath = selectedLocation != null;
       final hasCoords = _mapLocation != null;
-      if (hasCoords && _selectedCampusId == null) {
+      if (hasCoords && _selectedCampusId == null && !LocationPage.allowOffCampus) {
         setState(() => _locationError =
             "Punt val nie binne 'n terrein nie — kies 'n ander plek");
         return;
@@ -735,6 +735,14 @@ class _NewReportPageState extends State<NewReportPage> {
       }
     }
     if (nearest == null) {
+      if (LocationPage.allowOffCampus) {
+        setState(() {
+          _selectedCampusId = null;
+          selectedCampus = null;
+          _locationError = null;
+        });
+        return;
+      }
       setState(() {
         _selectedCampusId = null;
         selectedCampus = null;

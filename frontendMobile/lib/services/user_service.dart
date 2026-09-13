@@ -118,9 +118,6 @@ class UserService {
       debugPrint("POST /users/contractors payload: ${_redactPayload(payload)}");
       final response = await ApiClient().client.post('/users/contractors', data: payload);
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Best-effort cache refresh only — never affects the result. FK's lack
-        // users.view (GET /users would 403); the created user is returned from
-        // the POST body directly.
         unawaited(fetchAssignableUsers());
         final data = response.data;
         if (data is Map<String, dynamic>) return User.fromJson(data);

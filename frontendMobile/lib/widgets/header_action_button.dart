@@ -13,6 +13,9 @@ class HeaderIconAction extends StatelessWidget {
   /// Wys 'n klein goue kolletjie wanneer 'n filter aktief is.
   final bool activeBadge;
 
+  /// Tellenkies wat bo-aan die hoekie verskyn (bv. versteekte kolomme).
+  final int? badgeCount;
+
   /// Vervang die ikoon met 'n spinner en deaktiveer die knoppie (bv. tydens
   /// 'n AI-versoek) sodat die gebruiker weet dié aksie is besig.
   final bool loading;
@@ -24,6 +27,7 @@ class HeaderIconAction extends StatelessWidget {
     this.onTap,
     this.iconColor = Colors.white,
     this.activeBadge = false,
+    this.badgeCount,
     this.loading = false,
   });
 
@@ -64,6 +68,28 @@ class HeaderIconAction extends StatelessWidget {
               decoration: const BoxDecoration(
                 color: AppColors.gold,
                 shape: BoxShape.circle,
+              ),
+            ),
+          ),
+        if (badgeCount != null && badgeCount! > 0)
+          Positioned(
+            right: -4,
+            top: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.gold,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: Text(
+                '$badgeCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

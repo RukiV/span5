@@ -1,13 +1,7 @@
-// =============================================================================
-// Flutter-API-laag vir die kennisgewingstelsel
-// Vloei:  UI-komponente → hierdie statiese metodes → API (dieselfde backend-eindpunte)
-//         Polling: startPolling() roep fetchUnread() elke 20s, werk ValueNotifiers by
-// =============================================================================
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 
-// --- Model vir 'n kennisgewing (stem ooreen met NotificationRead in die backend) ---
 class AppNotification {
   final int notificationId;
   final String notificationType;
@@ -43,16 +37,15 @@ class AppNotification {
   }
 }
 
-// --- Sentrale diensklas (staties, geen voorwerp nodig) ---
 class NotificationService {
   static final ApiClient _api = ApiClient();
   static int _unreadCount = 0;
   static Timer? _pollTimer;
 
-  // --- ValueNotifiers waarna die UI kan luister vir opdaterings ---
   static final ValueNotifier<int> unreadCountNotifier = ValueNotifier(0);
 
-  // --- Begin polling (roep in app-start) ---
+  static int get unreadCount => _unreadCount;
+
   static Future<void> startPolling() async {
     await fetchUnread();
     _pollTimer?.cancel();
@@ -60,13 +53,11 @@ class NotificationService {
         Timer.periodic(const Duration(seconds: 20), (_) => fetchUnread());
   }
 
-  // --- Stop polling (roep by app-afsluit) ---
   static void stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
   }
 
-  // --- Haal ongelees-telling vanaf die bediener ---
   static Future<void> fetchUnread() async {
     try {
       final response = await _api.client.get('/notifications/unread');
@@ -78,7 +69,6 @@ class NotificationService {
     }
   }
 
-  // --- Blaai deur alle kennisgewings (met filter en paginering) ---
   static Future<List<AppNotification>> fetchAll({
     int page = 1,
     int perPage = 20,
@@ -104,7 +94,6 @@ class NotificationService {
     }
   }
 
-  // --- Merk een as gelees ---
   static Future<bool> markAsRead(int id) async {
     try {
       await _api.client.patch('/notifications/$id/read');
@@ -117,7 +106,6 @@ class NotificationService {
     }
   }
 
-  // --- Merk alles as gelees ---
   static Future<bool> markAllAsRead() async {
     try {
       await _api.client.patch('/notifications/read-all');
@@ -130,7 +118,6 @@ class NotificationService {
     }
   }
 
-  // --- Laai voorkeure (sleutel = notification_type) ---
   static Future<Map<String, dynamic>> fetchPreferences() async {
     try {
       final res = await _api.client.get('/notifications/preferences');
@@ -146,7 +133,6 @@ class NotificationService {
     }
   }
 
-  // --- Stoor een voorkeur-veld (of meer) vir 'n kennisgewing-tipe ---
   static Future<bool> updatePreference(String type,
       {bool? inAppEnabled, bool? emailEnabled, bool? pushEnabled}) async {
     try {
@@ -162,7 +148,6 @@ class NotificationService {
     }
   }
 
-  // --- Registreer 'n FCM-toestel-token ---
   static Future<bool> registerDeviceToken(String token) async {
     try {
       final platform =

@@ -3,6 +3,14 @@ import '../core/api_client.dart';
 import '../core/datetime_utils.dart';
 import 'cached_list_manager.dart';
 
+DateTime? sessionFromJsonDatetime(dynamic value) {
+  if (value == null) return null;
+  final s = value.toString();
+  if (s.isEmpty) return null;
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(s);
+  return DateTime.parse(hasOffset ? s : '${s}Z').toLocal();
+}
+
 class RoomCheckSession {
   final int sessionId;
   final int roomId;
@@ -29,6 +37,7 @@ class RoomCheckSession {
   });
 
   bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled';
 
   factory RoomCheckSession.fromJson(Map<String, dynamic> json) =>
       RoomCheckSession(
@@ -156,5 +165,20 @@ class RoomCheckSessionService {
       rethrow;
     }
     return false;
+  }
+
+  static Future<RoomCheckSession?> completeSession(int sessionId) async {
+    try {
+      final response = await ApiClient()
+          .client
+          .post('/room-checks/sessions/$sessionId/complete');
+      if (response.statusCode == 200) {
+        await fetchSessions();
+        return RoomCheckSession.fromJson(response.data);
+      }
+    } catch (e) {
+      debugPrint("Error completing room check session: $e");
+    }
+    return null;
   }
 }

@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import '../models/stock.dart';
 import 'crud_service.dart';
 
-// StockService: Manages the inventory levels and stock items available in the system.
 class StockService {
   static final CrudService<Stock> _crud = CrudService<Stock>(
     basePath: '/stock',

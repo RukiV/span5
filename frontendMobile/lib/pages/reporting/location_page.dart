@@ -9,8 +9,11 @@ class LocationPage extends StatefulWidget {
   /// Valt terug op hierdie kampus-posisie wanneer geen kaartpunt bekend is
   /// (byvoorbeeld 'n nuwe verslag sonder 'n geselekteerde ligging).
   static const LatLng defaultLocation = LatLng(-25.850400, 28.179350);
+  final bool autoConfirm;
   final LatLng? initialLocation;
-  const LocationPage({super.key, this.initialLocation});
+  static bool allowOffCampus = false;
+  const LocationPage(
+      {super.key, this.autoConfirm = false, this.initialLocation});
 
   @override
   State<LocationPage> createState() => _LocationPageState();
@@ -129,7 +132,8 @@ class _LocationPageState extends State<LocationPage> {
                 icon: const Icon(Icons.check, color: AppColors.gold),
                 onPressed: _confirmLocation),
           IconButton(
-            icon: Icon(_gpsPermissionDenied ? Icons.refresh : Icons.my_location,
+            icon: Icon(
+                _gpsPermissionDenied ? Icons.refresh : Icons.my_location,
                 color: _gpsPermissionDenied ? AppColors.gold : AppColors.gold),
             onPressed: () {
               if (_gpsPermissionDenied) {
@@ -216,7 +220,8 @@ class _LocationPageState extends State<LocationPage> {
                     child: Text(
                         "Aktiveer jou GPS om jou huidige ligging op die kaart te sien.",
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey, fontSize: 14)),
+                        style:
+                            TextStyle(color: Colors.grey, fontSize: 14)),
                   ),
                 ],
               ),
@@ -232,7 +237,8 @@ class _LocationPageState extends State<LocationPage> {
                     SizedBox(height: 15),
                     Text("Ligging word vasgelê...",
                         style: TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.bold)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),

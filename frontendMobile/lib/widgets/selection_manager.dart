@@ -34,6 +34,17 @@ class SelectionController<T> extends ChangeNotifier {
   bool isSelected(T id) => selectedIds.contains(id);
 
   int get count => selectedIds.length;
+
+  void toggleAll(List<T> allIds) {
+    if (selectedIds.length == allIds.length) {
+      selectedIds.clear();
+    } else {
+      selectedIds
+        ..clear()
+        ..addAll(allIds);
+    }
+    notifyListeners();
+  }
 }
 
 /// Gedeelde bevestigingsdialoog vir beide die header- en FAB-variant van die
@@ -100,14 +111,14 @@ Future<void> confirmBulkDelete<T>(
                       color: Colors.redAccent, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
-child: Text(
-                        childWarning,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    child: Text(
+                      childWarning,
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
                   ),
                 ],
               ),
@@ -129,6 +140,67 @@ child: Text(
   );
   if (confirmed == true && context.mounted) {
     await onDelete(context, ids);
+  }
+}
+
+/// Staan-aansig van die vullis-aksie vir [FixedPageHeader].
+class BulkDeleteAction<T> extends StatelessWidget {
+  final SelectionController<T> controller;
+  final Future<void> Function(BuildContext context, Set<T> ids) onDelete;
+  final String confirmTitle;
+  final String confirmMessage;
+  final String? childWarning;
+
+  /// Returner die aantal geselekteerde rye wat tans deur die soektog/filters
+  /// versteek is. Wanneer dit > 0 is, wys die bevestiging 'n waarskuwing.
+  final int Function()? hiddenSelectedCount;
+
+  const BulkDeleteAction({
+    super.key,
+    required this.controller,
+    required this.onDelete,
+    required this.confirmTitle,
+    required this.confirmMessage,
+    this.childWarning,
+    this.hiddenSelectedCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.isSelecting || controller.count == 0) {
+      return const SizedBox.shrink();
+    }
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: 'Verwyder geselekteer',
+          icon: const Icon(Icons.delete, color: Colors.white, size: 20),
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.redAccent.withValues(alpha: 60 / 255),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: () => confirmBulkDelete(
+            context,
+            controller,
+            confirmTitle: confirmTitle,
+            confirmMessage: confirmMessage,
+            onDelete: onDelete,
+            childWarning: childWarning,
+            hiddenSelectedCount: hiddenSelectedCount,
+          ),
+        ),
+        Positioned(
+          right: -4,
+          top: -4,
+          child: CountBadge(
+            controller.count,
+            color: AppColors.gold,
+          ),
+        ),
+      ],
+    );
   }
 }
 

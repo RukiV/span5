@@ -2,10 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'outlook_token_manager.dart';
 
-/// OutlookService: Direkte MS Graph-kalenderoproepe, dieselfde as die web se
-/// CalendarPage/WorkOrderPage (frontend/src/pages/...). Die Graph-token kom
-/// vanaf [OutlookTokenManager]. Alle oproepe degradeer grasieus (log + leë
-/// resultaat) sodat 'n ontbrekende Outlook-sessie die app nooit blokkeer nie.
 class OutlookService {
   OutlookService._();
 
@@ -30,9 +26,6 @@ class OutlookService {
     ));
   }
 
-  /// Haal die gebruiker se Outlook-kalender vir [start]..[end] op en gee dit
-  /// terug in dieselfde JSON-vorm as die backend se /calendar/events, sodat
-  /// CalendarService dit deur CalendarEvent.fromJson kan laat loop.
   Future<List<Map<String, dynamic>>> fetchCalendarView(
       DateTime start, DateTime end) async {
     try {
@@ -75,8 +68,6 @@ class OutlookService {
     }
   }
 
-  /// Sinkroniseer 'n plaaslike afspraak na Outlook. Gee die nuwe
-  /// Outlook-event-ID terug, of null by fout.
   Future<String?> createEvent({
     required String title,
     String? description,
@@ -109,7 +100,6 @@ class OutlookService {
     }
   }
 
-  /// Verwyder 'n Outlook-afspraak by sy Graph-ID.
   Future<bool> deleteEvent(String outlookEventId) async {
     try {
       final dio = await _graphDio();
@@ -122,8 +112,6 @@ class OutlookService {
     }
   }
 
-  /// Skep 'n Outlook-afspraak vir 'n geskeduleerde werksopdrag, met dieselfde
-  /// `FBS-WO-<id>`-merker as die web se WorkOrderPage.
   Future<bool> createWorkOrderEvent({
     required int jobId,
     String? description,
@@ -162,16 +150,6 @@ class OutlookService {
     }
   }
 
-  /// Verwyder alle Outlook-afsprake wat die `FBS-WO-<id>`-merker dra.
-  ///
-  /// Gebruik 'n verfynde navraag (`$filter` op die onderwerp) asook
-  /// `$orderby=lastModifiedDateTime` en `@odata.nextLink`-deurblaaiing eerder
-  /// as om die eerste 100 gebeurtenisse blind te skandeer, sodat 'n besige
-  /// kalender die merker-afspraak nie verberg nie. As die onderwerp-filter nie
-  /// deur die kliënt se Graph ondersteun word nie, word teruggeval op 'n
-  /// gesorteerde deurblaai tot die merker gevind is. Enige mislukking word
-  /// gerapporteer en nooit na bo opgewers nie (die stoor van die werksopdrag
-  /// word dus nooit geblokkeer nie).
   Future<void> deleteWorkOrderEvents(int jobId) async {
     try {
       final dio = await _graphDio();
@@ -199,14 +177,6 @@ class OutlookService {
     }
   }
 
-  /// Blaai deur `/me/events` en verwyder elke gebeurtenis wat [marker] in sy
-  /// onderwerp of liggaam dra. Eerste bladsy gebruik [queryParameters]; latere
-  /// bladsye volg die bediener se `@odata.nextLink`.
-  ///
-  /// Keer normaal terug wanneer die deurblaai voltooi is en gooi 'n
-  /// [DioException] by 'n Graph-fout. As [stopAfterCleanPage] waar is en daar
-  /// reeds 'n treffer was ('n bladsy met merker-afsprake), word daar gestop
-  /// sodra 'n volgende bladsy niks meer bevat nie.
   Future<void> _scanAndDeleteEvents(
     Dio dio,
     String marker, {

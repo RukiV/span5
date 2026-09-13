@@ -662,7 +662,7 @@ def _gather_context(page: str, session,
     return ctx
 
 
-def get_dashboard_summary(session, user=None) -> dict:
+def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -> dict:
     """Usable dashboard metrics for FK/Admin — replaces vanity Totale Bates."""
     from datetime import timedelta
     from collections import Counter, defaultdict
@@ -879,17 +879,18 @@ def get_dashboard_summary(session, user=None) -> dict:
     pending = sum(status_counts.get(s, 0) for s in ("Oop", "Wag", "Geskeduleer", "Besig"))
     completed = status_counts.get("Voltooid", 0)
 
-    # ── 9 AI visuals — gegenereer elke keer as AI-statistiek run (via chart_ai_service, LLM waar beskikbaar) ──
+    # ── 9 AI visuals — only generated on the voorspellings page (via ?include_ai_charts=true) ──
     ai_charts = {}
-    try:
-        from .chart_ai_service import generate_all_charts
+    if include_ai_charts:
+        try:
+            from .chart_ai_service import generate_all_charts
 
-        ai_charts = generate_all_charts(session, user)
-    except Exception as e:
-        import logging as _lg
+            ai_charts = generate_all_charts(session, user)
+        except Exception as e:
+            import logging as _lg
 
-        _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
-        ai_charts = {}
+            _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
+            ai_charts = {}
 
     return {
         "kpis": {

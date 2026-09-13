@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'services/notification_service.dart' as svc;
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
+import 'pages/reporting/location_page.dart';
 import 'pages/settings/server_config_page.dart';
 import 'core/app_colors.dart';
 import 'core/api_client.dart';
@@ -43,9 +44,7 @@ Future<void> _initFirebase() async {
     final messaging = FirebaseMessaging.instance;
 
     final notifSettings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
+      alert: true, badge: true, sound: true,
     );
     debugPrint('FCM permission: ${notifSettings.authorizationStatus}');
 
@@ -65,13 +64,10 @@ Future<void> _initFirebase() async {
       final body = message.notification?.body ?? '';
       try {
         _localNotifs.show(
-          0,
-          title,
-          body,
+          0, title, body,
           const NotificationDetails(
             android: AndroidNotificationDetails(
-              'fbs_channel',
-              'FBS Kennisgewings',
+              'fbs_channel', 'FBS Kennisgewings',
               importance: Importance.high,
               priority: Priority.high,
             ),
@@ -100,7 +96,6 @@ void _registerFcmTokenWhenAuthReady(String token) {
         svc.NotificationService.registerDeviceToken(token);
       }
     }
-
     ApiClient.authNotifier.addListener(listener);
   }
 }
@@ -111,8 +106,7 @@ void main() async {
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    debugPrint(
-        "Warning: .env file not found. Using hardcoded defaults or environment variables.");
+    debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
   }
   _initFirebase();
 
@@ -159,8 +153,7 @@ class MyApp extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             foregroundColor: AppColors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             textStyle: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
@@ -188,8 +181,15 @@ class MyApp extends StatelessWidget {
           case '/':
             page = const StartupGate();
             break;
+          case '/setup':
+            page = const ServerConfigPage(firstLaunch: true);
+            break;
           case '/home':
             page = const HomePage();
+            break;
+          case '/location':
+            final args = settings.arguments as Map<String, dynamic>?;
+            page = LocationPage(autoConfirm: args?['autoConfirm'] ?? false);
             break;
           default:
             page = const StartupGate();
@@ -204,8 +204,7 @@ class MyApp extends StatelessWidget {
             const end = 1.0;
             const curve = Curves.easeInOut;
 
-            var tween =
-                Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
 
             return FadeTransition(
               opacity: animation.drive(tween),
@@ -243,8 +242,28 @@ class _StartupGateState extends State<StartupGate> {
   Future<void> _check() async {
     final storedUrl = await ApiClient.getStoredServerUrl();
     if (!mounted) return;
+
+    var needsSetup = storedUrl == null || storedUrl.isEmpty;
+
+    if (!needsSetup) {
+      // Herstel die gestoorde sessie (indien enige) sodat die gebruiker nie
+      // weer moet aanmeld net omdat hy die app oopmaak nie.
+      final hasSession = await ApiClient().restoreSession();
+      if (!mounted) return;
+
+      setState(() {
+        _needsSetup = needsSetup;
+        _ready = true;
+      });
+
+      if (hasSession) {
+        Navigator.of(context).pushReplacementNamed('/home');
+        return;
+      }
+    }
+
     setState(() {
-      _needsSetup = storedUrl == null || storedUrl.isEmpty;
+      _needsSetup = needsSetup;
       _ready = true;
     });
   }
