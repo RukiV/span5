@@ -22,7 +22,7 @@ Room sampleRoom() => Room(
 Building sampleBuilding() => Building(
       id: 1,
       name: "Hoofgebou",
-      type: 'onderwys',
+      types: const ['onderwys'],
       locationId: 1,
       rooms: [sampleRoom()],
     );

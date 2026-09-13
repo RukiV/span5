@@ -10,6 +10,7 @@ class LocationPage extends StatefulWidget {
   /// (byvoorbeeld 'n nuwe verslag sonder 'n geselekteerde ligging).
   static const LatLng defaultLocation = LatLng(-25.850400, 28.179350);
   final LatLng? initialLocation;
+  static bool allowOffCampus = false;
   const LocationPage({super.key, this.initialLocation});
 
   @override

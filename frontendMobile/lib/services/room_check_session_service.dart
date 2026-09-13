@@ -72,6 +72,13 @@ class RoomCheckSessionService {
       ValueNotifier(_sessions);
   static final ValueNotifier<bool> loadingNotifier = ValueNotifier(false);
 
+  @visibleForTesting
+  static void resetForTest() {
+    _sessions.clear();
+    sessionsNotifier.value = _sessions;
+    loadingNotifier.value = false;
+  }
+
   static Future<void> fetchSessions({
     int? assignedUserId,
     int? roomId,

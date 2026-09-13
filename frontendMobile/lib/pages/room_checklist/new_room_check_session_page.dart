@@ -6,7 +6,6 @@ import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/app_snack_bar.dart';
 import '../../core/datetime_utils.dart';
 
 /// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
@@ -24,6 +23,7 @@ class NewRoomCheckSessionPage extends StatefulWidget {
 
 class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   bool _loading = true;
+  bool _creating = false;
   int? _roomId;
   int? _assignedUserId;
   DateTime? _scheduled;
