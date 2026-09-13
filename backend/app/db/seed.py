@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, RoomStatus
+from ..models.location import Building, BuildingType, BuildingTypeLink, Location, Room, RoomType, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -126,17 +126,40 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
     return location
 
 
-def _get_or_create_building(session: Session, name: str, building_type: BuildingType, location_id: int) -> Building:
+def _get_or_create_building(
+    session: Session,
+    name: str,
+    building_type: BuildingType,
+    location_id: int,
+    *,
+    building_types: Optional[list[BuildingType]] = None,
+) -> Building:
     building = session.exec(select(Building).where(Building.building_name == name)).first()
-    if building:
+
+    types = list(building_types) if building_types else [building_type]
+
+    if building is not None:
+        existing = {
+            row.building_type
+            for row in session.exec(
+                select(BuildingTypeLink).where(BuildingTypeLink.building_id == building.building_id)
+            ).all()
+        }
+        missing = [t for t in types if t not in existing]
+        if missing:
+            for t in missing:
+                session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
+            session.commit()
         return building
 
     building = Building(
         building_name=name,
-        building_type=building_type,
         location_id=location_id,
     )
     session.add(building)
+    session.flush()
+    for t in types:
+        session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
     session.commit()
     session.refresh(building)
     return building
@@ -776,6 +799,7 @@ suburb="Villieria",
             name="Blok L",
             building_type=BuildingType.EDUCATIONAL,
             location_id=loc1.location_id,
+            building_types=[BuildingType.EDUCATIONAL, BuildingType.KAFERERIA],
         )
 
         bld4 = _get_or_create_building(

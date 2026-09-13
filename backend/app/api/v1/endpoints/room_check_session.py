@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 from ....auth.permissions import require_any_right, require_right, user_has_right
 from ....db.database import getSession
+from ....models.room_check import RoomCheck
 from ....models.room_check_session import (
     RoomCheckSession,
     RoomCheckSessionCreate,
@@ -31,6 +32,10 @@ def _to_read(session: Session, obj: RoomCheckSession) -> RoomCheckSessionRead:
     user = session.get(User, obj.assigned_user_id)
     if user:
         data.assigned_user_name = f"{user.user_name} {user.user_surname}".strip()
+    if obj.room_check_id is not None:
+        check = session.get(RoomCheck, obj.room_check_id)
+        if check:
+            data.completed_datetime = check.checked_datetime
     return data
 
 
@@ -57,6 +62,18 @@ def create_session(
     room = session.get(Room, data.room_id)
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+
+    existing = session.exec(
+        select(RoomCheckSession).where(
+            RoomCheckSession.room_id == data.room_id,
+            RoomCheckSession.status == "scheduled",
+        )
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Hierdie lokaal het reeds 'n aktiewe skedule. Wysig die bestaande skedule eerder.",
+        )
 
     event = calendar_service.create(session, _build_event(room.room_name, data.scheduled_datetime), user_id=data.assigned_user_id)
 
@@ -127,8 +144,8 @@ def update_session(
             NotificationService(session).create_notification(
                 user_id=data.assigned_user_id,
                 notification_type="roomcheck.assigned",
-                title="Lokaal Kontrole Herroewys",
-                message=f"Lokaal kontrole is herroewys aan jou (skedule #{session_id})",
+                title="Lokaal Kontrole Wysig",
+                message=f"Lokaal kontrole is wysig aan jou (skedule #{session_id})",
                 actor_id=user.user_id,
                 reference_type="room_check_session",
                 reference_id=session_id,

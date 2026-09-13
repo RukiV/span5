@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import RawSelect from "react-select";
 import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
-import { MdHistory } from "react-icons/md";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { useSearchParams } from "react-router-dom";
-import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI } from "../services/api";
+import { roomChecksAPI, roomsAPI, usersAPI, locationAPI, buildingsAPI, assetsAPI, ticketsAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from "../components/Toast/useToast";
 import { useConfirmDialog } from "../components/Modal/useConfirmDialog";
@@ -18,13 +17,12 @@ import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
 import ResizableTh from "../components/ResizableTh";
 import { buildFlatLocationOptions } from "./locationSearchUtils";
 import useCascadeMenu from "../hooks/useCascadeMenu";
-import Modal from '../components/Modal/Modal';
-import RoomCheckSessionDetailView from '../components/DetailView/RoomCheckSessionDetailView';
-import '../components/DetailView/DetailView.css';
 import "../styles/App.css";
 import "../styles/Rooms.css";
 import "../components/Modal/Modal.css";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+
+const idemKey = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 const STATUS_LABELS = {
   scheduled: "Geskeduleer",
@@ -60,6 +58,7 @@ function RoomCheckSessionsPage() {
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
+  const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,8 +68,23 @@ function RoomCheckSessionsPage() {
   const SESSION_COLUMNS = [
     { key: "room", label: "Lokaal", render: (s) => s.room_name || `Lokaal #${s.room_id}`, sortKey: "room", defaultVisible: true },
     { key: "user", label: "Toegewys aan", render: (s) => s.assigned_user_name || `Gebruiker #${s.assigned_user_id}`, sortKey: "user", defaultVisible: true },
-    { key: "datetime", label: "Datum en tyd", render: (s) => formatDate(s.scheduled_datetime), sortKey: "datetime", defaultVisible: true },
-    { key: "status", label: "Status", render: (s) => statusBadge(s.status), sortKey: "status", defaultVisible: true },
+    { key: "datetime", label: "Datum en tyd", render: (s) => formatDate(s.scheduled_datetime || s.completed_datetime), sortKey: "datetime", defaultVisible: true },
+    { key: "status", label: "Status", render: (s) => {
+      const early = completedEarlyTimes(s);
+      return (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {statusBadge(s.status)}
+          {early && (
+            <span
+              title={`Geskeduleer: ${formatDate(early.scheduled.toISOString())} • Voltooi: ${formatDate(early.completed.toISOString())}`}
+              style={{ padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, color: "#b45309", backgroundColor: "#b4530922" }}
+            >
+              Vroeër voltooi
+            </span>
+          )}
+        </span>
+      );
+    }, sortKey: "status", defaultVisible: true },
     { key: "id", label: "ID", render: (s) => s.session_id, sortKey: "id", defaultVisible: false },
   ];
   const colVis = useColumnVisibility("sessions-page", SESSION_COLUMNS);
@@ -100,21 +114,37 @@ function RoomCheckSessionsPage() {
   const [historyChecks, setHistoryChecks] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  const [showCheckModal, setShowCheckModal] = useState(false);
+  const [checkStage, setCheckStage] = useState("pick");
+  const [checkRoom, setCheckRoom] = useState(null);
+  const [checkItems, setCheckItems] = useState([]);
+  const [checkSaving, setCheckSaving] = useState(false);
+  const [faultFormFor, setFaultFormFor] = useState(null);
+  const [faultDesc, setFaultDesc] = useState("");
+  const [faultType, setFaultType] = useState("");
+  const [faultPriority, setFaultPriority] = useState("Medium");
+  const checkCascade = useCascadeMenu();
+  const [checkLocationId, setCheckLocationId] = useState("");
+  const [checkBuildingId, setCheckBuildingId] = useState("");
+  const [checkRoomId, setCheckRoomId] = useState(null);
+
   useEffect(() => {
     const init = async () => {
       try {
-        const [sessionsRes, roomsRes, usersRes, terrainsRes, buildingsRes] = await Promise.all([
+        const [sessionsRes, roomsRes, usersRes, terrainsRes, buildingsRes, assetsRes] = await Promise.all([
           roomChecksAPI.sessions.getAll({}),
           roomsAPI.getAll(),
           usersAPI.getAssignable(),
           locationAPI.getAll(),
           buildingsAPI.getAll(),
+          assetsAPI.getAll(),
         ]);
         setSessions(sessionsRes.data || []);
         setRooms(roomsRes.data || []);
         setAssignableUsers(usersRes.data || []);
         setTerrains(terrainsRes.data || []);
         setBuildings(buildingsRes.data || []);
+        setAssets(assetsRes.data || []);
       } catch (err) {
         console.error("Fout met inisialisering:", err);
         showToast({ type: "error", title: "Fout", message: "Kon nie data laai nie." });
@@ -126,6 +156,17 @@ function RoomCheckSessionsPage() {
   }, []);
 
   useEffect(() => {
+    if (loading) return;
+    const id = setInterval(() => fetchSessions(), 30000);
+    const onFocus = () => fetchSessions();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [loading]);
+
+  useEffect(() => {
     if (!loading && searchParams.get("scheduleRoom")) {
       const targetRoomId = searchParams.get("scheduleRoom");
       openCreate();
@@ -133,6 +174,15 @@ function RoomCheckSessionsPage() {
       setSearchParams({}, { replace: true });
     }
   }, [loading, searchParams, rooms, buildings, terrains]);
+
+  useEffect(() => {
+    if (!loading && searchParams.get("checkRoom")) {
+      const targetRoomId = Number(searchParams.get("checkRoom"));
+      const room = roomById(targetRoomId);
+      openCheckRunner(targetRoomId, room ? room.room_name : `Lokaal #${targetRoomId}`);
+      setSearchParams({}, { replace: true });
+    }
+  }, [loading, searchParams, assets, rooms, buildings]);
 
   const preselectRoom = (roomId) => {
     const room = rooms.find((r) => r.room_id === roomId);
@@ -156,8 +206,8 @@ function RoomCheckSessionsPage() {
   };
 
   const openCreate = () => {
-    setEditing(null);
     setIsViewMode(false);
+    setEditing(null);
     setFormLocationId("");
     setFormBuildingId("");
     setFormRoomId(null);
@@ -167,8 +217,8 @@ function RoomCheckSessionsPage() {
   };
 
   const openEdit = (s) => {
+    setIsViewMode(true);
     setEditing(s);
-    setIsViewMode(false);
     setFormRoomId(s.room_id);
     setFormUserId(s.assigned_user_id);
     setFormDateTime(s.scheduled_datetime ? s.scheduled_datetime.slice(0, 16) : "");
@@ -187,12 +237,6 @@ function RoomCheckSessionsPage() {
       setFormLocationId("");
     }
     setShowForm(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowForm(false);
-    setIsViewMode(false);
-    setEditing(null);
   };
 
   const handleSave = async () => {
@@ -218,7 +262,12 @@ function RoomCheckSessionsPage() {
       await fetchSessions();
     } catch (err) {
       console.error("Fout met stoor van skedule:", err);
-      showToast({ type: "error", title: "Fout", message: "Kon nie die skedule stoor nie." });
+      const detail = err?.response?.data?.detail;
+      showToast({
+        type: "error",
+        title: "Fout",
+        message: detail || "Kon nie die skedule stoor nie.",
+      });
     } finally {
       setSaving(false);
     }
@@ -269,10 +318,266 @@ function RoomCheckSessionsPage() {
     }
   };
 
+  const roomById = (rid) => rooms.find((r) => String(r.room_id) === String(rid)) || null;
+
+  const buildCheckItems = (rid) =>
+    assets
+      .filter((a) => String(a.room_id) === String(rid))
+      .map((asset) => ({ asset, status: "pending", faultId: null }));
+
+  const openCheckRunner = (rid, name) => {
+    setCheckRoom({ room_id: rid, room_name: name });
+    setCheckItems(buildCheckItems(rid));
+    setFaultFormFor(null);
+    setFaultDesc("");
+    setFaultType("");
+    setCheckStage("run");
+    setShowCheckModal(true);
+  };
+
+  const startCheckFromSession = (s) => {
+    const room = roomById(s.room_id);
+    openCheckRunner(s.room_id, s.room_name || (room ? room.room_name : `Lokaal #${s.room_id}`));
+  };
+
+  const openCheckPicker = () => {
+    setCheckLocationId("");
+    setCheckBuildingId("");
+    setCheckRoomId(null);
+    setCheckRoom(null);
+    setCheckItems([]);
+    setCheckStage("pick");
+    setShowCheckModal(true);
+  };
+
+  const selectCheckOption = (selectedOption) => {
+    if (!selectedOption) {
+      setCheckLocationId("");
+      setCheckBuildingId("");
+      setCheckRoomId(null);
+      return;
+    }
+    const f = selectedOption._fields;
+    if (!f.room_id) {
+      setCheckLocationId(f.location_id);
+      setCheckBuildingId(f.building_id);
+      setCheckRoomId(null);
+      return;
+    }
+    const rid = Number(f.room_id);
+    setCheckLocationId(f.location_id);
+    setCheckBuildingId(f.building_id);
+    setCheckRoomId(rid);
+    const room = roomById(rid);
+    openCheckRunner(rid, room ? room.room_name : `Lokaal #${rid}`);
+  };
+
+  const confirmItem = (id) =>
+    setCheckItems((prev) => prev.map((i) => (i.asset.asset_id === id ? { ...i, status: "confirmed" } : i)));
+
+  const revealItem = (id) =>
+    setCheckItems((prev) => prev.map((i) => (i.asset.asset_id === id ? { ...i, status: "pending", faultId: null } : i)));
+
+  const locationContextForRoom = (rid) => {
+    const room = roomById(rid);
+    const building = room
+      ? buildings.find((b) => String(b.building_id) === String(room.building_id))
+      : null;
+    return {
+      room_id: room ? room.room_id : null,
+      building_id: room?.building_id ?? null,
+      location_id: building ? building.location_id : null,
+    };
+  };
+
+  const ticketCreateAuto = async (asset) => {
+    try {
+      const res = await ticketsAPI.create({
+        fault_description: "Bate is nie in lokaal gevind tydens roetine kontrole nie",
+        fault_type: "Onderhoud",
+        fault_priority: "Medium",
+        asset_id: asset.asset_id,
+        ...locationContextForRoom(checkRoom.room_id),
+      }, { headers: { "X-Idempotency-Key": idemKey() } });
+      return res?.data?.fault_id || null;
+    } catch (err) {
+      console.error("Fout met skep van foutkaartjie:", err);
+      showToast({ type: "error", title: "Fout", message: err?.response?.data?.detail || "Kon nie foutkaartjie skep nie." });
+      return null;
+    }
+  };
+
+  const ticketCreateFault = async (asset) => {
+    try {
+      const res = await ticketsAPI.create({
+        fault_description: faultDesc.trim() || `Fout: ${asset.asset_name}`,
+        fault_type: faultType || null,
+        fault_priority: faultPriority,
+        asset_id: asset.asset_id,
+        ...locationContextForRoom(checkRoom.room_id),
+      }, { headers: { "X-Idempotency-Key": idemKey() } });
+      return res?.data?.fault_id || null;
+    } catch (err) {
+      console.error("Fout met skep van foutkaartjie:", err);
+      showToast({ type: "error", title: "Fout", message: err?.response?.data?.detail || "Kon nie foutkaartjie skep nie." });
+      return null;
+    }
+  };
+
+  const markMissing = async (asset) => {
+    const faultId = await ticketCreateAuto(asset);
+    if (!faultId) return;
+    setCheckItems((prev) =>
+      prev.map((i) => (i.asset.asset_id === asset.asset_id ? { ...i, status: "missing", faultId } : i)),
+    );
+  };
+
+  const submitFaultForm = async (asset) => {
+    const faultId = await ticketCreateFault(asset);
+    if (!faultId) return;
+    setCheckItems((prev) =>
+      prev.map((i) => (i.asset.asset_id === asset.asset_id ? { ...i, status: "fault_reported", faultId } : i)),
+    );
+    setFaultFormFor(null);
+    setFaultDesc("");
+    setFaultType("");
+  };
+
+  const handleCheckSave = async () => {
+    if (checkItems.length === 0) {
+      showToast({ type: "warning", title: "Waarskuwing", message: "Geen bates in hierdie lokaal om na te gaan nie." });
+      return;
+    }
+    const pending = checkItems.filter((i) => i.status === "pending");
+    if (pending.length > 0) {
+      const ok = await confirm({
+        title: "Voltooi kontrole",
+        message: `${pending.length} bate(s) is nie nagegaan nie. Foutkaartjies sal outomaties geskep word.`,
+        confirmLabel: "Skep foutkaartjies & voltooi",
+        cancelLabel: "Kanselleer",
+      });
+      if (!ok) return;
+    }
+    setCheckSaving(true);
+    try {
+      const items = [...checkItems];
+      for (const item of items) {
+        if (item.status === "pending") {
+          const faultId = await ticketCreateAuto(item.asset);
+          if (faultId) {
+            item.status = "missing";
+            item.faultId = faultId;
+          }
+        }
+      }
+      const summary = items.map((i) => {
+        const entry = {
+          asset_id: i.asset.asset_id,
+          status: i.status === "confirmed" ? "confirmed" : i.status === "missing" ? "missing" : "fault_reported",
+        };
+        if (i.faultId) entry.fault_id = i.faultId;
+        return entry;
+      });
+      await roomChecksAPI.create({ room_id: checkRoom.room_id, summary: JSON.stringify(summary) }, { headers: { "X-Idempotency-Key": idemKey() } });
+      showToast({ type: "success", title: "Sukses", message: "Kontrole voltooi. Gegeskduleerde kontrole vir die lokaal is afgehandel." });
+      setShowCheckModal(false);
+      setCheckItems([]);
+      setCheckRoom(null);
+      await fetchSessions();
+    } catch (err) {
+      console.error("Fout met stoor van kontrole:", err);
+      showToast({ type: "error", title: "Fout", message: err?.response?.data?.detail || "Kon nie die kontrole stoor nie." });
+    } finally {
+      setCheckSaving(false);
+    }
+  };
+
+  const CHECK_STATUS_META = {
+    confirmed: { label: "Bevestig", color: "#16a34a" },
+    fault_reported: { label: "Fout aangemeld", color: "#d97706" },
+    missing: { label: "Vermis", color: "#dc2626" },
+    pending: { label: "Hangend", color: "#6b7280" },
+  };
+
+  const renderCheckItem = (item) => {
+    const meta = CHECK_STATUS_META[item.status] || CHECK_STATUS_META.pending;
+    const editingFault = faultFormFor === item.asset.asset_id;
+    return (
+      <div key={item.asset.asset_id} style={{ padding: "10px 14px", borderBottom: "1px solid #e5e7eb" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{item.asset.asset_name}</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>Kode: {item.asset.asset_serial || "-"}</div>
+          </div>
+          <span style={{ padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700, color: meta.color, backgroundColor: meta.color + "22", whiteSpace: "nowrap" }}>
+            {meta.label}
+          </span>
+          {item.status === "pending" ? (
+            <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <button className="btn-brown" onClick={() => confirmItem(item.asset.asset_id)}>Bevestig</button>
+              <button className="btn-brown" onClick={() => markMissing(item.asset)}>Vermis</button>
+              <button className="btn-brown" onClick={() => { setFaultFormFor(editingFault ? null : item.asset.asset_id); if (!editingFault) { setFaultDesc(""); setFaultType(""); } }}>
+                Meld fout
+              </button>
+            </div>
+          ) : (
+            <button className="btn-brown" style={{ flexShrink: 0 }} onClick={() => revealItem(item.asset.asset_id)}>Herroep</button>
+          )}
+        </div>
+        {editingFault && (
+          <div style={{ marginTop: 10, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+            <div className="input-group" style={{ marginBottom: 10 }}>
+              <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Beskrywing</label>
+              <textarea
+                className="form-control"
+                rows={2}
+                value={faultDesc}
+                onChange={(e) => setFaultDesc(e.target.value)}
+                placeholder="Hoe lyk die fout (bv. beskadigde kode, kaput, ens.)?"
+              />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Tipe</label>
+                <select className="form-control" value={faultType} onChange={(e) => setFaultType(e.target.value)}>
+                  <option value="">- Kies tipe -</option>
+                  <option value="Onderhoud">Onderhoud</option>
+                  <option value="Herstel">Herstel</option>
+                  <option value="Inspeksie">Inspeksie</option>
+                  <option value="Installasie">Installasie</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Prioriteit</label>
+                <select className="form-control" value={faultPriority} onChange={(e) => setFaultPriority(e.target.value)}>
+                  <option value="Laag">Laag</option>
+                  <option value="Medium">Medium</option>
+                  <option value="Hoog">Hoog</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button className="btn-cancel" onClick={() => { setFaultFormFor(null); setFaultDesc(""); setFaultType(""); }}>Kanselleer</button>
+              <button className="btn-add" onClick={() => submitFaultForm(item.asset)}>Skep foutkaartjie</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const formatDate = (iso) => {
     if (!iso) return "Geen datum";
     const d = new Date(iso);
     return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+
+  const completedEarlyTimes = (s) => {
+    if (s.status !== "completed" || !s.completed_datetime || !s.scheduled_datetime) return null;
+    const completed = new Date(s.completed_datetime);
+    const scheduled = new Date(s.scheduled_datetime);
+    if (isNaN(completed) || isNaN(scheduled) || completed >= scheduled) return null;
+    return { scheduled, completed };
   };
 
   const scheduleableUsers = useMemo(() => {
@@ -297,7 +602,26 @@ function RoomCheckSessionsPage() {
     label: `${u.user_name} ${u.user_surname}`.trim() || `Gebruiker ${u.user_id}`,
   }));
 
-  const filteredSessions = [...sessions]
+  // Wys slegs die mees onlangse skedule/kontrole per lokaal.
+  const latestPerRoom = (() => {
+    const newest = {};
+    const recency = (s) => {
+      if (s.status === "completed") {
+        return new Date(s.completed_datetime || s.scheduled_datetime || 0).getTime();
+      }
+      return new Date(s.scheduled_datetime || s.created_at || 0).getTime();
+    };
+    for (const s of sessions) {
+      const cur = newest[s.room_id];
+      const t = recency(s);
+      if (!cur || t > recency(cur) || (t === recency(cur) && s.session_id > cur.session_id)) {
+        newest[s.room_id] = s;
+      }
+    }
+    return Object.values(newest);
+  })();
+
+  const filteredSessions = [...latestPerRoom]
     .filter((s) => {
       if (terrainFilter) {
         const room = rooms.find((r) => r.room_id === s.room_id);
@@ -315,7 +639,7 @@ function RoomCheckSessionsPage() {
       const values = {
         room: s.room_name || "",
         user: s.assigned_user_name || "",
-        datetime: formatDate(s.scheduled_datetime),
+        datetime: formatDate(s.scheduled_datetime || s.completed_datetime),
         status: STATUS_LABELS[s.status] || s.status,
         id: String(s.session_id),
       };
@@ -329,7 +653,7 @@ function RoomCheckSessionsPage() {
       const dir = sortDirection === "asc" ? 1 : -1;
       if (sortKey === "room") return String(a.room_name || "").localeCompare(String(b.room_name || ""), "af", { sensitivity: "base" }) * dir;
       if (sortKey === "user") return String(a.assigned_user_name || "").localeCompare(String(b.assigned_user_name || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "datetime") return (new Date(a.scheduled_datetime || 0) - new Date(b.scheduled_datetime || 0)) * dir;
+      if (sortKey === "datetime") return (new Date(a.scheduled_datetime || a.completed_datetime || 0) - new Date(b.scheduled_datetime || b.completed_datetime || 0)) * dir;
       if (sortKey === "status") return String(a.status || "").localeCompare(String(b.status || ""), "af", { sensitivity: "base" }) * dir;
       if (sortKey === "id") return (a.session_id - b.session_id) * dir;
       return 0;
@@ -460,6 +784,7 @@ function RoomCheckSessionsPage() {
             onResetWidths={colWidths.resetWidths}
           />
           {canManage && <button className="btn-add" onClick={openCreate}>+ Nuwe Skedule</button>}
+          {canManage && <button className="btn-brown" style={{ marginLeft: '0.5rem' }} onClick={openCheckPicker}>Kontroleer Lokaal</button>}
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
               Verwyder Geselekteerde ({selectedIds.length})
@@ -494,20 +819,7 @@ function RoomCheckSessionsPage() {
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: "center", padding: "20px" }}>Geen skedules gevind nie.</td></tr>
           ) : (
             paginatedSessions.map((s) => (
-              <tr key={s.session_id} onClick={() => {
-                if (!canManage) return;
-                setEditing(s);
-                setIsViewMode(true);
-                const room = rooms.find(r => String(r.room_id) === String(s.room_id));
-                if (room) {
-                  setFormRoomId(room.room_id);
-                  setFormBuildingId(room.building_id);
-                  setFormLocationId(room.location_id);
-                }
-                setFormUserId(s.assigned_user_id);
-                setFormDateTime(s.scheduled_datetime ? s.scheduled_datetime.slice(0, 16) : '');
-                setShowForm(true);
-              }} style={{ cursor: canManage ? "pointer" : "default" }}>
+              <tr key={s.session_id} onClick={() => canManage && openEdit(s)} style={{ cursor: canManage ? "pointer" : "default" }}>
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(s.session_id)} onChange={() => toggleOne(s.session_id)} />
                 </td>
@@ -515,15 +827,17 @@ function RoomCheckSessionsPage() {
                   <td key={col.key}>{col.render(s)}</td>
                 ))}
                 <td onClick={(e) => e.stopPropagation()}>
-                  {s.status === "completed" && (
-                    <button className="btn-history" title="Geskiedenis" onClick={() => handleViewHistory(s)}><MdHistory size={18} /></button>
-                  )}
-                  {canManage && s.status === "scheduled" && (
-                    <>
-                      <button className="btn-view" onClick={() => openEdit(s)}>Wysig</button>
+                  {canManage && s.status === "scheduled" ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <button className="btn-delete" title="Verwyder" onClick={() => handleDelete(s)}><IoTrashOutline size={18} /></button>
-                    </>
-                  )}
+                    </div>
+                  ) : null}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: canManage && s.status === "scheduled" ? 4 : 0 }}>
+                    <button className="btn-brown" onClick={() => handleViewHistory(s)}>Geskiedenis</button>
+                    {canManage && s.status === "scheduled" && (
+                      <button className="btn-brown" onClick={() => startCheckFromSession(s)}>Start Kontrole</button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
@@ -534,34 +848,7 @@ function RoomCheckSessionsPage() {
     </>
   );
 
-  const detailModalContent = showForm && isViewMode && editing && (() => {
-    const room = rooms.find(r => String(r.room_id) === String(editing.room_id));
-    const building = buildings.find(b => String(b.building_id) === String(room?.building_id));
-    const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id));
-    return (
-      <Modal
-        isOpen={true}
-        onClose={() => { setShowForm(false); setIsViewMode(false); setEditing(null); }}
-        title={`Bekyk Lokaal Kontrole`}
-        size="md"
-        headerActions={
-          canManage ? (
-            <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
-          ) : null
-        }
-      >
-        <RoomCheckSessionDetailView
-          session={editing}
-          roomName={room?.room_name}
-          buildingName={building?.building_name}
-          terrainName={terrain?.location_name}
-          userName={editing.assigned_user_name}
-        />
-      </Modal>
-    );
-  })();
-
-  const modalContent = showForm && canManage && !isViewMode && (() => {
+  const modalContent = showForm && canManage && (() => {
     const cascadeCount = [formLocationId, formBuildingId, formRoomId].filter(Boolean).length;
     const currentDisplayValue = cascadeCount === 0 ? null
       : cascadeCount === 1 && formLocationId ? { value: formLocationId, label: terrains?.find((t) => String(t.location_id) === String(formLocationId))?.location_name || formLocationId }
@@ -579,13 +866,28 @@ function RoomCheckSessionsPage() {
     if (formRoomId) breadcrumbData.push({ level: 2, name: rooms?.find((r) => r.room_id === formRoomId)?.room_name || formRoomId });
 
     return (
-      <div className="modal-overlay" onClick={handleCloseModal}>
+      <div className="modal-overlay" onClick={() => setShowForm(false)}>
         <div className="modal-panel" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
           <div className="modal-panel-header">
-            <h3>{editing ? "Wysig Lokaal Kontrole" : "Nuwe Lokaal Kontrole"}</h3>
-            <span className="modal-close" onClick={handleCloseModal}>&times;</span>
+            <h3>{isViewMode ? "Bekyk Lokaal Kontrole" : editing ? "Wysig Lokaal Kontrole" : "Nuwe Lokaal Kontrole"}</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {isViewMode && (
+                <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+              )}
+              <span className="modal-close" onClick={() => setShowForm(false)}>&times;</span>
+            </div>
           </div>
           <div className="modal-panel-body">
+            {editing && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, fontSize: 13 }}>
+                {editing.scheduled_datetime && (
+                  <span><strong>Geskeduleerd:</strong> {formatDate(editing.scheduled_datetime)}</span>
+                )}
+                {editing.status === "completed" && (
+                  <span><strong>Voltooi op:</strong> {formatDate(editing.completed_datetime)}</span>
+                )}
+              </div>
+            )}
             <div className="input-group" style={{ marginBottom: 16 }}>
               <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Datum en tyd</label>
               <input
@@ -594,22 +896,23 @@ function RoomCheckSessionsPage() {
                 style={{ width: "100%", padding: 8, marginTop: 0 }}
                 value={formDateTime}
                 onChange={(e) => setFormDateTime(e.target.value)}
+                disabled={isViewMode}
               />
             </div>
             <div className="input-group" style={{ marginBottom: 16, position: "relative" }} ref={formCascade.containerRef}>
               <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Ligging</label>
-              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
               <Select
                 className="react-select-container"
                 classNamePrefix="react-select"
                 placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
                 isClearable
-                isDisabled={cascadeCount >= 3}
+                isDisabled={isViewMode || cascadeCount >= 3}
                 closeMenuOnSelect={false}
                 menuIsOpen={formCascade.menuIsOpen}
                 onMenuOpen={formCascade.onMenuOpen}
                 onMenuClose={formCascade.onMenuClose}
-                components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearCascadeFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearCascadeFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                 options={allLocationOptions}
                 styles={{
                   control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -659,15 +962,17 @@ function RoomCheckSessionsPage() {
                 value={userOptions.find((o) => o.value === formUserId) || null}
                 onChange={(o) => setFormUserId(o ? o.value : null)}
                 placeholder={formRoomId ? "Kies gebruiker" : "Kies eers 'n lokaal"}
-                isDisabled={!formRoomId}
+                isDisabled={isViewMode || !formRoomId}
               />
             </div>
           </div>
           <div className="modal-panel-footer">
-            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-            <button className="btn-add" onClick={handleSave} disabled={saving}>
-              {saving ? "Stoor..." : (editing ? "Stoor" : "Skeduleer")}
-            </button>
+            <button className="btn-cancel" onClick={() => setShowForm(false)}>Kanselleer</button>
+            {!isViewMode && (
+              <button className="btn-add" onClick={handleSave} disabled={saving}>
+                {saving ? "Stoor..." : (editing ? "Stoor" : "Skeduleer")}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -705,7 +1010,7 @@ function RoomCheckSessionsPage() {
                         backgroundColor: check.check_status === "Voltooi" ? "#dcfce7" : "#fef2f2",
                         color: check.check_status === "Voltooi" ? "#16a34a" : "#dc2626",
                       }}>
-                        {check.check_status || "Onvoltooi"}
+                        {check.check_status || "Voltooi"}
                       </span>
                     </summary>
                     <div style={{ marginTop: "8px", fontSize: "13px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -714,17 +1019,23 @@ function RoomCheckSessionsPage() {
                       <span style={{ color: "#dc2626", fontWeight: 600 }}>Vermis: {missing}</span>
                     </div>
                     <ul style={{ marginTop: "8px", paddingLeft: "16px", fontSize: "12px" }}>
-                      {summary.map((item, i) => (
-                        <li key={i} style={{ marginBottom: "4px" }}>
-                          Bate #{item.asset_id} — {
-                            item.status === 'confirmed' ? 'Bevestig'
-                            : item.status === 'missing' ? 'Vermis'
-                            : item.status === 'fault_reported' ? 'Fout aangemeld'
-                            : 'Hangend'
-                          }
-                          {item.fault_id ? ` (FK#${item.fault_id})` : ''}
-                        </li>
-                      ))}
+                      {summary.map((item, i) => {
+                        const asset = assets.find((a) => String(a.asset_id) === String(item.asset_id));
+                        const name = item.asset_name || asset?.asset_name;
+                        const serial = item.asset_serial || asset?.asset_serial;
+                        return (
+                          <li key={i} style={{ marginBottom: "4px", color: item.status === 'missing' ? "#dc2626" : item.status === 'fault_reported' ? "#d97706" : "#16a34a" }}>
+                            {name ? <strong>{name}</strong> : `Bate #${item.asset_id}`}
+                            {serial ? ` (${serial})` : ''} — {
+                              item.status === 'confirmed' ? 'Bevestig'
+                              : item.status === 'missing' ? 'Vermis'
+                              : item.status === 'fault_reported' ? 'Fout aangemeld'
+                              : 'Hangend'
+                            }
+                            {item.fault_id ? ` (FK#${item.fault_id})` : ''}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 );
@@ -736,14 +1047,129 @@ function RoomCheckSessionsPage() {
     </div>
   );
 
+  const checkModalContent = showCheckModal && canManage && (checkStage === "pick" ? (() => {
+    const cascadeCount = [checkLocationId, checkBuildingId, checkRoomId].filter(Boolean).length;
+    const currentDisplayValue = cascadeCount === 0 ? null
+      : cascadeCount === 1 && checkLocationId ? { value: checkLocationId, label: terrains?.find((t) => String(t.location_id) === checkLocationId)?.location_name || checkLocationId }
+      : cascadeCount === 2 && checkBuildingId ? { value: checkBuildingId, label: buildings?.find((b) => String(b.building_id) === checkBuildingId)?.building_name || checkBuildingId }
+      : checkRoomId ? { value: checkRoomId, label: rooms?.find((r) => String(r.room_id) === checkRoomId)?.room_name || checkRoomId }
+      : null;
+    const clearFromLevel = (levelIndex) => {
+      if (levelIndex <= 0) { setCheckLocationId(""); setCheckBuildingId(""); setCheckRoomId(null); }
+      else if (levelIndex === 1) { setCheckBuildingId(""); setCheckRoomId(null); }
+      else if (levelIndex === 2) { setCheckRoomId(null); }
+    };
+    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+    if (checkLocationId) breadcrumbData.push({ level: 0, name: terrains?.find((t) => String(t.location_id) === checkLocationId)?.location_name || checkLocationId });
+    if (checkBuildingId) breadcrumbData.push({ level: 1, name: buildings?.find((b) => String(b.building_id) === checkBuildingId)?.building_name || checkBuildingId });
+    if (checkRoomId) breadcrumbData.push({ level: 2, name: rooms?.find((r) => String(r.room_id) === checkRoomId)?.room_name || checkRoomId });
+
+    return (
+      <div className="modal-overlay" onClick={() => setShowCheckModal(false)}>
+        <div className="modal-panel" style={{ maxWidth: 640 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-panel-header">
+            <h3>Kontroleer 'n lokaal</h3>
+            <span className="modal-close" onClick={() => setShowCheckModal(false)}>&times;</span>
+          </div>
+          <div className="modal-panel-body">
+            <p style={{ marginBottom: 12, fontSize: 14, color: "#374151" }}>Kies die lokaal om te kontroleer. Die bates sal dan gelys word om na te gaan.</p>
+            <div className="input-group" style={{ marginBottom: 16, position: "relative" }} ref={checkCascade.containerRef}>
+              <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Ligging</label>
+              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+              <Select
+                className="react-select-container"
+                classNamePrefix="react-select"
+                placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
+                isClearable
+                isDisabled={cascadeCount >= 3}
+                closeMenuOnSelect={false}
+                menuIsOpen={checkCascade.menuIsOpen}
+                onMenuOpen={checkCascade.onMenuOpen}
+                onMenuClose={checkCascade.onMenuClose}
+                components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                options={allLocationOptions}
+                styles={{
+                  control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                  valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                  singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                }}
+                filterOption={(option, rawInput) => {
+                  if (rawInput) {
+                    if (cascadeCount === 0)
+                      return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                    if (cascadeCount === 1)
+                      return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(checkLocationId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                    if (cascadeCount === 2)
+                      return option.data._cascadeLevel === 2 && String(option.data._fields.building_id) === String(checkBuildingId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                  }
+                  if (cascadeCount === 0) return option.data._cascadeLevel === 0;
+                  if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(checkLocationId);
+                  if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(checkBuildingId);
+                  return false;
+                }}
+                value={currentDisplayValue}
+                onChange={selectCheckOption}
+              />
+            </div>
+          </div>
+          <div className="modal-panel-footer">
+            <button className="btn-cancel" onClick={() => setShowCheckModal(false)}>Kanselleer</button>
+          </div>
+        </div>
+      </div>
+    );
+  })() : (() => {
+    const confirmedCount = checkItems.filter((i) => i.status === "confirmed").length;
+    const faultCount = checkItems.filter((i) => i.status === "fault_reported").length;
+    const missingCount = checkItems.filter((i) => i.status === "missing").length;
+    const pendingCount = checkItems.filter((i) => i.status === "pending").length;
+    const chip = (label, count, color) => (
+      <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, color, backgroundColor: color + "22" }}>
+        {label}: {count}
+      </span>
+    );
+    return (
+      <div className="modal-overlay" onClick={() => setShowCheckModal(false)}>
+        <div className="modal-panel" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+          <div className="modal-panel-header">
+            <h3>Kontrole: {checkRoom?.room_name || `Lokaal #${checkRoom?.room_id}`}</h3>
+            <span className="modal-close" onClick={() => setShowCheckModal(false)}>&times;</span>
+          </div>
+          <div className="modal-panel-body">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              {chip("Bevestig", confirmedCount, "#16a34a")}
+              {chip("Foute", faultCount, "#d97706")}
+              {chip("Vermis", missingCount, "#dc2626")}
+              {chip("Hangend", pendingCount, "#6b7280")}
+              <button className="btn-brown" style={{ marginLeft: "auto" }} onClick={openCheckPicker}>Ander lokaal</button>
+            </div>
+            {checkItems.length === 0 ? (
+              <p>Geen bates in hierdie lokaal nie.</p>
+            ) : (
+              <div style={{ maxHeight: "45vh", overflowY: "auto", border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff" }}>
+                {checkItems.map(renderCheckItem)}
+              </div>
+            )}
+          </div>
+          <div className="modal-panel-footer">
+            <button className="btn-cancel" onClick={() => setShowCheckModal(false)}>Sluit</button>
+            <button className="btn-add" onClick={handleCheckSave} disabled={checkSaving || checkItems.length === 0}>
+              {checkSaving ? "Stoor..." : `Voltooi (${confirmedCount} / ${checkItems.length} bevestig)`}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  })());
+
   return (
     <div className="main">
       <div className="content">
         {pageContent}
       </div>
       {modalContent}
-      {detailModalContent}
       {historyModalContent}
+      {checkModalContent}
       {dialog}
     </div>
   );

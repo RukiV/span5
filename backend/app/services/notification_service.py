@@ -71,6 +71,7 @@ NOTIFICATION_TYPES = [
     "system.announcement",
     "calendar.reminder",
     "roomcheck.assigned",
+    "asset.found_wrong_room",
 ]
 
 class NotificationService:

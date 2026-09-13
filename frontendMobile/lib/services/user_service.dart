@@ -1,8 +1,8 @@
 import 'dart:async';
-
-import 'package:flutter/foundation.dart';
-import '../core/api_client.dart';
+import 'package:flutter/material.dart';
 import '../models/user.dart';
+import '../models/user_session.dart';
+import '../core/api_client.dart';
 import 'cached_list_manager.dart';
 
 class AppRole {
@@ -168,5 +168,27 @@ class UserService {
       if (u.id == userId) return u.displayName;
     }
     return "";
+  }
+
+  /// Wisselbare gebruikers vir lokaal-kontrole-skedulering: alle FK-koördineerders
+  /// (rol 2) en dosente/professore (rol 5), plus die huidige gebruiker self.
+  /// Gesorteer per toegewysde kampus (location_id), dan per naam.
+  static List<User> roomCheckAssignable({bool includeSelf = true}) {
+    final selfId = UserSession.userId;
+    final assignable = UserService.users
+        .where((u) =>
+            (includeSelf && u.id == selfId) || u.roleId == 2 || u.roleId == 5)
+        .toList();
+
+    assignable.sort((a, b) {
+      if (a.id == selfId && b.id != selfId) return -1;
+      if (b.id == selfId && a.id != selfId) return 1;
+      final ca = a.locationId ?? 1 << 30;
+      final cb = b.locationId ?? 1 << 30;
+      if (ca != cb) return ca.compareTo(cb);
+      return a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+    });
+
+    return assignable;
   }
 }

@@ -28,16 +28,17 @@ class BuildingFormPage extends StatefulWidget {
 class _BuildingFormPageState extends State<BuildingFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late String _type;
+  final List<String> _selectedTypes = [];
   Campus? _selectedCampus;
   String? _idempotencyKey;
 
-  final List<Map<String, String>> _types = [
+  static const List<Map<String, String>> _types = [
     {'value': 'admin', 'label': 'Administrasie'},
     {'value': 'onderwys', 'label': 'Onderwys'},
     {'value': 'laboratory', 'label': 'Laboratorium'},
     {'value': 'warehouse', 'label': 'Pakhuis'},
     {'value': 'kafeteria', 'label': 'Kafeteria'},
+    {'value': 'residential', 'label': 'Koshuis'},
     {'value': 'other', 'label': 'Ander'},
   ];
 
@@ -47,7 +48,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.building?.name ?? "");
-    _type = widget.building?.type ?? 'other';
+    _selectedTypes.addAll(widget.building?.types ?? const []);
     if (_isCreate) {
       _selectedCampus = widget.campus;
       _idempotencyKey = Idempotency.generate();
@@ -72,10 +73,18 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
         );
         return;
       }
+      if (_selectedTypes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Kies ten minste een tipe"),
+              backgroundColor: AppColors.errorRed),
+        );
+        return;
+      }
       final building = Building(
         id: 0,
         name: _nameController.text,
-        type: _type,
+        types: List.unmodifiable(_selectedTypes),
         locationId: _selectedCampus!.id,
       );
       final success = await CampusService.addBuilding(
@@ -88,9 +97,17 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
       return;
     }
 
+    if (_selectedTypes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("Kies ten minste een tipe"),
+            backgroundColor: AppColors.errorRed),
+      );
+      return;
+    }
     final updated = widget.building!.copyWith(
       name: _nameController.text,
-      type: _type,
+      types: List.unmodifiable(_selectedTypes),
     );
     final success = await CampusService.updateBuilding(updated);
     if (!mounted) return;
@@ -124,17 +141,43 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   }
 
   Widget _buildTypeField() {
-    return SearchableDropdown<String>(
-      label: "Tipe",
-      hint: "Kies Tipe",
-      value: _type,
-      items: _types
-          .map((t) => SearchableDropdownItem(
-                value: t['value']!,
-                label: t['label']!,
-              ))
-          .toList(),
-      onChanged: (v) => setState(() => _type = v!),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Tipes",
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text(
+          "Kies een of meer gebou-tipes:",
+          style: TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 0,
+          children: _types.map((t) {
+            final selected = _selectedTypes.contains(t['value']);
+            return FilterChip(
+              label: Text(t['label']!),
+              selected: selected,
+              selectedColor: AppColors.gold.withAlpha(40),
+              checkmarkColor: AppColors.gold,
+              side: BorderSide(
+                color: selected ? AppColors.gold : Colors.grey.shade300,
+              ),
+              onSelected: (val) {
+                setState(() {
+                  if (val) {
+                    _selectedTypes.add(t['value']!);
+                  } else {
+                    _selectedTypes.remove(t['value']);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

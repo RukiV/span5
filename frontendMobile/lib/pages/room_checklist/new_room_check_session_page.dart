@@ -1,12 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/user.dart';
-import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/app_snack_bar.dart';
 import '../../core/datetime_utils.dart';
 
 /// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
@@ -25,7 +24,6 @@ class NewRoomCheckSessionPage extends StatefulWidget {
 class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   bool _loading = true;
   bool _creating = false;
-  int? _campusId;
   int? _roomId;
   int? _assignedUserId;
   DateTime? _scheduled;
@@ -46,13 +44,14 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
     if (mounted) setState(() => _loading = false);
   }
 
-  List<User> get _filteredUsers => UserService.users.where((u) {
-        if (u.id == UserSession.userId) return true;
-        if (u.roleId == 1 || u.roleId == 4) return false;
-        if (u.roleId != 5) return false;
-        if (_campusId == null) return false;
-        return u.locationId == null || u.locationId == _campusId;
-      }).toList();
+  List<User> get _filteredUsers => UserService.roomCheckAssignable();
+
+  String _displayName(User u) {
+    final campus = u.locationId == null
+        ? ""
+        : CampusService.getCampusName(u.locationId!);
+    return campus.isEmpty ? u.displayName : "${u.displayName} — $campus";
+  }
 
   Future<void> _pickDateTime() async {
     final now = DateTime.now();
@@ -100,7 +99,6 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                     showBreadcrumb: true,
                     onChanged: (campusId, buildingId, roomId) {
                       setState(() {
-                        _campusId = campusId;
                         _roomId = roomId;
                         _assignedUserId = null;
                       });
@@ -120,7 +118,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                       hint: const Text("Kies gebruiker"),
                       items: [
                         for (final u in _filteredUsers)
-                          DropdownMenuItem(value: u.id, child: Text(u.displayName)),
+                          DropdownMenuItem(value: u.id, child: Text(_displayName(u))),
                       ],
                       onChanged: (val) => setState(() => _assignedUserId = val),
                     ),
@@ -153,24 +151,24 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                           ? null
                           : () async {
                               final navigator = Navigator.of(context);
-                              setState(() => _creating = true);
-                              final session = await RoomCheckSessionService
-                                  .createSession(
-                                roomId: _roomId!,
-                                assignedUserId: _assignedUserId!,
-                                scheduledDatetime: _scheduled,
-                              );
-                              if (!context.mounted) return;
-                              if (session == null) {
-                                setState(() => _creating = false);
-                                showAppSnackBar(
-                                  context,
-                                  "Kon nie die lokale kontrole skeduleer nie.",
-                                  error: true,
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await RoomCheckSessionService.createSession(
+                                  roomId: _roomId!,
+                                  assignedUserId: _assignedUserId!,
+                                  scheduledDatetime: _scheduled,
                                 );
-                                return;
+                                if (mounted) navigator.pop(true);
+                              } catch (e) {
+                                String msg = "Kon nie die skedule stoor nie";
+                                if (e is DioException &&
+                                    e.response?.data?['detail'] != null) {
+                                  msg = e.response!.data['detail'].toString();
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(msg)),
+                                );
                               }
-                              navigator.pop(true);
                             },
                       child: const Text("Skeduleer"),
                     ),

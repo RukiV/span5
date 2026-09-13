@@ -442,7 +442,7 @@ def test_export_template_headers_only(client, admin_headers):
     from openpyxl import load_workbook
     ws = load_workbook(io.BytesIO(resp.content)).active
     assert ws.title == "Geboue"
-    assert [c.value for c in ws[1]] == ["Naam", "Tipe", "Terrein"]
+    assert [c.value for c in ws[1]] == ["Naam", "Tipes", "Terrein"]
     assert ws.max_row == 1
 
 

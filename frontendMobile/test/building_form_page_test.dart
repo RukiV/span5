@@ -12,7 +12,7 @@ void main() {
       expect(find.text("Voeg Nuwe Gebou"), findsOneWidget);
       expect(find.text("Terrein"), findsOneWidget);
       expect(find.text("Naam"), findsOneWidget);
-      expect(find.text("Tipe"), findsOneWidget);
+      expect(find.text("Tipes"), findsOneWidget);
       expect(find.text("STOOR"), findsOneWidget);
       expect(find.text("Kanselleer"), findsOneWidget);
     });
@@ -31,7 +31,7 @@ void main() {
       final building = Building(
         id: 2,
         name: "Regsgebou",
-        type: 'admin',
+        types: const ['admin'],
         locationId: 1,
       );
       await pumpForm(tester, BuildingFormPage(building: building));
@@ -55,7 +55,7 @@ void main() {
       final building = Building(
         id: 2,
         name: "Regsgebou",
-        type: 'admin',
+        types: const ['admin'],
         locationId: 1,
       );
       await pumpForm(tester, BuildingFormPage(building: building));
