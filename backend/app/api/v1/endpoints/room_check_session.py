@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session, select
 from ....auth.permissions import require_any_right, require_right, user_has_right
 from ....db.database import getSession
+from ....models.room_check import RoomCheck
 from ....models.room_check_session import (
     RoomCheckSession,
     RoomCheckSessionCreate,
@@ -31,6 +32,10 @@ def _to_read(session: Session, obj: RoomCheckSession) -> RoomCheckSessionRead:
     user = session.get(User, obj.assigned_user_id)
     if user:
         data.assigned_user_name = f"{user.user_name} {user.user_surname}".strip()
+    if obj.room_check_id is not None:
+        check = session.get(RoomCheck, obj.room_check_id)
+        if check:
+            data.completed_datetime = check.checked_datetime
     return data
 
 

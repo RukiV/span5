@@ -43,7 +43,7 @@ class _UsersPageState extends State<UsersPage> {
 
   List<User> get _filteredUsers {
     final users = UserService.usersNotifier.value;
-    final visible = UserSession.isAdmin
+    final visible = (UserSession.isAdmin || UserSession.isManager)
         ? users
         : users.where((u) => u.roleId != 3).toList();
     if (_query.isEmpty) return visible;
@@ -128,6 +128,7 @@ class _UsersPageState extends State<UsersPage> {
                       hint: "Kies 'n rol",
                       value: roleId,
                       items: roles
+                          .where((r) => UserSession.isAdmin || r.id != 3)
                           .map((r) => SearchableDropdownItem(value: r.id, label: r.name))
                           .toList(),
                       onChanged: (v) => setDialogState(() {
@@ -426,7 +427,7 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
           ),
-          if (UserSession.can('users.manage')) ...[
+          if (UserSession.can('users.manage') && user.roleId != 2 && user.roleId != 3) ...[
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               color: AppColors.navy,

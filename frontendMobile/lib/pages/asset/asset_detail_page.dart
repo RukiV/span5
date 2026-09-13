@@ -1,10 +1,16 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/campus_service.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/detail_row.dart';
+import '../../core/api_client.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
 import '../../models/asset.dart';
+import '../../models/room.dart';
 import '../../services/asset_service.dart';
 import '../../services/report_service.dart';
 import '../../services/wrong_room_service.dart';
@@ -25,6 +31,7 @@ class AssetDetailPage extends StatefulWidget {
 class _AssetDetailPageState extends State<AssetDetailPage> {
   late Asset _currentAsset;
   AssetState? _assetState;
+  bool _savingFound = false;
 
   @override
   void initState() {
@@ -78,7 +85,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                   context,
                   MaterialPageRoute(
                       builder: (context) =>
-                          AssetFormPage(asset: _currentAsset)),
+AssetFormPage(asset: _currentAsset)),
                 );
                 if (result == true && mounted) {
                   setState(() {
@@ -145,6 +152,8 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
     } else {
       message = "Vermis in $foundRoom (laaste kontrole)";
     }
+    final canMarkFound = UserSession.can('room_checks.manage') ||
+        UserSession.can('roomchecks.execute');
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -162,7 +171,9 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isWrongRoom ? "BATE GEVIND IN VERKEERDE LOKAAL" : "BATE VERMIS",
+                  isWrongRoom
+                      ? "BATE GEVIND IN VERKEERDE LOKAAL"
+                      : "BATE VERMIS",
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -172,12 +183,192 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(message, style: const TextStyle(fontSize: 13)),
+                if (canMarkFound) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _savingFound
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : TextButton.icon(
+                            onPressed: _showMarkFoundSheet,
+                            icon: const Icon(Icons.check_circle, size: 18),
+                            label: const Text("Merk as gevind"),
+                            style: TextButton.styleFrom(
+                              foregroundColor: color,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _showMarkFoundSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                "BATE GEVIND",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home_outlined),
+              title: const Text("Gevind in sy aangewese lokaal"),
+              subtitle: Text(CampusService.getRoomName(_currentAsset.location)),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _markFoundInOwnRoom();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.place_outlined),
+              title: const Text("Gevind in 'n ander lokaal"),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickFoundRoom();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markFoundInOwnRoom() async {
+    setState(() => _savingFound = true);
+    try {
+      await ApiClient().client.post(
+            '/room-checks',
+            data: {
+              'room_id': int.tryParse(_currentAsset.location) ?? 0,
+              'summary': jsonEncode([
+                {
+                  'asset_id': int.tryParse(_currentAsset.id) ?? 0,
+                  'status': 'confirmed'
+                }
+              ]),
+            },
+            options:
+                Options(headers: {'X-Idempotency-Key': Idempotency.generate()}),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Bate is in sy aangewese lokaal as gevind aangeteken."),
+          backgroundColor: AppColors.successGreen,
+        ),
+      );
+      _loadAssetState();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Kon nie die bate as gevind aanteken nie: $e"),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _savingFound = false);
+    }
+  }
+
+  Future<void> _pickFoundRoom() async {
+    final campuses = CampusService.campusesNotifier.value;
+    if (campuses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geen kampusinligting beskikbaar nie."),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+    final room = await showDialog<Room>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text("Kies lokaal"),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 360,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final campus in campuses)
+                ExpansionTile(
+                  title: Text(campus.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  children: [
+                    for (final building in campus.buildings)
+                      ...building.rooms?.isNotEmpty == true
+                          ? [
+                              ExpansionTile(
+                                title: Text(building.name,
+                                    style: const TextStyle(fontSize: 14)),
+                                children: [
+                                  for (final r in building.rooms!)
+                                    ListTile(
+                                      dense: true,
+                                      title: Text(r.name,
+                                          style: const TextStyle(fontSize: 14)),
+                                      onTap: () =>
+                                          Navigator.pop(dialogContext, r),
+                                    ),
+                                ],
+                              ),
+                            ]
+                          : [],
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (room == null || !mounted) return;
+    setState(() => _savingFound = true);
+    final originalFaultId = int.tryParse(_assetState?.faultId ?? '');
+    final fault = await WrongRoomService.markFoundInRoom(
+      _currentAsset.id,
+      room.id,
+      originalFaultId: originalFaultId,
+    );
+    if (!mounted) return;
+    setState(() => _savingFound = false);
+    if (fault != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Bate is in ${room.name} as gevind aangeteken."),
+          backgroundColor: AppColors.successGreen,
+        ),
+      );
+      _loadAssetState();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie die gevind-status stoor nie."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -204,7 +395,7 @@ class _AssetDetailPageState extends State<AssetDetailPage> {
       ),
       child: Column(
         children: [
-          DetailRow(
+DetailRow(
               label: "Kampus",
               valueWidget: Text(
                   CampusService.getCampusNameByRoomId(_currentAsset.location),

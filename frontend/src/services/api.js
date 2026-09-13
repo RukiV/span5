@@ -128,13 +128,13 @@ export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
-  create: (data) => {
+  create: (data, config) => {
     // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
     if (data instanceof FormData) {
-      return apiClient.post('/fault', data);
+      return apiClient.post('/fault', data, config);
     }
     // Anders stuur as JSON
-    return apiClient.post('/fault', data);
+    return apiClient.post('/fault', data, config);
   },
   update: (id, data) => apiClient.patch(`/fault/${id}`, data),
   delete: (id) => apiClient.delete(`/fault/${id}`),
@@ -311,7 +311,9 @@ export const suggestAPI = {
 export const roomChecksAPI = {
   getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
   getById: (id) => apiClient.get(`/room-checks/${id}`),
-  create: (data) => apiClient.post('/room-checks', data),
+  create: (data, config) => apiClient.post('/room-checks', data, config),
+  missing: () => apiClient.get('/room-checks/missing'),
+  markMissingFound: (data, config) => apiClient.post('/room-checks/missing-found', data, config),
   sessions: {
     getAll: (params) => apiClient.get('/room-checks/sessions', { params }),
     create: (data) => apiClient.post('/room-checks/sessions', data),

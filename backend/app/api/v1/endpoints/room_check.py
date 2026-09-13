@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -34,7 +35,7 @@ def _to_read(session: Session, check) -> RoomCheckRead:
     except Exception:
         items = []
     has_issues = any(i.get('status') in ('fault_reported', 'missing') for i in items)
-    data.check_status = "Onvoltooi" if has_issues else "Voltooi"
+    data.check_status = "Voltooi"
     data.items = list(items)
 
     for item in data.items:
@@ -61,9 +62,25 @@ def create_room_check(
     if open_session:
         open_session.status = "completed"
         open_session.room_check_id = check.room_check_id
+        if not open_session.scheduled_datetime:
+            open_session.scheduled_datetime = check.checked_datetime or datetime.utcnow()
         session.add(open_session)
         session.commit()
         session.refresh(open_session)
+    else:
+        completed_at = check.checked_datetime or datetime.utcnow()
+        session.add(
+            RoomCheckSession(
+                room_id=data.room_id,
+                assigned_user_id=user.user_id,
+                scheduled_datetime=completed_at,
+                status="completed",
+                room_check_id=check.room_check_id,
+                created_by=user.user_id,
+                notes="Onmiddellike kontrole (geen skedule)",
+            )
+        )
+        session.commit()
 
     return _to_read(session, check)
 

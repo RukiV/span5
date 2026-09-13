@@ -310,6 +310,19 @@
     white-space: nowrap !important;
 }
 
+/* Geboutipes-keuse (multi): die globale reël hierbo dwing 'n vaste 40px-hoogte
+   af, wat gechippte tipes laat uitbreek. Laat die kontrole saam met die
+   gechippte tipes groei en rol binne die blokkie indien baie gekies word. */
+.building-types-picker .select__control {
+    height: auto !important;
+    min-height: 40px !important;
+    padding: 2px 0;
+}
+.building-types-picker .select__value-container {
+    max-height: 88px;
+    overflow-y: auto;
+}
+
 /* ---------- React-select: theme colour (blou -> ligbruin) ---------- */
 /* Die verstek react-select-tema gebruik blou (#2684FF). Die app se tema
    is ligbruin (#935e28). Ship ligte bruin vir fokus/keuse oor alle bladsye. */
@@ -589,6 +602,19 @@ select:not([class*="cascade"]):focus {
   text-align: center;
 }
 
+.missing-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 11px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
 
 /* --- Algemene Inhoud --- */
 .content {
@@ -625,12 +651,13 @@ select:not([class*="cascade"]):focus {
 
 .modal-content {
     background-color: white;
-    margin: 5% auto;
+    margin: 2% auto;
     width: 600px;
     border-radius: 10px;
     overflow: hidden;
     max-height: 90vh; 
-    overflow-y: auto; 
+    display: flex;
+    flex-direction: column;
     box-shadow: 0 5px 20px rgba(0,0,0,0.3); 
 }
 
@@ -707,7 +734,30 @@ select:not([class*="cascade"]):focus {
   transition: transform 0.2s ease, background 0.2s ease; 
 }
 .btn-add:hover { transform: translateY(-1px); background-color: #b06c41; }
-.btn-add:disabled, .btn-add:disabled:hover { background: #999; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* Bruin knoppies (bv. lokaal-kontrole bladsy: skakel groen aksies om na bruin) */
+.btn-brown {
+  background: var(--bruin);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 12px;
+  margin-right: 5px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-brown:hover { background-color: #b06c41; color: white; }
+.controls .btn-brown {
+  height: 40px;
+  border-radius: 5px;
+  padding: 0 20px;
+  margin-right: 0;
+  box-sizing: border-box;
+}
 
 /* Cards */
 .asset-card, .ticket-card, .work-order-card {
@@ -740,7 +790,7 @@ select:not([class*="cascade"]):focus {
   border-bottom: 1px solid #eee;
 }
 
-.standard-table td:has(.btn-view, .btn-edit, .btn-delete, .btn-history) {
+.standard-table td:has(.btn-view, .btn-edit, .btn-delete, .btn-brown) {
   display: flex;
   flex-wrap: nowrap;
   justify-content: center;
@@ -751,8 +801,8 @@ select:not([class*="cascade"]):focus {
 .standard-table td .btn-view,
 .standard-table td .btn-edit,
 .standard-table td .btn-delete,
-.standard-table td .btn-history,
-.standard-table td .btn-add {
+.standard-table td .btn-add,
+.standard-table td .btn-brown {
   display: inline-flex;
   align-items: center;
   white-space: nowrap;

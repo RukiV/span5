@@ -333,14 +333,21 @@ function TerrainsPage({ embedded = false }) {
 
   const translateBuildingType = (type) => {
     const translations = {
-      admin: "Admin",
-      onderwys: "Onderwys",
-      laboratory: "Laboratorium",
-      warehouse: "Pakhuis",
-      other: "Ander",
+      "Kantoorgebou": "Admin",
+      "Onderwys": "Onderwys",
+      "Laboratorium": "Laboratorium",
+      "warehouse": "Pakhuis",
+      "Kafeteria": "Kafeteria",
+      "Koshuis": "Koshuis",
+      "Ander": "Ander",
     };
     return translations[type] || type;
   };
+
+  const formatBuildingTypes = (types) =>
+    (Array.isArray(types) ? types : types ? [types] : [])
+      .map(translateBuildingType)
+      .join(", ") || "Ander";
 
   const handleEditTerrain = (item) => {
     setIsEditing(true);
@@ -720,7 +727,7 @@ function TerrainsPage({ embedded = false }) {
                       {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
                         <tr key={building.building_id} onClick={() => navigate('/buildings', { state: { building } })} style={{ cursor: 'pointer' }}>
                           <td>{building.building_name}</td>
-                          <td>{translateBuildingType(building.building_type)}</td>
+                          <td>{formatBuildingTypes(building.building_types)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -787,7 +794,7 @@ function TerrainsPage({ embedded = false }) {
                     {getBuildingsForTerrain(selectedTerrain.location_id).map((building) => (
                       <tr key={building.building_id} onClick={() => navigate('/buildings', { state: { building } })} style={{ cursor: 'pointer' }}>
                         <td>{building.building_name}</td>
-                        <td>{translateBuildingType(building.building_type)}</td>
+                        <td>{formatBuildingTypes(building.building_types)}</td>
                       </tr>
                     ))}
                   </tbody>

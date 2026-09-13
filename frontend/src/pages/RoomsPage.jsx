@@ -832,7 +832,7 @@ function RoomsPage({ embedded = false }) {
                         backgroundColor: check.check_status === "Voltooi" ? "#dcfce7" : "#fef2f2",
                         color: check.check_status === "Voltooi" ? "#16a34a" : "#dc2626",
                       }}>
-                        {check.check_status || "Onvoltooi"}
+                        {check.check_status || "Voltooi"}
                       </span>
                     </summary>
                     <div style={{ marginTop: "8px", fontSize: "13px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
