@@ -20,7 +20,13 @@ class LocationBreadcrumbs extends StatelessWidget {
     var result = p.campus!.name;
     if (p.building != null) {
       result += " > ${p.building!.name}";
-      if (p.room != null) result += " > ${p.room!.name}";
+      if (p.room != null) {
+        result += " > ${p.room!.name}";
+      } else {
+        result += " > Kies Lokaal";
+      }
+    } else {
+      result += " > Kies Gebou";
     }
     return result;
   }

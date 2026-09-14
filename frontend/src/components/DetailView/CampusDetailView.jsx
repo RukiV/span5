@@ -36,7 +36,11 @@ function CampusDetailView({ campus, buildings, onNavigateToBuilding }) {
                 >
                   <div>
                     <div className="detail-children-item-name">{b.building_name}</div>
-                    <div className="detail-children-item-meta">{b.building_type || 'Ander'}</div>
+                    <div className="detail-children-item-meta">
+                      {Array.isArray(b.building_types)
+                        ? b.building_types.join(', ')
+                        : b.building_type || 'Ander'}
+                    </div>
                   </div>
                 </li>
               ))}

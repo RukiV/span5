@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, RoomStatus
+from ..models.location import Building, BuildingType, BuildingTypeLink, Location, Room, RoomType, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -131,14 +131,12 @@ def _get_or_create_building(session: Session, name: str, building_type: Building
     if building:
         return building
 
-    building = Building(
-        building_name=name,
-        building_type=building_type,
-        location_id=location_id,
-    )
+    building = Building(building_name=name, location_id=location_id)
     session.add(building)
     session.commit()
     session.refresh(building)
+    session.add(BuildingTypeLink(building_id=building.building_id, building_type=building_type))
+    session.commit()
     return building
 
 

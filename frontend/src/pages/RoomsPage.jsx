@@ -14,8 +14,11 @@ import "../styles/App.css";
 import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -25,6 +28,8 @@ import { getDeleteErrorMessage, chooseDeleteStrategy, batchDelete } from "../uti
 import Modal from '../components/Modal/Modal';
 import RoomDetailView from '../components/DetailView/RoomDetailView';
 import '../components/DetailView/DetailView.css';
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 
 
 function RoomsPage({ embedded = false }) {
@@ -46,9 +51,9 @@ function RoomsPage({ embedded = false }) {
   const [terrains, setTerrains] = useState([]);
   const [buildings, setBuildings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "rooms-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const ROOM_COLUMNS = [
     { key: 'id', label: 'ID', render: (r) => r.room_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (r) => r.room_name, sortKey: 'name', defaultVisible: true },
@@ -60,6 +65,10 @@ function RoomsPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('rooms-page', ROOM_COLUMNS);
   const colWidths = useColumnWidths('rooms-page', ROOM_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: ROOM_COLUMNS,
+    storageKey: 'rooms-page',
+  });
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [showAssetsModal, setShowAssetsModal] = useState(false);
@@ -71,10 +80,9 @@ function RoomsPage({ embedded = false }) {
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
-  const filterCascade = useCascadeMenu();
   const modalCascadeMenu = useCascadeMenu();
   
   // Opdateer: Verander die standaard room_type na 'Ander' om by die backend te pas
@@ -89,6 +97,11 @@ function RoomsPage({ embedded = false }) {
   });
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
+  const roomSuggestions = useAiSuggestions({
+    context: 'room',
+    values: newRoom,
+    enabled: showModal && !isViewMode,
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -107,10 +120,18 @@ function RoomsPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: "",
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter]);
 
   const fetchRooms = async () => {
     setLoading(true);
@@ -404,7 +425,7 @@ function RoomsPage({ embedded = false }) {
     return building ? building.building_name : "-";
   };
 
-  const filteredRooms = [...rooms]
+  const filteredRooms = applySort([...rooms]
     .filter((room) => {
       if (terrainFilter) {
         const bld = buildings?.find(b => String(b.building_id) === String(room.building_id));
@@ -426,20 +447,22 @@ function RoomsPage({ embedded = false }) {
         return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
       }
       return String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'name') return String(a.room_name || '').localeCompare(String(b.room_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'code') return String(a.room_code || '').localeCompare(String(b.room_code || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(translateRoomType(a.room_type) || '').localeCompare(String(translateRoomType(b.room_type) || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'status') return String(a.room_status || '').localeCompare(String(b.room_status || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'building') return String(getBuildingName(a.building_id)).localeCompare(String(getBuildingName(b.building_id)), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'capacity') return (Number(a.room_capacity || 0) - Number(b.room_capacity || 0)) * dir;
-      return 0;
-    });
+    }),
+    (room, key) => {
+      switch (key) {
+        case 'id': return Number(room.room_id || 0);
+        case 'name': return String(room.room_name || '');
+        case 'code': return String(room.room_code || '');
+        case 'type': return String(translateRoomType(room.room_type) || '');
+        case 'status': return String(room.room_status || '');
+        case 'building': return String(getBuildingName(room.building_id) || '');
+        case 'capacity': return Number(room.room_capacity || 0);
+        default: return '';
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedRooms, goToPage } = usePagination(filteredRooms, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sorts, goToPage]);
   const allRoomsSelected = paginatedRooms.length > 0 && paginatedRooms.every((x) => selectedRoomIds.includes(x.room_id));
   const toggleAllRooms = () => {
     if (allRoomsSelected) {
@@ -495,65 +518,45 @@ function RoomsPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container react-select-container--compact"
-            classNamePrefix="react-select"
-            value={filterColumnOptions.find(o => o.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-            options={filterColumnOptions}
-            isSearchable={false}
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={filterColumnOptions}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter=""
+            onLocationChange={(loc, bld) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={2}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+            }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            return (
-              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
-                </div>
-                  <Select
-                    className="react-select-container react-select-container--wide"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 2}
-                    closeMenuOnSelect={false}
-                    menuIsOpen={filterCascade.menuIsOpen}
-                    onMenuOpen={filterCascade.onMenuOpen}
-                    onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 1 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 1 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={ROOM_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={ROOM_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('rooms.manage') && (
@@ -566,14 +569,6 @@ function RoomsPage({ embedded = false }) {
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={ROOM_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={handleNewRoom}>+ Nuwe Lokaal</button>
           {selectedRoomIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelectedRooms}>
@@ -602,11 +597,9 @@ function RoomsPage({ embedded = false }) {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '430px' }}>Aksies</th>
@@ -729,7 +722,6 @@ function RoomsPage({ embedded = false }) {
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newRoom.location_id, newRoom.building_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -740,16 +732,16 @@ function RoomsPage({ embedded = false }) {
                 if (levelIndex <= 0) setNewRoom(p => ({...p, location_id: "", building_id: ""}));
                 else if (levelIndex === 1) setNewRoom(p => ({...p, building_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou"] })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={isViewMode || cascadeCount >= 2}
                       closeMenuOnSelect={false}
@@ -792,10 +784,20 @@ function RoomsPage({ embedded = false }) {
         </div>
 
         {!isViewMode && (
+          <>
           <div className="modal-footer">
             <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
             <button className="btn-add" onClick={handleSaveRoom}>{isEditing ? "Opdateer" : "Stoor"}</button>
           </div>
+          <AiSuggestPanel
+            suggestions={roomSuggestions.suggestions}
+            loading={roomSuggestions.loading}
+            filled={roomSuggestions.filled}
+            error={roomSuggestions.error}
+            labels={{ room_type: 'Lokaal tipe', room_capacity: 'Kapasiteit', room_status: 'Status' }}
+            onUse={(key, suggestion) => setNewRoom((previous) => ({ ...previous, [key]: String(suggestion.value) }))}
+          />
+          </>
         )}
       </div>
     </div>

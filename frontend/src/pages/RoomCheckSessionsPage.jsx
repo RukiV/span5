@@ -10,11 +10,14 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from "../components/Toast/useToast";
 import { useConfirmDialog } from "../components/Modal/useConfirmDialog";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import ResizableTh from "../components/ResizableTh";
 import { buildFlatLocationOptions } from "./locationSearchUtils";
 import useCascadeMenu from "../hooks/useCascadeMenu";
@@ -62,9 +65,9 @@ function RoomCheckSessionsPage() {
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "sessions-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: "scheduled_datetime" });
 
   const SESSION_COLUMNS = [
     { key: "room", label: "Lokaal", render: (s) => s.room_name || `Lokaal #${s.room_id}`, sortKey: "room", defaultVisible: true },
@@ -75,14 +78,18 @@ function RoomCheckSessionsPage() {
   ];
   const colVis = useColumnVisibility("sessions-page", SESSION_COLUMNS);
   const colWidths = useColumnWidths("sessions-page", SESSION_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: SESSION_COLUMNS,
+    storageKey: "sessions-page",
+    defaultSorts: [{ key: "datetime", direction: "asc" }],
+  });
   const colPickerRef = useRef(null);
 
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const [cascadeToast, setCascadeToast] = useState(null);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, []), [terrains, buildings, rooms]);
-  const filterCascade = useCascadeMenu();
   const formCascade = useCascadeMenu();
 
   const [showForm, setShowForm] = useState(false);
@@ -133,6 +140,16 @@ function RoomCheckSessionsPage() {
       setSearchParams({}, { replace: true });
     }
   }, [loading, searchParams, rooms, buildings, terrains]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   const preselectRoom = (roomId) => {
     const room = rooms.find((r) => r.room_id === roomId);
@@ -297,7 +314,7 @@ function RoomCheckSessionsPage() {
     label: `${u.user_name} ${u.user_surname}`.trim() || `Gebruiker ${u.user_id}`,
   }));
 
-  const filteredSessions = [...sessions]
+  const filteredSessions = applySort([...sessions]
     .filter((s) => {
       if (terrainFilter) {
         const room = rooms.find((r) => r.room_id === s.room_id);
@@ -323,19 +340,20 @@ function RoomCheckSessionsPage() {
         return Object.values(values).some((v) => String(v).toLowerCase().includes(query));
       }
       return String(values[filterColumn] || "").toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === "asc" ? 1 : -1;
-      if (sortKey === "room") return String(a.room_name || "").localeCompare(String(b.room_name || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "user") return String(a.assigned_user_name || "").localeCompare(String(b.assigned_user_name || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "datetime") return (new Date(a.scheduled_datetime || 0) - new Date(b.scheduled_datetime || 0)) * dir;
-      if (sortKey === "status") return String(a.status || "").localeCompare(String(b.status || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "id") return (a.session_id - b.session_id) * dir;
-      return 0;
-    });
+    }),
+    (s, key) => {
+      switch (key) {
+        case "room": return String(s.room_name || "");
+        case "user": return String(s.assigned_user_name || "");
+        case "datetime": return new Date(s.scheduled_datetime || 0).getTime();
+        case "status": return String(s.status || "");
+        case "id": return Number(s.session_id || 0);
+        default: return "";
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedSessions, goToPage } = usePagination(filteredSessions, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
   const allSelected = paginatedSessions.length > 0 && paginatedSessions.every((x) => selectedIds.includes(x.session_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -371,86 +389,38 @@ function RoomCheckSessionsPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={filterColumnOptions.find((o) => o.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-            options={filterColumnOptions}
-            isSearchable={false}
-            styles={{
-              container: (base) => ({ ...base, minWidth: "160px" }),
-              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={filterColumnOptions}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
             }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find((t) => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find((b) => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(""); setBuildingFilter(""); setRoomFilter(""); }
-              else if (levelIndex === 1) { setBuildingFilter(""); setRoomFilter(""); }
-              else if (levelIndex === 2) { setRoomFilter(""); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find((t) => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find((b) => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find((r) => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            return (
-              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                </div>
-                <Select
-                  className="react-select-container"
-                  classNamePrefix="react-select"
-                  placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Filter voltooi"][cascadeCount]}
-                  isClearable
-                  isDisabled={cascadeCount >= 3}
-                  closeMenuOnSelect={false}
-                  menuIsOpen={filterCascade.menuIsOpen}
-                  onMenuOpen={filterCascade.onMenuOpen}
-                  onMenuClose={filterCascade.onMenuClose}
-                  components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                  styles={{
-                    container: (base) => ({ ...base, minWidth: "260px" }),
-                    control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                    valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                    singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                  }}
-                  options={allLocationOptions}
-                  filterOption={(option, rawInput) => {
-                    if (rawInput) {
-                      if (cascadeCount === 0)
-                        return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      if (cascadeCount === 1)
-                        return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      if (cascadeCount === 2)
-                        return option.data._cascadeLevel === 2 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                    }
-                    if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                    if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                    if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                    return false;
-                  }}
-                  value={currentDisplayValue}
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                    const f = selectedOption._fields;
-                    setTerrainFilter(f.location_id);
-                    setBuildingFilter(f.building_id);
-                    setRoomFilter(f.room_id);
-                  }}
-                />
-              </div>
-            );
-          })()}
-        </div>
-        <div className="controls-right">
+        <SortPicker
+            columns={SESSION_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
           <ColumnPicker
             ref={colPickerRef}
             columns={SESSION_COLUMNS}
@@ -459,6 +429,8 @@ function RoomCheckSessionsPage() {
             resetVisibility={colVis.resetVisibility}
             onResetWidths={colWidths.resetWidths}
           />
+        </div>
+        <div className="controls-right">
           {canManage && <button className="btn-add" onClick={openCreate}>+ Nuwe Skedule</button>}
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -479,11 +451,9 @@ function RoomCheckSessionsPage() {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ""}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: "250px" }}>Aksies</th>
@@ -573,7 +543,7 @@ function RoomCheckSessionsPage() {
       else if (levelIndex === 1) { setFormBuildingId(""); setFormRoomId(null); }
       else if (levelIndex === 2) { setFormRoomId(null); }
     };
-    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+    const breadcrumbData = [];
     if (formLocationId) breadcrumbData.push({ level: 0, name: terrains?.find((t) => String(t.location_id) === String(formLocationId))?.location_name || formLocationId });
     if (formBuildingId) breadcrumbData.push({ level: 1, name: buildings?.find((b) => String(b.building_id) === String(formBuildingId))?.building_name || formBuildingId });
     if (formRoomId) breadcrumbData.push({ level: 2, name: rooms?.find((r) => r.room_id === formRoomId)?.room_name || formRoomId });
@@ -597,12 +567,11 @@ function RoomCheckSessionsPage() {
               />
             </div>
             <div className="input-group" style={{ marginBottom: 16, position: "relative" }} ref={formCascade.containerRef}>
-              <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Ligging</label>
-              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal"] })}
               <Select
                 className="react-select-container"
                 classNamePrefix="react-select"
-                placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
+                placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
                 isClearable
                 isDisabled={cascadeCount >= 3}
                 closeMenuOnSelect={false}

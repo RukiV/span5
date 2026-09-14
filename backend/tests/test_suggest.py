@@ -226,6 +226,23 @@ def test_suggest_endpoint_gating_and_payload(client, engine, headers_for):
                        json={"context": "fault", "fields": {
                            "description": "Die kraan lek erg",
                            "title": "Lek", "room": 9}})
+    # Sonder enige velde → leë voorstelle (MIN_FILLED=1).
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {}})
+    assert resp.status_code == 200
+    assert resp.json() == {"suggestions": {}}
+
+    # Met 1 gevulde veld → voorstelle (gate verlaag na 1 vir vroeë spookteks).
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {"description": "Die kraan lek erg"}})
+    assert resp.status_code == 200
+    assert "fault_type" in resp.json()["suggestions"]
+
+    # Bo 1 veld → voorstelle ook.
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {
+                            "description": "Die kraan lek erg",
+                            "title": "Lek", "room": 9}})
     assert resp.status_code == 200
     sug = resp.json()["suggestions"]
     assert "fault_type" in sug

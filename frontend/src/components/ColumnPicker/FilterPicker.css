@@ -1,0 +1,79 @@
+/* ── FilterPicker button ───────────────────────────────────── */
+.filterpick-btn--has-filters .colpick-badge {
+  display: inline-flex;
+}
+
+/* ── Dropdown ──────────────────────────────────────────────── */
+.filterpick-dropdown {
+  min-width: 300px;
+  max-width: none;
+  overflow: visible;
+}
+
+.filterpick-body {
+  padding: 10px 12px;
+}
+
+.filterpick-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #999;
+  margin: 4px 0 6px;
+}
+
+.filterpick-section-label:not(:first-child) {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.filterpick-section-label--location {
+  padding-bottom: 28px;
+}
+
+.filterpick-search {
+  margin-bottom: 2px;
+}
+
+.filterpick-search input {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.filterpick-locked {
+  font-size: 12px;
+  color: #935e28;
+  background: #f8f4f0;
+  border: 1px solid #eedfd3;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.filterpick-cascade {
+  min-width: 0;
+  width: 100%;
+}
+
+/* ── Oop keuselyste: groei met inhoud, wyer as die langste etiket ── */
+/* Skuif nooit (ten spyte van die appwye 60vh-kap): die hele lys groei. Die
+   wydte pas by die langste opsie-etiket sodat die menu wyer word namate die
+   ligging gekies word (terrein › gebou › lokaal-etikette word langer). */
+.filterpick-dropdown .react-select__menu-list,
+.filterpick-dropdown .select__menu-list {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.filterpick-dropdown .react-select__menu,
+.filterpick-dropdown .select__menu {
+  width: max-content;
+  min-width: 100%;
+}
+
+.filterpick-dropdown .react-select__option,
+.filterpick-dropdown .select__option {
+  white-space: nowrap;
+}

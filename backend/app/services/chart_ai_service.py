@@ -133,7 +133,11 @@ def _impact_for_asset(session: Session, asset: Asset) -> int:
         return 1
     b = session.get(Building, room.building_id) if room.building_id else None
     r_score = IMPACT_MAP_ROOM.get(_enum_val(room.room_type), 1)
-    b_score = IMPACT_MAP_BUILDING.get(_enum_val(b.building_type) if b else "Ander", 1)
+    building_types = getattr(b, "building_types", None) if b else None
+    if building_types:
+        b_score = max(IMPACT_MAP_BUILDING.get(_enum_val(t), 1) for t in building_types)
+    else:
+        b_score = IMPACT_MAP_BUILDING.get(_enum_val(getattr(b, "building_type", None)) if b else "Ander", 1)
     return max(r_score, b_score)
 
 

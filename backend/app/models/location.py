@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -9,7 +9,6 @@ from .validators import sanitize_text, validate_positive_int
 class BuildingBase(SQLModel):
     """Base model for building data."""
     building_name: str = Field(max_length=100)
-    building_type: BuildingType = Field(default=BuildingType.OTHER)
 
     @field_validator('building_name', mode='before')
     @classmethod
@@ -25,20 +24,33 @@ class Building(BuildingBase, Base, table=True):
 
 class BuildingCreate(BuildingBase):
     """Input model for creating building records."""
+    building_types: List[BuildingType] = Field(default_factory=list)
+    building_type: Optional[BuildingType] = None
     location_id: int
 
 
 class BuildingRead(BuildingBase):
     """Output model for reading building records."""
     building_id: int
+    building_types: List[BuildingType] = Field(default_factory=list)
+    building_type: Optional[BuildingType] = None
     location_id: int
 
 
 class BuildingUpdate(SQLModel):
     """Input model for updating building records."""
     building_name: Optional[str] = None
+    building_types: Optional[List[BuildingType]] = None
     building_type: Optional[BuildingType] = None
     location_id: Optional[int] = None
+
+
+class BuildingTypeLink(SQLModel, table=True):
+    """Join table for buildings that can have multiple functional types."""
+    __tablename__ = "building_type_link"
+    link_id: Optional[int] = Field(default=None, primary_key=True)
+    building_id: int = Field(foreign_key="building.building_id")
+    building_type: BuildingType
 
 
 class LocationBase(SQLModel):

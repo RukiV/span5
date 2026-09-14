@@ -148,7 +148,7 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
           DetailRow(
               label: "Tipe",
               valueWidget: Flexible(
-                child: Text(_typeLabel(_currentBuilding.type),
+                child: Text(_currentBuilding.types.map(_typeLabel).join(', '),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
               )),
           const Divider(height: 24),

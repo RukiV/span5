@@ -17,7 +17,6 @@ import DashboardPage from './pages/DashboardPage';
 import TicketPage from './pages/TicketPage';
 import JobTabs from './components/JobTabs';
 import WorkOrderPage from './pages/WorkOrderPage';
-import PredictionsPage from './pages/PredictionsPage';
 import AssetPage from './pages/AssetPage';
 import StockPage from './pages/StockPage';
 import RoomsPage from './pages/RoomsPage';
@@ -32,6 +31,10 @@ import AIDraftNewPage from './pages/AIDraftNewPage';
 import AIDraftDetailPage from './pages/AIDraftDetailPage';
 import { ToastProvider } from './components/Toast/ToastContext';
 import { NotificationProvider } from './components/Notifications/NotificationContext';
+
+// Voorspellings-blad word net gelaai wanneer die gebruiker dit oopmaak
+// (grafieke/Chart.js word apart gebundel en nie by die hoofkelder gevoeg nie).
+const PredictionsPage = React.lazy(() => import('./pages/PredictionsPage'));
 
 /* =========================================================
     1. DIE BESKERMDE ROETE-MEGANISME
@@ -175,7 +178,7 @@ function AppContent() {
             <Route path="/users" element={<RightProtectedRoute requiredRight="users.manage"><UsersPage /></RightProtectedRoute>} />
             <Route path="/users/roles" element={<RightProtectedRoute requiredRight="users.manage"><RolesPage /></RightProtectedRoute>} />
             <Route path="/users/rights" element={<RightProtectedRoute requiredRight="users.manage"><RightsPage /></RightProtectedRoute>} />
-            <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><PredictionsPage /></RightProtectedRoute>} />
+            <Route path="/predictions" element={<RightProtectedRoute requiredRight="predictions.view"><React.Suspense fallback={<div className="main"><div className="content">Laai voorspellings...</div></div>}><PredictionsPage /></React.Suspense></RightProtectedRoute>} />
             <Route path="/ai-drafts" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftQueuePage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/new" element={<RightProtectedRoute requiredRight="ai.use"><JobTabs><AIDraftNewPage /></JobTabs></RightProtectedRoute>} />
             <Route path="/ai-drafts/:id" element={<RightProtectedRoute requiredRight="ai.approve"><JobTabs><AIDraftDetailPage /></JobTabs></RightProtectedRoute>} />
@@ -191,7 +194,7 @@ function AppContent() {
             {isOpen ? <IoEyeOffOutline size={22} /> : <IoEyeOutline size={22} />}
           </button>
         )}
-      </div>
+    </div>
   );
 }
 

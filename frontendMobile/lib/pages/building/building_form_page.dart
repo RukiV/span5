@@ -28,7 +28,7 @@ class BuildingFormPage extends StatefulWidget {
 class _BuildingFormPageState extends State<BuildingFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  late String _type;
+  late List<String> _typesSelected;
   Campus? _selectedCampus;
   String? _idempotencyKey;
 
@@ -38,6 +38,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     {'value': 'laboratory', 'label': 'Laboratorium'},
     {'value': 'warehouse', 'label': 'Pakhuis'},
     {'value': 'kafeteria', 'label': 'Kafeteria'},
+    {'value': 'residential', 'label': 'Koshuis'},
     {'value': 'other', 'label': 'Ander'},
   ];
 
@@ -47,7 +48,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.building?.name ?? "");
-    _type = widget.building?.type ?? 'other';
+    _typesSelected = [...(widget.building?.types ?? const ['other'])];
     if (_isCreate) {
       _selectedCampus = widget.campus;
       _idempotencyKey = Idempotency.generate();
@@ -75,7 +76,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
       final building = Building(
         id: 0,
         name: _nameController.text,
-        type: _type,
+        types: _typesSelected,
         locationId: _selectedCampus!.id,
       );
       final success = await CampusService.addBuilding(
@@ -90,7 +91,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
 
     final updated = widget.building!.copyWith(
       name: _nameController.text,
-      type: _type,
+      types: _typesSelected,
     );
     final success = await CampusService.updateBuilding(updated);
     if (!mounted) return;
@@ -124,17 +125,28 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   }
 
   Widget _buildTypeField() {
-    return SearchableDropdown<String>(
-      label: "Tipe",
-      hint: "Kies Tipe",
-      value: _type,
-      items: _types
-          .map((t) => SearchableDropdownItem(
-                value: t['value']!,
-                label: t['label']!,
-              ))
-          .toList(),
-      onChanged: (v) => setState(() => _type = v!),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Tipes", style: TextStyle(fontWeight: FontWeight.bold)),
+        Wrap(
+          spacing: 8,
+          children: _types.map((type) {
+            final value = type['value']!;
+            return FilterChip(
+              label: Text(type['label']!),
+              selected: _typesSelected.contains(value),
+              onSelected: (selected) => setState(() {
+                if (selected) {
+                  _typesSelected.add(value);
+                } else if (_typesSelected.length > 1) {
+                  _typesSelected.remove(value);
+                }
+              }),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 

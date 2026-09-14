@@ -1,0 +1,115 @@
+/* ── SortPicker button ─────────────────────────────────────── */
+.sortpick-btn--has-sorts .colpick-badge {
+  display: inline-flex;
+}
+
+/* ── Dropdown ──────────────────────────────────────────────── */
+.sortpick-dropdown {
+  min-width: 260px;
+}
+
+.sortpick-list {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.sortpick-empty {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #999;
+}
+
+.sortpick-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.sortpick-ordinal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border-radius: 9px;
+  background: #935e28;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sortpick-label {
+  color: #333;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sortpick-mini {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #666;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.1s;
+}
+.sortpick-mini:hover:not(:disabled) {
+  border-color: #935e28;
+  color: #935e28;
+}
+.sortpick-mini:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sortpick-remove {
+  font-size: 16px;
+}
+.sortpick-remove:hover:not(:disabled) {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.sortpick-section {
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #999;
+  border-top: 1px solid #f1f5f9;
+}
+
+.sortpick-add {
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 6px;
+}
+.sortpick-add:hover {
+  background: #f8f4f0;
+}
+
+.sortpick-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 4px;
+  color: #935e28;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
