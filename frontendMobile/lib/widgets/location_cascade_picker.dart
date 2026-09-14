@@ -187,6 +187,21 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
     widget.onChanged(_campusId, _buildingId, _roomId);
   }
 
+  /// Stap een vlak terug soos die terug-knoppie op die webblad.
+  void _stepBack() {
+    final int level;
+    if (_roomId != null) {
+      level = 2;
+    } else if (_buildingId != null) {
+      level = 1;
+    } else if (_campusId != null) {
+      level = 0;
+    } else {
+      return;
+    }
+    _clearFromLevel(level);
+  }
+
   Campus? _campusOf(List<Campus> campuses) {
     for (final c in campuses) {
       if (c.id == _campusId) return c;
@@ -444,29 +459,15 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     : Colors.grey[200],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    crumbs[i].name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: i == crumbs.length - 1
-                          ? FontWeight.bold
-                          : FontWeight.w600,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text(
-                    '×',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                ],
+              child: Text(
+                crumbs[i].name,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: i == crumbs.length - 1
+                      ? FontWeight.bold
+                      : FontWeight.w600,
+                  color: AppColors.navy,
+                ),
               ),
             ),
           ),
@@ -564,6 +565,38 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     },
                   ),
                 ),
+                if (_campusId != null ||
+                    _buildingId != null ||
+                    _roomId != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _stepBack,
+                    tooltip: 'Terug na vorige vlak',
+                    icon: const Icon(
+                      Icons.keyboard_return,
+                      size: 20,
+                      color: AppColors.navy,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: () => _clearFromLevel(0),
+                    tooltip: 'Maak ligging skoon',
+                    icon: const Icon(
+                      Icons.close,
+                      size: 22,
+                      color: Colors.grey,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 30, minHeight: 30),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
                 if (widget.trailing != null) ...[
                   const SizedBox(width: 8),
                   widget.trailing!,

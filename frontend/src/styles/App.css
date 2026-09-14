@@ -450,18 +450,6 @@ select:not([class*="cascade"]):focus {
   align-items: center;
 }
 
-.breadcrumb-btn .breadcrumb-clear {
-  margin-left: 5px;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  color: #9ca3af;
-}
-
-.breadcrumb-btn .breadcrumb-clear:hover {
-  color: #b91c1c;
-}
-
 .breadcrumb-pending {
   color: #935e28;
   font-style: italic;

@@ -231,6 +231,7 @@ export default function FilterPicker({
 
             {onLocationChange && (
               <>
+            <div className="filterpick-section-label filterpick-section-label--location">Ligging</div>
             {lockedTerrain && (
               <div className="filterpick-locked">
                 Terrein vasgesluit: {currentNameForLevel(0, terrainFilter) || terrainFilter}
@@ -256,7 +257,10 @@ export default function FilterPicker({
                   ClearIndicator: NoCascadeClearIndicator,
                 }}
                 styles={{
-                  container: (base) => ({ ...base, minWidth: cascadeWidth }),
+                  container: (base) => ({ ...base, width: '100%', alignSelf: 'stretch' }),
+                  control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                  valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                  singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
                   menu: (base) => ({ ...base, minWidth: cascadeWidth }),
                 }}
                 options={locationOptions}

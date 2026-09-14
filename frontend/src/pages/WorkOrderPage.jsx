@@ -1989,7 +1989,7 @@ function WorkOrderPage() {
                                 ...breadcrumbBaseStyle,
                                 fontWeight: isLast ? 700 : 600,
                               }}
-                            >{item.name}{!isViewMode && <span className="breadcrumb-clear">×</span>}</button>
+                            >{item.name}</button>
                             {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center", margin: 0 }}>›</span>}
                           </React.Fragment>
                         );

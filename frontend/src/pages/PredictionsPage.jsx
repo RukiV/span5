@@ -420,7 +420,7 @@ const colPickerRef = useRef(null);
                       const showArrow = isLast ? cascadeCount < 3 : true;
                       return (
                         <React.Fragment key={i}>
-                          <button type="button" className="breadcrumb-btn" data-current={isLast ? "true" : "false"} onClick={() => clearFromLevel(item.level + 1)}>{item.name}<span className="breadcrumb-clear">×</span></button>
+                          <button type="button" className="breadcrumb-btn" data-current={isLast ? "true" : "false"} onClick={() => clearFromLevel(item.level + 1)}>{item.name}</button>
                           {showArrow && <span className="breadcrumb-arrow">›</span>}
                         </React.Fragment>
                       );

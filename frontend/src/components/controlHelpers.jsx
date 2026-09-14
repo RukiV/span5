@@ -95,7 +95,6 @@ export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel,
             title={disabled ? undefined : "Klik om vlak skoon te maak"}
           >
             {item.name}
-            {!disabled && <span className="breadcrumb-clear" title="Verwyder">×</span>}
           </button>
           {showArrow && <span className="breadcrumb-arrow">›</span>}
         </React.Fragment>

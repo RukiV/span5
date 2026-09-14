@@ -1003,7 +1003,7 @@ function AssetPage({ embedded = false }) {
                     const showArrow = isLast ? cascadeCount < 3 : true;
                     return (
                       <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} disabled={isViewMode} style={{ border: "none", cursor: isViewMode ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}{!isViewMode && <span className="breadcrumb-clear">×</span>}</button>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} disabled={isViewMode} style={{ border: "none", cursor: isViewMode ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                         {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                       </React.Fragment>
                     );

@@ -29,6 +29,10 @@
   border-top: 1px solid #f1f5f9;
 }
 
+.filterpick-section-label--location {
+  padding-bottom: 28px;
+}
+
 .filterpick-search {
   margin-bottom: 2px;
 }
@@ -50,6 +54,7 @@
 
 .filterpick-cascade {
   min-width: 0;
+  width: 100%;
 }
 
 /* ── Oop keuselyste: groei met inhoud, wyer as die langste etiket ── */
