@@ -247,7 +247,6 @@ class _NewAssetPageState extends State<NewAssetPage> {
                 ),
                 const SizedBox(height: 20),
                 LocationCascadePicker(
-                  label: "Ligging *",
                   initialCampusId: _campusIdForName(selectedCampus),
                   errorText: _locationError,
                   onChanged: _onLocationChanged,

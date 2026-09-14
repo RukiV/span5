@@ -134,6 +134,10 @@ export default function FilterPicker({
         String(o.value) === String(value),
     );
 
+  // Wys slegs die naam in die krummelpad — sonder die id-voorvoegsel
+  // ("7 - Leriba kampus" word "Leriba kampus").
+  const displayLabel = (o) => (o ? o.label.replace(/^[^-]+ - /, '') : '');
+
   const currentDisplayValue = cascadeCount === 0 ? null
     : cascadeCount === 1 && terrainFilter
       ? (() => { const o = findOption(0, terrainFilter); return { value: terrainFilter, label: o ? o.label : terrainFilter }; })()
@@ -147,18 +151,18 @@ export default function FilterPicker({
     else if (levelIndex === 2) onLocationChange(terrainFilter, buildingFilter, '');
   };
 
-  const breadcrumbData = [{ level: -1, name: 'Terreine' }];
+  const breadcrumbData = [];
   if (terrainFilter) {
     const o = findOption(0, terrainFilter);
-    breadcrumbData.push({ level: 0, name: o ? o.label : terrainFilter });
+    breadcrumbData.push({ level: 0, name: displayLabel(o) || terrainFilter });
   }
   if (buildingFilter) {
     const o = findOption(1, buildingFilter);
-    breadcrumbData.push({ level: 1, name: o ? o.label : buildingFilter });
+    breadcrumbData.push({ level: 1, name: displayLabel(o) || buildingFilter });
   }
   if (roomFilter) {
     const o = findOption(2, roomFilter);
-    breadcrumbData.push({ level: 2, name: o ? o.label : roomFilter });
+    breadcrumbData.push({ level: 2, name: displayLabel(o) || roomFilter });
   }
 
   return (
@@ -227,7 +231,6 @@ export default function FilterPicker({
 
             {onLocationChange && (
               <>
-            <div className="filterpick-section-label">Ligging</div>
             {lockedTerrain && (
               <div className="filterpick-locked">
                 Terrein vasgesluit: {currentNameForLevel(0, terrainFilter) || terrainFilter}
@@ -235,12 +238,12 @@ export default function FilterPicker({
             )}
             <div className="control-cascade-stack filterpick-cascade" ref={filterCascade.containerRef}>
               <div className="control-cascade-breadcrumb">
-                {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: depthLevels })}
+                {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: depthLevels, pendingLabels: placeholders.map(p => p.replace(/\.\.\.$/, '')) })}
               </div>
               <Select
                 className="react-select-container"
                 classNamePrefix="react-select"
-                placeholder={placeholders[cascadeCount] || 'Filter voltooi'}
+                placeholder={cascadeCount === 0 ? '' : (placeholders[cascadeCount] || 'Filter voltooi')}
                 isClearable
                 isDisabled={cascadeCount >= depthLevels}
                 closeMenuOnSelect={false}
@@ -327,6 +330,6 @@ export default function FilterPicker({
 
   function currentNameForLevel(level, value) {
     const o = findOption(level, value);
-    return o ? o.label : '';
+    return displayLabel(o) || '';
   }
 }

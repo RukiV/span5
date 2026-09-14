@@ -951,7 +951,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           _buildTextField("Hoofbeskrywing", _briefController),
           const SizedBox(height: 20),
           LocationCascadePicker(
-            label: "Ligging",
             error: _selectedCampusId == null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,

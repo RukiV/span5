@@ -409,7 +409,7 @@ const colPickerRef = useRef(null);
                   else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
                   else if (levelIndex === 2) { setRoomFilter(''); }
                 };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                const breadcrumbData = [];
                 if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
@@ -420,11 +420,14 @@ const colPickerRef = useRef(null);
                       const showArrow = isLast ? cascadeCount < 3 : true;
                       return (
                         <React.Fragment key={i}>
-                          <button type="button" className="breadcrumb-btn" data-current={isLast ? "true" : "false"} onClick={() => clearFromLevel(item.level + 1)}>{item.name}</button>
+                          <button type="button" className="breadcrumb-btn" data-current={isLast ? "true" : "false"} onClick={() => clearFromLevel(item.level + 1)}>{item.name}<span className="breadcrumb-clear">×</span></button>
                           {showArrow && <span className="breadcrumb-arrow">›</span>}
                         </React.Fragment>
                       );
                     })}
+                    {cascadeCount < 3 && ["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount] && (
+                      <span className="breadcrumb-pending">/{["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount]}</span>
+                    )}
                   </div>
                 );
                 const CascadeControl = ({ children, ...props }) => (
@@ -445,7 +448,7 @@ const colPickerRef = useRef(null);
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={cascadeCount >= 3}
                       closeMenuOnSelect={false}

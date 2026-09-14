@@ -32,7 +32,6 @@ class LocationCascadePicker extends StatefulWidget {
   /// Vuur na elke keuse of terugstelling met die volle pad.
   final void Function(int? campusId, int? buildingId, int? roomId) onChanged;
 
-  final String? label;
   final String? errorText;
 
   /// Maak die etiket (en veldraam) rooi — gebruik vir vereiste liggings wat
@@ -62,7 +61,6 @@ class LocationCascadePicker extends StatefulWidget {
     this.initialBuildingId,
     this.initialRoomId,
     required this.onChanged,
-    this.label,
     this.errorText,
     this.error = false,
     this.showBreadcrumb = true,
@@ -157,6 +155,18 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
   }
 
   bool get _isComplete => _filledLevels >= _targetLevels;
+
+  /// Die vlak wat tans gekies word — dien as aanduiding op die krummelpad
+  /// ("Kies Terrein", "Kies Gebou" of "Kies Lokaal") sover die pad nog nie
+  /// klaar is nie.
+  String? get _nextLevelLabel {
+    if (_isComplete) return null;
+    if (_buildingId != null) return 'Kies Lokaal';
+    if (_campusId != null) return _jumpBuilding ? 'Kies Lokaal' : 'Kies Gebou';
+    if (_jumpCampus && _jumpBuilding) return 'Kies Lokaal';
+    if (_jumpCampus) return 'Kies Gebou';
+    return 'Kies Terrein';
+  }
 
   /// Maak alles vanaf [level] skoon (0 = terrein, 1 = gebou, 2 = lokaal).
   void _clearFromLevel(int level) {
@@ -434,21 +444,58 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     : Colors.grey[200],
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: Text(
-                crumbs[i].name,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: i == crumbs.length - 1
-                      ? FontWeight.bold
-                      : FontWeight.w600,
-                  color: AppColors.navy,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    crumbs[i].name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: i == crumbs.length - 1
+                          ? FontWeight.bold
+                          : FontWeight.w600,
+                      color: AppColors.navy,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    '×',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.navy,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          // Die laaste pyltjie verdwyn sodra die pad klaar is.
-          if (i < crumbs.length - 1 || !_isComplete)
+          // Pyltjies verskyn net tussen mirkumels; die laaste pyltjie voor die
+          // "Kies ..."-stap word hieronder bygevoeg.
+          if (i < crumbs.length - 1)
             const Text('›', style: TextStyle(fontSize: 14, color: Colors.grey)),
+        ],
+        // Wys die vlak wat tans gekies word as 'n voorgestelde stap.
+        if (!_isComplete && _nextLevelLabel != null) ...[
+          const Text('›', style: TextStyle(fontSize: 14, color: Colors.grey)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              border: Border.all(
+                  color: AppColors.gold.withValues(alpha: 0.5),
+                  style: BorderStyle.solid),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '/$_nextLevelLabel',
+              style: const TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w500,
+                color: AppColors.gold,
+              ),
+            ),
+          ),
         ],
       ],
     );
@@ -490,17 +537,6 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.label != null) ...[
-              Text(
-                widget.label!,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: widget.error ? AppColors.errorRed : AppColors.navy,
-                ),
-              ),
-              const SizedBox(height: 6),
-            ],
             if (widget.showBreadcrumb) ...[
               _buildBreadcrumb(campuses),
               const SizedBox(height: 6),

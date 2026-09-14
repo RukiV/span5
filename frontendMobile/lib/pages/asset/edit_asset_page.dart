@@ -286,7 +286,6 @@ class _EditAssetPageState extends State<EditAssetPage> {
                 ),
                 const SizedBox(height: 20),
                 LocationCascadePicker(
-                  label: "Ligging *",
                   initialCampusId: _initialCampusId,
                   initialBuildingId: _initialBuildingId,
                   initialRoomId: _initialRoomId,

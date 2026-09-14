@@ -19,6 +19,7 @@ import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/Asset.css";
 import "../styles/App.css";
@@ -94,7 +95,7 @@ function StockPage({ embedded = false }) {
     building_id: ""  // Bygevoeg vir cascading logika
   });
 
-  // AI-veldvoorstel: stock_type uit soortgelyke voorraadname.
+  // AI-veldvoorstel: stock_type (+ handelsmerk) uit soortgelyke voorraadname.
   const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
     context: 'stock',
     values: {
@@ -106,6 +107,19 @@ function StockPage({ embedded = false }) {
       stock_type: newStock.stock_type,
     },
   });
+  const stockGhostType = aiSuggestions?.stock_type?.value || null;
+  const stockGhostBrand = aiSuggestions?.stock_brand?.value || null;
+  const applyStockGhost = (key) => {
+    if (key === 'stock_type' && stockGhostType) setNewStock(p => ({ ...p, stock_type: String(stockGhostType) }));
+    else if (key === 'stock_brand' && stockGhostBrand) setNewStock(p => ({ ...p, stock_brand: String(stockGhostBrand) }));
+  };
+  const handleStockGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'stock_type' ? stockGhostType : stockGhostBrand;
+      const empty = key === 'stock_type' ? !newStock.stock_type : !newStock.stock_brand;
+      if (ghost && empty) applyStockGhost(key);
+    }
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -643,29 +657,37 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               onChange={(e) => { setNewStock({ ...newStock, stock_name: e.target.value }); if (invalidFields.stock_name) setInvalidFields(prev => { const n = {...prev}; delete n.stock_name; return n; }); }}
             />
           </div>
-          <div className="input-group">
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
             <label>Handelsmerk</label>
-            <input
-              type="text"
-              value={newStock.stock_brand}
-              ref={el => fieldRefs.current.stock_brand = el}
-              disabled={isViewMode}
-              className={invalidFields.stock_brand ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_brand}
+                ref={el => fieldRefs.current.stock_brand = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_brand ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_brand')}
+              />
+              <GhostSuggestion active={!newStock.stock_brand && !!stockGhostBrand && !isViewMode} onAccept={() => applyStockGhost('stock_brand')}>{stockGhostBrand}</GhostSuggestion>
+            </div>
           </div>
         </div>
         <div className="input-row">
-          <div className="input-group">
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
             <label>Tipe *</label>
-            <input
-              type="text"
-              value={newStock.stock_type}
-              ref={el => fieldRefs.current.stock_type = el}
-              disabled={isViewMode}
-              className={invalidFields.stock_type ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_type}
+                ref={el => fieldRefs.current.stock_type = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_type ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_type')}
+              />
+              <GhostSuggestion active={!newStock.stock_type && !!stockGhostType && !isViewMode} onAccept={() => applyStockGhost('stock_type')}>{stockGhostType}</GhostSuggestion>
+            </div>
           </div>
           <div className="input-group">
             <label>Hoeveelheid</label>
@@ -704,7 +726,6 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newStock.location_id, newStock.building_id, newStock.room_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -717,17 +738,17 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                 else if (levelIndex === 1) setNewStock(p => ({...p, building_id: "", room_id: ""}));
                 else if (levelIndex === 2) setNewStock(p => ({...p, room_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newStock.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id });
               if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal"] })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={isViewMode || cascadeCount >= 3}
                       closeMenuOnSelect={false}
@@ -832,9 +853,10 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
           loading={aiLoading}
           filled={aiFilled}
           error={aiError}
-          labels={{ stock_type: 'Tipe' }}
+          labels={{ stock_type: 'Tipe', stock_brand: 'Handelsmerk' }}
           onUse={(key, s) => {
             if (key === 'stock_type') setNewStock(p => ({ ...p, stock_type: String(s.value) }));
+            else if (key === 'stock_brand') setNewStock(p => ({ ...p, stock_brand: String(s.value) }));
           }}
         />
       </div>

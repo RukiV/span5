@@ -79,7 +79,7 @@ export const CascadeIndicatorsContainer = (props) => {
   );
 };
 
-export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel = 2, marginTop = "6px", marginBottom = "6px", disabled = false }) => (
+export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel = 2, marginTop = "6px", marginBottom = "6px", disabled = false, pendingLabels = [] }) => (
   <div className={`breadcrumb-list${marginTop === "6px" ? " breadcrumb-list-spaced" : ""}${marginBottom === "6px" ? " breadcrumb-list-bottom-spaced" : ""}`}>
     {breadcrumbData.map((item, index) => {
       const isLast = index === breadcrumbData.length - 1;
@@ -95,10 +95,14 @@ export const renderBreadcrumb = ({ breadcrumbData, cascadeCount, clearFromLevel,
             title={disabled ? undefined : "Klik om vlak skoon te maak"}
           >
             {item.name}
+            {!disabled && <span className="breadcrumb-clear" title="Verwyder">×</span>}
           </button>
           {showArrow && <span className="breadcrumb-arrow">›</span>}
         </React.Fragment>
       );
     })}
+    {cascadeCount < maxLevel && pendingLabels[cascadeCount] && (
+      <span className="breadcrumb-pending">/{pendingLabels[cascadeCount]}</span>
+    )}
   </div>
 );

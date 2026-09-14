@@ -715,7 +715,6 @@ function RoomsPage({ embedded = false }) {
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newRoom.location_id, newRoom.building_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -726,16 +725,16 @@ function RoomsPage({ embedded = false }) {
                 if (levelIndex <= 0) setNewRoom(p => ({...p, location_id: "", building_id: ""}));
                 else if (levelIndex === 1) setNewRoom(p => ({...p, building_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newRoom.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newRoom.location_id))?.location_name || newRoom.location_id });
               if (newRoom.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newRoom.building_id))?.building_name || newRoom.building_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou"] })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Ligging voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={isViewMode || cascadeCount >= 2}
                       closeMenuOnSelect={false}

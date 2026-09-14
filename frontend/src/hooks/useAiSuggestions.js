@@ -5,13 +5,13 @@ import { apiClient } from "../services/api";
  * useAiSuggestions — debounce AI-veldvoorstelle vir 'n vorm.
  *
  * Roep POST /ai/suggest (context + huidige vormwaardes) op nadat die gebruiker
- * ~800 ms getik het. Onder 3 ingevulde velde doen dit niks (backend-gate, maar
+ * ~800 ms getik het. Met niks ingevul doen dit niks (backend-gate, maar
  * ons spaar ook die versoek). Foutiewe/stil gevalle → leë voorstelle.
  *
  * Geeft terug: { suggestions, loading, filled }
  *   - suggestions: { veldKey: { value, id? }, ... }
  *   - loading: waar terwyl daar op die backend gewag word
- *   - filled: hoeveel vormvelde tans ingevul is (<3 = poort toe)
+ *   - filled: hoeveel vormvelde tans ingevul is (0 = poort toe)
  */
 export default function useAiSuggestions({ context, values, enabled = true, delay = 800 }) {
   const [suggestions, setSuggestions] = useState({});
@@ -28,7 +28,7 @@ export default function useAiSuggestions({ context, values, enabled = true, dela
       (v) => v !== null && v !== undefined && !(typeof v === "string" && !v.trim())
     ).length;
 
-    if (filled < 3) {
+    if (filled < 1) {
       setSuggestions({});
       setLoading(false);
       setError(false);

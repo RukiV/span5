@@ -12,7 +12,6 @@ import '../../services/room_service.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
-import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import 'scan_page.dart';
 import 'location_page.dart';
@@ -34,8 +33,6 @@ class _EditReportPageState extends State<EditReportPage> {
   late String _priority;
   late String _status;
   String? _rawStatus;
-  String? _selectedCampus;
-  String? _selectedBuilding;
   String? _selectedLocation;
   int? _selectedCampusId;
   int? _selectedBuildingId;
@@ -70,10 +67,6 @@ class _EditReportPageState extends State<EditReportPage> {
     _priority = widget.report.priority;
     _status = widget.report.phase;
     _rawStatus = widget.report.rawStatus;
-    _selectedCampus =
-        CampusService.getCampusNameByRoomId(widget.report.location);
-    _selectedBuilding =
-        CampusService.getBuildingNameByRoomId(widget.report.location);
     _selectedCampusId = _initialCampusId;
     _selectedBuildingId = _initialBuildingId;
     _selectedLocation = widget.report.location;
@@ -161,8 +154,6 @@ class _EditReportPageState extends State<EditReportPage> {
         _selectedLocation == null || _selectedLocation == original;
     setState(() {
       if (userHasNotChanged) {
-        _selectedCampus = CampusService.getCampusNameByRoomId(original);
-        _selectedBuilding = CampusService.getBuildingNameByRoomId(original);
         _selectedCampusId = _initialCampusId;
         _selectedBuildingId = _initialBuildingId;
         _selectedLocation = original;
@@ -218,8 +209,6 @@ class _EditReportPageState extends State<EditReportPage> {
     setState(() {
       _selectedCampusId = campusId;
       _selectedBuildingId = buildingId;
-      _selectedCampus = path.campus?.name;
-      _selectedBuilding = path.building?.name;
       _selectedLocation =
           path.room == null ? null : '${path.room!.id}:${path.room!.name}';
     });
@@ -323,22 +312,6 @@ class _EditReportPageState extends State<EditReportPage> {
     }
   }
 
-  Widget _buildBreadcrumbs() {
-    final campus = _selectedCampus ?? "Onbekende Kampus";
-    final building = _selectedBuilding ?? "Onbekende Gebou";
-    String room = "Onbekende Lokaal";
-
-    if (_selectedLocation != null) {
-      if (_selectedLocation!.contains(':')) {
-        room = _selectedLocation!.split(':').last;
-      } else {
-        room = CampusService.getRoomName(_selectedLocation!);
-      }
-    }
-
-    return LocationBreadcrumbs(path: "$campus > $building > $room");
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -356,7 +329,6 @@ class _EditReportPageState extends State<EditReportPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildBreadcrumbs(),
                     _buildTextField("Titel", _titleController),
                     const SizedBox(height: 20),
                     Row(
@@ -387,7 +359,6 @@ class _EditReportPageState extends State<EditReportPage> {
                             })),
                     const SizedBox(height: 20),
                     LocationCascadePicker(
-                      label: "Ligging *",
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,

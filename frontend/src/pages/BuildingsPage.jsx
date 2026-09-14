@@ -630,7 +630,6 @@ function BuildingsPage({ embedded = false }) {
         </div>
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative" }}>
-            <label>Terrein *</label>
             {(() => {
               const cascadeCount = [newBuilding.location_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -639,15 +638,15 @@ function BuildingsPage({ embedded = false }) {
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewBuilding(p => ({...p, location_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
                return (
                  <div ref={modalCascadeMenu.containerRef}>
-                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein"] })}
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Ligging voltooi"][cascadeCount]}
+                    placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Ligging voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={isViewMode || cascadeCount >= 1}
                     closeMenuOnSelect={false}

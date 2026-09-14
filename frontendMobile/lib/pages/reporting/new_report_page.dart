@@ -440,7 +440,6 @@ class _NewReportPageState extends State<NewReportPage> {
                 initialCampusId: _selectedCampusId,
                 initialBuildingId: _selectedBuildingId,
                 initialRoomId: _selectedRoomId,
-                label: "Waargeneemde Ligging",
                 editing: _assetResolved,
                 showBreadcrumb: false,
                 errorText: _locationError,

@@ -231,7 +231,6 @@ class _NewStockPageState extends State<NewStockPage> {
                 ),
                 const SizedBox(height: 20),
                 LocationCascadePicker(
-                  label: "Ligging *",
                   initialCampusId: _campusId,
                   initialBuildingId: _buildingId,
                   initialRoomId: _roomId,

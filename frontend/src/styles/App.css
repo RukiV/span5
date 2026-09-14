@@ -450,6 +450,29 @@ select:not([class*="cascade"]):focus {
   align-items: center;
 }
 
+.breadcrumb-btn .breadcrumb-clear {
+  margin-left: 5px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #9ca3af;
+}
+
+.breadcrumb-btn .breadcrumb-clear:hover {
+  color: #b91c1c;
+}
+
+.breadcrumb-pending {
+  color: #935e28;
+  font-style: italic;
+  font-weight: 500;
+  opacity: 0.85;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
 /* Clear-knoppie vir datetime-local */
 .input-clear-btn {
   position: absolute;
@@ -1155,4 +1178,65 @@ select:not([class*="cascade"]):focus {
 }
 .col-resizer--active {
   background: rgba(147, 94, 40, 0.55);
+}
+
+/* ── Ghost/spookteks vir AI-veldvoorstelle binne leë velde ─────────────── */
+.ghost-field-wrap {
+  position: relative;
+}
+
+.ghost-suggestion {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  pointer-events: none;
+  z-index: 2;
+  color: #a8a29e;
+  font-size: 0.95rem;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.ghost-suggestion-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghost-suggestion-hint {
+  font-size: 0.68rem;
+  font-style: normal;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #c4b8ad;
+  border: 1px solid #ddd6cf;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: #fdf8f3;
+  flex-shrink: 0;
+}
+
+/* Verberg native <select> se "Kies…" teks wanneer die ghost sigbaar is;
+   :focus-herstel hou die aftreklys leesbaar. */
+.ghost-field-wrap.ghost-active select {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+
+.ghost-field-wrap.ghost-active select:focus {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit;
+}
+
+/* Vir react-select-beheerders (beheer het nie deursigtige teks nodig nie,
+   die voorstel kom via placeholder) — behou net die wrapper. */
+.ghost-field-wrap--rs .ghost-suggestion {
+  padding-left: 12px;
 }

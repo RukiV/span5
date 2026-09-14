@@ -25,6 +25,7 @@ import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import Modal from '../components/Modal/Modal';
@@ -189,6 +190,23 @@ function WorkOrderPage() {
     },
   });
   const { suggestions: jobSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
+
+  // Ghost-spookteks — kaart EN-enums na Afrikaanse vertoonwaardes.
+  const jobGhostType = jobSuggestions?.job_type?.value ? (JOB_TYPE_EN_AF[jobSuggestions.job_type.value] || jobSuggestions.job_type.value) : null;
+  const jobGhostPrio = jobSuggestions?.job_priority?.value ? (JOB_PRIO_EN_AF[jobSuggestions.job_priority.value] || jobSuggestions.job_priority.value) : null;
+  const jobGhostNature = jobSuggestions?.nature?.value || null;
+  const applyJobSuggestion = (key) => {
+    if (key === 'job_type' && jobGhostType) { setFormData(p => ({ ...p, job_type: jobGhostType })); setInvalidFields(p => { const n = {...p}; delete n.job_type; return n; }); }
+    else if (key === 'job_priority' && jobGhostPrio) { setFormData(p => ({ ...p, job_priority: jobGhostPrio })); setInvalidFields(p => { const n = {...p}; delete n.job_priority; return n; }); }
+    else if (key === 'nature' && jobGhostNature) { setFormData(p => ({ ...p, nature: jobGhostNature })); setInvalidFields(p => { const n = {...p}; delete n.nature; return n; }); }
+  };
+  const handleJobGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'job_type' ? jobGhostType : key === 'job_priority' ? jobGhostPrio : jobGhostNature;
+      const empty = key === 'job_type' ? !formData.job_type : key === 'job_priority' ? !formData.job_priority : !formData.nature;
+      if (ghost && empty) applyJobSuggestion(key);
+    }
+  };
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -1841,7 +1859,7 @@ function WorkOrderPage() {
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Prioriteit *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.job_priority && jobGhostPrio && !isViewMode ? " ghost-active" : ""}`}><span>Prioriteit *</span>
                       <select
                         disabled={isViewMode}
                         ref={el => fieldRefs.current.job_priority = el}
@@ -1851,6 +1869,7 @@ function WorkOrderPage() {
                           setFormData({...formData, job_priority: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.job_priority; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'job_priority')}
                         >
                         <option value="">Kies...</option>
                         <option value="Laag">Laag</option>
@@ -1858,12 +1877,13 @@ function WorkOrderPage() {
                         <option value="Hoog">Hoog</option>
                         <option value="Dringend">Dringend</option>
                       </select>
+                      <GhostSuggestion active={!formData.job_priority && !!jobGhostPrio && !isViewMode} onAccept={() => applyJobSuggestion('job_priority')}>{jobGhostPrio}</GhostSuggestion>
                     </div>
                   </div>
                 </div>
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <div className="mri-fld"><span>Aard *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.nature && jobGhostNature && !isViewMode ? " ghost-active" : ""}`}><span>Aard *</span>
                       <select
                         disabled={isViewMode}
                         ref={el => fieldRefs.current.nature = el}
@@ -1873,6 +1893,7 @@ function WorkOrderPage() {
                           setFormData({...formData, nature: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.nature; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'nature')}
                       >
                         <option value="">Kies...</option>
                         <option value="Elektries">Elektries</option>
@@ -1881,10 +1902,11 @@ function WorkOrderPage() {
                         <option value="Buite">Buite</option>
                         <option value="Algemeen">Algemeen</option>
                       </select>
+                      <GhostSuggestion active={!formData.nature && !!jobGhostNature && !isViewMode} onAccept={() => applyJobSuggestion('nature')}>{jobGhostNature}</GhostSuggestion>
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Werksoort *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.job_type && jobGhostType && !isViewMode ? " ghost-active" : ""}`}><span>Werksoort *</span>
                       <select
                         disabled={isViewMode}
                         ref={el => fieldRefs.current.job_type = el}
@@ -1894,6 +1916,7 @@ function WorkOrderPage() {
                           setFormData({...formData, job_type: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.job_type; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'job_type')}
                       >
                         <option value="">Kies...</option>
                         <option value="Onderhoud">Onderhoud</option>
@@ -1901,6 +1924,7 @@ function WorkOrderPage() {
                         <option value="Inspeksie">Inspeksie</option>
                         <option value="Installasie">Installasie</option>
                       </select>
+                      <GhostSuggestion active={!formData.job_type && !!jobGhostType && !isViewMode} onAccept={() => applyJobSuggestion('job_type')}>{jobGhostType}</GhostSuggestion>
                     </div>
                   </div>
                 </div>
@@ -1938,7 +1962,7 @@ function WorkOrderPage() {
                     else if (levelIndex === 2) setFormData(p => ({...p, room_id: "", asset_id: ""}));
                     else if (levelIndex === 3) setFormData(p => ({...p, asset_id: ""}));
                   };
-                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                  const breadcrumbData = [];
                   if (formData.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id });
                   if (formData.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id });
                   if (formData.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id });
@@ -1965,11 +1989,14 @@ function WorkOrderPage() {
                                 ...breadcrumbBaseStyle,
                                 fontWeight: isLast ? 700 : 600,
                               }}
-                            >{item.name}</button>
+                            >{item.name}{!isViewMode && <span className="breadcrumb-clear">×</span>}</button>
                             {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center", margin: 0 }}>›</span>}
                           </React.Fragment>
                         );
                       })}
+                      {cascadeCount < 4 && ["Kies Terrein","Kies Gebou","Kies Lokaal","Kies Bate"][cascadeCount] && (
+                        <span className="breadcrumb-pending">/{["Kies Terrein","Kies Gebou","Kies Lokaal","Kies Bate"][cascadeCount]}</span>
+                      )}
                     </div>
                   );
                   const backBtnStyle = {
@@ -2002,7 +2029,7 @@ function WorkOrderPage() {
                         className="react-select-container"
                         classNamePrefix="react-select"
                         placeholder={
-                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                          cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
                         }
                         isClearable
                         isDisabled={isViewMode || cascadeCount >= 4}
@@ -2759,7 +2786,7 @@ function WorkOrderPage() {
               loading={aiLoading}
               filled={aiFilled}
               error={aiError}
-              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit' }}
+              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit', nature: 'Aard' }}
               onUse={(key, s) => {
                 if (key === 'job_type') {
                   const af = JOB_TYPE_EN_AF[s.value] || s.value;
@@ -2769,6 +2796,9 @@ function WorkOrderPage() {
                   const af = JOB_PRIO_EN_AF[s.value] || s.value;
                   setFormData(p => ({ ...p, job_priority: af }));
                   setInvalidFields(p => { const n = { ...p }; delete n.job_priority; return n; });
+                } else if (key === 'nature') {
+                  setFormData(p => ({ ...p, nature: String(s.value) }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.nature; return n; });
                 }
               }}
             />

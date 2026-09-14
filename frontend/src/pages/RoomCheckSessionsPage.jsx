@@ -543,7 +543,7 @@ function RoomCheckSessionsPage() {
       else if (levelIndex === 1) { setFormBuildingId(""); setFormRoomId(null); }
       else if (levelIndex === 2) { setFormRoomId(null); }
     };
-    const breadcrumbData = [{ level: -1, name: "Terreine" }];
+    const breadcrumbData = [];
     if (formLocationId) breadcrumbData.push({ level: 0, name: terrains?.find((t) => String(t.location_id) === String(formLocationId))?.location_name || formLocationId });
     if (formBuildingId) breadcrumbData.push({ level: 1, name: buildings?.find((b) => String(b.building_id) === String(formBuildingId))?.building_name || formBuildingId });
     if (formRoomId) breadcrumbData.push({ level: 2, name: rooms?.find((r) => r.room_id === formRoomId)?.room_name || formRoomId });
@@ -567,12 +567,11 @@ function RoomCheckSessionsPage() {
               />
             </div>
             <div className="input-group" style={{ marginBottom: 16, position: "relative" }} ref={formCascade.containerRef}>
-              <label style={{ fontWeight: 600, marginBottom: 4, display: "block" }}>Ligging</label>
-              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+              {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel: clearCascadeFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal"] })}
               <Select
                 className="react-select-container"
                 classNamePrefix="react-select"
-                placeholder={["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
+                placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...", "Kies Gebou...", "Kies Lokaal...", "Ligging voltooi"][cascadeCount]}
                 isClearable
                 isDisabled={cascadeCount >= 3}
                 closeMenuOnSelect={false}
