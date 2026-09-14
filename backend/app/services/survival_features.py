@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..models.asset import Asset, Assettype
 from ..models.enums import JobStatus, Priority
@@ -20,6 +20,11 @@ from ..models.fault import Faultcard
 from ..models.job import Jobcard
 
 logger = logging.getLogger(__name__)
+
+#: job_type is free-text in the DB ('MAINTENANCE', 'maintenance', 'Onderhoud')
+#: — match case-insensitively oor albei tale, anders vind die soektog niks en
+#: lyk elke bate onderhoud-agterstallig.
+_MAINTENANCE_JOB_TYPES = ("maintenance", "onderhoud")
 
 #: Column order — never change: the forest is trained and scored on this layout.
 FEATURE_NAMES = [
@@ -43,7 +48,7 @@ def _completed_maintenance_jobs(session: Session, asset_id: int) -> list[Jobcard
     return session.exec(
         select(Jobcard)
         .where(Jobcard.asset_id == asset_id)
-        .where(Jobcard.job_type == "maintenance")
+        .where(func.lower(Jobcard.job_type).in_(_MAINTENANCE_JOB_TYPES))
         .where(Jobcard.job_status == JobStatus.COMPLETED)
         .order_by(Jobcard.job_finisheddatetime.desc(), Jobcard.job_createddatetime.desc())
     ).all()

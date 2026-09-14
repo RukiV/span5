@@ -13,6 +13,10 @@ from .survival_features import extract_asset_features
 
 logger = logging.getLogger(__name__)
 
+#: job_type is free-text in the DB ('MAINTENANCE', 'maintenance', 'Onderhoud');
+#: die reëls-baan moet dieselfde spelling-variasies hanteer as die ML-baan.
+_MAINTENANCE_JOB_TYPES = ("maintenance", "onderhoud")
+
 # In-memory cache for predictions with TTL
 _PREDICTIONS_CACHE = None
 _PREDICTIONS_CACHE_TIME = 0
@@ -87,8 +91,11 @@ class PredictionService:
             next_maintenance_date = _add_months(last_maintenance_date, service_interval_months)
             maintenance_overdue = next_maintenance_date < now
         elif service_interval_months and asset.asset_created_datetime:
+            # Geen voltooide diensbeurt op rekord nie: wees sag — eers by 2×
+            # interval as agterstallig, sodat ou-but-gesonde bates sonder
+            # diensrekord nie dadelik rooi loop nie.
             next_maintenance_date = _add_months(asset.asset_created_datetime, service_interval_months)
-            maintenance_overdue = next_maintenance_date < now
+            maintenance_overdue = _add_months(asset.asset_created_datetime, service_interval_months * 2) < now
 
         creation_date = asset.asset_created_datetime
         lifespan_end_date = None
@@ -179,7 +186,7 @@ class PredictionService:
         job = session.exec(
             select(Jobcard)
             .where(Jobcard.asset_id == asset_id)
-            .where(Jobcard.job_type == "maintenance")
+            .where(func.lower(Jobcard.job_type).in_(_MAINTENANCE_JOB_TYPES))
             .where(Jobcard.job_status == JobStatus.COMPLETED)
             .order_by(Jobcard.job_finisheddatetime.desc())
         ).first()
