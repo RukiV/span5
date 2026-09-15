@@ -1233,6 +1233,30 @@ suburb="Villieria",
                     building_id=building_f,
                 )
 
+        # Sonder hierdie lyk ALLES hoë risiko: die model leer "eerste foute
+        # gebeur gedurig op elke ouderdom" en gee ~50% faalkans aan almal.
+        for ci in range(60):
+            h_name, h_brand, h_type, h_prefix, h_max_age = _fleet_kinds[ci % len(_fleet_kinds)]
+            h_room = [room6, room7, room8, room9, room10, room11, room12,
+                      room15, room16, room17, room18, room19, room20, room21, room22][(ci * 7) % 15]
+            h_asset = _get_or_create_asset(
+                session, h_name, h_brand, f"{h_prefix}-H{200 + ci}",
+                AssetStatus.ACTIVE, False, h_room.room_id, h_type.assettype_id,
+                now - timedelta(days=100 + (ci * 37) % 700),
+            )
+            h_room_obj = session.get(Room, h_room.room_id)
+            _get_or_create_job(
+                session,
+                desc=f"{h_name}: instellings- en diensbeurt",
+                status=JobStatus.COMPLETED,
+                job_type="MAINTENANCE",
+                created_dt=now - timedelta(days=20 + (ci * 13) % 160),
+                finished_dt=now - timedelta(days=15 + (ci * 13) % 160),
+                asset_id=h_asset.asset_id,
+                room_id=h_room.room_id,
+                building_id=h_room_obj.building_id if h_room_obj else None,
+            )
+
         # ── Probleemkinders: die werklike vervangings-kandidate ────────────
         _problem_specs = [
             # (naam, merk, tipe, reeks, kamer, ouderdom, rede)
