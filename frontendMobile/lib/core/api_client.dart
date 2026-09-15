@@ -65,14 +65,16 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          debugPrint("API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
+          debugPrint(
+              "API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
 
           if (e.response?.statusCode == 401) {
             // Stawingsbande is nie sessie-uitgewys nie: 'n mislukte aanmelding
             // of 'n mislukte verversing moet nie dieselfde
             // "sessie skoongemaak en na /" afhandeling kry as 'n vervalle sessie nie.
             final path = e.requestOptions.path;
-            if (path.endsWith('/auth/login') || path.endsWith('/auth/refresh')) {
+            if (path.endsWith('/auth/login') ||
+                path.endsWith('/auth/refresh')) {
               return handler.next(e);
             }
 
@@ -88,7 +90,8 @@ class ApiClient {
             if (e.requestOptions.extra[_retriedOnceKey] == true) {
               await clearToken();
               UserSession.clear();
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+              navigatorKey.currentState
+                  ?.pushNamedAndRemoveUntil('/', (route) => false);
               return handler.next(e);
             }
 
@@ -99,12 +102,14 @@ class ApiClient {
                 final response = await _retry(e.requestOptions);
                 return handler.resolve(response);
               } catch (retryError) {
-                return handler.next(retryError is DioException ? retryError : e);
+                return handler
+                    .next(retryError is DioException ? retryError : e);
               }
             } else {
               await clearToken();
               UserSession.clear();
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+              navigatorKey.currentState
+                  ?.pushNamedAndRemoveUntil('/', (route) => false);
             }
           }
           return handler.next(e);
@@ -200,9 +205,8 @@ class ApiClient {
   Future<void> setBaseUrl(String url) async {
     final normalized = url.trim().replaceAll(RegExp(r'/+$'), '');
     if (normalized.isEmpty) return;
-    _dio.options.baseUrl = normalized.endsWith(apiPath)
-        ? normalized
-        : '$normalized$apiPath';
+    _dio.options.baseUrl =
+        normalized.endsWith(apiPath) ? normalized : '$normalized$apiPath';
     await _storage.write(key: 'server_url', value: _dio.options.baseUrl);
   }
 
