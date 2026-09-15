@@ -143,22 +143,24 @@ function RightsPage({ embedded = false }) {
         </>
       ) : (
         <div>
-          <div className="form-group">
-            <label>Regnaam *</label>
-            <input
-              type="text"
-              value={rightForm.name}
-              onChange={(e) => setRightForm(f => ({ ...f, name: e.target.value }))}
-              placeholder="bv. reports.export"
-            />
-          </div>
-          <div className="form-group">
-            <label>Beskrywing</label>
-            <input
-              type="text"
-              value={rightForm.description}
-              onChange={(e) => setRightForm(f => ({ ...f, description: e.target.value }))}
-            />
+          <div className="input-row">
+            <div className="input-group">
+              <label>Regnaam *</label>
+              <input
+                type="text"
+                value={rightForm.name}
+                onChange={(e) => setRightForm(f => ({ ...f, name: e.target.value }))}
+                placeholder="bv. reports.export"
+              />
+            </div>
+            <div className="input-group">
+              <label>Beskrywing</label>
+              <input
+                type="text"
+                value={rightForm.description}
+                onChange={(e) => setRightForm(f => ({ ...f, description: e.target.value }))}
+              />
+            </div>
           </div>
           <div className="modal-footer">
             <button className="btn-cancel" onClick={backToList}>Terug</button>

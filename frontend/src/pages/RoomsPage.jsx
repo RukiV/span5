@@ -834,7 +834,7 @@ function RoomsPage({ embedded = false }) {
                         backgroundColor: check.check_status === "Voltooi" ? "#dcfce7" : "#fef2f2",
                         color: check.check_status === "Voltooi" ? "#16a34a" : "#dc2626",
                       }}>
-                        {check.check_status || "Onvoltooi"}
+                        {check.check_status || "Voltooi"}
                       </span>
                     </summary>
                     <div style={{ marginTop: "8px", fontSize: "13px", display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -843,17 +843,23 @@ function RoomsPage({ embedded = false }) {
                       <span style={{ color: "#dc2626", fontWeight: 600 }}>Vermis: {missing}</span>
                     </div>
                     <ul style={{ marginTop: "8px", paddingLeft: "16px", fontSize: "12px" }}>
-                      {summary.map((item, i) => (
-                        <li key={i} style={{ marginBottom: "4px" }}>
-                          Bate #{item.asset_id} — {
-                            item.status === 'confirmed' ? 'Bevestig'
-                            : item.status === 'missing' ? 'Vermis'
-                            : item.status === 'fault_reported' ? 'Fout aangemeld'
-                            : 'Hangend'
-                          }
-                          {item.fault_id ? ` (FK#${item.fault_id})` : ''}
-                        </li>
-                      ))}
+                      {summary.map((item, i) => {
+                        const asset = assets.find((a) => String(a.asset_id) === String(item.asset_id));
+                        const name = item.asset_name || asset?.asset_name;
+                        const serial = item.asset_serial || asset?.asset_serial;
+                        return (
+                          <li key={i} style={{ marginBottom: "4px", color: item.status === 'missing' ? "#dc2626" : item.status === 'fault_reported' ? "#d97706" : "#16a34a" }}>
+                            {name ? <strong>{name}</strong> : `Bate #${item.asset_id}`}
+                            {serial ? ` (${serial})` : ''} — {
+                              item.status === 'confirmed' ? 'Bevestig'
+                              : item.status === 'missing' ? 'Vermis'
+                              : item.status === 'fault_reported' ? 'Fout aangemeld'
+                              : 'Hangend'
+                            }
+                            {item.fault_id ? ` (FK#${item.fault_id})` : ''}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 );

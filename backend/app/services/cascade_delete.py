@@ -188,6 +188,8 @@ def _delete_single_building(session: Session, building_id: int) -> None:
     building = session.get(Building, building_id)
     if building is None:
         return
+    for row in session.exec(select(BuildingTypeLink).where(BuildingTypeLink.building_id == building_id)).all():
+        session.delete(row)
     for room in session.exec(select(Room).where(Room.building_id == building_id)).all():
         _delete_single_room(session, room.room_id)
     for fault in session.exec(select(Faultcard).where(Faultcard.building_id == building_id)).all():
