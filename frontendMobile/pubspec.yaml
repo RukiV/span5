@@ -1,4 +1,4 @@
-name: fbs
+  name: fbs
 description: "FBS"
 publish_to: 'none'
 
@@ -20,6 +20,7 @@ dependencies:
   google_maps_flutter: ^2.17.0
   dio: ^5.7.0
   flutter_dotenv: ^5.1.0
+  shared_preferences: ^2.2.0
   table_calendar: ^3.1.2
   intl: ^0.19.0
 
@@ -38,6 +39,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   http_mock_adapter: ^0.6.1
+  flutter_secure_storage_platform_interface: ^1.1.2
+  http_mock_adapter: ^0.6.1
+
 flutter:
   uses-material-design: true
 
@@ -46,4 +50,5 @@ flutter:
 
   assets:
     - .env
+    - assets/images/
     - assets/images/

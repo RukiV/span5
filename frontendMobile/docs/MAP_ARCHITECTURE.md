@@ -29,6 +29,8 @@ frontendMobile/lib/
 │   │   ├── edit_report_page.dart       # Wysig verslag (kan ligging kies)
 │   │   └── report_detail_page.dart     # Verslagbesonderhede (lees-only kaart)
 │   └── campus/
+│       ├── add_campus_page.dart        # Voeg terrein by (gebruik select_location_page)
+│       ├── edit_campus_page.dart       # Wysig terrein (gebruik select_location_page)
 │       └── campus_form_page.dart        # Voeg/wysig terrein (gebruik select_location_page)
 ├── models/
 │   └── campus.dart                     # Campus model met LatLng + radius
@@ -460,7 +462,7 @@ manifestPlaceholders["googleMapsApiKey"] =
 │         │ Koördinate + foto        │ LatLng               │
 │         ▼                         ▼                      │
 │  ┌──────────────────────────────────────────────┐        │
-│  │            new_report_page / campus_form_page │        │
+│  │new_report_page / add_campus / campus_form_page│        │
 │  │              (Stoor by backend)                │        │
 │  └──────────────────────┬───────────────────────┘        │
 │                          │                               │

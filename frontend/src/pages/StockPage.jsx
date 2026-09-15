@@ -6,8 +6,11 @@ import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascade
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -16,6 +19,7 @@ import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/Asset.css";
 import "../styles/App.css";
@@ -36,9 +40,9 @@ function StockPage({ embedded = false }) {
   const [buildings, setBuildings] = useState([]); // Bygevoeg
   const [terrains, setTerrains] = useState([]); // Bygevoeg
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "stock-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
   const STOCK_COLUMNS = [
     { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: false },
@@ -53,6 +57,10 @@ function StockPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('stock-page', STOCK_COLUMNS);
   const colWidths = useColumnWidths('stock-page', STOCK_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: STOCK_COLUMNS,
+    storageKey: 'stock-page',
+  });
   const colPickerRef = useRef(null);
 
   const [stockImages, setStockImages] = useState([]);
@@ -61,11 +69,10 @@ function StockPage({ embedded = false }) {
   const [imagesToDelete, setImagesToDelete] = useState([]);
   const [activeImageViewer, setActiveImageViewer] = useState(null);
   const MAX_STOCK_IMAGES = 1;
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
-  const filterCascade = useCascadeMenu();
   const modalCascadeMenu = useCascadeMenu();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -88,7 +95,7 @@ function StockPage({ embedded = false }) {
     building_id: ""  // Bygevoeg vir cascading logika
   });
 
-  // AI-veldvoorstel: stock_type uit soortgelyke voorraadname.
+  // AI-veldvoorstel: stock_type (+ handelsmerk) uit soortgelyke voorraadname.
   const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
     context: 'stock',
     values: {
@@ -100,6 +107,19 @@ function StockPage({ embedded = false }) {
       stock_type: newStock.stock_type,
     },
   });
+  const stockGhostType = aiSuggestions?.stock_type?.value || null;
+  const stockGhostBrand = aiSuggestions?.stock_brand?.value || null;
+  const applyStockGhost = (key) => {
+    if (key === 'stock_type' && stockGhostType) setNewStock(p => ({ ...p, stock_type: String(stockGhostType) }));
+    else if (key === 'stock_brand' && stockGhostBrand) setNewStock(p => ({ ...p, stock_brand: String(stockGhostBrand) }));
+  };
+  const handleStockGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'stock_type' ? stockGhostType : stockGhostBrand;
+      const empty = key === 'stock_type' ? !newStock.stock_type : !newStock.stock_brand;
+      if (ghost && empty) applyStockGhost(key);
+    }
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -111,10 +131,18 @@ function StockPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   const fetchStock = async () => {
     try {
@@ -384,7 +412,7 @@ function StockPage({ embedded = false }) {
     return room ? room.room_name : `Room ${item.room_id}`;
   };
 
-  const filteredStock = [...stock]
+  const filteredStock = applySort([...stock]
     .filter((item) => {
       if (terrainFilter) {
         const locId = getStockLocationId(item);
@@ -414,23 +442,24 @@ function StockPage({ embedded = false }) {
         return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
       }
       return String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * dir;
-      if (sortKey === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'brand') return String(a.stock_brand || '').localeCompare(String(b.stock_brand || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(a.stock_type || '').localeCompare(String(b.stock_type || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * dir;
-      if (sortKey === 'minimum') return (Number(a.stock_minimum || 0) - Number(b.stock_minimum || 0)) * dir;
-      if (sortKey === 'boxTotal') return (Number(a.stock_boxTotal || 0) - Number(b.stock_boxTotal || 0)) * dir;
-      if (sortKey === 'room') return String(getRoomName(a) || '').localeCompare(String(getRoomName(b) || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
-      return 0;
-    });
+    }),
+    (item, key) => {
+      switch (key) {
+        case 'id': return Number(item.stock_id || 0);
+        case 'name': return String(item.stock_name || '');
+        case 'brand': return String(item.stock_brand || '');
+        case 'type': return String(item.stock_type || '');
+        case 'amount': return Number(item.stock_amount || 0);
+        case 'minimum': return Number(item.stock_minimum || 0);
+        case 'boxTotal': return Number(item.stock_boxTotal || 0);
+        case 'room': return String(getRoomName(item) || '');
+        case 'description': return String(item.stock_desc || '');
+        default: return '';
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedStock, goToPage } = usePagination(filteredStock, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
 const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => selectedIds.includes(x.stock_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -458,23 +487,12 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={[
-              { value: "all", label: "Alle kolomme" },
-              { value: "id", label: "ID" },
-              { value: "name", label: "Naam" },
-              { value: "brand", label: "Handelsmerk" },
-              { value: "type", label: "Tipe" },
-              { value: "amount", label: "Hoeveelheid" },
-              { value: "minimum", label: "Minimum" },
-              { value: "boxTotal", label: "Boks Totaal" },
-              { value: "room", label: "Lokaal" },
-              { value: "description", label: "Beskrywing" },
-            ].find((option) => option.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected?.value || "all")}
-            options={[
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={[
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
@@ -486,72 +504,41 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               { value: "room", label: "Lokaal" },
               { value: "description", label: "Beskrywing" },
             ]}
-            isSearchable={false}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
+            }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            return (
-              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                </div>
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    closeMenuOnSelect={false}
-                    menuIsOpen={filterCascade.menuIsOpen}
-                    onMenuOpen={filterCascade.onMenuOpen}
-                    onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    styles={{
-                      container: (base) => ({ ...base, minWidth: '260px' }),
-                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                    }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 3)
-                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={STOCK_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={STOCK_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('stock.manage') && (
@@ -564,14 +551,6 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={STOCK_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -600,11 +579,9 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '190px' }}>Aksies</th>
@@ -680,29 +657,37 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
               onChange={(e) => { setNewStock({ ...newStock, stock_name: e.target.value }); if (invalidFields.stock_name) setInvalidFields(prev => { const n = {...prev}; delete n.stock_name; return n; }); }}
             />
           </div>
-          <div className="input-group">
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
             <label>Handelsmerk</label>
-            <input
-              type="text"
-              value={newStock.stock_brand}
-              ref={el => fieldRefs.current.stock_brand = el}
-              disabled={isViewMode}
-              className={invalidFields.stock_brand ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_brand}
+                ref={el => fieldRefs.current.stock_brand = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_brand ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_brand')}
+              />
+              <GhostSuggestion active={!newStock.stock_brand && !!stockGhostBrand && !isViewMode} onAccept={() => applyStockGhost('stock_brand')}>{stockGhostBrand}</GhostSuggestion>
+            </div>
           </div>
         </div>
         <div className="input-row">
-          <div className="input-group">
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
             <label>Tipe *</label>
-            <input
-              type="text"
-              value={newStock.stock_type}
-              ref={el => fieldRefs.current.stock_type = el}
-              disabled={isViewMode}
-              className={invalidFields.stock_type ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_type}
+                ref={el => fieldRefs.current.stock_type = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_type ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_type')}
+              />
+              <GhostSuggestion active={!newStock.stock_type && !!stockGhostType && !isViewMode} onAccept={() => applyStockGhost('stock_type')}>{stockGhostType}</GhostSuggestion>
+            </div>
           </div>
           <div className="input-group">
             <label>Hoeveelheid</label>
@@ -741,7 +726,6 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newStock.location_id, newStock.building_id, newStock.room_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -754,17 +738,17 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                 else if (levelIndex === 1) setNewStock(p => ({...p, building_id: "", room_id: ""}));
                 else if (levelIndex === 2) setNewStock(p => ({...p, room_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newStock.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id });
               if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal"] })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={isViewMode || cascadeCount >= 3}
                       closeMenuOnSelect={false}
@@ -869,9 +853,10 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
           loading={aiLoading}
           filled={aiFilled}
           error={aiError}
-          labels={{ stock_type: 'Tipe' }}
+          labels={{ stock_type: 'Tipe', stock_brand: 'Handelsmerk' }}
           onUse={(key, s) => {
             if (key === 'stock_type') setNewStock(p => ({ ...p, stock_type: String(s.value) }));
+            else if (key === 'stock_brand') setNewStock(p => ({ ...p, stock_brand: String(s.value) }));
           }}
         />
       </div>
@@ -913,90 +898,53 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select
-                className="react-select-container"
-                classNamePrefix="react-select"
-                value={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
-                  { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
-                  { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
-                  { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
-                ].find((option) => option.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected?.value || "all")}
-                options={[
+              <FilterPicker
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                filterColumn={filterColumn}
+                onFilterColumnChange={setFilterColumn}
+                filterColumnOptions={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
                   { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
                 ]}
-                  isSearchable={false}
+                terrainFilter={terrainFilter}
+                buildingFilter={buildingFilter}
+                roomFilter={roomFilter}
+                onLocationChange={(loc, bld, room) => {
+                  setTerrainFilter(loc || "");
+                  setBuildingFilter(bld || "");
+                  setRoomFilter(room || "");
+                }}
+                locationOptions={allLocationOptions}
+                maxLevel={3}
+                lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+                onReset={() => {
+                  setSearchTerm("");
+                  setTerrainFilter("");
+                  setBuildingFilter("");
+                  setRoomFilter("");
+                }}
               />
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                return (
-                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                    <div className="control-cascade-breadcrumb">
-                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                    </div>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      closeMenuOnSelect={false}
-                      menuIsOpen={filterCascade.menuIsOpen}
-                      onMenuOpen={filterCascade.onMenuOpen}
-                      onMenuClose={filterCascade.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                      styles={{
-                        container: (base) => ({ ...base, minWidth: '260px' }),
-                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                      }}
-                      options={allLocationOptions}
-                      filterOption={(option, rawInput) => {
-                        if (rawInput) {
-                          if (cascadeCount === 0)
-                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 1)
-                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 2)
-                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 3)
-                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        }
-                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                        return false;
-                      }}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                        const f = selectedOption._fields;
-                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                      }}
-                    />
-                  </div>
-                );
-              })()}
+            <SortPicker
+                columns={STOCK_COLUMNS}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
+              />
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={STOCK_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
             </div>
             <div className="controls-right">
               {hasRight('stock.manage') && (
@@ -1009,14 +957,6 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              <ColumnPicker
-                ref={colPickerRef}
-                columns={STOCK_COLUMNS}
-                visibleColumns={colVis.visibleColumns}
-                toggleColumn={colVis.toggleColumn}
-                resetVisibility={colVis.resetVisibility}
-                onResetWidths={colWidths.resetWidths}
-              />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
             {selectedIds.length > 0 && (
               <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -1045,11 +985,9 @@ const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => sel
                     key={col.key}
                     col={col}
                     colWidths={colWidths}
-                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                    onClick={() => col.sortKey && handleSort(col.sortKey)}
                     onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                   >
-                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                    {col.label}
                   </ResizableTh>
                 ))}
                 <th style={{ width: '190px' }}>Aksies</th>

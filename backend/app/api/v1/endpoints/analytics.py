@@ -13,10 +13,11 @@ router = APIRouter()
 
 @router.get("/analytics/dashboard-summary")
 def get_dashboard_summary_endpoint(
+    include_ai_charts: bool = False,
     session: Session = Depends(getSession),
     user: User = Depends(require_right("analytics.view")),
 ):
-    return get_dashboard_summary(session, user)
+    return get_dashboard_summary(session, user, include_ai_charts=include_ai_charts)
 
 
 @router.get("/analytics/ai-charts")

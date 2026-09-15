@@ -29,6 +29,7 @@
   border-top: 5px solid var(--bruin);
   width: 100%;
   max-width: 380px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
 .login-page .login-logo {

@@ -23,6 +23,7 @@ import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -91,6 +92,7 @@ function PredictionsPage() {
   const [summary, setSummary] = useState(null);
   const [allJobs, setAllJobs] = useState([]);
   const [allFaults, setAllFaults] = useState([]);
+  const [insightData, setInsightData] = useState(null);
   const [executing, setExecuting] = useState({});
   const { rights } = useCurrentUser();
   const { showToast } = useToast();
@@ -99,7 +101,6 @@ function PredictionsPage() {
 
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
   const filterCascade = useCascadeMenu();
-const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
 const getAssetName = (p) => p.asset_name || '-';
 const getAssetSerial = (p) => p.asset_serial || '-';
@@ -116,6 +117,10 @@ const PREDICTION_COLUMNS = [
   { key: 'ml_prob', label: 'Faalkans 12md', render: (p) => (p.survival_model_available && p.survival_failure_prob_12mo != null ? `${Math.round(p.survival_failure_prob_12mo * 100)}%` : '—'), sortKey: null, defaultVisible: false },
   { key: 'details', label: 'Besonderhede', render: (p) => null, sortKey: null, defaultVisible: true },
 ];
+const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+  columns: PREDICTION_COLUMNS.filter((c) => c.sortKey),
+  storageKey: 'predictions-page',
+});
 const colVis = useColumnVisibility('predictions-page', PREDICTION_COLUMNS);
 const colWidths = useColumnWidths('predictions-page', PREDICTION_COLUMNS);
 const colPickerRef = useRef(null);
@@ -127,17 +132,18 @@ const colPickerRef = useRef(null);
         await authAPI.me();
         // Cache predictions for 10 minutes to avoid repeated backend scans
         const predRes = await cachedFetch('predictions-all', () => apiClient.get('/predictions'));
-        const [assetsRes, terrainsRes, buildingsRes, roomsRes, summaryRes, jobsRes, faultsRes] = await Promise.all([
+        const [assetsRes, terrainsRes, buildingsRes, roomsRes, summaryRes, jobsRes, faultsRes, insightsRes] = await Promise.all([
           assetsAPI.getAll(),
           locationAPI.getAll(),
           buildingsAPI.getAll(),
           roomsAPI.getAll(),
-          Promise.resolve(apiClient.get('/analytics/dashboard-summary')).catch((e) => {
+          Promise.resolve(apiClient.get('/analytics/dashboard-summary?include_ai_charts=true')).catch((e) => {
             console.warn('dashboard-summary failed, using fallback', e?.response?.status);
             return null;
           }),
           Promise.resolve(workOrdersAPI.getAll()).catch(() => ({ data: [] })),
           Promise.resolve(ticketsAPI.getAll()).catch(() => ({ data: [] })),
+          Promise.resolve(analyticsAPI.getInsights('predictions')).catch(() => ({ data: null })),
         ]);
         if (!mounted) return;
         setPredictions(predRes.data || []);
@@ -160,6 +166,7 @@ const colPickerRef = useRef(null);
         }
         setAllJobs(Array.isArray(jobsRes?.data) ? jobsRes.data : []);
         setAllFaults(Array.isArray(faultsRes?.data) ? faultsRes.data : []);
+        setInsightData(insightsRes?.data || null);
       } catch (err) {
         if (!mounted) return;
         setError('Kon voorspellingsdata nie laai nie.');
@@ -240,7 +247,8 @@ const colPickerRef = useRef(null);
     return asset ? asset.room_id : null;
   };
 
-  const filteredPredictions = predictions.filter(p => {
+  const filteredPredictions = applySort(
+  predictions.filter(p => {
     if (terrainFilter) {
       const locId = getPredictionLocationId(p);
       if (String(locId) !== terrainFilter) return false;
@@ -254,28 +262,19 @@ const colPickerRef = useRef(null);
       if (String(rmId) !== roomFilter) return false;
     }
     return true;
-  })
-  .sort((a, b) => {
-    if (!sortKey) return 0;
-    const dir = sortDirection === 'asc' ? 1 : -1;
-    if (sortKey === 'asset_name') return String(a.asset_name || '').localeCompare(String(b.asset_name || ''), 'af', { sensitivity: 'base' }) * dir;
-    if (sortKey === 'serial') return String(a.asset_serial || '').localeCompare(String(b.asset_serial || ''), 'af', { sensitivity: 'base' }) * dir;
-    if (sortKey === 'type') return String(a.assettype_name || '').localeCompare(String(b.assettype_name || ''), 'af', { sensitivity: 'base' }) * dir;
-    if (sortKey === 'maintenance') {
-      const aVal = a.maintenance_overdue ? 1 : 0;
-      const bVal = b.maintenance_overdue ? 1 : 0;
-      return (aVal - bVal) * dir;
+  }), (p, key) => {
+    switch (key) {
+      case 'asset_name': return String(p.asset_name || '');
+      case 'serial': return String(p.asset_serial || '');
+      case 'type': return String(p.assettype_name || '');
+      case 'maintenance': return p.maintenance_overdue ? 1 : 0;
+      case 'lifespan': return Number(p.lifespan_pct_used || 0);
+      case 'replacement': return p.replacement_suggested ? 1 : 0;
+      default: return '';
     }
-    if (sortKey === 'lifespan') return (Number(a.lifespan_pct_used || 0) - Number(b.lifespan_pct_used || 0)) * dir;
-    if (sortKey === 'replacement') {
-      const aVal = a.replacement_suggested ? 1 : 0;
-      const bVal = b.replacement_suggested ? 1 : 0;
-      return (aVal - bVal) * dir;
-    }
-    return 0;
   });
   const { currentPage, totalPages, paginatedData: paginatedPredictions, goToPage } = usePagination(filteredPredictions, 100);
-  useEffect(() => { goToPage(1); }, [terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
 
   const needsAttention = filteredPredictions.filter(
     (p) => p.maintenance_overdue || p.lifespan_exceeded || p.replacement_suggested
@@ -496,7 +495,7 @@ const colPickerRef = useRef(null);
                   else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
                   else if (levelIndex === 2) { setRoomFilter(''); }
                 };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                const breadcrumbData = [];
                 if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
                 if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
                 if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
@@ -512,6 +511,9 @@ const colPickerRef = useRef(null);
                         </React.Fragment>
                       );
                     })}
+                    {cascadeCount < 3 && ["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount] && (
+                      <span className="breadcrumb-pending">/{["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount]}</span>
+                    )}
                   </div>
                 );
                 const CascadeControl = ({ children, ...props }) => (
@@ -532,7 +534,7 @@ const colPickerRef = useRef(null);
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
                       isClearable
                       isDisabled={cascadeCount >= 3}
                       closeMenuOnSelect={false}
@@ -567,8 +569,15 @@ const colPickerRef = useRef(null);
                   </div>
                 );
               })()}
-            </div>
-            <div className="controls-right">
+            <SortPicker
+                columns={PREDICTION_COLUMNS.filter((c) => c.sortKey)}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
+              />
               <ColumnPicker
                 ref={colPickerRef}
                 columns={PREDICTION_COLUMNS}
@@ -604,6 +613,18 @@ const colPickerRef = useRef(null);
             </div>
           </div>
 
+          {insightData && (insightData.summary || (insightData.insights && insightData.insights.length > 0)) && (
+            <div className="pred-insights">
+              <div className="pred-insights-header">ML-Analise</div>
+              {insightData.summary && <div className="pred-insights-summary">{insightData.summary}</div>}
+              {insightData.insights && insightData.insights.length > 0 && (
+                <ul className="pred-insights-list">
+                  {insightData.insights.map((ins, i) => <li key={i}>{ins}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+
           <div className="predictions-table-wrapper">
             <table className="standard-table">
               <thead>
@@ -613,11 +634,9 @@ const colPickerRef = useRef(null);
                       key={col.key}
                       col={col}
                       colWidths={colWidths}
-                      className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                      onClick={() => col.sortKey && handleSort(col.sortKey)}
                       onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                     >
-                      {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                      {col.label}
                     </ResizableTh>
                   ))}
                 </tr>

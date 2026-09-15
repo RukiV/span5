@@ -22,3 +22,4 @@ class StockService {
 
   static Future<bool> deleteStock(int id) => _crud.delete(id);
 }
+}

@@ -5,11 +5,6 @@ risk / 12-month failure-probability predictions. The module degrades
 gracefully: if scikit-survival is unavailable — or the data is too sparse — the
 app keeps serving the rules-only predictions from ``prediction_service`` and
 every survival field stays at its None/False default.
-
-The fitted forest is read-only after ``fit``, so concurrent ``predict`` calls
-are thread-safe — which is what the background retrain loop relies on when it
-runs training via ``asyncio.to_thread`` while request handlers predict at the
-same time.
 """
 
 import asyncio
@@ -30,21 +25,14 @@ from .survival_features import FEATURE_NAMES, build_training_set
 
 logger = logging.getLogger(__name__)
 
-# scikit-survival is optional: without it the app boots and serves rules-only.
-# Any import failure (missing wheel, native-lib clash) must not crash startup.
 try:
     from sksurv.ensemble import RandomSurvivalForest
 
     _SK_SURV_OK = True
-except Exception:  # pragma: no cover — only exercised when sksurv is absent
+except Exception:  # pragma: no cover
     RandomSurvivalForest = None
     _SK_SURV_OK = False
 
-# ---------------------------------------------------------------------------
-# Module state & paths
-# ---------------------------------------------------------------------------
-
-#: backend/data/ — model + companion signature persist across restarts.
 MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "data"
 MODEL_PATH = MODEL_DIR / "survival_model.joblib"
 SIGNATURE_PATH = MODEL_DIR / "survival_signature.json"
@@ -54,7 +42,6 @@ try:
 except Exception:
     logger.exception("Survival-modelgids kan nie geskep word nie: %s", MODEL_DIR)
 
-#: Master switch: set AI_SURVIVAL_ENABLED=false|0|no to run rules-only.
 _enabled = os.getenv("AI_SURVIVAL_ENABLED", "true").lower() not in ("false", "0", "no")
 _retrain_interval = int(os.getenv("SURVIVAL_RETRAIN_INTERVAL", "900"))
 
@@ -65,18 +52,10 @@ _model_assets = 0
 _model_trained_at: datetime | None = None
 _trained_signature: dict | None = None
 
-#: Minimums before the model may be trained (guards against noise fits).
-#: Env-overridable so dev can lower them to demo on small datasets.
 _min_assets = int(os.getenv("AI_SURVIVAL_MIN_ASSETS", "50"))
-_min_events = int(os.getenv("AI_SURVIVAL_MIN_EVENTS", str(10 * len(FEATURE_NAMES))))  # 8 features -> 80 events
-#: 12-maand-faalkans waarbo 'n bate as hoë risiko gemerk word. 0.5 was te
-#: gul op 'n event-ryke opleidingsstel — konfigureerbaar gemaak.
+_min_events = int(os.getenv("AI_SURVIVAL_MIN_EVENTS", str(10 * len(FEATURE_NAMES))))
 _high_risk_threshold = float(os.getenv("AI_SURVIVAL_HIGH_RISK", "0.65"))
 
-
-# ---------------------------------------------------------------------------
-# Public status helpers
-# ---------------------------------------------------------------------------
 
 def is_enabled() -> bool:
     """Whether the survival layer is switched on at all."""
@@ -84,8 +63,7 @@ def is_enabled() -> bool:
 
 
 def set_enabled(value: bool) -> None:
-    """Runtime toggle (admin-knoppie). Oorheers die AI_SURVIVAL_ENABLED-env
-    vir hierdie proses; nuwe prosesse lees weer die env."""
+    """Runtime toggle for the admin model switch."""
     global _enabled
     _enabled = bool(value)
 
@@ -109,14 +87,9 @@ def get_status() -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Training
-# ---------------------------------------------------------------------------
-
 def force_retrain(engine) -> dict:
-    """Forceer 'n her-opleiding, selfs as die data-handtekening onveranderd is
-    (bv. ná 'n kenmerk-logika-regstelling). Gee die nuwe status terug."""
-    global _trained_signature, _model_available
+    """Force retraining even if the data signature is unchanged."""
+    global _trained_signature
     _trained_signature = None
     _clear_model_state()
     maybe_train(engine)
@@ -124,12 +97,7 @@ def force_retrain(engine) -> dict:
 
 
 def _compute_data_signature(engine) -> dict:
-    """Coarse fingerprint of the training data: asset count + latest fault/job.
-
-    Two aggregate values plus the row count are enough to detect "data changed
-    since the last fit"; MAX timestamps catch new faults/jobs while COUNT
-    catches new assets. Stored as a JSON next to the model.
-    """
+    """Coarse fingerprint of the training data: asset count + latest fault/job."""
     with Session(engine) as session:
         assets = session.exec(select(func.count(Asset.asset_id))).one()
         fault_max = session.exec(
@@ -138,11 +106,7 @@ def _compute_data_signature(engine) -> dict:
         job_max = session.exec(
             select(func.coalesce(func.max(Jobcard.job_finisheddatetime), datetime.min))
         ).one()
-    return {
-        "assets": int(assets),
-        "fault_max": str(fault_max),
-        "job_max": str(job_max),
-    }
+    return {"assets": int(assets), "fault_max": str(fault_max), "job_max": str(job_max)}
 
 
 def _write_signature(signature: dict) -> None:
@@ -164,13 +128,7 @@ def _clear_model_state() -> None:
 
 
 def load_model(engine=None) -> bool:
-    """Load a previously trained model from disk if it is still fresh.
-
-    A model file is only usable when its companion signature matches the
-    current DB signature (data unchanged since training); a stale file is
-    ignored and the module stays rules-only until ``maybe_train`` refits.
-    Returns True when a usable model is now in memory (or was already).
-    """
+    """Load a previously trained model from disk if it is still fresh."""
     global _model, _model_available, _model_events, _model_assets, _model_trained_at, _trained_signature
 
     if _model_available and _model is not None:
@@ -180,7 +138,6 @@ def load_model(engine=None) -> bool:
             engine = database_engine
         if _trained_signature == _compute_data_signature(engine):
             return True
-        # stale in-memory model: report False so maybe_train refits
         return False
     if not _SK_SURV_OK:
         return False
@@ -193,7 +150,7 @@ def load_model(engine=None) -> bool:
             engine = database_engine
         saved = json.loads(SIGNATURE_PATH.read_text(encoding="utf-8"))
         if saved != _compute_data_signature(engine):
-            return False  # stale: the DB moved on since the last fit
+            return False
         model = joblib.load(MODEL_PATH)
         _model = model
         _model_available = True
@@ -209,15 +166,7 @@ def load_model(engine=None) -> bool:
 
 
 def maybe_train(engine) -> None:
-    """(Re)train the survival model when the data changed and is sufficient.
-
-    Signature-gated: when the DB fingerprint is unchanged since the last
-    evaluation (whether that ended in a fit or a sparse-data disable) we no-op,
-    so a quiet database does not rebuild the training set every interval.
-    Sparse data (fewer than ``_min_assets`` assets or ``_min_events`` events)
-    clears the model and records the signature anyway — the layer stays
-    rules-only, but the next pass after real data arrives is cheap.
-    """
+    """(Re)train the survival model when the data changed and is sufficient."""
     global _model, _model_available, _model_events, _model_assets, _model_trained_at, _trained_signature
 
     if not _enabled:
@@ -226,12 +175,10 @@ def maybe_train(engine) -> None:
     try:
         signature = _compute_data_signature(engine)
         if signature == _trained_signature:
-            # Nothing changed since the last evaluation — whether the model is
-            # loaded (fresh) or disabled (too sparse). Skip the rebuild.
             return
 
         if load_model(engine):
-            return  # a fresh model already exists on disk for this exact DB state
+            return
 
         with Session(engine) as session:
             X, y, _asset_ids, _rows = build_training_set(session, datetime.utcnow())
@@ -263,7 +210,6 @@ def maybe_train(engine) -> None:
         )
         rsf.fit(X, y)
 
-        # Metadata survives joblib.dump so load_model can restore the status.
         rsf._fbs_events = events
         rsf._fbs_assets = assets
         rsf._fbs_trained_at = datetime.utcnow()
@@ -278,32 +224,15 @@ def maybe_train(engine) -> None:
         try:
             joblib.dump(rsf, MODEL_PATH)
         except Exception:
-            logger.exception(
-                "Survival-model kan nie na skyf gestoor word nie — in-memory steeds aktief."
-            )
+            logger.exception("Survival-model kan nie na skyf gestoor word nie — in-memory steeds aktief.")
         _write_signature(signature)
-        logger.info(
-            "Survival-model opgelei: %s bates, %s gebeurtenisse -> %s",
-            assets,
-            events,
-            MODEL_PATH,
-        )
+        logger.info("Survival-model opgelei: %s bates, %s gebeurtenisse -> %s", assets, events, MODEL_PATH)
     except Exception:
         logger.exception("Survival-model opleiding misluk — reëls-only.")
 
 
-# ---------------------------------------------------------------------------
-# Prediction
-# ---------------------------------------------------------------------------
-
 def predict_for_asset(features: dict) -> dict | None:
-    """Survival predictions for one asset given its extracted feature dict.
-
-    Returns None when the model is unavailable or disabled. Otherwise returns
-    the keys consumed by ``AssetPredictionRead``:
-    survival_risk, survival_failure_prob_12mo, survival_median_days,
-    survival_high_risk, survival_events_count, survival_trained_at.
-    """
+    """Survival predictions for one asset given its extracted feature dict."""
     if not _enabled or not _model_available or _model is None:
         return None
     try:
@@ -311,11 +240,9 @@ def predict_for_asset(features: dict) -> dict | None:
         risk = float(_model.predict(X_new)[0])
         surv = _model.predict_survival_function(X_new, return_array=False)[0]
         age = float(features.get("age_days", 0.0))
-        horizon = float(surv.domain[1])  # model's max observed time
+        horizon = float(surv.domain[1])
         s0 = float(surv(min(age, horizon)))
         if s0 <= 1e-9:
-            # Buite die model se waargenome tydvenster: geen betroubare skatting
-            # nie — rapporteer 0 i.p.v. deling-deur-nul-artefakte.
             failure_prob_12mo = 0.0
         else:
             s1 = float(surv(min(age + 365.0, horizon)))
@@ -335,18 +262,8 @@ def predict_for_asset(features: dict) -> dict | None:
         return None
 
 
-# ---------------------------------------------------------------------------
-# Background retrain loop (mirrors reminder_scheduler / auto_draft_scheduler)
-# ---------------------------------------------------------------------------
-
 async def maybe_retrain_loop():
-    """Retrain the survival model every ``SURVIVAL_RETRAIN_INTERVAL`` seconds.
-
-    Training is synchronous and potentially slow, so it runs in a worker thread
-    via ``asyncio.to_thread`` to keep the event loop responsive. The engine is
-    imported lazily to avoid an import cycle at module load. A bad pass is
-    logged and swallowed — the loop never kills the app.
-    """
+    """Retrain the survival model every ``SURVIVAL_RETRAIN_INTERVAL`` seconds."""
     while True:
         try:
             from ..db.database import engine as database_engine

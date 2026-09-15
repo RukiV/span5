@@ -9,8 +9,19 @@ const BUILDING_TYPE_LABELS = {
   'Laboratorium': 'Laboratorium',
   'warehouse': 'Pakhuis',
   'Kafeteria': 'Kafeteria',
+  'Koshuis': 'Koshuis',
   'Ander': 'Ander',
 };
+
+function formatBuildingTypes(building) {
+  const types = Array.isArray(building.building_types)
+    ? building.building_types
+    : building.building_type
+      ? [building.building_type]
+      : [];
+
+  return types.map(type => BUILDING_TYPE_LABELS[type] || type).join(', ') || '-';
+}
 
 function BuildingDetailView({ building, terrainName, rooms, onNavigateToRoom }) {
   const buildingRooms = rooms.filter(r => r.building_id === building.building_id);
@@ -20,7 +31,7 @@ function BuildingDetailView({ building, terrainName, rooms, onNavigateToRoom }) 
       <DetailSection title="Besonderhede">
         <DetailCard>
           <DetailRow label="Naam">{building.building_name}</DetailRow>
-          <DetailRow label="Tipe">{BUILDING_TYPE_LABELS[building.building_type] || building.building_type || '-'}</DetailRow>
+          <DetailRow label="Tipe">{formatBuildingTypes(building)}</DetailRow>
           <DetailRow label="Terrein">{terrainName || '-'}</DetailRow>
         </DetailCard>
       </DetailSection>

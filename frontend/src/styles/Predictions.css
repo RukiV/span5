@@ -146,6 +146,62 @@
   }
 }
 
+.pred-insights {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #fff7eb 0%, #fffbee 100%);
+  border: 1px solid #e8d8c4;
+  border-left: 3px solid #935e28;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.pred-insights-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: #935e28;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.pred-insights-summary {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #4b3426;
+  margin-bottom: 8px;
+}
+
+.pred-insights-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.pred-insights-list li {
+  position: relative;
+  padding: 8px 12px 8px 24px;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.pred-insights-list li::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 14px;
+  width: 6px;
+  height: 6px;
+  background: #d4a357;
+  border-radius: 50%;
+}
+
 /* ── ML-model-statusstrook ─────────────────────────────── */
 .pred-model-card {
   display: flex;
@@ -224,3 +280,4 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
