@@ -69,6 +69,9 @@ _trained_signature: dict | None = None
 #: Env-overridable so dev can lower them to demo on small datasets.
 _min_assets = int(os.getenv("AI_SURVIVAL_MIN_ASSETS", "50"))
 _min_events = int(os.getenv("AI_SURVIVAL_MIN_EVENTS", str(10 * len(FEATURE_NAMES))))  # 8 features -> 80 events
+#: 12-maand-faalkans waarbo 'n bate as hoë risiko gemerk word. 0.5 was te
+#: gul op 'n event-ryke opleidingsstel — konfigureerbaar gemaak.
+_high_risk_threshold = float(os.getenv("AI_SURVIVAL_HIGH_RISK", "0.65"))
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +83,13 @@ def is_enabled() -> bool:
     return _enabled
 
 
+def set_enabled(value: bool) -> None:
+    """Runtime toggle (admin-knoppie). Oorheers die AI_SURVIVAL_ENABLED-env
+    vir hierdie proses; nuwe prosesse lees weer die env."""
+    global _enabled
+    _enabled = bool(value)
+
+
 def is_available() -> bool:
     """Whether a trained model is loaded and predictions can be served."""
     return bool(_model_available and _model is not None)
@@ -88,16 +98,30 @@ def is_available() -> bool:
 def get_status() -> dict:
     """Diagnostic status for the survival layer."""
     return {
+        "available": is_available(),
+        "enabled": _enabled,
         "model_available": _model_available,
         "events": _model_events,
         "assets": _model_assets,
         "trained_at": _model_trained_at.isoformat() if _model_trained_at else None,
+        "min_assets": _min_assets,
+        "min_events": _min_events,
     }
 
 
 # ---------------------------------------------------------------------------
 # Training
 # ---------------------------------------------------------------------------
+
+def force_retrain(engine) -> dict:
+    """Forceer 'n her-opleiding, selfs as die data-handtekening onveranderd is
+    (bv. ná 'n kenmerk-logika-regstelling). Gee die nuwe status terug."""
+    global _trained_signature, _model_available
+    _trained_signature = None
+    _clear_model_state()
+    maybe_train(engine)
+    return get_status()
+
 
 def _compute_data_signature(engine) -> dict:
     """Coarse fingerprint of the training data: asset count + latest fault/job.
@@ -289,15 +313,20 @@ def predict_for_asset(features: dict) -> dict | None:
         age = float(features.get("age_days", 0.0))
         horizon = float(surv.domain[1])  # model's max observed time
         s0 = float(surv(min(age, horizon)))
-        s1 = float(surv(min(age + 365.0, horizon)))
-        failure_prob_12mo = float((s0 - s1) / s0) if s0 > 0 else 0.0
+        if s0 <= 1e-9:
+            # Buite die model se waargenome tydvenster: geen betroubare skatting
+            # nie — rapporteer 0 i.p.v. deling-deur-nul-artefakte.
+            failure_prob_12mo = 0.0
+        else:
+            s1 = float(surv(min(age + 365.0, horizon)))
+            failure_prob_12mo = min(1.0, max(0.0, (s0 - s1) / s0))
         median_idx = np.flatnonzero(surv.y <= 0.5)
         median = float(surv.x[median_idx[0]]) if median_idx.size else None
         return {
             "survival_risk": risk,
             "survival_failure_prob_12mo": failure_prob_12mo,
             "survival_median_days": median,
-            "survival_high_risk": bool(failure_prob_12mo >= 0.5),
+            "survival_high_risk": bool(failure_prob_12mo >= _high_risk_threshold),
             "survival_events_count": _model_events,
             "survival_trained_at": _model_trained_at,
         }
