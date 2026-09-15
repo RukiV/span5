@@ -1,0 +1,32 @@
+# Normalise all text files to LF in the repository.
+# Working-tree line endings are handled per-clone via core.autocrlf.
+* text=auto eol=lf
+* text=auto
+
+# Binary files: never apply line-ending conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.svg binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.jar binary
+*.war binary
+*.whl binary
+*.exe binary
+*.dll binary
+*.mp3 binary
+*.mp4 binary
+*.mov binary
+*.webm binary

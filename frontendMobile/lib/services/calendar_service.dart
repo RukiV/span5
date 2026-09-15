@@ -7,6 +7,12 @@ import 'outlook_service.dart';
 
 /// Keep a non-null fallback for calendar slots; delegates the naive wall-clock
 /// parse to the shared helper.
+DateTime parseUtcDatetime(String? value) {
+  if (value == null || value.isEmpty) return DateTime.now();
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
+  return DateTime.parse(hasOffset ? value : '${value}Z').toLocal();
+}
+
 DateTime calendarDatetimeOrNow(String? value) {
   return parseWallClockDatetime(value) ?? DateTime.now();
 }
@@ -195,4 +201,5 @@ class CalendarService {
     }
     return false;
   }
+}
 }

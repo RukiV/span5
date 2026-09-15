@@ -7,18 +7,22 @@ import { apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { useToast } from '../components/Toast/useToast';
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import '../styles/App.css';
 import "../styles/Ticket.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
@@ -38,9 +42,11 @@ function TicketPage() {
   // State vir foutkaartjies-lys
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");        // Soek op titel/beskrywing
+  const filterPersist = useFilterState({ storageKey: "ticket-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);        // Soek op titel/beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const [showCompleted, setShowCompleted] = useState(false);
+  const COMPLETED_STATUSES = ['opgelos', 'gesluit'];
   const TICKET_COLUMNS = [
     { key: 'id', label: 'ID', render: (t) => t.fault_id, sortKey: 'id', defaultVisible: false },
     { key: 'title', label: 'Titel', render: (t) => extractTitle(t.fault_description), sortKey: 'title', defaultVisible: true },
@@ -56,11 +62,18 @@ function TicketPage() {
   ];
   const colVis = useColumnVisibility('ticket-page', TICKET_COLUMNS);
   const colWidths = useColumnWidths('ticket-page', TICKET_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: TICKET_COLUMNS,
+    storageKey: 'ticket-page',
+    defaultSorts: [
+      { key: 'priority', direction: 'desc' },
+      { key: 'reported', direction: 'asc' },
+    ],
+  });
   const colPickerRef = useRef(null);
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
-  const filterCascade = useCascadeMenu();
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const modalCascadeMenu = useCascadeMenu();
   
   // Modal en redigerings-state
@@ -109,6 +122,19 @@ function TicketPage() {
     },
   });
   const { suggestions: faultSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
+  const faultGhostType = faultSuggestions?.fault_type?.value ? (FAULT_TYPE_EN_AF[faultSuggestions.fault_type.value] || faultSuggestions.fault_type.value) : null;
+  const faultGhostPrio = faultSuggestions?.fault_priority?.value ? (FAULT_PRIO_EN_AF[faultSuggestions.fault_priority.value] || faultSuggestions.fault_priority.value) : null;
+  const applyFaultGhost = (key) => {
+    if (key === 'fault_type' && faultGhostType) { setNewTicket(p => ({ ...p, category: faultGhostType })); setInvalidFields(prev => { const n = {...prev}; delete n.category; return n; }); }
+    else if (key === 'fault_priority' && faultGhostPrio) { setNewTicket(p => ({ ...p, priority: faultGhostPrio })); }
+  };
+  const handleFaultGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'fault_type' ? faultGhostType : faultGhostPrio;
+      const empty = key === 'fault_type' ? !newTicket.category : !newTicket.priority;
+      if (ghost && empty) applyFaultGhost(key);
+    }
+  };
 
   // Haal foutkaartjies wanneer blad laai
   useEffect(() => {
@@ -118,10 +144,18 @@ function TicketPage() {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   // Haal alle foutkaartjies van backend
   const fetchTickets = async () => {
@@ -445,11 +479,12 @@ function TicketPage() {
     return translations[category] || category || "-";
   };
 
-  const filteredTickets = [...tickets]
+  const filteredTickets = applySort([...tickets]
     .filter((ticket) => {
       if (terrainFilter && String(ticket.location_id) !== String(terrainFilter)) return false;
       if (buildingFilter && String(ticket.building_id) !== String(buildingFilter)) return false;
       if (roomFilter && String(ticket.room_id) !== String(roomFilter)) return false;
+      if (!showCompleted && COMPLETED_STATUSES.includes(String(ticket.fault_status || '').toLowerCase())) return false;
       const query = searchTerm.trim().toLowerCase();
       const description = ticket.fault_description || "";
       if (!query) return true;
@@ -467,19 +502,26 @@ function TicketPage() {
       return filterColumn === 'all'
         ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
         : String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'id') return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
-      if (sortKey === 'title') return String(extractTitle(a.fault_description)).localeCompare(String(extractTitle(b.fault_description)), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'status') return String(translateStatus(a.fault_status)).localeCompare(String(translateStatus(b.fault_status)), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'priority') return String(a.fault_priority || '').localeCompare(String(b.fault_priority || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'category') return String(a.fault_type || '').localeCompare(String(b.fault_type || ''), 'af', { sensitivity: 'base' }) * dir;
-      return 0;
-    });
+    }),
+    (t, key) => {
+      switch (key) {
+        case 'id': return Number(t.fault_id || 0);
+        case 'title': return String(extractTitle(t.fault_description) || '');
+        case 'category': return String(t.fault_type || '');
+        case 'priority': return { Laag: 1, Medium: 2, Hoog: 3, LOW: 1, MEDIUM: 2, HIGH: 3 }[t.fault_priority || ''] || 0;
+        case 'status': return String(translateStatus(t.fault_status) || '');
+        case 'asset_id': return Number(t.asset_id || 0);
+        case 'room_id': return Number(t.room_id || 0);
+        case 'building_id': return Number(t.building_id || 0);
+        case 'location_id': return Number(t.location_id || 0);
+        case 'reported': return t.fault_reportdatetime ? new Date(t.fault_reportdatetime).getTime() : 0;
+        case 'updated': return t.fault_updatedatetime ? new Date(t.fault_updatedatetime).getTime() : 0;
+        default: return '';
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedTickets, goToPage } = usePagination(filteredTickets, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, showCompleted, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
   const allSelected = paginatedTickets.length > 0 && paginatedTickets.every((x) => selectedIds.includes(x.fault_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -529,90 +571,61 @@ function TicketPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select
-                className="react-select-container"
-                classNamePrefix="react-select"
-                value={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
-                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
-                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
-                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
-                ].find((option) => option.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected?.value || "all")}
-                options={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
-                  { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
-                  { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
-                  { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
-                ]}
-                isSearchable={false}
+              <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={[
+              { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
+              { value: "title", label: "Titel" }, { value: "asset_id", label: "Bate ID" },
+              { value: "room_id", label: "Lokaal ID" }, { value: "building_id", label: "Gebou ID" },
+              { value: "location_id", label: "Terrein ID" }, { value: "category", label: "Kategorie" },
+              { value: "priority", label: "Prioriteit" }, { value: "status", label: "Status" },
+            ]}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
+            }}
+          />
+              <label className="controls-checkbox">
+                <input
+                  type="checkbox"
+                  checked={showCompleted}
+                  onChange={(e) => setShowCompleted(e.target.checked)}
+                />
+                Wys voltooide
+              </label>
+            <SortPicker
+                columns={TICKET_COLUMNS}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
               />
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                 return (
-                   <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                     <div className="control-cascade-breadcrumb">
-                       {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                     </div>
-                     <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                       isClearable
-                       isDisabled={cascadeCount >= 3}
-                       closeMenuOnSelect={false}
-                       menuIsOpen={filterCascade.menuIsOpen}
-                       onMenuOpen={filterCascade.onMenuOpen}
-                       onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                      styles={{
-                        container: (base) => ({ ...base, minWidth: '260px' }),
-                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                      }}
-                      options={allLocationOptions}
-                      filterOption={(option, rawInput) => {
-                        if (rawInput) {
-                          if (cascadeCount === 0)
-                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 1)
-                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 2)
-                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 3)
-                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        }
-                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                        return false;
-                      }}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                        const f = selectedOption._fields;
-                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                      }}
-                    />
-                  </div>
-                );
-              })()}
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={TICKET_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
             </div>
             <div className="controls-right">
               {hasRight('faults.manage') && (
@@ -625,14 +638,6 @@ function TicketPage() {
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              <ColumnPicker
-                ref={colPickerRef}
-                columns={TICKET_COLUMNS}
-                visibleColumns={colVis.visibleColumns}
-                toggleColumn={colVis.toggleColumn}
-                resetVisibility={colVis.resetVisibility}
-                onResetWidths={colWidths.resetWidths}
-              />
               <button className="btn-add" onClick={handleNewTicket}>+ Nuwe Foutkaartjie</button>
               {selectedIds.length > 0 && (
                 <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -661,11 +666,9 @@ function TicketPage() {
                     key={col.key}
                     col={col}
                     colWidths={colWidths}
-                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                    onClick={() => col.sortKey && handleSort(col.sortKey)}
                     onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                   >
-                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                    {col.label}
                   </ResizableTh>
                 ))}
                 <th style={{ width: '250px' }}>Aksies</th>
@@ -775,31 +778,41 @@ function TicketPage() {
                 <label>Titel *</label>
                 <input type="text" value={newTicket.title} ref={el => fieldRefs.current.title = el} className={invalidFields.title ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, title: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.title; return next; }); }} disabled={isViewMode} />
               </div>
-              <div className="input-group">
+              <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
                 <label>Kategorie *</label>
-                <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }} disabled={isViewMode}>
-                  <option value="">Kies kategorie</option>
-                  <option value="Onderhoud">Onderhoud</option>
-                  <option value="Herstel">Herstel</option>
-                  <option value="Inspeksie">Inspeksie</option>
-                  <option value="Installasie">Installasie</option>
-                </select>
+                <div className={`ghost-field-wrap${!newTicket.category && faultGhostType && !isViewMode ? " ghost-active" : ""}`} style={{ position: 'relative' }}>
+                  <select value={newTicket.category} ref={el => fieldRefs.current.category = el} className={invalidFields.category ? "field-invalid" : ""} onChange={(e) => { setNewTicket({ ...newTicket, category: e.target.value }); setInvalidFields(prev => { const next = {...prev}; delete next.category; return next; }); }} disabled={isViewMode} onKeyDown={(e) => handleFaultGhostTab(e, 'fault_type')}>
+                    <option value="">Kies kategorie</option>
+                    <option value="Onderhoud">Onderhoud</option>
+                    <option value="Herstel">Herstel</option>
+                    <option value="Inspeksie">Inspeksie</option>
+                    <option value="Installasie">Installasie</option>
+                  </select>
+                  <GhostSuggestion active={!newTicket.category && !!faultGhostType && !isViewMode} onAccept={() => applyFaultGhost('fault_type')}>{faultGhostType}</GhostSuggestion>
+                </div>
               </div>
             </div>
             <div className="input-row">
-              <div className="input-group">
+              <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
                 <label>Prioriteit</label>
-                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} disabled={isViewMode}>
-                  <option value="Laag">Laag</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Hoog">Hoog</option>
-                </select>
+                <div style={{ position: 'relative' }}>
+                  <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} disabled={isViewMode} onKeyDown={(e) => handleFaultGhostTab(e, 'fault_priority')}>
+                    <option value="Laag">Laag</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hoog">Hoog</option>
+                  </select>
+                  {/* Ghost vir Prioriteit wys slegs as 'n voorstel bestaan en verskil van huidige waarde */}
+                  {faultGhostPrio && faultGhostPrio !== newTicket.priority && !isViewMode && (
+                    <div style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.78rem', color: '#a8a29e', fontStyle: 'italic', background: '#fdf8f3', border: '1px solid #e7d9c7', borderRadius: 6, padding: '2px 6px' }}>
+                      → {faultGhostPrio}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             
             <div className="input-row">
               <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-                <label>Ligging *</label>
                 {(() => {
                   const cascadeCount = [newTicket.location_id, newTicket.building_id, newTicket.room_id, newTicket.asset_id].filter(Boolean).length;
                   const currentDisplayValue = cascadeCount === 0 ? null
@@ -814,20 +827,20 @@ function TicketPage() {
                     else if (levelIndex === 2) setNewTicket(p => ({...p, room_id: "", asset_id: ""}));
                     else if (levelIndex === 3) setNewTicket(p => ({...p, asset_id: ""}));
                   };
-                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                  const breadcrumbData = [];
                   if (newTicket.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newTicket.location_id))?.location_name || newTicket.location_id });
                   if (newTicket.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newTicket.building_id))?.building_name || newTicket.building_id });
                   if (newTicket.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newTicket.room_id))?.room_name || newTicket.room_id });
                   if (newTicket.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => String(a.asset_id) === String(newTicket.asset_id))?.asset_name || newTicket.asset_id });
                    return (
                      <div ref={modalCascadeMenu.containerRef}>
-{renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+{renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 4, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal","Kies Bate"] })}
                        <Select
                          className="react-select-container"
                          classNamePrefix="react-select"
-                         placeholder={
-                           ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
-                         }
+placeholder={
+                         cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                       }
                          isClearable
                          isDisabled={isViewMode || cascadeCount >= 4}
                          closeMenuOnSelect={false}

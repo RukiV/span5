@@ -36,8 +36,6 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
         return 'Pakhuis';
       case 'kafeteria':
         return 'Kafeteria';
-      case 'residential':
-        return 'Koshuis';
       default:
         return 'Ander';
     }
@@ -150,8 +148,7 @@ class _BuildingDetailPageState extends State<BuildingDetailPage> {
           DetailRow(
               label: "Tipe",
               valueWidget: Flexible(
-                child: Text(
-                    _currentBuilding.types.map(_typeLabel).join(", "),
+                child: Text(_currentBuilding.types.map(_typeLabel).join(', '),
                     style: const TextStyle(fontWeight: FontWeight.bold)),
               )),
           const Divider(height: 24),

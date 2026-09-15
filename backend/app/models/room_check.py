@@ -1,4 +1,4 @@
-from typing import Optional, Any, List
+from typing import Optional, Any
 from datetime import datetime
 from sqlmodel import SQLModel, Field, Column, Text
 from .base import Base
@@ -18,18 +18,10 @@ class RoomCheckCreate(SQLModel):
     summary: str
     checked_datetime: Optional[datetime] = None
 
-class RoomCheckItem(SQLModel):
-    asset_id: int
-    asset_name: Optional[str] = None
-    asset_serial: Optional[str] = None
-    status: Optional[str] = None
-    fault_id: Optional[int] = None
-
 class RoomCheckRead(RoomCheckBase):
     room_check_id: int
     user_name: Optional[str] = None
     check_status: Optional[str] = None
-    items: List["RoomCheckItem"] = []
 
 class RoomCheckUpdate(SQLModel):
     pass

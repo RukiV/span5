@@ -91,10 +91,12 @@ const ColumnPicker = React.forwardRef(function ColumnPicker(
           ref={dropdownRef}
           className="colpick-dropdown"
           style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 10000 }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
         >
           <div className="colpick-header">
             <span>Wys kolomme</span>
-            <button className="colpick-close" onClick={() => { setOpen(false); setPosition(null); }}>&times;</button>
+            <button type="button" className="colpick-close" onClick={() => { setOpen(false); setPosition(null); }}>&times;</button>
           </div>
           <div className="colpick-list">
             {columns.map((col) => {
@@ -110,7 +112,7 @@ const ColumnPicker = React.forwardRef(function ColumnPicker(
             })}
           </div>
           <div className="colpick-footer">
-            <button className="colpick-reset" onClick={() => { resetVisibility(); if (onResetWidths) onResetWidths(); setOpen(false); }}>
+            <button type="button" className="colpick-reset" onClick={() => { resetVisibility(); if (onResetWidths) onResetWidths(); setOpen(false); }}>
               Reset na verstek
             </button>
           </div>

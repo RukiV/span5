@@ -77,6 +77,5 @@ class UserUpdate(SQLModel):
     user_lastlogouttime: Optional[datetime] = None
     user_status: Optional[str] = None
     role_id: Optional[int] = None
-    location_id: Optional[int] = None
     failed_login_attempts: Optional[int] = None
     locked_until: Optional[datetime] = None

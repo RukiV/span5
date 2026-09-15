@@ -126,42 +126,17 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
     return location
 
 
-def _get_or_create_building(
-    session: Session,
-    name: str,
-    building_type: BuildingType,
-    location_id: int,
-    *,
-    building_types: Optional[list[BuildingType]] = None,
-) -> Building:
+def _get_or_create_building(session: Session, name: str, building_type: BuildingType, location_id: int) -> Building:
     building = session.exec(select(Building).where(Building.building_name == name)).first()
-
-    types = list(building_types) if building_types else [building_type]
-
-    if building is not None:
-        existing = {
-            row.building_type
-            for row in session.exec(
-                select(BuildingTypeLink).where(BuildingTypeLink.building_id == building.building_id)
-            ).all()
-        }
-        missing = [t for t in types if t not in existing]
-        if missing:
-            for t in missing:
-                session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
-            session.commit()
+    if building:
         return building
 
-    building = Building(
-        building_name=name,
-        location_id=location_id,
-    )
+    building = Building(building_name=name, location_id=location_id)
     session.add(building)
-    session.flush()
-    for t in types:
-        session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
     session.commit()
     session.refresh(building)
+    session.add(BuildingTypeLink(building_id=building.building_id, building_type=building_type))
+    session.commit()
     return building
 
 
@@ -799,7 +774,6 @@ suburb="Villieria",
             name="Blok L",
             building_type=BuildingType.EDUCATIONAL,
             location_id=loc1.location_id,
-            building_types=[BuildingType.EDUCATIONAL, BuildingType.KAFERERIA],
         )
 
         bld4 = _get_or_create_building(

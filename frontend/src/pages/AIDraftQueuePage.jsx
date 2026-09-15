@@ -6,6 +6,7 @@ import { useToast } from '../components/Toast/useToast';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -63,7 +64,10 @@ function AIDraftQueuePage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("draft");
 
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: DRAFT_COLUMNS,
+    storageKey: 'ai-draft-queue',
+  });
   const colVis = useColumnVisibility('ai-draft-queue', DRAFT_COLUMNS);
   const colWidths = useColumnWidths('ai-draft-queue', DRAFT_COLUMNS);
 
@@ -86,27 +90,21 @@ function AIDraftQueuePage() {
     }
   };
 
-  const sortedDrafts = [...drafts].sort((a, b) => {
-    if (!sortKey) return 0;
-    const dir = sortDirection === 'asc' ? 1 : -1;
-    switch (sortKey) {
-      case 'id': return (Number(a.draft_id || 0) - Number(b.draft_id || 0)) * dir;
-      case 'title': {
-        const ta = a.title || a.description || '';
-        const tb = b.title || b.description || '';
-        return String(ta).localeCompare(String(tb), 'af', { sensitivity: 'base' }) * dir;
-      }
-      case 'asset': return String(a.resolved_asset_name || '').localeCompare(String(b.resolved_asset_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      case 'type': return String(a.suggested_type || '').localeCompare(String(b.suggested_type || ''), 'af') * dir;
-      case 'priority': return String(a.suggested_priority || '').localeCompare(String(b.suggested_priority || ''), 'af') * dir;
-      case 'ai': return String(a.ai_status || '').localeCompare(String(b.ai_status || ''), 'af') * dir;
-      case 'source': return String(a.source || '').localeCompare(String(b.source || ''), 'af') * dir;
-      case 'date': return (new Date(a.created_at || 0) - new Date(b.created_at || 0)) * dir;
-      default: return 0;
+  const sortedDrafts = applySort([...drafts], (d, key) => {
+    switch (key) {
+      case 'id': return Number(d.draft_id || 0);
+      case 'title': return String(d.title || d.description || '');
+      case 'asset': return String(d.resolved_asset_name || '');
+      case 'type': return String(d.suggested_type || '');
+      case 'priority': return String(d.suggested_priority || '');
+      case 'ai': return String(d.ai_status || '');
+      case 'source': return String(d.source || '');
+      case 'date': return d.created_at ? new Date(d.created_at).getTime() : 0;
+      default: return '';
     }
   });
   const { currentPage, totalPages, paginatedData: paginatedDrafts, goToPage } = usePagination(sortedDrafts, 100);
-  useEffect(() => { goToPage(1); }, [statusFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [statusFilter, sorts, goToPage]);
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -118,10 +116,15 @@ function AIDraftQueuePage() {
         <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />
-          </div>
-          <div className="controls-right">
-            <button className="btn-add" onClick={() => navigate('/ai-drafts/new')}>+ Nuwe Voorgestelde Werksopdrag</button>
-            <button className="btn-edit" onClick={fetchDrafts} style={{ marginLeft: '0.5rem' }}>Vernuwe</button>
+          <SortPicker
+              columns={DRAFT_COLUMNS}
+              sorts={sorts}
+              onAdd={addSort}
+              onRemove={removeSort}
+              onToggleDirection={toggleDirection}
+              onMove={moveSort}
+              onClear={clearSorts}
+            />
             <ColumnPicker
               ref={colPickerRef}
               columns={DRAFT_COLUMNS}
@@ -130,6 +133,10 @@ function AIDraftQueuePage() {
               resetVisibility={colVis.resetVisibility}
               onResetWidths={colWidths.resetWidths}
             />
+          </div>
+          <div className="controls-right">
+            <button className="btn-add" onClick={() => navigate('/ai-drafts/new')}>+ Nuwe Voorgestelde Werksopdrag</button>
+            <button className="btn-edit" onClick={fetchDrafts} style={{ marginLeft: '0.5rem' }}>Vernuwe</button>
           </div>
         </div>
 
@@ -141,11 +148,9 @@ function AIDraftQueuePage() {
                   key={col.key}
                   col={col}
                   colWidths={colWidths}
-                  className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                  onClick={() => col.sortKey && handleSort(col.sortKey)}
                   onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                 >
-                  {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                  {col.label}
                 </ResizableTh>
               ))}
               <th style={{ width: '130px' }}>Aksies</th>

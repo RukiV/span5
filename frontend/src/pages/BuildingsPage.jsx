@@ -2,13 +2,16 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
-import { renderBreadcrumb, CascadeControl, NoCloseControl, NoCloseDropdownIndicator, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { buildingsAPI, locationAPI, roomsAPI, assetsAPI, stockAPI, ticketsAPI, workOrdersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import usePagination from "../hooks/usePagination";
 import Pagination from "../components/Pagination/Pagination";
@@ -23,6 +26,8 @@ import "../styles/Rooms.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import Modal from '../components/Modal/Modal';
 import BuildingDetailView from '../components/DetailView/BuildingDetailView';
+import useAiSuggestions from "../hooks/useAiSuggestions";
+import AiSuggestPanel from "../components/AiSuggestPanel";
 import '../components/DetailView/DetailView.css';
 
 function BuildingsPage({ embedded = false }) {
@@ -38,22 +43,25 @@ function BuildingsPage({ embedded = false }) {
   const [faults, setFaults] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "buildings-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const BUILDING_COLUMNS = [
     { key: 'id', label: 'ID', render: (b) => b.building_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (b) => b.building_name, sortKey: 'name', defaultVisible: true },
-    { key: 'type', label: 'Tipe', render: (b) => formatBuildingTypes(b.building_types), sortKey: 'type', defaultVisible: true },
+    { key: 'type', label: 'Tipe', render: (b) => formatBuildingTypes(b), sortKey: 'type', defaultVisible: true },
     { key: 'terrain', label: 'Terrein', render: (b) => getTerrainName(b.location_id), sortKey: 'terrain', defaultVisible: true },
   ];
   const colVis = useColumnVisibility('buildings-page', BUILDING_COLUMNS);
   const colWidths = useColumnWidths('buildings-page', BUILDING_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: BUILDING_COLUMNS,
+    storageKey: 'buildings-page',
+  });
   const colPickerRef = useRef(null);
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, null, null), [terrains, buildings]);
-  const filterCascade = useCascadeMenu();
   const modalCascadeMenu = useCascadeMenu();
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,10 +72,18 @@ function BuildingsPage({ embedded = false }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const newBuildingDefault = { building_name: "", building_types: [], location_id: "" };
-  const [newBuilding, setNewBuilding] = useState(newBuildingDefault);
+  const [newBuilding, setNewBuilding] = useState({
+    building_name: "",
+    building_types: [],
+    location_id: "",
+  });
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
+  const buildingSuggestions = useAiSuggestions({
+    context: 'building',
+    values: { building_name: newBuilding.building_name, building_types: newBuilding.building_types },
+    enabled: showModal && !isViewMode,
+  });
 
   const translateBuildingType = (type) => {
     const translations = {
@@ -82,10 +98,14 @@ function BuildingsPage({ embedded = false }) {
     return translations[type] || type;
   };
 
-  const formatBuildingTypes = (types) =>
-    (Array.isArray(types) ? types : types ? [types] : [])
-      .map(translateBuildingType)
-      .join(", ") || "Ander";
+  const formatBuildingTypes = (building) => {
+    const types = Array.isArray(building?.building_types)
+      ? building.building_types
+      : building?.building_type
+        ? [building.building_type]
+        : [];
+    return types.map(translateBuildingType).join(", ") || "Ander";
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -104,10 +124,18 @@ function BuildingsPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: "",
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter]);
 
   const fetchBuildings = async () => {
     setLoading(true);
@@ -196,7 +224,6 @@ function BuildingsPage({ embedded = false }) {
     const errors = {};
     if (!newBuilding.building_name?.trim()) errors.building_name = true;
     if (!newBuilding.location_id) errors.location_id = true;
-    if (!newBuilding.building_types || newBuilding.building_types.length === 0) errors.building_types = true;
     if (Object.keys(errors).length > 0) {
       setInvalidFields(errors);
       const firstKey = Object.keys(errors)[0];
@@ -208,7 +235,11 @@ function BuildingsPage({ embedded = false }) {
 
     const buildingData = {
       building_name: newBuilding.building_name,
-      building_types: newBuilding.building_types,
+      building_types: Array.isArray(newBuilding.building_types)
+        ? newBuilding.building_types
+        : newBuilding.building_type
+          ? [newBuilding.building_type]
+          : [],
       location_id: Number(newBuilding.location_id),
     };
 
@@ -360,7 +391,11 @@ function BuildingsPage({ embedded = false }) {
     setEditingId(item.building_id);
     setNewBuilding({
       building_name: item.building_name || "",
-      building_types: Array.isArray(item.building_types) ? item.building_types : (item.building_type ? [item.building_type] : []),
+      building_types: Array.isArray(item.building_types)
+        ? item.building_types
+        : item.building_type
+          ? [item.building_type]
+          : [],
       location_id: item.location_id || "",
     });
     setShowModal(true);
@@ -371,14 +406,14 @@ function BuildingsPage({ embedded = false }) {
     setIsEditing(false);
     setIsViewMode(false);
     setEditingId(null);
-    setNewBuilding(newBuildingDefault);
+    setNewBuilding({ building_name: "", building_types: [], location_id: "" });
   };
 
   const handleNewBuilding = () => {
     setIsEditing(false);
     setIsViewMode(false);
     setEditingId(null);
-    setNewBuilding(newBuildingDefault);
+    setNewBuilding({ building_name: "", building_types: [], location_id: "" });
     setShowModal(true);
   };
 
@@ -387,7 +422,7 @@ function BuildingsPage({ embedded = false }) {
     setShowRoomsModal(true);
   };
 
-  const filteredBuildings = [...buildings]
+  const filteredBuildings = applySort([...buildings]
     .filter((building) => {
       if (terrainFilter && String(building.location_id) !== String(terrainFilter)) return false;
       if (buildingFilter && String(building.building_id) !== String(buildingFilter)) return false;
@@ -396,24 +431,26 @@ function BuildingsPage({ embedded = false }) {
       const values = {
         id: building.building_id,
         name: building.building_name,
-        type: formatBuildingTypes(building.building_types),
+        type: formatBuildingTypes(building),
         terrain: getTerrainName(building.location_id),
       };
       if (filterColumn === 'all') {
         return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
       }
       return String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'name') return String(a.building_name || '').localeCompare(String(b.building_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(formatBuildingTypes(a.building_types)).localeCompare(String(formatBuildingTypes(b.building_types)), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'terrain') return String(getTerrainName(a.location_id)).localeCompare(String(getTerrainName(b.location_id)), 'af', { sensitivity: 'base' }) * dir;
-      return 0;
-    });
+    }),
+    (b, key) => {
+      switch (key) {
+        case 'id': return Number(b.building_id || 0);
+        case 'name': return String(b.building_name || '');
+        case 'type': return String(formatBuildingTypes(b) || '');
+        case 'terrain': return String(getTerrainName(b.location_id) || '');
+        default: return '';
+      }
+    },
+  );
     const { currentPage, totalPages, paginatedData: paginatedBuildings, goToPage } = usePagination(filteredBuildings, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sortKey, sortDirection, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, sorts, goToPage]);
   const allSelected = paginatedBuildings.length > 0 && paginatedBuildings.every((x) => selectedIds.includes(x.building_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -439,7 +476,6 @@ function BuildingsPage({ embedded = false }) {
     { value: "Laboratorium", label: "Laboratorium" },
     { value: "warehouse", label: "Pakhuis" },
     { value: "Kafeteria", label: "Kafeteria" },
-    { value: "Koshuis", label: "Koshuis" },
     { value: "Ander", label: "Ander" }
   ];
 
@@ -464,74 +500,45 @@ function BuildingsPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={filterColumnOptions.find(o => o.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected ? selected.value : "all")}
-            options={filterColumnOptions}
-            isSearchable={false}
-            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
-            styles={{
-              container: (base) => ({ ...base, minWidth: '160px' }),
-              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={filterColumnOptions}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter=""
+            onLocationChange={(loc, bld) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={2}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
             }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            return (
-              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 2 })}
-                </div>
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 2}
-                    closeMenuOnSelect={false}
-                    menuIsOpen={filterCascade.menuIsOpen}
-                    onMenuOpen={filterCascade.onMenuOpen}
-                    onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    styles={{
-                      container: (base) => ({ ...base, minWidth: '260px' }),
-                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                    }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (cascadeCount === 0 && rawInput)
-                        return option.data._cascadeLevel <= 0 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={BUILDING_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={BUILDING_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('buildings.manage') && (
@@ -544,14 +551,6 @@ function BuildingsPage({ embedded = false }) {
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={BUILDING_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={handleNewBuilding}>+ Nuwe Gebou</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -580,11 +579,9 @@ function BuildingsPage({ embedded = false }) {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '230px' }}>Aksies</th>
@@ -638,15 +635,12 @@ function BuildingsPage({ embedded = false }) {
               }}
             />
           </div>
-        </div>
-        <div className="input-row">
-          <div className={invalidFields.building_types ? "input-group field-invalid building-types-picker" : "input-group building-types-picker"}>
+          <div className="input-group">
             <label>Tipes</label>
             <Select
-              className="basic-single"
+              className="basic-multi-select building-types-picker"
               classNamePrefix="select"
               isMulti
-              maxMenuHeight={180}
               value={buildingTypeOptions.filter(o => newBuilding.building_types.includes(o.value))}
               onChange={(selected) => setNewBuilding({ ...newBuilding, building_types: selected ? selected.map(o => o.value) : [] })}
               options={buildingTypeOptions}
@@ -654,15 +648,14 @@ function BuildingsPage({ embedded = false }) {
               isDisabled={isViewMode}
               placeholder="Kies een of meer tipes..."
               styles={{
-                control: (base) => ({ ...base, minHeight: '40px', alignItems: 'center' }),
-                valueContainer: (base) => ({ ...base, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }),
+                control: (base) => ({ ...base, minHeight: '40px' }),
+                valueContainer: (base) => ({ ...base, display: 'flex', flexWrap: 'wrap' }),
               }}
             />
           </div>
         </div>
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative" }}>
-            <label>Terrein *</label>
             {(() => {
               const cascadeCount = [newBuilding.location_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -671,15 +664,15 @@ function BuildingsPage({ embedded = false }) {
               const clearFromLevel = (levelIndex) => {
                 if (levelIndex <= 0) setNewBuilding(p => ({...p, location_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newBuilding.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newBuilding.location_id))?.location_name || newBuilding.location_id });
                return (
                  <div ref={modalCascadeMenu.containerRef}>
-                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode })}
+                   {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 1, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein"] })}
                   <Select
                     className="react-select-container"
                     classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Ligging voltooi"][cascadeCount]}
+                    placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Ligging voltooi"][cascadeCount]}
                     isClearable
                     isDisabled={isViewMode || cascadeCount >= 1}
                     closeMenuOnSelect={false}
@@ -718,6 +711,18 @@ function BuildingsPage({ embedded = false }) {
           <button className="btn-add" onClick={handleSaveBuilding}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
         )}
+        <AiSuggestPanel
+          suggestions={buildingSuggestions.suggestions}
+          loading={buildingSuggestions.loading}
+          filled={buildingSuggestions.filled}
+          error={buildingSuggestions.error}
+          labels={{ building_types: 'Gebou tipe' }}
+          onUse={(key, suggestion) => {
+            if (key === 'building_types' && Array.isArray(suggestion.value)) {
+              setNewBuilding((previous) => ({ ...previous, building_types: suggestion.value }));
+            }
+          }}
+        />
       </div>
     </div>
   );

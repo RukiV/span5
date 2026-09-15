@@ -25,12 +25,11 @@ class Building {
     streetNum: json['building_streetnum'] ?? '',
     streetName: json['building_streetname'] ?? '',
     types: (json['building_types'] as List?)
-        ?.map((t) => _frontendBuildingType(t.toString()))
-        .toList() ??
-        // backward compat: single string field
-        (json['building_type'] != null
-            ? [_frontendBuildingType(json['building_type'])]
-            : const ['other']),
+      ?.map((t) => _frontendBuildingType(t.toString()))
+      .toList() ??
+      (json['building_type'] != null
+        ? [_frontendBuildingType(json['building_type'].toString())]
+        : const ['other']),
     locationId: json['location_id'] ?? 0,
     rooms: json['rooms'] != null
         ? (json['rooms'] as List).map((r) => Room.fromJson(r)).toList()

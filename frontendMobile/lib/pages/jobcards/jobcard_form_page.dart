@@ -23,7 +23,6 @@ import '../../services/quote_service.dart';
 import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
-import '../../services/wrong_room_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
@@ -1028,30 +1027,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       items: assets
           .map((a) => SearchableDropdownItem(value: a.id, label: a.name))
           .toList(),
-      onChanged: (v) {
-        setState(() => _selectedAssetId = v);
-        if (v != null) {
-          _checkAssetWrongRoom(v);
-        }
-      },
-    );
-  }
-
-  Future<void> _checkAssetWrongRoom(String assetId) async {
-    final state = await WrongRoomService.getAssetState(assetId);
-    if (!mounted || state == null || state.isClear) return;
-    final isWrongRoom = state.isWrongRoom;
-    final color = isWrongRoom ? AppColors.warningOrange : AppColors.errorRed;
-    final foundRoom = state.foundRoomName ?? 'onbekende lokaal';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isWrongRoom
-              ? "Hierdie bate is in verkeerde lokaal gevind ($foundRoom). Los die foutkaartjie op om dit terug te skuif."
-              : "Hierdie bate is vermis ($foundRoom in laaste kontrole).",
-        ),
-        backgroundColor: color,
-      ),
+      onChanged: (v) => setState(() => _selectedAssetId = v),
     );
   }
 

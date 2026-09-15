@@ -121,6 +121,7 @@ class CampusService {
     return "";
   }
 
+  // --- Campus CRUD ---
   static Campus? getCampusByName(String name) {
     try {
       return _manager.values.firstWhere(
@@ -130,8 +131,6 @@ class CampusService {
       return null;
     }
   }
-
-  // --- Campus CRUD ---
 
   static Future<bool> addCampus(Campus campus, {String? idempotencyKey}) async {
     try {
@@ -283,4 +282,5 @@ class CampusService {
     }
     return false;
   }
+}
 }

@@ -53,6 +53,10 @@ class NotificationService {
   static final ValueNotifier<int> unreadCountNotifier = ValueNotifier(0);
 
   // --- Begin polling (roep in app-start) ---
+  static final ValueNotifier<int> unreadCountNotifier = ValueNotifier(0);
+
+  static int get unreadCount => _unreadCount;
+
   static Future<void> startPolling() async {
     await fetchUnread();
     _pollTimer?.cancel();
@@ -177,4 +181,5 @@ class NotificationService {
       return false;
     }
   }
+}
 }

@@ -4,7 +4,7 @@ from sqlmodel import Session
 
 from app.models.asset import Asset, Assettype
 from app.models.enums import BuildingType, RoomStatus, RoomType
-from app.models.location import Building, BuildingTypeLink, Location, Room
+from app.models.location import Building, Location, Room
 from app.models.jobdraft import JobDraft
 from app.models.stock import Stock
 from app.services import suggest_service
@@ -23,10 +23,9 @@ def _mk_location(session: Session, name="Toetskampus"):
 
 
 def _mk_building(session: Session, location_id, name="T Blok"):
-    b = Building(building_name=name, location_id=location_id)
+    b = Building(building_name=name, building_type=BuildingType.EDUCATIONAL,
+                 location_id=location_id)
     session.add(b)
-    session.flush()
-    session.add(BuildingTypeLink(building_id=b.building_id, building_type=BuildingType.EDUCATIONAL))
     session.commit()
     session.refresh(b)
     return b
@@ -227,6 +226,23 @@ def test_suggest_endpoint_gating_and_payload(client, engine, headers_for):
                        json={"context": "fault", "fields": {
                            "description": "Die kraan lek erg",
                            "title": "Lek", "room": 9}})
+    # Sonder enige velde → leë voorstelle (MIN_FILLED=1).
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {}})
+    assert resp.status_code == 200
+    assert resp.json() == {"suggestions": {}}
+
+    # Met 1 gevulde veld → voorstelle (gate verlaag na 1 vir vroeë spookteks).
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {"description": "Die kraan lek erg"}})
+    assert resp.status_code == 200
+    assert "fault_type" in resp.json()["suggestions"]
+
+    # Bo 1 veld → voorstelle ook.
+    resp = client.post("/api/v1/ai/suggest", headers=headers,
+                       json={"context": "fault", "fields": {
+                            "description": "Die kraan lek erg",
+                            "title": "Lek", "room": 9}})
     assert resp.status_code == 200
     sug = resp.json()["suggestions"]
     assert "fault_type" in sug

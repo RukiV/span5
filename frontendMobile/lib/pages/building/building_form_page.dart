@@ -28,11 +28,11 @@ class BuildingFormPage extends StatefulWidget {
 class _BuildingFormPageState extends State<BuildingFormPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final List<String> _selectedTypes = [];
+  late List<String> _typesSelected;
   Campus? _selectedCampus;
   String? _idempotencyKey;
 
-  static const List<Map<String, String>> _types = [
+  final List<Map<String, String>> _types = [
     {'value': 'admin', 'label': 'Administrasie'},
     {'value': 'onderwys', 'label': 'Onderwys'},
     {'value': 'laboratory', 'label': 'Laboratorium'},
@@ -48,7 +48,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.building?.name ?? "");
-    _selectedTypes.addAll(widget.building?.types ?? const []);
+    _typesSelected = [...(widget.building?.types ?? const ['other'])];
     if (_isCreate) {
       _selectedCampus = widget.campus;
       _idempotencyKey = Idempotency.generate();
@@ -73,18 +73,10 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
         );
         return;
       }
-      if (_selectedTypes.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Kies ten minste een tipe"),
-              backgroundColor: AppColors.errorRed),
-        );
-        return;
-      }
       final building = Building(
         id: 0,
         name: _nameController.text,
-        types: List.unmodifiable(_selectedTypes),
+        types: _typesSelected,
         locationId: _selectedCampus!.id,
       );
       final success = await CampusService.addBuilding(
@@ -97,17 +89,9 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
       return;
     }
 
-    if (_selectedTypes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Kies ten minste een tipe"),
-            backgroundColor: AppColors.errorRed),
-      );
-      return;
-    }
     final updated = widget.building!.copyWith(
       name: _nameController.text,
-      types: List.unmodifiable(_selectedTypes),
+      types: _typesSelected,
     );
     final success = await CampusService.updateBuilding(updated);
     if (!mounted) return;
@@ -144,36 +128,21 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Tipes",
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        const Text(
-          "Kies een of meer gebou-tipes:",
-          style: TextStyle(fontSize: 13, color: Colors.grey),
-        ),
-        const SizedBox(height: 8),
+        const Text("Tipes", style: TextStyle(fontWeight: FontWeight.bold)),
         Wrap(
           spacing: 8,
-          runSpacing: 0,
-          children: _types.map((t) {
-            final selected = _selectedTypes.contains(t['value']);
+          children: _types.map((type) {
+            final value = type['value']!;
             return FilterChip(
-              label: Text(t['label']!),
-              selected: selected,
-              selectedColor: AppColors.gold.withAlpha(40),
-              checkmarkColor: AppColors.gold,
-              side: BorderSide(
-                color: selected ? AppColors.gold : Colors.grey.shade300,
-              ),
-              onSelected: (val) {
-                setState(() {
-                  if (val) {
-                    _selectedTypes.add(t['value']!);
-                  } else {
-                    _selectedTypes.remove(t['value']);
-                  }
-                });
-              },
+              label: Text(type['label']!),
+              selected: _typesSelected.contains(value),
+              onSelected: (selected) => setState(() {
+                if (selected) {
+                  _typesSelected.add(value);
+                } else if (_typesSelected.length > 1) {
+                  _typesSelected.remove(value);
+                }
+              }),
             );
           }).toList(),
         ),

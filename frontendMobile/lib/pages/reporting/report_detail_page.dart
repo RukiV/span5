@@ -15,6 +15,14 @@ class ReportDetailPage extends StatefulWidget {
   final Report report;
 
   const ReportDetailPage({super.key, required this.report});
+import 'dart:typed_data';
+
+class ReportDetailPage extends StatefulWidget {
+  final Report report;
+  final Uint8List? screenshot;
+
+  const ReportDetailPage(
+      {super.key, required this.report, this.screenshot});
 
   @override
   State<ReportDetailPage> createState() => _ReportDetailPageState();

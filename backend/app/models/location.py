@@ -22,35 +22,35 @@ class Building(BuildingBase, Base, table=True):
     location_id: int = Field(foreign_key="location.location_id")
 
 
-class BuildingTypeLink(Base, table=True):
-    """Junction table linking a building to one of its types.
-
-    A building can serve multiple purposes (e.g. classrooms and a cafeteria),
-    so each building may have zero or more of these rows.
-    """
-    __tablename__ = "building_type_link"
-    building_id: int = Field(primary_key=True, foreign_key="building.building_id")
-    building_type: BuildingType = Field(primary_key=True)
-
-
 class BuildingCreate(BuildingBase):
     """Input model for creating building records."""
-    location_id: int
     building_types: List[BuildingType] = Field(default_factory=list)
+    building_type: Optional[BuildingType] = None
+    location_id: int
 
 
 class BuildingRead(BuildingBase):
     """Output model for reading building records."""
     building_id: int
-    location_id: int
     building_types: List[BuildingType] = Field(default_factory=list)
+    building_type: Optional[BuildingType] = None
+    location_id: int
 
 
 class BuildingUpdate(SQLModel):
     """Input model for updating building records."""
     building_name: Optional[str] = None
     building_types: Optional[List[BuildingType]] = None
+    building_type: Optional[BuildingType] = None
     location_id: Optional[int] = None
+
+
+class BuildingTypeLink(SQLModel, table=True):
+    """Join table for buildings that can have multiple functional types."""
+    __tablename__ = "building_type_link"
+    link_id: Optional[int] = Field(default=None, primary_key=True)
+    building_id: int = Field(foreign_key="building.building_id")
+    building_type: BuildingType
 
 
 class LocationBase(SQLModel):

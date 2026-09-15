@@ -13,6 +13,7 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   final T? value;
   final List<SearchableDropdownItem<T>> items;
   final ValueChanged<T?> onChanged;
+  final String? Function(T?)? validator;
 
   final bool enabled;
   final Widget? trailing;
@@ -29,6 +30,13 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   /// Vuur wanneer die veld fokus kry (slegs in soek-modus).
   final VoidCallback? onFocus;
 
+  /// Vuur wanneer die lys oopmaak (true) of toemaak (false).
+  final ValueChanged<bool>? onSearchModeChanged;
+
+  /// Maksimum hoogte vir die opsie-lys. Laat weg (null) sodat die lys sy
+  /// natuurlike hoogte kry tot `240` in plaas van 'n skuifwiel te wees.
+  final double? maxHeight;
+
   const InlineSearchableDropdown({
     super.key,
     this.label,
@@ -36,6 +44,7 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.value,
     required this.items,
     required this.onChanged,
+    this.validator,
     this.enabled = true,
     this.trailing,
     this.required = false,
@@ -43,6 +52,8 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.closeOnSelect = true,
     this.restoreOnBlur = true,
     this.onFocus,
+    this.onSearchModeChanged,
+    this.maxHeight,
   });
 
   @override
@@ -104,8 +115,6 @@ class _InlineSearchableDropdownState<T>
     super.dispose();
   }
 
-  // ─── Soek-modus fokusbestuur ───────────────────────────────────────────
-
   void _onFocusChanged() {
     if (!mounted) return;
     if (!_searchMode) return;
@@ -120,8 +129,6 @@ class _InlineSearchableDropdownState<T>
     }
   }
 
-  // ─── Blaai-modus fokusbestuur ─────────────────────────────────────────
-
   void _onBrowseFocusChanged() {
     if (!mounted) return;
     if (_searchMode) return;
@@ -134,8 +141,6 @@ class _InlineSearchableDropdownState<T>
     }
   }
 
-  // ─── Blaai-modus (tik op die veld) ─────────────────────────────────────
-
   void _toggleList() {
     if (!widget.enabled) return;
     if (_open) {
@@ -144,8 +149,6 @@ class _InlineSearchableDropdownState<T>
       _openList();
     }
   }
-
-  // ─── Soek-ikoon ────────────────────────────────────────────────────────
 
   void _enterSearchMode() {
     if (!widget.enabled) return;
@@ -161,8 +164,6 @@ class _InlineSearchableDropdownState<T>
     _closeList();
   }
 
-  // ─── Gedeelde oop/maak-toe logika ─────────────────────────────────────
-
   void _openList() {
     for (final other in _openStates.toList()) {
       if (other != this && other.mounted) {
@@ -176,6 +177,7 @@ class _InlineSearchableDropdownState<T>
       _text.clear();
     }
     setState(() => _open = true);
+    widget.onSearchModeChanged?.call(true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollListIntoView();
       if (mounted && !_searchMode) _browseFocus.requestFocus();
@@ -190,6 +192,7 @@ class _InlineSearchableDropdownState<T>
       _text.text = _preFocusText!;
     }
     _preFocusText = null;
+    widget.onSearchModeChanged?.call(false);
   }
 
   void _closeAll() {
@@ -198,8 +201,6 @@ class _InlineSearchableDropdownState<T>
     _browseFocus.unfocus();
     _closeList();
   }
-
-  // ─── Hulpmiddels ───────────────────────────────────────────────────────
 
   void _scrollListIntoView() {
     final ctx = _listKey.currentContext;
@@ -236,8 +237,6 @@ class _InlineSearchableDropdownState<T>
     setState(() {});
   }
 
-  // ─── Bou ───────────────────────────────────────────────────────────────
-
   Widget _buildLabel() {
     return Text(
       widget.required ? '${widget.label} *' : widget.label!,
@@ -259,7 +258,7 @@ class _InlineSearchableDropdownState<T>
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 240),
+        constraints: BoxConstraints(maxHeight: widget.maxHeight ?? 240),
         child: _filtered.isEmpty
             ? const Padding(
                 padding: EdgeInsets.all(16),

@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from ....auth.permissions import get_current_user, require_right, user_has_right
 from ....db.database import getSession
-from ....models.fault import Faultcard, FaultcardRead, FaultcardCreate, FaultcardUpdate, WRONG_ROOM_FAULT_PREFIX
+from ....models.fault import Faultcard, FaultcardRead, FaultcardCreate, FaultcardUpdate
 from ....models.asset import Asset
 from ....models.user import User
 from ....models.enums import FaultStatus
@@ -75,43 +75,6 @@ def notify_fault_status_change(session: Session, fault: Faultcard, old_status, a
             reference_id=fault.fault_id,
             exclude_user_ids=notified,
         )
-        _move_asset_back_if_wrong_room(session, fault)
-
-
-def _move_asset_back_if_wrong_room(session: Session, fault: Faultcard):
-    """Veiligheidsnet wat loop wanneer 'n 'gevind in verkeerde lokaal'-
-    foutkaartjie opgelos word.
-
-    Die bate se `room_id` word nie verskuif wanneer dit 'as vermis' gemerk
-    word nie, so normaalweg is hier niks om te doen nie. Slegs as die bate
-    fisies na die "gevind"-lokaal verskuif is, word dit teruggeskuif na die
-    lokaal van die oorspronklike (vermis) foutkaartjie.
-    """
-    desc = (fault.fault_description or "").strip()
-    if not desc.startswith(WRONG_ROOM_FAULT_PREFIX):
-        return
-    if not fault.asset_id:
-        return
-    asset = session.get(Asset, fault.asset_id)
-    if not asset:
-        return
-    # Die bate se `room_id` word nie verskuif wanneer dit 'as vermis' gemerk
-    # word nie — dit bly op sy toegewese lokaal. Hier is niks om te doen as die
-    # bate nie in die "gevind"-lokaal staan nie. Slegs as die bate per ongeluk
-    # na die gevind-lokaal beweeg is, word dit teruggeskuif na die lokaal van
-    # die oorspronklike (vermis) foutkaartjie.
-    if asset.room_id != fault.room_id:
-        return
-    target_room = None
-    if fault.duplicate_of:
-        original = session.get(Faultcard, fault.duplicate_of)
-        if original and original.room_id:
-            target_room = original.room_id
-    if target_room is not None:
-        asset.room_id = target_room
-        session.add(asset)
-        session.commit()
-        session.refresh(asset)
 
 # Authorization is driven entirely by the rights system now (see
 # auth/permissions.py), not by raw role_id comparisons:

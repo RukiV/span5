@@ -46,7 +46,7 @@ export function ToastProvider({ children }) {
             <t.Icon className="toast-icon" />
             <div className="toast-content">
               {t.title && <div className="toast-title">{t.title}</div>}
-              {t.message && <div className="toast-message">{typeof t.message === 'string' ? t.message : JSON.stringify(t.message)}</div>}
+              {t.message && <div className="toast-message">{t.message}</div>}
             </div>
             <button className="toast-close-btn" onClick={() => removeToast(t.id)}>&times;</button>
           </div>

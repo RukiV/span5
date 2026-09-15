@@ -13,7 +13,7 @@ from app.models.asset import Asset, Assettype
 from app.models.enums import BuildingType, Priority, RoomStatus, RoomType, Type
 from app.models.job import Jobcard
 from app.models.jobdraft import JobDraft
-from app.models.location import Building, BuildingTypeLink, Location, Room
+from app.models.location import Building, Location, Room
 from app.services.llm_service import LlmUnavailable, llm_service
 
 API = "/api/v1/ai"
@@ -32,10 +32,10 @@ def _seed_entities(engine) -> dict:
         )
         session.add(loc)
         session.flush()
-        bld = Building(building_name="Blok L", location_id=loc.location_id)
+        bld = Building(building_name="Blok L", building_type=BuildingType.EDUCATIONAL,
+                       location_id=loc.location_id)
         session.add(bld)
         session.flush()
-        session.add(BuildingTypeLink(building_id=bld.building_id, building_type=BuildingType.EDUCATIONAL))
         room = Room(room_name="Lesinglokaal A", room_code="LA-1",
                     room_type=RoomType.CLASSROOM, room_status=RoomStatus.OPERATIONAL,
                     building_id=bld.building_id)

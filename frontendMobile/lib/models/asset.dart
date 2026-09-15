@@ -13,6 +13,10 @@ class Asset {
   final bool isOutdoor;
 
   Asset({
+  final String campus;
+
+  Asset({
+    this.campus = '',
     required this.id,
     required this.serialCode,
     required this.name,
@@ -25,6 +29,7 @@ class Asset {
   });
 
   Asset copyWith({
+    String? campus,
     String? id,
     String? serialCode,
     String? name,
@@ -36,6 +41,7 @@ class Asset {
     bool? isOutdoor,
   }) {
     return Asset(
+      campus: campus ?? this.campus,
       id: id ?? this.id,
       serialCode: serialCode ?? this.serialCode,
       name: name ?? this.name,
@@ -82,6 +88,7 @@ class Asset {
   factory Asset.fromJson(Map<String, dynamic> json) {
     final typeId = json['assettype_id'] as int? ?? 1;
     return Asset(
+      campus: json['campus_name']?.toString() ?? '',
       id: json['asset_id']?.toString() ?? '',
       serialCode: json['asset_serial'] ?? '',
       name: json['asset_name'] ?? 'Onbekende Bate',
@@ -113,4 +120,5 @@ class Asset {
         return s.toLowerCase();
     }
   }
+}
 }

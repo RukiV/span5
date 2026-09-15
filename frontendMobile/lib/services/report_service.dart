@@ -44,6 +44,18 @@ class ReportService {
     isLoadingNotifier.value = false;
   }
 
+  static Future<Report?> getReportById(String id) async {
+    try {
+      final response = await ApiClient().client.get('/fault/$id');
+      if (response.statusCode == 200) {
+        return Report.fromJson(response.data);
+      }
+    } catch (e) {
+      debugPrint("Fout met haal van verslag $id: $e");
+    }
+    return null;
+  }
+
   static Future<Report?> addReport(
       Report report, {
       String? idempotencyKey,
@@ -101,4 +113,5 @@ class ReportService {
     }
     return false;
   }
+}
 }
