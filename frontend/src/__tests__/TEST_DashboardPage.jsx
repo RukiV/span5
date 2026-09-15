@@ -117,3 +117,57 @@ test('renders calendar section for users with calendar.view', async () => {
     expect(screen.getByText('Kalender')).toBeInTheDocument();
   });
 });
+
+describe('parseTimeFromText', () => {
+  const { parseTimeFromText } = require('../pages/DashboardPage');
+
+  test('parses start time only', () => {
+    expect(parseTimeFromText('E-pos bestuurder om 18:00')).toEqual({
+      cleanTitle: 'E-pos bestuurder',
+      hours: 18,
+      minutes: 0,
+      endHours: null,
+      endMinutes: null,
+    });
+  });
+
+  test('parses start and end time with "tot"', () => {
+    expect(parseTimeFromText('Vergadering om 9:00 tot 11:00')).toEqual({
+      cleanTitle: 'Vergadering',
+      hours: 9,
+      minutes: 0,
+      endHours: 11,
+      endMinutes: 0,
+    });
+  });
+
+  test('parses end time only with "tot"', () => {
+    expect(parseTimeFromText('Taak tot 12:00')).toEqual({
+      cleanTitle: 'Taak',
+      hours: 8,
+      minutes: 0,
+      endHours: 12,
+      endMinutes: 0,
+    });
+  });
+
+  test('parses dash form', () => {
+    expect(parseTimeFromText('Om 10:30 - 13:45 vergadering')).toEqual({
+      cleanTitle: 'vergadering',
+      hours: 10,
+      minutes: 30,
+      endHours: 13,
+      endMinutes: 45,
+    });
+  });
+
+  test('parses pm/nm suffix on both start and end', () => {
+    expect(parseTimeFromText('Besoek om 2nm tot 4nm')).toEqual({
+      cleanTitle: 'Besoek',
+      hours: 14,
+      minutes: 0,
+      endHours: 16,
+      endMinutes: 0,
+    });
+  });
+});

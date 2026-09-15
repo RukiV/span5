@@ -70,3 +70,4 @@ class AssetTypeService {
     return false;
   }
 }
+}

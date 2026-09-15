@@ -196,6 +196,8 @@ def _delete_single_building(session: Session, building_id: int) -> None:
         _delete_single_faultcard(session, fault.fault_id)
     for job in session.exec(select(Jobcard).where(Jobcard.building_id == building_id)).all():
         _delete_single_jobcard(session, job.jobcard_id)
+    for link in session.exec(select(BuildingTypeLink).where(BuildingTypeLink.building_id == building_id)).all():
+        session.delete(link)
     delete_images_for_parent(session, building.building_id, "building")
     session.delete(building)
 
