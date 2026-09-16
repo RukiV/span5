@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fbs/pages/asset/asset_form_page.dart';
 import 'form_test_utils.dart';
@@ -49,6 +50,26 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text("Wysig Bate"), findsOneWidget);
+    });
+
+    testWidgets('serienommer: geen helper-teks; auto-hoofletters + spasie',
+        (tester) async {
+      await pumpForm(tester, const AssetFormPage());
+
+      expect(find.text("AK-MTXXXXXX"), findsNothing);
+
+      await tester.enterText(find.byType(TextFormField).at(1), "akmt000014");
+      await tester.pumpAndSettle();
+
+      expect(find.text("AK MT000014"), findsOneWidget);
+    });
+
+    testWidgets('ligging: krummelpad is altyd tussen titel en kieser',
+        (tester) async {
+      await pumpForm(tester, const AssetFormPage());
+
+      expect(find.text("Kies Kampus"), findsOneWidget);
+      expect(find.text("Ligging *"), findsOneWidget);
     });
   });
 }

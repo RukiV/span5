@@ -1049,19 +1049,16 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             onUse: (key, s) => _applyJobGhost(key, s),
           ),
           const SizedBox(height: 20),
-          if (_selectedRoomId != null) ...[
-            LocationBreadcrumbs(
+          LocationCascadePicker(
+            label: "Ligging",
+            showBreadcrumb: false,
+            trailBar: LocationBreadcrumbs(
               path: LocationBreadcrumbs.buildLocationPath(
                 campusId: _selectedCampusId,
                 buildingId: _selectedBuildingId,
                 roomId: _selectedRoomId,
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-          LocationCascadePicker(
-            label: "Ligging",
-            showBreadcrumb: false,
             error: _selectedCampusId == null,
             initialCampusId: _selectedCampusId,
             initialBuildingId: _selectedBuildingId,

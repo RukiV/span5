@@ -64,6 +64,14 @@ class _InlineSearchableDropdownState<T>
 
   bool _searchMode = false;
 
+  /// Word vinnig gesit terwyl die gebruiker die sleutelbord-ikoon druk
+  /// (verberg sleutelbord), sodat die outo-afsluiting met 150ms vertraging
+  /// nie soek-modus beëindig nie.
+  bool _suppressExit = false;
+
+  /// Wys of die sleutelbord tans verberg is (soek-modus bly oop).
+  bool _keyboardHidden = false;
+
   String? _labelOf(T? v) {
     if (v == null) return null;
     for (final i in widget.items) {
@@ -110,10 +118,11 @@ class _InlineSearchableDropdownState<T>
     if (!mounted) return;
     if (!_searchMode) return;
     if (_focus.hasFocus) {
+      setState(() => _keyboardHidden = false);
       widget.onFocus?.call();
     } else {
       Future.delayed(const Duration(milliseconds: 150), () {
-        if (mounted && !_focus.hasFocus) {
+        if (mounted && !_focus.hasFocus && !_suppressExit) {
           _exitSearchMode();
         }
       });
@@ -150,7 +159,11 @@ class _InlineSearchableDropdownState<T>
   void _enterSearchMode() {
     if (!widget.enabled) return;
     _openList();
-    setState(() => _searchMode = true);
+    setState(() {
+      _searchMode = true;
+      _keyboardHidden = false;
+      _suppressExit = false;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
     });
@@ -158,7 +171,24 @@ class _InlineSearchableDropdownState<T>
 
   void _exitSearchMode() {
     _searchMode = false;
+    _keyboardHidden = false;
     _closeList();
+  }
+
+  /// Wys/verberg die sleutelbord terwyl jy in soek-modus bly. Die lys bly
+  /// oop en die getikte soekteks word behou.
+  void _toggleKeyboard() {
+    if (_focus.hasFocus) {
+      _suppressExit = true;
+      setState(() => _keyboardHidden = true);
+      _focus.unfocus();
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted) _suppressExit = false;
+      });
+    } else {
+      setState(() => _keyboardHidden = false);
+      _focus.requestFocus();
+    }
   }
 
   // ─── Gedeelde oop/maak-toe logika ─────────────────────────────────────
@@ -384,11 +414,30 @@ class _InlineSearchableDropdownState<T>
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
-        suffixIcon: widget.enabled && _text.text.isNotEmpty
-            ? IconButton(
-                icon: const Icon(Icons.clear, size: 20),
-                onPressed: _clear,
-                visualDensity: VisualDensity.compact,
+        suffixIcon: widget.enabled
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_text.text.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: _clear,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  IconButton(
+                    icon: Icon(
+                      _keyboardHidden
+                          ? Icons.keyboard
+                          : Icons.keyboard_hide,
+                      size: 20,
+                    ),
+                    tooltip: _keyboardHidden
+                        ? "Wys sleutelbord"
+                        : "Verberg sleutelbord",
+                    onPressed: _toggleKeyboard,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
               )
             : null,
       ),

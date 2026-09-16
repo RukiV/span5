@@ -385,13 +385,10 @@ class _EditReportPageState extends State<EditReportPage> {
                               _rawStatus = _displayToRawStatus(val);
                             })),
                     const SizedBox(height: 20),
-                    if (_selectedLocation != null) ...[
-                      _buildBreadcrumbs(),
-                      const SizedBox(height: 16),
-                    ],
                     LocationCascadePicker(
                       label: "Ligging *",
                       showBreadcrumb: false,
+                      trailBar: _buildBreadcrumbs(),
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,

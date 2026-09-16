@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/asset_code_formatter.dart';
 import '../../core/idempotency.dart';
 import '../../core/input_decoration.dart';
 import '../../models/asset.dart';
@@ -393,8 +394,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 tooltip: "Skandeer strepie-/QR-kode",
                 onPressed: _scanSerial,
               ),
-              helperText: "AK-MTXXXXXX",
             ),
+            inputFormatters: [AssetCodeFormatter()],
             onChanged: (v) => serialCode = v,
             validator: (v) {
               if (v == null || v.trim().isEmpty) return "Vereis";
@@ -458,16 +459,14 @@ class _AssetFormPageState extends State<AssetFormPage> {
             ],
           ),
           const SizedBox(height: 20),
-          if (selectedLocation != null) ...[
-            _breadcrumbs(),
-            const SizedBox(height: 16),
-          ],
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               LocationCascadePicker(
                 label: "Ligging *",
                 showBreadcrumb: false,
+                trailBar: _breadcrumbs(),
+                trailBarSpacing: 0,
                 initialCampusId:
                     _appliedLocation?.$1 ?? (_isCreate ? _campusIdForName(selectedCampus) : _initialCampusId),
                 initialBuildingId: _appliedLocation?.$2 ?? (_isCreate ? null : _initialBuildingId),

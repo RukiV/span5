@@ -164,13 +164,6 @@ class _StockFormPageState extends State<StockFormPage> {
   }
 
   Widget _breadcrumbs() {
-    if (_campusId == null) return const SizedBox.shrink();
-
-    final campus = CampusService.campusesNotifier.value
-        .where((c) => c.id == _campusId)
-        .firstOrNull;
-    if (campus == null) return const SizedBox.shrink();
-
     return LocationBreadcrumbs(path: LocationBreadcrumbs.buildLocationPath(
         campusId: _campusId, buildingId: _buildingId, roomId: _roomId));
   }
@@ -394,13 +387,10 @@ class _StockFormPageState extends State<StockFormPage> {
             ],
           ),
           const SizedBox(height: 20),
-          if (_roomId != null) ...[
-            _breadcrumbs(),
-            const SizedBox(height: 16),
-          ],
           LocationCascadePicker(
             label: "Ligging *",
             showBreadcrumb: false,
+            trailBar: _breadcrumbs(),
             initialCampusId: _campusId,
             initialBuildingId: _buildingId,
             initialRoomId: _roomId,

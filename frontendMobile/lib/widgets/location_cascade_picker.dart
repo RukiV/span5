@@ -43,6 +43,13 @@ class LocationCascadePicker extends StatefulWidget {
   /// ouder self 'n opsommingsblok bokant die veld wys.
   final bool showBreadcrumb;
 
+  /// 'n Opsommingsbalk (bv. [LocationBreadcrumbs]) wat altyd tussen die etiket
+  /// en die kieser-veld vertoon word — ongeag of 'n ligging reeds gekies is.
+  final Widget? trailBar;
+
+  /// Vertikale gaping tussen die [trailBar] en die kieser-veld daaronder.
+  final double trailBarSpacing;
+
   /// Wys 'n wysig-inskiet by vlak 0 wanneer 'n geskandeerde/opgesoekte bate
   /// se bestaande ligging verander word ("Verander ... van ...").
   final bool editing;
@@ -64,6 +71,8 @@ class LocationCascadePicker extends StatefulWidget {
     this.showBreadcrumb = true,
     this.editing = false,
     this.trailing,
+    this.trailBar,
+    this.trailBarSpacing = 6.0,
   });
 
   @override
@@ -495,6 +504,10 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                 ),
               ),
               const SizedBox(height: 6),
+            ],
+            if (widget.trailBar != null) ...[
+              widget.trailBar!,
+              SizedBox(height: widget.trailBarSpacing),
             ],
             if (widget.showBreadcrumb) ...[
               _buildBreadcrumb(campuses),

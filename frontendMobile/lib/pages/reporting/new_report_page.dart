@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../core/app_colors.dart';
+import '../../core/asset_code_formatter.dart';
 import '../../services/asset_type_service.dart';
 import 'scan_page.dart';
 import 'location_page.dart';
@@ -403,7 +404,7 @@ class _NewReportPageState extends State<NewReportPage> {
                       FocusManager.instance.primaryFocus?.unfocus();
                     },
                     style: const TextStyle(color: Colors.white, fontSize: 14),
-                    inputFormatters: [_AssetCodeFormatter()],
+                    inputFormatters: [AssetCodeFormatter()],
                     decoration: InputDecoration(
                       hintText: "AK-MTXXXXXX",
                       hintStyle: TextStyle(
@@ -508,16 +509,6 @@ class _NewReportPageState extends State<NewReportPage> {
               const SizedBox(height: 8),
               _buildTitleDescriptionBox(),
               const SizedBox(height: 24),
-              if (_selectedCampusId != null) ...[
-                LocationBreadcrumbs(
-                  path: LocationBreadcrumbs.buildLocationPath(
-                    campusId: _selectedCampusId,
-                    buildingId: _selectedBuildingId,
-                    roomId: _selectedRoomId,
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
               LocationCascadePicker(
                 initialCampusId: _selectedCampusId,
                 initialBuildingId: _selectedBuildingId,
@@ -525,6 +516,13 @@ class _NewReportPageState extends State<NewReportPage> {
                 label: "Waargeneemde Ligging",
                 editing: _assetResolved,
                 showBreadcrumb: false,
+                trailBar: LocationBreadcrumbs(
+                  path: LocationBreadcrumbs.buildLocationPath(
+                    campusId: _selectedCampusId,
+                    buildingId: _selectedBuildingId,
+                    roomId: _selectedRoomId,
+                  ),
+                ),
                 errorText: _locationError,
                 trailing: _buildScanRoomIcon(),
                 onChanged: _onLocationChanged,
@@ -1302,32 +1300,6 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Formateer 'n batekode terwyl jy tik: hoofletters, en 'n spasie word tussen
-/// die 2de en 3de letter ingevoeg wanneer die kode met "AK" begin
-/// (bv. `akmt000014` → `AK MT000014`). Ander formate word net ge-uppercase.
-class _AssetCodeFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    final raw = newValue.text.toUpperCase();
-    String text = raw;
-    if (raw.length >= 3 &&
-        raw.startsWith('AK') &&
-        raw[2] != ' ' &&
-        raw[2] != '-') {
-      text = 'AK ${raw.substring(2)}';
-    }
-    if (text == newValue.text) return newValue;
-    final base = newValue.selection.baseOffset;
-    final delta = text.length - newValue.text.length;
-    final caret = base > 2 ? base + delta : base;
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: caret.clamp(0, text.length)),
     );
   }
 }

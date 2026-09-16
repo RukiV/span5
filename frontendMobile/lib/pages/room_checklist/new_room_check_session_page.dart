@@ -95,22 +95,21 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                 children: [
                   const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  if (_roomId != null) ...[
-                    () {
-                      final path = CampusService.findRoomPath(_roomId!);
-                      final campus = path.campus?.name;
-                      final building = path.building?.name;
-                      final room = path.room?.name;
+                  LocationCascadePicker(
+                    depth: LocationDepth.room,
+                    showBreadcrumb: false,
+                    trailBar: Builder(builder: (context) {
+                      final path = _roomId != null
+                          ? CampusService.findRoomPath(_roomId!)
+                          : null;
+                      final campus = path?.campus?.name;
+                      final building = path?.building?.name;
+                      final room = path?.room?.name;
                       final label = campus == null
                           ? "Kies Kampus"
                           : "$campus > $building > $room";
                       return LocationBreadcrumbs(path: label);
-                    }(),
-                    const SizedBox(height: 12),
-                  ],
-                  LocationCascadePicker(
-                    depth: LocationDepth.room,
-                    showBreadcrumb: false,
+                    }),
                     onChanged: (campusId, buildingId, roomId) {
                       setState(() {
                         _roomId = roomId;
