@@ -42,6 +42,31 @@ DAYS_PER_YEAR = 365.25
 ONE_YEAR = timedelta(days=365)
 
 
+class FeatureContext:
+    """Versamel-voorafgelaaide navorsingstabelle vir kenmerk-ekstraksie.
+
+    Een keer per bondel (voorspellingsgang / opleiding) gebou en oor alle
+    bates gedeel, sodat ``extract_asset_features`` geensins per-bate-navrae
+    hoef te maak nie. ``session`` word steeds aangehou vir die enkele-bate
+    pad wanneer daar geen konteks verskaf word nie.
+    """
+
+    __slots__ = ("assettypes", "maintenance_jobs", "faults")
+
+    def __init__(
+        self,
+        assettypes: dict[int, Assettype],
+        maintenance_jobs: dict[int, list[Jobcard]],
+        faults: dict[int, list[Faultcard]],
+    ):
+        #: Terrein-tipe per assettype_id.
+        self.assettypes: dict[int, Assettype] = assettypes or {}
+        #: Voltooide onderhoudswerke per asset_id.
+        self.maintenance_jobs: dict[int, list[Jobcard]] = maintenance_jobs or {}
+        #: Alle foutkaarte per asset_id.
+        self.faults: dict[int, list[Faultcard]] = faults or {}
+
+
 def _completed_maintenance_jobs(session: Session, asset_id: int) -> list[Jobcard]:
     """All COMPLETED maintenance jobcards for an asset (latest first)."""
     return session.exec(
@@ -64,26 +89,37 @@ def _maintenance_datetime(job: Jobcard) -> datetime | None:
 def _asset_faults(session: Session, asset_id: int) -> list[Faultcard]:
     """All faultcards referencing the asset, for timestamp windowing in Python.
 
-    Per-asset scanning keeps the SQL trivial and the lookahead rule explicit;
-    training runs once per ``SURVIVAL_RETRAIN_INTERVAL`` and prediction runs on
-    a single asset, so the cost is acceptable.
+    Optimised for batch use: pass ``FeatureContext`` to
+    :func:`extract_asset_features` so the whole table is loaded once up-front
+    instead of once per asset.
     """
     return session.exec(select(Faultcard).where(Faultcard.asset_id == asset_id)).all()
 
 
-def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> dict[str, float]:
+def extract_asset_features(
+    session: Session,
+    asset: Asset,
+    t_ref: datetime,
+    ctx: FeatureContext | None = None,
+) -> dict[str, float]:
     """Feature vector for one asset as observed from reference time ``t_ref``.
 
     Only data available at ``t_ref`` is used (completed maintenance dated
     ``<= t_ref``, faults inside/behind ``<= t_ref`` windows) so training rows
     carry no lookahead bias. Missing assettype fields impute to 0.
+
+    Provide ``ctx`` (a ``FeatureContext``) to skip the per-asset queries during
+    bulk passes; without it the single-asset path queries on demand.
     """
     if asset.asset_created_datetime is None:
         age_days = 0.0
     else:
         age_days = float((t_ref - asset.asset_created_datetime).days)
 
-    assettype = session.get(Assettype, asset.assettype_id)
+    if ctx is not None:
+        assettype = ctx.assettypes.get(asset.assettype_id)
+    else:
+        assettype = session.get(Assettype, asset.assettype_id)
     avg_lifespan = assettype.assettype_avg_lifespan if assettype else None
     service_interval = assettype.assettype_service_interval if assettype else None
 
@@ -91,11 +127,15 @@ def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> d
     service_interval_days = service_interval * DAYS_PER_MONTH if service_interval else 0.0
     years_floor = max(age_days / DAYS_PER_YEAR, 0.1)
 
+    if ctx is not None:
+        maintenance_jobs = ctx.maintenance_jobs.get(asset.asset_id, [])
+    else:
+        maintenance_jobs = _completed_maintenance_jobs(session, asset.asset_id)
     maintenance_times = [
         dt
         for dt in (
             _maintenance_datetime(job)
-            for job in _completed_maintenance_jobs(session, asset.asset_id)
+            for job in maintenance_jobs
         )
         if dt is not None and dt <= t_ref
     ]
@@ -105,12 +145,17 @@ def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> d
     else:
         days_since_last_maintenance = age_days
 
+    if ctx is not None:
+        asset_faults = ctx.faults.get(asset.asset_id, [])
+    else:
+        asset_faults = _asset_faults(session, asset.asset_id)
+
     window_start = t_ref - ONE_YEAR
     fault_count_12mo = 0
     total_faults = 0
     high_count = 0
     priority_count = 0
-    for fault in _asset_faults(session, asset.asset_id):
+    for fault in asset_faults:
         if getattr(fault, "duplicate_of", None) is not None:
             continue
         reported = fault.fault_reportdatetime

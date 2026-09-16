@@ -148,7 +148,6 @@ class Jobcard {
         .where((e) => e != 0)
         .toList();
   }
-}
 
   Map<String, dynamic> toJson() {
     return {

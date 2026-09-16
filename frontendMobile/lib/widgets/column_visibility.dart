@@ -16,10 +16,6 @@ class ColumnDef {
 
 /// Manages which columns are shown/hidden.
 class ColumnVisibilityController extends ChangeNotifier {
-  final List<ColumnDef> _allColumns;
-  final Set<String> _hidden = {};
-
-  ColumnVisibilityController(this._allColumns) {
   final String? storageKey;
   final List<ColumnDef> _allColumns;
   final Set<String> _hidden = {};
@@ -69,9 +65,6 @@ class ColumnVisibilityController extends ChangeNotifier {
 class ColumnVisibilityButton extends StatefulWidget {
   final ColumnVisibilityController controller;
 
-  const ColumnVisibilityButton({
-    super.key,
-    required this.controller,
   /// When true, only the icon is shown to save header space.
   final bool iconOnly;
 
@@ -100,8 +93,6 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
         button.localToGlobal(Offset.zero, ancestor: overlay),
         button.localToGlobal(button.size.bottomRight(Offset.zero),
             ancestor: overlay),
-        button.localToGlobal(
-            button.size.bottomRight(Offset.zero), ancestor: overlay),
       ),
       Offset.zero & overlay.size,
     );
@@ -154,31 +145,6 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
   @override
   Widget build(BuildContext context) {
     final hidden = widget.controller.hiddenCount;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          key: _buttonKey,
-          tooltip: 'Wys kolomme',
-          icon: const Icon(Icons.view_column, color: Colors.white, size: 20),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 30 / 255),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          onPressed: _showPopup,
-        ),
-        if (hidden > 0)
-          Positioned(
-            right: -4,
-            top: -4,
-            child: CountBadge(hidden),
-          ),
-      ],
-    );
-  }
-}
     if (widget.iconOnly) {
       return Stack(
         clipBehavior: Clip.none,
@@ -199,23 +165,7 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
             Positioned(
               right: -4,
               top: -4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF935E28),
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                ),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                child: Text(
-                  '$hidden',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
+              child: CountBadge(hidden),
             ),
         ],
       );

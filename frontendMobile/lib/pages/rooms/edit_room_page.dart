@@ -18,6 +18,7 @@ class EditRoomPage extends StatefulWidget {
 class _EditRoomPageState extends State<EditRoomPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _codeController;
   late final TextEditingController _capacityController;
   late String _type;
   Building? _selectedBuilding;
@@ -38,6 +39,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.room.name);
+    _codeController = TextEditingController(text: widget.room.roomCode ?? "");
     _capacityController =
         TextEditingController(text: widget.room.capacity?.toString() ?? "");
     _type = widget.room.type;
@@ -57,6 +59,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
   void dispose() {
     CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     _nameController.dispose();
+    _codeController.dispose();
     _capacityController.dispose();
     super.dispose();
   }
@@ -119,6 +122,7 @@ class _EditRoomPageState extends State<EditRoomPage> {
 
     final updated = widget.room.copyWith(
       name: _nameController.text.trim(),
+      roomCode: _codeController.text.trim(),
       type: _type,
       capacity: int.tryParse(_capacityController.text),
       buildingId: _selectedBuilding!.id,
@@ -216,6 +220,17 @@ class _EditRoomPageState extends State<EditRoomPage> {
                           decoration: _inputDecoration("Naam"),
                           validator: (v) =>
                               (v == null || v.trim().isEmpty) ? "Vereis" : null,
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _codeController,
+                          decoration: _inputDecoration("Lokaal Kode"),
+                          textCapitalization: TextCapitalization.characters,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return "Vereis";
+                            if (v.trim().length > 20) return "Maks 20 karakters";
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 20),
                         SearchableDropdown<Building>(

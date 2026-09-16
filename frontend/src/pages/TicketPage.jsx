@@ -803,9 +803,7 @@ function TicketPage() {
                   </select>
                   {/* Ghost vir Prioriteit wys slegs as 'n voorstel bestaan en verskil van huidige waarde */}
                   {faultGhostPrio && faultGhostPrio !== newTicket.priority && !isViewMode && (
-                    <div style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.78rem', color: '#a8a29e', fontStyle: 'italic', background: '#fdf8f3', border: '1px solid #e7d9c7', borderRadius: 6, padding: '2px 6px' }}>
-                      → {faultGhostPrio}
-                    </div>
+                    <GhostSuggestion active={faultGhostPrio !== newTicket.priority} onAccept={() => applyFaultGhost('fault_priority')}>{faultGhostPrio}</GhostSuggestion>
                   )}
                 </div>
               </div>

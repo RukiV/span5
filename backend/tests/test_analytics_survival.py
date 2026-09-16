@@ -108,3 +108,46 @@ def test_survival_min_env_override(monkeypatch):
     importlib.reload(survival_service)
     assert survival_service._min_assets == 50
     assert survival_service._min_events == 10 * len(FEATURE_NAMES)
+
+
+# ---------------------------------------------------------------------------
+# AI-grafieke 24-uur-kas (get_ai_charts)
+# ---------------------------------------------------------------------------
+
+def test_ai_charts_cached_24h_and_force_refresh(engine, seeded, monkeypatch):
+    """get_ai_charts regenerates hoogstens een keer per 24 uur; force_refresh dwing vars."""
+    from app.services import chart_ai_service
+
+    generated = []
+
+    def fake_generate_all_charts(session, user):
+        generated.append((session, user))
+        return {"charts": [{"id": len(generated)}], "scope": "all"}
+
+    monkeypatch.setattr(chart_ai_service, "generate_all_charts", fake_generate_all_charts)
+    chart_ai_service._ai_chart_cache.clear()
+
+    with Session(engine) as session:
+        first = chart_ai_service.get_ai_charts(session, user=None)
+        second = chart_ai_service.get_ai_charts(session, user=None)
+
+    assert len(generated) == 1
+    assert first is second  # kas gee dieselfde objek terug
+
+    with Session(engine) as session:
+        refreshed = chart_ai_service.get_ai_charts(session, user=None, force_refresh=True)
+
+    assert len(generated) == 2
+    assert refreshed is not first
+
+    chart_ai_service._ai_chart_cache.clear()
+
+
+def test_ai_charts_scope_key():
+    from app.services.chart_ai_service import _scope_key
+
+    fk = type("U", (), {"role_id": ROLE_FK, "location_id": 7})()
+
+    assert _scope_key(fk) == "fk:7"
+    assert _scope_key(type("U", (), {"role_id": 1, "location_id": 7})()) == "all"
+    assert _scope_key(None) == "all"

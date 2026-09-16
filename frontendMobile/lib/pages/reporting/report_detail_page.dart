@@ -11,10 +11,6 @@ import '../../models/user_session.dart';
 import '../../models/report.dart';
 import '../../widgets/detail_row.dart';
 
-class ReportDetailPage extends StatefulWidget {
-  final Report report;
-
-  const ReportDetailPage({super.key, required this.report});
 import 'dart:typed_data';
 
 class ReportDetailPage extends StatefulWidget {

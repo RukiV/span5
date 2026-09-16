@@ -11,8 +11,6 @@ class Asset {
   final String location; // room_id
   final String status;
   final bool isOutdoor;
-
-  Asset({
   final String campus;
 
   Asset({
@@ -120,5 +118,4 @@ class Asset {
         return s.toLowerCase();
     }
   }
-}
 }

@@ -14,6 +14,10 @@ import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/mobile_ghost_overlay.dart';
+import '../../core/suggestion_translations.dart';
+import '../../services/ai_service.dart';
 import 'scan_page.dart';
 import 'location_page.dart';
 
@@ -57,6 +61,37 @@ class _EditReportPageState extends State<EditReportPage> {
   ];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
   final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
+
+  /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
+
+  Map<String, String> _currentFaultFields() => {
+        'description': _descriptionController.text,
+        'title': _titleController.text,
+        'fault_type': _category,
+        'fault_priority': _priority,
+      };
+
+  void _applyFaultGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'fault_type':
+        final v = translateSuggestion('fault_type', s.value);
+        _category = _categories.contains(v) ? v : s.value;
+        break;
+      case 'fault_priority':
+        final v = translateSuggestion('fault_priority', s.value);
+        _priority = _priorities.contains(v) ? v : s.value;
+        break;
+    }
+    setState(() {});
+  }
+
+  Widget? _faultGhostTrailing(String key, String current) {
+    final s = _ghosts[key];
+    if (s == null) return null;
+    if (current == s.value) return null;
+    return SuggestionAcceptCheck(onTap: () => _applyFaultGhost(key, s));
+  }
 
   @override
   void initState() {
@@ -362,18 +397,34 @@ class _EditReportPageState extends State<EditReportPage> {
                     Row(
                       children: [
                         Expanded(
-                            child: _buildDropdown(
-                                "Werksoort",
-                                _category,
-                                _categories,
-                                (val) => setState(() => _category = val!))),
+                            child: () {
+                              final g = _ghosts['fault_type'];
+                              return _buildDropdown(
+                                  "Werksoort",
+                                  _category,
+                                  _categories,
+                                  (val) => setState(() => _category = val!),
+                                  hintOverride: _category.isEmpty && g != null
+                                      ? translateSuggestion('fault_type', g.value)
+                                      : null,
+                                  trailing:
+                                      _faultGhostTrailing('fault_type', _category));
+                            }()),
                         const SizedBox(width: 12),
                         Expanded(
-                            child: _buildDropdown(
-                                "Prioriteit",
-                                _priority,
-                                _priorities,
-                                (val) => setState(() => _priority = val!))),
+                            child: () {
+                              final g = _ghosts['fault_priority'];
+                              return _buildDropdown(
+                                  "Prioriteit",
+                                  _priority,
+                                  _priorities,
+                                  (val) => setState(() => _priority = val!),
+                                  hintOverride: _priority.isEmpty && g != null
+                                      ? translateSuggestion('fault_priority', g.value)
+                                      : null,
+                                  trailing:
+                                      _faultGhostTrailing('fault_priority', _priority));
+                            }()),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -411,6 +462,17 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     _buildTextField("Beskrywing", _descriptionController,
                         maxLines: 5),
+                    const SizedBox(height: 16),
+                    AiSuggestionsPanel(
+                      context: 'fault',
+                      fields: _currentFaultFields(),
+                      labels: const {
+                        'fault_type': 'Werksoort',
+                        'fault_priority': 'Prioriteit',
+                      },
+                      onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+                      onUse: (key, s) => _applyFaultGhost(key, s),
+                    ),
                     const SizedBox(height: 16),
                     _buildPhotoSection(),
                     const SizedBox(height: 40),
@@ -611,7 +673,7 @@ class _EditReportPageState extends State<EditReportPage> {
   }
 
   Widget _buildTextField(String label, TextEditingController controller,
-      {int maxLines = 1}) {
+      {int maxLines = 1, String? ghost, bool ghostActive = false, VoidCallback? onGhostAccept}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -624,8 +686,14 @@ class _EditReportPageState extends State<EditReportPage> {
         TextFormField(
           controller: controller,
           maxLines: maxLines,
+          onChanged: (_) => setState(() {}),
           style: const TextStyle(fontSize: 14),
-          decoration: appInputDecoration(),
+          decoration: withSuggestionGhost(
+            appInputDecoration(),
+            ghost: ghost,
+            active: ghostActive,
+            onAccept: onGhostAccept ?? () {},
+          ),
           validator: (value) =>
               value == null || value.isEmpty ? "Verpligtend" : null,
         ),
@@ -634,14 +702,16 @@ class _EditReportPageState extends State<EditReportPage> {
   }
 
   Widget _buildDropdown(String label, String value, List<String> items,
-      ValueChanged<String?> onChanged) {
+      ValueChanged<String?> onChanged,
+      {String? hintOverride, Widget? trailing}) {
     return SearchableDropdown<String>(
       label: label,
-      hint: "Kies $label",
+      hint: hintOverride ?? "Kies $label",
       value: value,
       items:
           items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
       onChanged: onChanged,
+      trailing: trailing,
     );
   }
 }

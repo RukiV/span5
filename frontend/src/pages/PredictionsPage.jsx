@@ -87,6 +87,7 @@ function PredictionsPage() {
   // ML-modelstatus: null = status-eindpunt nog nie beskikbaar nie (strook word weggesteek)
   const [modelStatus, setModelStatus] = useState(null);
   const [modelBusy, setModelBusy] = useState(false);
+  const [chartsBusy, setChartsBusy] = useState(false);
 
   // ── Grafieke (geskuif vanaf Paneelbord) ──
   const [summary, setSummary] = useState(null);
@@ -223,6 +224,23 @@ const colPickerRef = useRef(null);
       showToast({ type: 'error', title: 'Fout', message: 'Verander van modelstatus het misluk: ' + (err.response?.data?.detail || err.message) });
     } finally {
       setModelBusy(false);
+    }
+  };
+
+  // AI-grafieke gegenereer hoogstens een keer per 24 uur (bediener-kas); hierdie
+  // knoppie dwing 'n vars generasie vir die bladsy.
+  const handleRegenerateCharts = async () => {
+    setChartsBusy(true);
+    try {
+      const res = await apiClient.get('/analytics/dashboard-summary', {
+        params: { include_ai_charts: true, force_refresh: true },
+      });
+      if (res?.data) setSummary(res.data);
+      showToast({ type: 'success', title: 'AI Analise', message: 'Grafieke vars gegenereer.' });
+    } catch (err) {
+      showToast({ type: 'error', title: 'Fout', message: 'Kon grafieke nie genereer nie: ' + (err?.response?.data?.detail || err?.message) });
+    } finally {
+      setChartsBusy(false);
     }
   };
 
@@ -826,7 +844,14 @@ const colPickerRef = useRef(null);
             <>
               <div style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <h2 style={{ margin: 0, color: '#0e1e3b', fontSize: '18px' }}>AI Asset & Werksopdrag Analise</h2>
-                <span style={{ background: '#d4edda', color: '#155724', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>AI gegenereer • elke run vars</span>
+                <button
+                  className="dash-action-btn dash-action-btn--small"
+                  onClick={handleRegenerateCharts}
+                  disabled={chartsBusy}
+                  title="Genereer die AI-grafieke vars (normaalweg een keer per dag)"
+                >
+                  {chartsBusy ? 'Genereer...' : 'Genereer nou'}
+                </button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
                 {aiOrder.filter((k) => aiCharts[k]).map((key) => {

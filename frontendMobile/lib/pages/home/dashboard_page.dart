@@ -5,9 +5,6 @@ import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/asset_service.dart';
 import '../../services/jobcard_service.dart';
-import '../../models/report.dart';
-import '../../models/asset.dart';
-import '../../models/jobcard.dart';
 import '../../models/user_session.dart';
 import 'calendar_page.dart';
 
@@ -78,41 +75,54 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 25),
 
-            // Seksie: Rapportering Opsomming
-            _buildSectionHeader("Rapportering"),
+            // Seksie: Opsomming — al die KPI-kaarte in een ry (baie kompak)
+            _buildSectionHeader("Opsomming"),
             const SizedBox(height: 12),
 
-            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
-            _buildSectionHeader("Rapportering"),
-            const SizedBox(height: 12),
-            ValueListenableBuilder<List<Report>>(
-              valueListenable: ReportService.reportsNotifier,
-              builder: (context, reports, _) {
-                final nuwe = reports.where((r) => r.phase == "Ontvang").length;
+            // Vier kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae,
+            // Totale Bates). Terwyl die eerste laai nog besig is, wys 'n klein
+            // spinner in plaas van 'n misleidende "0".
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                ReportService.reportsNotifier,
+                ReportService.isLoadingNotifier,
+              ]),
+              builder: (context, _) {
+                final reports = ReportService.reportsNotifier.value;
+                final reportsBusy =
+                    reports.isEmpty && ReportService.isLoadingNotifier.value;
+                final nuwe =
+                    reports.where((r) => r.phase == "Ontvang").length;
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    double cardWidth = (constraints.maxWidth - 20) / 3;
+                    double cardWidth = (constraints.maxWidth - 24) / 4;
                     return Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildMiniStatCard(
                           context,
                           "Foutkaartjies",
-                          nuwe.toString(),
+                          reportsBusy ? null : nuwe.toString(),
                           "",
                           AppColors.gold,
                           "Foutkaartjies",
                           cardWidth,
                         ),
-                        ValueListenableBuilder<List<Jobcard>>(
-                          valueListenable:
-                              JobcardService.jobcardsNotifier,
-                          builder: (context, jobcards, _) {
+                        AnimatedBuilder(
+                          animation: Listenable.merge([
+                            JobcardService.jobcardsNotifier,
+                            JobcardService.isLoadingNotifier,
+                          ]),
+                          builder: (context, _) {
+                            final jobcards =
+                                JobcardService.jobcardsNotifier.value;
+                            final busy = jobcards.isEmpty &&
+                                JobcardService.isLoadingNotifier.value;
                             return _buildMiniStatCard(
                               context,
                               "Werksopdragte",
-                              jobcards.length.toString(),
+                              busy ? null : jobcards.length.toString(),
                               "",
                               AppColors.successGreen,
                               "Werksopdragte",
@@ -123,41 +133,35 @@ class _DashboardPageState extends State<DashboardPage> {
                         _buildMiniStatCard(
                           context,
                           "Verslae",
-                          reports.length.toString(),
+                          reportsBusy ? null : reports.length.toString(),
                           "",
                           AppColors.infoBlue,
-                          "Foutkaartjies",
+                          "Verslae",
                           cardWidth,
+                        ),
+                        AnimatedBuilder(
+                          animation: Listenable.merge([
+                            AssetService.assetsNotifier,
+                            AssetService.isLoadingNotifier,
+                          ]),
+                          builder: (context, _) {
+                            final assets = AssetService.assetsNotifier.value;
+                            final busy = assets.isEmpty &&
+                                AssetService.isLoadingNotifier.value;
+                            return _buildMiniStatCard(
+                              context,
+                              "Totale Bates",
+                              busy ? null : assets.length.toString(),
+                              "",
+                              AppColors.navy,
+                              "Bates",
+                              cardWidth,
+                            );
+                          },
                         ),
                       ],
                     );
                   },
-                );
-              },
-            ),
-
-            const SizedBox(height: 30),
-
-            // Seksie: Bates
-            _buildSectionHeader("Bates"),
-            const SizedBox(height: 12),
-
-            ValueListenableBuilder<List<Asset>>(
-              valueListenable: AssetService.assetsNotifier,
-              builder: (context, assets, _) {
-                // Totale Bates Kaart
-            _buildSectionHeader("Bates"),
-            const SizedBox(height: 12),
-            ValueListenableBuilder<List<Asset>>(
-              valueListenable: AssetService.assetsNotifier,
-              builder: (context, assets, _) {
-                return _buildWideStatCard(
-                  context,
-                  "Totale Bates",
-                  assets.length.toString(),
-                  "",
-                  AppColors.navy,
-                  "Bates",
                 );
               },
             ),
@@ -186,112 +190,64 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildMiniStatCard(BuildContext context, String title, String value,
-      String trend, Color color, String targetTitle, double width) {
-    return InkWell(
-      onTap: () => widget.onTabRequested?.call(targetTitle),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-          border: Border(bottom: BorderSide(color: color, width: 3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey),
-                maxLines: 1),
-            const SizedBox(height: 4),
+Widget _buildMiniStatCard(BuildContext context, String title, String? value,
+    String trend, Color color, String targetTitle, double width) {
+  return InkWell(
+    onTap: () => widget.onTabRequested?.call(targetTitle),
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
+        border: Border(bottom: BorderSide(color: color, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          if (value != null)
             Text(value,
                 style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.navy)),
-            if (trend.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                trend,
-                style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: trend.contains('+')
-                        ? AppColors.successGreen
-                        : AppColors.errorRed),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWideStatCard(BuildContext context, String title, String value,
-      String trend, Color color, String targetTitle) {
-    return InkWell(
-      onTap: () => widget.onTabRequested?.call(targetTitle),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey)),
-                const SizedBox(height: 4),
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.navy)),
-              ],
+                    color: AppColors.navy))
+          else
+            const SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.navy),
             ),
-            if (trend.isEmpty)
-              const SizedBox.shrink()
-            else
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                    color: AppColors.successGreen.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text(trend,
-                    style: const TextStyle(
-                        color: AppColors.successGreen,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold)),
-              )
+          if (trend.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              trend,
+              style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  color: trend.contains('+')
+                      ? AppColors.successGreen
+                      : AppColors.errorRed),
+            ),
           ],
-        ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

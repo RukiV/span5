@@ -37,6 +37,17 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   /// natuurlike hoogte kry tot `240` in plaas van 'n skuifwiel te wees.
   final double? maxHeight;
 
+  /// Wys 'n skoonmaak-("x")-knoppie regs in die blaai-veld wanneer `true` en
+  /// [onClear] verskaf is.
+  final bool showClear;
+
+  /// Vuur wanneer die skoonmaak-("x")-knoppie gedruk word.
+  final VoidCallback? onClear;
+
+  /// Ekstra knoppie heel regs in die blaai-veld (bv. die terug-knoppie van 'n
+  /// kaskade-ligging-kieser).
+  final Widget? browseSuffixAction;
+
   const InlineSearchableDropdown({
     super.key,
     this.label,
@@ -54,6 +65,9 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.onFocus,
     this.onSearchModeChanged,
     this.maxHeight,
+    this.showClear = false,
+    this.onClear,
+    this.browseSuffixAction,
   });
 
   @override
@@ -326,11 +340,24 @@ class _InlineSearchableDropdownState<T>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (widget.trailing != null) widget.trailing!,
+                      if (widget.showClear && widget.onClear != null)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close,
+                            size: 18,
+                            color: Color(0xFF6B7280),
+                          ),
+                          onPressed: widget.onClear,
+                          visualDensity: VisualDensity.compact,
+                          tooltip: 'Maak skoon',
+                        ),
                       IconButton(
                         icon: const Icon(Icons.search, size: 20),
                         onPressed: _enterSearchMode,
                         visualDensity: VisualDensity.compact,
                       ),
+                      if (widget.browseSuffixAction != null)
+                        widget.browseSuffixAction!,
                     ],
                   )
                 : widget.trailing,

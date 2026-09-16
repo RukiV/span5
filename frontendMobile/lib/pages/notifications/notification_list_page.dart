@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
-import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/notification_service.dart';
@@ -154,8 +153,6 @@ class _NotificationListPageState extends State<NotificationListPage> {
 
   String _timeAgo(String dateStr) {
     try {
-      final dt = parseServerDatetime(dateStr);
-      if (dt == null) return '';
       // Backend writes naive UTC datetimes. If no timezone offset is present,
       // treat the value as UTC so it is converted to the device's local time
       // (10:00 UTC -> 12:00 for a UTC+2 user).
@@ -280,19 +277,17 @@ class _NotificationListPageState extends State<NotificationListPage> {
               ],
             ),
           ),
-          Expanded(
-            child: _loading && _notifications.isEmpty
-                const SizedBox(width: 8),
-                SortButton(
-                  controller: _sortCtrl,
-                  selected: _sortOpen,
-                  onPressed: () =>
-                      setState(() => _sortOpen = !_sortOpen),
-                ),
-                const SizedBox(width: 4),
-                ColumnVisibilityButton(controller: _colVis),
-              ],
-            ),
+          Row(
+            children: [
+              SortButton(
+                controller: _sortCtrl,
+                selected: _sortOpen,
+                onPressed: () =>
+                    setState(() => _sortOpen = !_sortOpen),
+              ),
+              const SizedBox(width: 4),
+              ColumnVisibilityButton(controller: _colVis),
+            ],
           ),
           if (_sortOpen)
             SortPanel(
@@ -305,99 +300,94 @@ class _NotificationListPageState extends State<NotificationListPage> {
               behavior: HitTestBehavior.translucent,
               onTap: _closePanels,
               child: _loading && _notifications.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : _notifications.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Geen kennisgewings nie',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _onRefresh,
-                        color: AppColors.refreshSpinner,
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          itemCount: _notifications.length,
-                          itemBuilder: (context, index) {
-                            final n = _notifications[index];
-                            return InkWell(
-                              onTap: () => _handleTap(n),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: n.isRead
-                                      ? Colors.white
-                                      : const Color(0xFFEEF3FA),
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: Colors.grey.shade200,
-                                      width: 0.5,
+                  ? const Center(child: CircularProgressIndicator())
+                  : _notifications.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Geen kennisgewings nie',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _onRefresh,
+                          color: AppColors.refreshSpinner,
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            itemCount: _notifications.length,
+                            itemBuilder: (context, index) {
+                              final n = _notifications[index];
+                              return InkWell(
+                                onTap: () => _handleTap(n),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: n.isRead
+                                        ? Colors.white
+                                        : const Color(0xFFEEF3FA),
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade200,
+                                        width: 0.5,
+                                      ),
+                                      left: n.isRead
+                                          ? BorderSide.none
+                                          : const BorderSide(
+                                              color: Color(0xFF2a5f9e),
+                                              width: 3,
+                                            ),
                                     ),
-                                    left: n.isRead
-                                        ? BorderSide.none
-                                        : const BorderSide(
-                                            color: Color(0xFF2a5f9e),
-                                            width: 3,
-                                          ),
+                                  ),
+                                  padding: const EdgeInsets.all(14),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        _typeIcon(n.notificationType),
+                                        color: _typeColor(n.notificationType),
+                                        size: 22,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              n.title,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              n.message,
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _timeAgo(n.createdAt),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey.shade400,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                padding: const EdgeInsets.all(14),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      _typeIcon(n.notificationType),
-                                      color: _typeColor(n.notificationType),
-                                      size: 22,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            n.title,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 14,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            n.message,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _timeAgo(n.createdAt),
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey.shade400,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-          ),
-        ],
-      ),
-    );
-  }
-                ),
-                ),
+            ),
           ),
         ],
       ),

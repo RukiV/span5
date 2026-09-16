@@ -4,6 +4,7 @@ import '../../core/input_decoration.dart';
 import '../../models/job_draft.dart';
 import '../../services/ai_service.dart';
 import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/mobile_ghost_overlay.dart';
 
 /// AiDraftReviewPage: Laat die FK/Admin 'n AI-konsep lees, wysig en goedkeur
 /// of verwerp. Net hier word 'n konsep 'n werklike foutkaartjie.
@@ -28,6 +29,9 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
   String? _selectedPriority;
   int? _selectedAssetId;
   int? _selectedRoomId;
+
+  /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
 
   // Afrikaanse verduidelikings per werksoort (spieël web se JOB_TYPE_HELP).
   static const _typeHelp = {
@@ -294,8 +298,16 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               children: [
                 TextFormField(
                   controller: _titleController,
-                  decoration:
-                      appInputDecoration(label: "Opskrif", labelStyle: null),
+                  onChanged: (_) => setState(() {}),
+                  decoration: withSuggestionGhost(
+                    appInputDecoration(label: "Opskrif", labelStyle: null),
+                    ghost: _ghosts['title']?.value,
+                    active: _titleController.text.isEmpty,
+                    onAccept: () {
+                      final s = _ghosts['title'];
+                      if (s != null) _titleController.text = s.value;
+                    },
+                  ),
                 ),
                 const SizedBox(height: 15),
                 TextFormField(
@@ -319,13 +331,25 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                   decoration:
                       appInputDecoration(label: "Werksoort", labelStyle: null)
                           .copyWith(
-                    suffixIcon: Tooltip(
-                      message: _typeHelp[_selectedType] ?? _typeFallbackHelp,
-                      triggerMode: TooltipTriggerMode.tap,
-                      showDuration: const Duration(seconds: 6),
-                      child: const Icon(Icons.help_outline,
-                          size: 20, color: AppColors.gold),
-                    ),
+                    suffixIcon: () {
+                      final s = _ghosts['suggested_type'];
+                      if (s == null || _selectedType == s.value) {
+                        return Tooltip(
+                          message: _typeHelp[_selectedType] ?? _typeFallbackHelp,
+                          triggerMode: TooltipTriggerMode.tap,
+                          showDuration: const Duration(seconds: 6),
+                          child: const Icon(Icons.help_outline,
+                              size: 20, color: AppColors.gold),
+                        );
+                      }
+                      return SuggestionAcceptCheck(
+                        onTap: () => setState(() {
+                          if (_types.any((t) => t.$1 == s.value)) {
+                            _selectedType = s.value;
+                          }
+                        }),
+                      );
+                    }(),
                   ),
                   items: _types
                       .map((t) => DropdownMenuItem<String>(
@@ -339,7 +363,22 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                 DropdownButtonFormField<String>(
                   initialValue: _selectedPriority,
                   decoration:
-                      appInputDecoration(label: "Prioriteit", labelStyle: null),
+                      appInputDecoration(label: "Prioriteit", labelStyle: null)
+                          .copyWith(
+                    suffixIcon: () {
+                      final s = _ghosts['suggested_priority'];
+                      if (s == null || _selectedPriority == s.value) {
+                        return null;
+                      }
+                      return SuggestionAcceptCheck(
+                        onTap: () => setState(() {
+                          if (_priorities.any((p) => p.$1 == s.value)) {
+                            _selectedPriority = s.value;
+                          }
+                        }),
+                      );
+                    }(),
+                  ),
                   items: _priorities
                       .map((p) => DropdownMenuItem<String>(
                           value: p.$1, child: Text(p.$2)))
@@ -365,6 +404,7 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
               'suggested_type': 'Werksoort',
               'suggested_priority': 'Prioriteit',
             },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
             onUse: (key, s) {
               setState(() {
                 switch (key) {

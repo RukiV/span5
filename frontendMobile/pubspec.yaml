@@ -1,4 +1,4 @@
-  name: fbs
+name: fbs
 description: "FBS"
 publish_to: 'none'
 
@@ -40,7 +40,6 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   http_mock_adapter: ^0.6.1
   flutter_secure_storage_platform_interface: ^1.1.2
-  http_mock_adapter: ^0.6.1
 
 flutter:
   uses-material-design: true
@@ -50,5 +49,4 @@ flutter:
 
   assets:
     - .env
-    - assets/images/
     - assets/images/

@@ -27,7 +27,7 @@ class ReportService {
     throw Exception('Unexpected reports response (${response.statusCode})');
   }
 
-  static final ValueNotifier<bool> isLoadingNotifier = ValueNotifier(false);
+  static ValueNotifier<bool> get isLoadingNotifier => _manager.loadingNotifier;
 
   static ValueNotifier<List<Report>> get reportsNotifier => _manager.notifier;
 
@@ -38,11 +38,7 @@ class ReportService {
   @visibleForTesting
   static String? get lastError => _manager.lastError;
 
-  static Future<void> fetchReports() async {
-    isLoadingNotifier.value = true;
-    await _manager.fetch();
-    isLoadingNotifier.value = false;
-  }
+  static Future<void> fetchReports() => _manager.fetch();
 
   static Future<Report?> getReportById(String id) async {
     try {
@@ -113,5 +109,4 @@ class ReportService {
     }
     return false;
   }
-}
 }

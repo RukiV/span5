@@ -662,7 +662,7 @@ def _gather_context(page: str, session,
     return ctx
 
 
-def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -> dict:
+def get_dashboard_summary(session, user=None, include_ai_charts: bool = False, force_refresh: bool = False) -> dict:
     """Usable dashboard metrics for FK/Admin — replaces vanity Totale Bates."""
     from datetime import timedelta
     from collections import Counter, defaultdict
@@ -879,24 +879,16 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
     pending = sum(status_counts.get(s, 0) for s in ("Oop", "Wag", "Geskeduleer", "Besig"))
     completed = status_counts.get("Voltooid", 0)
 
-    # ── 9 AI visuals — gegenereer elke keer as AI-statistiek run (via chart_ai_service, LLM waar beskikbaar) ──
-    ai_charts = {}
-    try:
-        from .chart_ai_service import generate_all_charts
-
-        ai_charts = generate_all_charts(session, user)
-    except Exception as e:
-        import logging as _lg
-
-        _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
-        ai_charts = {}
-    # ── 9 AI visuals — only generated on the voorspellings page (via ?include_ai_charts=true) ──
+    # ── 9 AI visuals — slegs op die voorspellings-bladsy (via ?include_ai_charts=true).
+    #    Gegenereer hoogstens een keer per 24 uur (get_ai_charts-cache); force_refresh
+    #    vernietig die kas en genereer vars. Gewone dashboard-summary-oeproepe begin
+    #    dus NIE meer onnodige AI-generering nie.
     ai_charts = {}
     if include_ai_charts:
         try:
-            from .chart_ai_service import generate_all_charts
+            from .chart_ai_service import get_ai_charts
 
-            ai_charts = generate_all_charts(session, user)
+            ai_charts = get_ai_charts(session, user, force_refresh=force_refresh)
         except Exception as e:
             import logging as _lg
 

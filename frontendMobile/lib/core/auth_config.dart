@@ -14,14 +14,3 @@ class AuthConfig {
 
   static List<String> get scopes => scopesString.split(',');
 }
-  static String get tenantId =>
-      dotenv.env['AZURE_TENANT_ID'] ?? '';
-  static String get clientId =>
-      dotenv.env['AZURE_CLIENT_ID'] ?? '';
-  static String get redirectUri =>
-      dotenv.env['AZURE_REDIRECT_URI'] ?? '';
-  static String get scopesString =>
-      dotenv.env['AZURE_SCOPES'] ?? 'openid,profile,email,User.Read,Calendars.ReadWrite,offline_access';
-
-  static List<String> get scopes => scopesString.split(',');
-}
