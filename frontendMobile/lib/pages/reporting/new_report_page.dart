@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/location_breadcrumbs.dart';
@@ -626,7 +625,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 : "Kies Werksoort",
             value: selectedCategory,
             items: _faultTypes
-                .map((e) => SearchableDropdownItem(value: e, label: e))
+                .map((e) => InlineSearchableDropdownItem(value: e, label: e))
                 .toList(),
             onChanged: (v) => setState(() => selectedCategory = v),
           ),
@@ -640,7 +639,7 @@ class _NewReportPageState extends State<NewReportPage> {
                   : "Kies Prioriteit",
               value: selectedPriority,
               items: _faultPriorities
-                  .map((e) => SearchableDropdownItem(value: e, label: e))
+                  .map((e) => InlineSearchableDropdownItem(value: e, label: e))
                   .toList(),
               onChanged: (v) => setState(() {
                 if (v != null) selectedPriority = v;

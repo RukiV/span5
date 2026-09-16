@@ -27,7 +27,6 @@ import '../../services/wrong_room_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
-import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
 import '../../widgets/ai_suggestions_panel.dart';
 import '../../widgets/ghost_overlay.dart';
 import '../../widgets/view_edit_scaffold.dart';
@@ -208,7 +207,7 @@ class _AddQuoteDialogState extends State<_AddQuoteDialog> {
                 hint: "Kies Kontrakteur",
                 value: _contractorId,
                 items: widget.contractors
-                    .map((u) => SearchableDropdownItem<int?>(
+                    .map((u) => InlineSearchableDropdownItem<int?>(
                         value: u.id, label: u.displayName))
                     .toList(),
                 onChanged: (v) => setState(() => _contractorId = v),
@@ -1106,7 +1105,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               hint: "Soek & kies foutkaartjie",
               value: _faultId?.toString(),
               items: reports
-                  .map((r) => SearchableDropdownItem(
+                  .map((r) => InlineSearchableDropdownItem(
                       value: r.id, label: "#${r.id} - ${r.title}"))
                   .toList(),
               trailing: _faultId != null
@@ -1158,7 +1157,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       hint: "Kies Bate (opsioneel)",
       value: _selectedAssetId,
       items: assets
-          .map((a) => SearchableDropdownItem(value: a.id, label: a.name))
+          .map((a) => InlineSearchableDropdownItem(value: a.id, label: a.name))
           .toList(),
       onChanged: (v) {
         setState(() => _selectedAssetId = v);
@@ -1606,7 +1605,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                   required: true,
                   error: _assignedToId == null,
                   items: staff
-                      .map((u) => SearchableDropdownItem<int?>(
+                      .map((u) => InlineSearchableDropdownItem<int?>(
                           value: u.id, label: u.displayName))
                       .toList(),
                   onChanged: (v) => setState(() => _assignedToId = v),
@@ -1618,7 +1617,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
                   enabled: _lockedContractorId == null,
                   value: _lockedContractorId ?? _selectedContractorId,
                   items: contractors
-                      .map((u) => SearchableDropdownItem<int?>(
+                      .map((u) => InlineSearchableDropdownItem<int?>(
                           value: u.id, label: u.displayName))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedContractorId = v),
@@ -2263,8 +2262,9 @@ class _JobcardFormPageState extends State<JobcardFormPage>
       label: label,
       hint: hintOverride ?? "Kies $label",
       value: value,
-      items:
-          items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+      items: items
+          .map((e) => InlineSearchableDropdownItem(value: e, label: e))
+          .toList(),
       onChanged: onChanged,
       required: required,
       error: error,

@@ -12,7 +12,7 @@ import '../../services/asset_type_service.dart';
 import '../../services/campus_service.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/ai_suggestions_panel.dart';
 import '../../widgets/ghost_overlay.dart';
@@ -54,10 +54,10 @@ class _AssetFormPageState extends State<AssetFormPage> {
   (int?, int?, int?)? _appliedLocation;
 
   static const _statusItems = [
-    SearchableDropdownItem(value: "active", label: "Aktief"),
-    SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
-    SearchableDropdownItem(value: "retired", label: "Afgedank"),
-    SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+    InlineSearchableDropdownItem(value: "active", label: "Aktief"),
+    InlineSearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
+    InlineSearchableDropdownItem(value: "retired", label: "Afgedank"),
+    InlineSearchableDropdownItem(value: "inactive", label: "Onaktief"),
   ];
 
   bool get _isCreate => widget.asset == null;
@@ -167,9 +167,9 @@ class _AssetFormPageState extends State<AssetFormPage> {
     };
   }
 
-  String _statusLabel() =>
-      _statusItems.firstWhere((i) => i.value == status,
-          orElse: () => _statusItems.first).label;
+  String _statusLabel() => _statusItems
+      .firstWhere((i) => i.value == status, orElse: () => _statusItems.first)
+      .label;
 
   String? _statusValueForLabel(String label) {
     final norm = label.trim().toLowerCase();
@@ -280,8 +280,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
     final campuses = CampusService.campusesNotifier.value;
     final campusId = _campusIdForName(selectedCampus);
     final campus = campuses.where((c) => c.id == campusId).firstOrNull;
-    final buildingId = campus
-        ?.buildings
+    final buildingId = campus?.buildings
         .where((b) => b.name == selectedBuilding)
         .firstOrNull
         ?.id;
@@ -312,8 +311,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
         status: status,
         isOutdoor: isOutdoor,
       );
-      final success =
-          await AssetService.addAsset(newAsset, idempotencyKey: _idempotencyKey);
+      final success = await AssetService.addAsset(newAsset,
+          idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
         _idempotencyKey = Idempotency.generate();
@@ -411,7 +410,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
               ghost: _ghosts['asset_brand']?.value,
               active: brand.isEmpty && _ghosts['asset_brand'] != null,
               onAccept: _ghosts['asset_brand'] != null
-                  ? () => _applyAssetGhost('asset_brand', _ghosts['asset_brand']!)
+                  ? () =>
+                      _applyAssetGhost('asset_brand', _ghosts['asset_brand']!)
                   : null,
             ),
             onChanged: (v) {
@@ -425,15 +425,15 @@ class _AssetFormPageState extends State<AssetFormPage> {
             builder: (context, types, _) {
               final typeEmpty = selectedTypeId == null;
               final typeGhost = _ghosts['asset_type'];
-              return SearchableDropdown<int>(
+              return InlineSearchableDropdown<int>(
                 label: "Bate Tipe",
                 hint: typeEmpty && typeGhost != null
                     ? translateSuggestion('asset_type', typeGhost.value)
                     : "Kies 'n tipe",
                 value: selectedTypeId,
                 items: types
-                    .map((t) =>
-                        SearchableDropdownItem(value: t.id, label: t.name))
+                    .map((t) => InlineSearchableDropdownItem(
+                        value: t.id, label: t.name))
                     .toList(),
                 trailing: typeEmpty && typeGhost != null
                     ? SuggestionAcceptCheck(
@@ -467,34 +467,44 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 showBreadcrumb: false,
                 trailBar: _breadcrumbs(),
                 trailBarSpacing: 0,
-                initialCampusId:
-                    _appliedLocation?.$1 ?? (_isCreate ? _campusIdForName(selectedCampus) : _initialCampusId),
-                initialBuildingId: _appliedLocation?.$2 ?? (_isCreate ? null : _initialBuildingId),
-                initialRoomId: _appliedLocation?.$3 ?? (_isCreate ? null : _initialRoomId),
+                initialCampusId: _appliedLocation?.$1 ??
+                    (_isCreate
+                        ? _campusIdForName(selectedCampus)
+                        : _initialCampusId),
+                initialBuildingId: _appliedLocation?.$2 ??
+                    (_isCreate ? null : _initialBuildingId),
+                initialRoomId:
+                    _appliedLocation?.$3 ?? (_isCreate ? null : _initialRoomId),
                 errorText: _locationError,
                 onChanged: _onLocationChanged,
               ),
               if (selectedLocation == null && _ghosts['room'] != null) ...[
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppColors.gold.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
                       const Expanded(
                         child: Text(
                           "Lokaal-voorstel",
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.navy),
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.navy),
                         ),
                       ),
                       Text(
                         _ghosts['room']!.value,
                         style: const TextStyle(
-                          fontSize: 13, fontStyle: FontStyle.italic,
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
                           color: Colors.grey,
                         ),
                       ),
@@ -509,7 +519,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
             ],
           ),
           const SizedBox(height: 20),
-          SearchableDropdown<String>(
+          InlineSearchableDropdown<String>(
             label: "Status",
             hint: "Kies 'n status",
             value: status,

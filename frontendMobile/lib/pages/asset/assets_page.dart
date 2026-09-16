@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../widgets/status_badge.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
@@ -198,7 +198,7 @@ class _AssetsPageState extends State<AssetsPage> {
           title: "Status",
           initialValue: _statusFilter,
           items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-              .map((s) => SearchableDropdownItem(value: s, label: s))
+              .map((s) => InlineSearchableDropdownItem(value: s, label: s))
               .toList(),
           onSelected: (val) =>
               setState(() => _statusFilter = val ?? _statusFilter),
@@ -256,8 +256,7 @@ class _AssetsPageState extends State<AssetsPage> {
         return false;
       }
 
-      if (_selectedRoomId != null &&
-          a.location != _selectedRoomId.toString()) {
+      if (_selectedRoomId != null && a.location != _selectedRoomId.toString()) {
         return false;
       }
 

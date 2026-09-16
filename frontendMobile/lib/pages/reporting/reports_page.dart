@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
@@ -203,7 +203,8 @@ class _ReportsPageState extends State<ReportsPage> {
                 title: "Status",
                 initialValue: _statusFilter,
                 items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
-                    .map((s) => SearchableDropdownItem(value: s, label: s))
+                    .map(
+                        (s) => InlineSearchableDropdownItem(value: s, label: s))
                     .toList(),
                 onSelected: (val) =>
                     setState(() => _statusFilter = val ?? _statusFilter),
@@ -214,8 +215,7 @@ class _ReportsPageState extends State<ReportsPage> {
           bulkDeleteTitle: 'Verwyder Foutkaartjies',
           bulkDeleteMessage:
               'Wil jy {count} geselekteerde foutkaartjie(s) verwyder?',
-          visibleIdsProvider: (q) =>
-              visibleRowsFor(q).map((r) => r.id).toSet(),
+          visibleIdsProvider: (q) => visibleRowsFor(q).map((r) => r.id).toSet(),
           onBulkDelete: _bulkDeleteFaults,
           floatingActionButton: FloatingActionButton.extended(
             backgroundColor: AppColors.gold,
@@ -261,9 +261,8 @@ class _ReportsPageState extends State<ReportsPage> {
                                         ReportDetailPage(report: r)),
                               );
                             },
-                            onLongPress: UserSession.can('faults.manage')
-                                ? null
-                                : () {},
+                            onLongPress:
+                                UserSession.can('faults.manage') ? null : () {},
                             children: state.columnVisibility.visibleColumns
                                 .map((col) => Expanded(
                                       flex: _columnFlex(col.key),

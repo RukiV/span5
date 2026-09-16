@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import '../core/app_colors.dart';
-import 'searchable_dropdown.dart' show SearchableDropdownItem;
+
+/// Die item-klas vir [InlineSearchableDropdown].
+class InlineSearchableDropdownItem<T> {
+  final T value;
+  final String label;
+
+  const InlineSearchableDropdownItem({
+    required this.value,
+    required this.label,
+  });
+}
 
 /// 'n Keuselys met twee modusse:
 /// * **Blaai-modus** (default): 'n Nie-redigeerbare veld wat lyk soos 'n
@@ -11,13 +21,16 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   final String? label;
   final String hint;
   final T? value;
-  final List<SearchableDropdownItem<T>> items;
+  final List<InlineSearchableDropdownItem<T>> items;
   final ValueChanged<T?> onChanged;
 
   final bool enabled;
   final Widget? trailing;
   final bool required;
   final bool error;
+
+  /// Form-valsidasie; `null` = geen valsidasie.
+  final String? Function(T?)? validator;
 
   /// Bly die lys oop nadat 'n opsie gekies is (vir kaskades).
   final bool closeOnSelect;
@@ -40,6 +53,7 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.trailing,
     this.required = false,
     this.error = false,
+    this.validator,
     this.closeOnSelect = true,
     this.restoreOnBlur = true,
     this.onFocus,
@@ -242,7 +256,7 @@ class _InlineSearchableDropdownState<T>
     );
   }
 
-  List<SearchableDropdownItem<T>> get _filtered {
+  List<InlineSearchableDropdownItem<T>> get _filtered {
     final q = _text.text.trim().toLowerCase();
     if (q.isEmpty) return widget.items;
     return widget.items
@@ -250,7 +264,7 @@ class _InlineSearchableDropdownState<T>
         .toList();
   }
 
-  void _select(SearchableDropdownItem<T> item) {
+  void _select(InlineSearchableDropdownItem<T> item) {
     _text.text = item.label;
     _preFocusText = null;
     widget.onChanged(item.value);
@@ -323,8 +337,9 @@ class _InlineSearchableDropdownState<T>
   }
 
   /// Blaai-modus: nie-redigeerbare veld met soek-ikoon regs.
-  Widget _buildBrowseField() {
+  Widget _buildBrowseField({bool validationError = false}) {
     final displayText = _text.text.isNotEmpty ? _text.text : null;
+    final showError = widget.error || validationError;
 
     return Focus(
       focusNode: _browseFocus,
@@ -346,7 +361,7 @@ class _InlineSearchableDropdownState<T>
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide(
-                  color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
+                  color: showError ? AppColors.errorRed : Colors.grey[300]!),
             ),
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
@@ -380,7 +395,8 @@ class _InlineSearchableDropdownState<T>
   }
 
   /// Soek-modus: redigeerbare veld met sleutelbord.
-  Widget _buildSearchField() {
+  Widget _buildSearchField({bool validationError = false}) {
+    final showError = widget.error || validationError;
     return TextField(
       controller: _text,
       focusNode: _focus,
@@ -408,7 +424,7 @@ class _InlineSearchableDropdownState<T>
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-              color: widget.error ? AppColors.errorRed : Colors.grey[300]!),
+              color: showError ? AppColors.errorRed : Colors.grey[300]!),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -426,9 +442,7 @@ class _InlineSearchableDropdownState<T>
                     ),
                   IconButton(
                     icon: Icon(
-                      _keyboardHidden
-                          ? Icons.keyboard
-                          : Icons.keyboard_hide,
+                      _keyboardHidden ? Icons.keyboard : Icons.keyboard_hide,
                       size: 20,
                     ),
                     tooltip: _keyboardHidden
@@ -444,8 +458,41 @@ class _InlineSearchableDropdownState<T>
     );
   }
 
+  Widget _buildField({bool validationError = false}) {
+    return _searchMode
+        ? _buildSearchField(validationError: validationError)
+        : _buildBrowseField(validationError: validationError);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final Widget control = widget.validator != null
+        ? FormField<T>(
+            key: widget.value != null
+                ? ValueKey('${widget.label}_${widget.value}')
+                : null,
+            validator: widget.validator,
+            initialValue: widget.value,
+            builder: (state) {
+              final hasError = state.hasError;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildField(validationError: hasError),
+                  if (hasError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5, left: 12),
+                      child: Text(
+                        state.errorText ?? "",
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                ],
+              );
+            },
+          )
+        : _buildField();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -453,12 +500,192 @@ class _InlineSearchableDropdownState<T>
           _buildLabel(),
           const SizedBox(height: 6),
         ],
-        _searchMode ? _buildSearchField() : _buildBrowseField(),
+        control,
         if (_open && widget.enabled) ...[
           const SizedBox(height: 6),
           _buildOptionList(),
         ],
       ],
+    );
+  }
+}
+
+// ─── Kompakte oorvleuel-filter ───────────────────────────────────────────────
+
+/// Open 'n soekbare oorvleueling, maar vir kontroles wat hul eie voorkoms
+/// hou — bv. die kompakte filters in 'n blad se kopbalk. Die paneel anker
+/// regs onder die toolbar.
+Future<void> showSearchableDialog<T>({
+  required BuildContext context,
+  required String title,
+  required List<InlineSearchableDropdownItem<T>> items,
+  required ValueChanged<T?> onSelected,
+  T? initialValue,
+}) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  late final OverlayEntry entry;
+  entry = OverlayEntry(
+    builder: (ctx) {
+      final screenWidth = MediaQuery.sizeOf(ctx).width;
+      final width = (screenWidth - 32).clamp(200.0, 360.0);
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => entry.remove(),
+              child: const SizedBox.expand(),
+            ),
+          ),
+          Align(
+            alignment: Alignment.topRight,
+            child: Padding(
+              padding:
+                  const EdgeInsets.only(top: kToolbarHeight + 4, right: 12),
+              child: _SearchOverlayPanel<T>(
+                title: title,
+                items: items,
+                initialValue: initialValue,
+                width: width,
+                onSelected: (v) {
+                  onSelected(v);
+                  entry.remove();
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+  overlay.insert(entry);
+  return Future.value();
+}
+
+class _SearchOverlayPanel<T> extends StatefulWidget {
+  final String title;
+  final List<InlineSearchableDropdownItem<T>> items;
+  final T? initialValue;
+  final ValueChanged<T?> onSelected;
+  final double width;
+
+  const _SearchOverlayPanel({
+    required this.title,
+    required this.items,
+    this.initialValue,
+    required this.onSelected,
+    required this.width,
+  });
+
+  @override
+  State<_SearchOverlayPanel<T>> createState() => _SearchOverlayPanelState<T>();
+}
+
+class _SearchOverlayPanelState<T> extends State<_SearchOverlayPanel<T>> {
+  late List<InlineSearchableDropdownItem<T>> filteredItems;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    filteredItems = widget.items;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filter(String query) {
+    setState(() {
+      filteredItems = widget.items
+          .where(
+              (item) => item.label.toLowerCase().contains(query.toLowerCase()))
+          .toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      elevation: 4,
+      clipBehavior: Clip.antiAlias,
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: widget.width, maxHeight: 320),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+              child: Text(
+                "Kies ${widget.title}",
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navy),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: "Soek...",
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filter('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  isDense: true,
+                ),
+                onChanged: _filter,
+              ),
+            ),
+            Flexible(
+              child: filteredItems.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Geen opsies nie',
+                          style: TextStyle(color: Colors.grey)),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filteredItems.length,
+                      itemBuilder: (context, index) {
+                        final item = filteredItems[index];
+                        final isSelected = item.value == widget.initialValue;
+                        return ListTile(
+                          dense: true,
+                          title: Text(
+                            item.label,
+                            style: TextStyle(
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal),
+                          ),
+                          selected: isSelected,
+                          selectedTileColor: AppColors.gold.withAlpha(30),
+                          onTap: () => widget.onSelected(item.value),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

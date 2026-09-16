@@ -6,7 +6,7 @@ import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../services/campus_service.dart';
 import '../../models/user_session.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
 
 class BuildingFormPage extends StatefulWidget {
@@ -87,8 +87,8 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
         types: List.unmodifiable(_selectedTypes),
         locationId: _selectedCampus!.id,
       );
-      final success = await CampusService.addBuilding(
-          building, idempotencyKey: _idempotencyKey);
+      final success = await CampusService.addBuilding(building,
+          idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
         _idempotencyKey = Idempotency.generate();
@@ -144,8 +144,7 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Tipes",
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text("Tipes", style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         const Text(
           "Kies een of meer gebou-tipes:",
@@ -198,12 +197,12 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SearchableDropdown<Campus>(
+                InlineSearchableDropdown<Campus>(
                   label: "Terrein",
                   hint: "Kies Terrein",
                   value: _selectedCampus,
                   items: CampusService.campusesNotifier.value
-                      .map((c) => SearchableDropdownItem<Campus>(
+                      .map((c) => InlineSearchableDropdownItem<Campus>(
                           value: c, label: c.name))
                       .toList(),
                   onChanged: (v) => setState(() => _selectedCampus = v),

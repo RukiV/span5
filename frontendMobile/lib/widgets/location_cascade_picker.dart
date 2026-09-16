@@ -5,7 +5,6 @@ import '../models/building.dart';
 import '../models/room.dart';
 import '../services/campus_service.dart';
 import 'inline_searchable_dropdown.dart';
-import 'searchable_dropdown.dart' show SearchableDropdownItem;
 
 /// Hoe diep die kieser mag gaan.
 enum LocationDepth { campus, building, room }
@@ -290,7 +289,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
     }
   }
 
-  List<SearchableDropdownItem<_LocationChoice>> _buildOptions(
+  List<InlineSearchableDropdownItem<_LocationChoice>> _buildOptions(
       List<Campus> campuses) {
     final choices = <_LocationChoice>[];
 
@@ -403,7 +402,8 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
     }
 
     return [
-      for (final c in choices) SearchableDropdownItem(value: c, label: c.label),
+      for (final c in choices)
+        InlineSearchableDropdownItem(value: c, label: c.label),
     ];
   }
 

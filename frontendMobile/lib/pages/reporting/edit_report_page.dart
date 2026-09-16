@@ -11,7 +11,7 @@ import '../../services/image_service.dart';
 import '../../services/room_service.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import 'scan_page.dart';
@@ -636,12 +636,13 @@ class _EditReportPageState extends State<EditReportPage> {
 
   Widget _buildDropdown(String label, String value, List<String> items,
       ValueChanged<String?> onChanged) {
-    return SearchableDropdown<String>(
+    return InlineSearchableDropdown<String>(
       label: label,
       hint: "Kies $label",
       value: value,
-      items:
-          items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+      items: items
+          .map((e) => InlineSearchableDropdownItem(value: e, label: e))
+          .toList(),
       onChanged: onChanged,
     );
   }

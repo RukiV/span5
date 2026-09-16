@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../core/app_colors.dart';
 import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
@@ -214,21 +214,22 @@ class _NotificationListPageState extends State<NotificationListPage> {
             child: Row(
               children: [
                 Expanded(
-                  child: SearchableDropdown<String>(
+                  child: InlineSearchableDropdown<String>(
                     hint: 'Alle tipes',
                     value: _filterType.isEmpty ? null : _filterType,
                     items: const [
-                      SearchableDropdownItem(value: '', label: 'Alle tipes'),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
+                          value: '', label: 'Alle tipes'),
+                      InlineSearchableDropdownItem(
                           value: 'fault.created', label: 'Fout Aangeteken'),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 'job.created', label: 'Werksopdrag Geskep'),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 'job.completion_requested',
                           label: 'Voltooiingsversoek'),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 'stock.low', label: 'Lae Voorraad'),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 'system.announcement', label: 'Aankondiging'),
                     ],
                     onChanged: (v) {

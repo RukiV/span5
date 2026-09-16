@@ -5,7 +5,7 @@ import '../../models/user_session.dart';
 import '../../services/user_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/campus.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
 
@@ -61,7 +61,8 @@ class _UsersPageState extends State<UsersPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Rolle kon nie gelaai word nie. Verfris en probeer weer."),
+            content:
+                Text("Rolle kon nie gelaai word nie. Verfris en probeer weer."),
             backgroundColor: AppColors.errorRed,
           ),
         );
@@ -70,9 +71,11 @@ class _UsersPageState extends State<UsersPage> {
     }
 
     final nameController = TextEditingController(text: existing?.name ?? "");
-    final surnameController = TextEditingController(text: existing?.surname ?? "");
+    final surnameController =
+        TextEditingController(text: existing?.surname ?? "");
     final emailController = TextEditingController(text: existing?.email ?? "");
-    final numberController = TextEditingController(text: existing?.number ?? "");
+    final numberController =
+        TextEditingController(text: existing?.number ?? "");
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
@@ -85,7 +88,8 @@ class _UsersPageState extends State<UsersPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Form(
@@ -123,13 +127,15 @@ class _UsersPageState extends State<UsersPage> {
                   const SizedBox(height: 16),
                   ValueListenableBuilder<List<AppRole>>(
                     valueListenable: UserService.rolesNotifier,
-                    builder: (context, roles, _) => SearchableDropdown<int>(
+                    builder: (context, roles, _) =>
+                        InlineSearchableDropdown<int>(
                       label: "Rol",
                       hint: "Kies 'n rol",
                       value: roleId,
                       items: roles
                           .where((r) => UserSession.isAdmin || r.id != 3)
-                          .map((r) => SearchableDropdownItem(value: r.id, label: r.name))
+                          .map((r) => InlineSearchableDropdownItem(
+                              value: r.id, label: r.name))
                           .toList(),
                       onChanged: (v) => setDialogState(() {
                         roleId = v;
@@ -142,12 +148,13 @@ class _UsersPageState extends State<UsersPage> {
                     const SizedBox(height: 16),
                     ValueListenableBuilder<List<Campus>>(
                       valueListenable: CampusService.campusesNotifier,
-                      builder: (context, campuses, _) => SearchableDropdown<int>(
+                      builder: (context, campuses, _) =>
+                          InlineSearchableDropdown<int>(
                         label: "Terrein",
                         hint: "Kies 'n terrein",
                         value: locationId,
                         items: campuses
-                            .map((c) => SearchableDropdownItem(
+                            .map((c) => InlineSearchableDropdownItem(
                                 value: c.id, label: c.name))
                             .toList(),
                         onChanged: (v) => setDialogState(() => locationId = v),
@@ -155,15 +162,18 @@ class _UsersPageState extends State<UsersPage> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  SearchableDropdown<String>(
+                  InlineSearchableDropdown<String>(
                     label: "Status",
                     hint: "Kies status",
                     value: status,
                     items: const [
-                      SearchableDropdownItem(value: "active", label: "Aktief"),
-                      SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+                      InlineSearchableDropdownItem(
+                          value: "active", label: "Aktief"),
+                      InlineSearchableDropdownItem(
+                          value: "inactive", label: "Onaktief"),
                     ],
-                    onChanged: (v) => setDialogState(() => status = v ?? "active"),
+                    onChanged: (v) =>
+                        setDialogState(() => status = v ?? "active"),
                   ),
                   const SizedBox(height: 32),
                   Row(
@@ -187,7 +197,9 @@ class _UsersPageState extends State<UsersPage> {
                           if (nameController.text.trim().isEmpty ||
                               surnameController.text.trim().isEmpty ||
                               emailController.text.trim().isEmpty ||
-                              (isEdit ? false : passwordController.text.isEmpty)) {
+                              (isEdit
+                                  ? false
+                                  : passwordController.text.isEmpty)) {
                             return;
                           }
                           if (roleId == null) {
@@ -227,8 +239,9 @@ class _UsersPageState extends State<UsersPage> {
                                         ? "Gebruiker opgedateer"
                                         : "Gebruiker geskep")
                                     : "Kon nie stoor nie"),
-                                backgroundColor:
-                                    ok ? AppColors.successGreen : AppColors.errorRed,
+                                backgroundColor: ok
+                                    ? AppColors.successGreen
+                                    : AppColors.errorRed,
                               ),
                             );
                           }
@@ -255,7 +268,10 @@ class _UsersPageState extends State<UsersPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.navy)),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
@@ -281,7 +297,8 @@ class _UsersPageState extends State<UsersPage> {
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: AppColors.gold, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           ),
         ),
       ],
@@ -323,7 +340,8 @@ class _UsersPageState extends State<UsersPage> {
                   backgroundColor: AppColors.navy,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
                 ),
               ),
             ),
@@ -394,7 +412,8 @@ class _UsersPageState extends State<UsersPage> {
         backgroundColor: AppColors.lavender,
         child: Text(
           user.name.isNotEmpty ? user.name[0].toUpperCase() : "?",
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy),
+          style: const TextStyle(
+              fontWeight: FontWeight.bold, color: AppColors.navy),
         ),
       ),
       title: Text(
@@ -421,13 +440,14 @@ class _UsersPageState extends State<UsersPage> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: user.isActive
-                    ? AppColors.successGreen
-                    : AppColors.errorRed,
+                color:
+                    user.isActive ? AppColors.successGreen : AppColors.errorRed,
               ),
             ),
           ),
-          if (UserSession.can('users.manage') && user.roleId != 2 && user.roleId != 3) ...[
+          if (UserSession.can('users.manage') &&
+              user.roleId != 2 &&
+              user.roleId != 3) ...[
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               color: AppColors.navy,
@@ -454,11 +474,13 @@ class _UsersPageState extends State<UsersPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
+            child:
+                const Text("Kanselleer", style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Verwyder", style: TextStyle(color: AppColors.errorRed)),
+            child: const Text("Verwyder",
+                style: TextStyle(color: AppColors.errorRed)),
           ),
         ],
       ),

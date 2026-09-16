@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/user_session.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/app_colors.dart';
 import '../../core/idempotency.dart';
@@ -178,18 +178,18 @@ class _CalendarPageState extends State<CalendarPage> {
                   ],
                 ),
                 if (notifyEmail)
-                  SearchableDropdown<int>(
+                  InlineSearchableDropdown<int>(
                     label: "Herinnering",
                     hint: "Kies herinnering",
                     value: reminderMinutes,
                     items: const [
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 30, label: "30 minute voor tyd"),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 60, label: "1 uur voor tyd"),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 120, label: "2 ure voor tyd"),
-                      SearchableDropdownItem(
+                      InlineSearchableDropdownItem(
                           value: 1440, label: "24 ure voor tyd"),
                     ],
                     onChanged: (v) {

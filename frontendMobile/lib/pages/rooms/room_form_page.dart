@@ -7,7 +7,7 @@ import '../../models/campus.dart';
 import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
-import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/confirm_delete.dart';
 
@@ -220,24 +220,24 @@ class _RoomFormPageState extends State<RoomFormPage> {
             },
           ),
           const SizedBox(height: 20),
-          SearchableDropdown<Building>(
+          InlineSearchableDropdown<Building>(
             label: "Gebou",
             hint: "Kies Gebou",
             value: _selectedBuilding,
             items: _allBuildings
-                .map((b) =>
-                    SearchableDropdownItem<Building>(value: b, label: b.name))
+                .map((b) => InlineSearchableDropdownItem<Building>(
+                    value: b, label: b.name))
                 .toList(),
             onChanged: (v) => setState(() => _selectedBuilding = v),
             validator: (v) => v == null ? "Vereis" : null,
           ),
           const SizedBox(height: 20),
-          SearchableDropdown<String>(
+          InlineSearchableDropdown<String>(
             label: "Tipe",
             hint: "Kies Tipe",
             value: _type,
             items: _types
-                .map((t) => SearchableDropdownItem(
+                .map((t) => InlineSearchableDropdownItem(
                       value: t['value']!,
                       label: t['label']!,
                     ))
