@@ -9,6 +9,7 @@ import '../../models/user_session.dart';
 import '../../services/asset_service.dart';
 import '../../services/asset_type_service.dart';
 import '../../services/campus_service.dart';
+import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
@@ -172,6 +173,25 @@ class _AssetFormPageState extends State<AssetFormPage> {
     });
   }
 
+  Widget _breadcrumbs() {
+    return LocationBreadcrumbs(path: _breadcrumbPath);
+  }
+
+  String get _breadcrumbPath {
+    final campuses = CampusService.campusesNotifier.value;
+    final campusId = _campusIdForName(selectedCampus);
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final buildingId = campus
+        ?.buildings
+        .where((b) => b.name == selectedBuilding)
+        .firstOrNull
+        ?.id;
+    final roomId = int.tryParse(selectedLocation?.split(":").first ?? "");
+
+    return LocationBreadcrumbs.buildLocationPath(
+        campusId: campusId, buildingId: buildingId, roomId: roomId);
+  }
+
   Future<void> _save() async {
     if (selectedLocation == null) {
       setState(() => _locationError = "Kies 'n volledige ligging");
@@ -250,6 +270,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _breadcrumbs(),
           const SizedBox(height: 25),
           TextFormField(
             initialValue: isCreate ? null : name,
@@ -315,6 +336,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
           ),
           const SizedBox(height: 20),
           LocationCascadePicker(
+            label: "Ligging *",
             initialCampusId:
                 _isCreate ? _campusIdForName(selectedCampus) : _initialCampusId,
             initialBuildingId: _isCreate ? null : _initialBuildingId,

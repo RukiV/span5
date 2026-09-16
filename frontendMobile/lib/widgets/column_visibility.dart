@@ -20,18 +20,6 @@ class ColumnVisibilityController extends ChangeNotifier {
   final Set<String> _hidden = {};
 
   ColumnVisibilityController(this._allColumns) {
-  final String? storageKey;
-  final List<ColumnDef> _allColumns;
-  final Set<String> _hidden = {};
-
-  ColumnVisibilityController([
-    Object? storageKeyOrColumns,
-    List<ColumnDef>? columns,
-  ])  : storageKey =
-            storageKeyOrColumns is String ? storageKeyOrColumns : null,
-        _allColumns = storageKeyOrColumns is String
-            ? columns ?? const <ColumnDef>[]
-            : (storageKeyOrColumns as List<ColumnDef>?) ?? const <ColumnDef>[] {
     // Start with all default-visible columns shown
     for (final col in _allColumns) {
       if (!col.defaultVisible) _hidden.add(col.key);
@@ -72,13 +60,6 @@ class ColumnVisibilityButton extends StatefulWidget {
   const ColumnVisibilityButton({
     super.key,
     required this.controller,
-  /// When true, only the icon is shown to save header space.
-  final bool iconOnly;
-
-  const ColumnVisibilityButton({
-    super.key,
-    required this.controller,
-    this.iconOnly = false,
   });
 
   @override
@@ -100,8 +81,6 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
         button.localToGlobal(Offset.zero, ancestor: overlay),
         button.localToGlobal(button.size.bottomRight(Offset.zero),
             ancestor: overlay),
-        button.localToGlobal(
-            button.size.bottomRight(Offset.zero), ancestor: overlay),
       ),
       Offset.zero & overlay.size,
     );
@@ -176,94 +155,6 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
             child: CountBadge(hidden),
           ),
       ],
-    );
-  }
-}
-    if (widget.iconOnly) {
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          IconButton(
-            key: _buttonKey,
-            tooltip: 'Wys kolomme',
-            icon: const Icon(Icons.view_column, color: Colors.white, size: 20),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 30 / 255),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: _showPopup,
-          ),
-          if (hidden > 0)
-            Positioned(
-              right: -4,
-              top: -4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF935E28),
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                ),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                child: Text(
-                  '$hidden',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    }
-    return InkWell(
-      key: _buttonKey,
-      onTap: _showPopup,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 30 / 255),
-          borderRadius: BorderRadius.circular(30),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.view_column, color: Colors.white, size: 16),
-            const SizedBox(width: 4),
-            const Text(
-              'Kolomme',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (hidden > 0) ...[
-              const SizedBox(width: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF935E28),
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
-                ),
-                child: Text(
-                  '$hidden',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

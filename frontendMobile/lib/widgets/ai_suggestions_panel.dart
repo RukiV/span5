@@ -10,8 +10,6 @@ import '../services/ai_service.dart';
 /// Die paneel bestuur sy eie debounce + versoeke: gee bloot die vorm se huidige
 /// waardes in [fields] en hanteer [onUse] om 'n voorstel toe te pas. Onder 3
 /// ingevulde velde wys dit 'n leidraad i.p.v. voorstelle.
-/// waardes in [fields] en hanteer [onUse] om 'n voorstel toe te pas. Sonder
-/// enige ingevulde veld wys dit 'n leidraad i.p.v. voorstelle.
 class AiSuggestionsPanel extends StatefulWidget {
   /// Watter tipe vorm: 'asset' | 'stock' | 'fault' | 'job' | 'draft'.
   final String context;
@@ -54,7 +52,6 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _filledCount >= 3) _fetch();
-      if (mounted && _filledCount >= 1) _fetch();
     });
   }
 
@@ -64,7 +61,6 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
     if (!mapEquals(oldWidget.fields, widget.fields)) {
       _debounce?.cancel();
       if (_filledCount < 3) {
-      if (_filledCount < 1) {
         setState(() => _suggestions = {});
         return;
       }
@@ -137,9 +133,6 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
     if (_filledCount < 3) {
       return const Text(
         'Vul minstens 3 velde in, dan stel ek voor hoe die res gevul kan word.',
-    if (_filledCount < 1) {
-      return const Text(
-        'Vul minstens 1 veld in en ek stel voor hoe die res gevul kan word.',
         style: TextStyle(color: Colors.grey, fontSize: 12.5),
       );
     }

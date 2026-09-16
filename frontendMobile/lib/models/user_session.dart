@@ -76,10 +76,6 @@ class UserSession {
   static bool get isManager => role == UserRole.manager;
   static bool get isContractor => role == UserRole.contractor;
 
-  /// Bepaal of die gebruiker administratiewe aksies mag uitvoer.
-  static bool get hasAdminPrivileges =>
-      role == UserRole.admin || role == UserRole.manager;
-
   /// Maak die sessie skoon tydens logout.
   static void clear() {
     userId = 0;
@@ -90,5 +86,4 @@ class UserSession {
     locationId = null;
     rights = <String>[];
   }
-}
 }

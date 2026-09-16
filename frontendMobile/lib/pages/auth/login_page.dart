@@ -261,11 +261,6 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final token = response.data['access_token'];
         await ApiClient().saveToken(token);
-        final refreshToken = response.data['refresh_token'];
-        await ApiClient().saveToken(token);
-        if (refreshToken != null) {
-          await ApiClient().saveRefreshToken(refreshToken);
-        }
         await _fetchProfileAndNavigate();
       } else {
         setState(() => _isLoading = false);
