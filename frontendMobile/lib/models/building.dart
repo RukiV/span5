@@ -20,24 +20,24 @@ class Building {
   });
 
   factory Building.fromJson(Map<String, dynamic> json) => Building(
-    id: json['building_id'] ?? 0,
-    name: json['building_name'] ?? '',
-    streetNum: json['building_streetnum'] ?? '',
-    streetName: json['building_streetname'] ?? '',
-    types: (json['building_types'] as List?)
-        ?.map((t) => _frontendBuildingType(t.toString()))
-        .toList() ??
-        // backward compat: single string field
-        (json['building_type'] != null
-            ? [_frontendBuildingType(json['building_type'])]
-            : const ['other']),
-    locationId: json['location_id'] ?? 0,
-    rooms: json['rooms'] != null
-        ? (json['rooms'] as List).map((r) => Room.fromJson(r)).toList()
-        : null,
-  );
+        id: json['building_id'] ?? 0,
+        name: json['building_name'] ?? '',
+        streetNum: json['building_streetnum'] ?? '',
+        streetName: json['building_streetname'] ?? '',
+        types: (json['building_types'] as List?)
+                ?.map((t) => normalizeType(t.toString()))
+                .toList() ??
+            // backward compat: single string field
+            (json['building_type'] != null
+                ? [normalizeType(json['building_type'])]
+                : const ['other']),
+        locationId: json['location_id'] ?? 0,
+        rooms: json['rooms'] != null
+            ? (json['rooms'] as List).map((r) => Room.fromJson(r)).toList()
+            : null,
+      );
 
-  static String _frontendBuildingType(String t) {
+  static String normalizeType(String t) {
     switch (t) {
       case 'ADMIN':
       case 'Kantoorgebou':
@@ -67,10 +67,10 @@ class Building {
   }
 
   Map<String, dynamic> toJson() => {
-    'building_name': name,
-    'building_types': types.map(_backendBuildingType).toList(),
-    'location_id': locationId,
-  };
+        'building_name': name,
+        'building_types': types.map(_backendBuildingType).toList(),
+        'location_id': locationId,
+      };
 
   static String _backendBuildingType(String t) {
     switch (t.toLowerCase()) {

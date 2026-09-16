@@ -9,12 +9,13 @@ void main() {
     testWidgets('skep-modus: titel, velde en STOOR-save', (tester) async {
       await pumpForm(tester, const BuildingFormPage());
 
-      expect(find.text("Voeg Nuwe Gebou"), findsOneWidget);
+      expect(find.text("Nuwe Gebou"), findsOneWidget);
       expect(find.text("Terrein"), findsOneWidget);
       expect(find.text("Naam"), findsOneWidget);
       expect(find.text("Tipes"), findsOneWidget);
       expect(find.text("STOOR"), findsOneWidget);
-      expect(find.text("Kanselleer"), findsOneWidget);
+      expect(find.text("Kanselleer"), findsNothing);
+      expect(find.text("KI Voorstelle"), findsOneWidget);
     });
 
     testWidgets('skep-modus: leë naam toon "Vereis"', (tester) async {

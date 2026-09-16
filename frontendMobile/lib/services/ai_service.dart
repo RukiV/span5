@@ -7,7 +7,10 @@ import 'cached_list_manager.dart';
 class AiSuggestion {
   final String value;
   final int? id;
-  const AiSuggestion({required this.value, this.id});
+
+  /// Vir meervoudige voorstelle (bv. 'n gebou se tipes-lys).
+  final List<String>? values;
+  const AiSuggestion({required this.value, this.id, this.values});
 }
 
 class AiService {
@@ -36,8 +39,7 @@ class AiService {
   static ValueNotifier<List<JobDraft>> get draftsNotifier => _manager.notifier;
 
   @visibleForTesting
-  static void resetForTest() =>
-      _manager.reset();
+  static void resetForTest() => _manager.reset();
 
   static String? get lastError => _manager.lastError;
 
@@ -149,14 +151,22 @@ class AiService {
           return raw.map((k, v) {
             final String value;
             final int? id;
+            List<String>? values;
             if (v is Map) {
-              value = v['value']?.toString() ?? '';
+              final rawValue = v['value'];
+              if (rawValue is List) {
+                values = rawValue.map((e) => e.toString()).toList();
+                value = values.join(', ');
+              } else {
+                value = rawValue?.toString() ?? '';
+              }
               id = v['id'] != null ? int.tryParse('${v['id']}') : null;
             } else {
               value = v.toString();
               id = null;
             }
-            return MapEntry(k.toString(), AiSuggestion(value: value, id: id));
+            return MapEntry(k.toString(),
+                AiSuggestion(value: value, id: id, values: values));
           });
         }
       }

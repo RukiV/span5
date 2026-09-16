@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/idempotency.dart';
-import '../../core/input_decoration.dart';
 import '../../models/campus.dart';
 import '../../models/building.dart';
 import '../../services/campus_service.dart';
 import '../../models/user_session.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
+import '../../widgets/labeled_form_field.dart';
+import '../../widgets/ai_suggestions_panel.dart';
 
 class BuildingFormPage extends StatefulWidget {
   final Building? building;
@@ -125,21 +126,6 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     }
   }
 
-  Widget _buildNameField() {
-    return TextFormField(
-      controller: _nameController,
-      decoration: appInputDecoration(
-          label: "",
-          labelStyle: const TextStyle(
-              color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 14),
-          fillColor: Colors.white,
-          radius: 8,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12)),
-      validator: (v) => v!.isEmpty ? "Vereis" : null,
-    );
-  }
-
   Widget _buildTypeField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,6 +166,28 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     );
   }
 
+  /// Die vorm se huidige veldwaardes vir die AI-konteks.
+  Map<String, dynamic> _currentBuildingFields() => {
+        'building_name': _nameController.text,
+        'building_types': _selectedTypes,
+      };
+
+  /// Pas 'n AI-voorstel van gebou-tipes (lys) op die FilterChip-groep toe.
+  void _applyBuildingTypes(List<String> values) {
+    final allowed = _types.map((t) => t['value']!).toSet();
+    final clean = values
+        .map((v) => Building.normalizeType(v))
+        .where(allowed.contains)
+        .toSet()
+        .toList();
+    if (clean.isEmpty) return;
+    setState(() {
+      _selectedTypes
+        ..clear()
+        ..addAll(clean);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final building = widget.building;
@@ -187,46 +195,50 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
     return ViewEditScaffold(
       alwaysEditable: _isCreate,
       startEditing: widget.startEditing,
-      title: _isCreate ? "Voeg Nuwe Gebou" : (building?.name ?? ""),
+      title: _isCreate ? "Nuwe Gebou" : (building?.name ?? ""),
       editingTitle: _isCreate ? null : "Wysig Gebou",
       saveLabel: _isCreate ? "STOOR" : "OPDATEER",
       canEdit: UserSession.can('buildings.manage'),
       formKey: _formKey,
       onSave: _save,
-      child: _isCreate
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InlineSearchableDropdown<Campus>(
-                  label: "Terrein",
-                  hint: "Kies Terrein",
-                  value: _selectedCampus,
-                  items: CampusService.campusesNotifier.value
-                      .map((c) => InlineSearchableDropdownItem<Campus>(
-                          value: c, label: c.name))
-                      .toList(),
-                  onChanged: (v) => setState(() => _selectedCampus = v),
-                ),
-                const SizedBox(height: 20),
-                const Text("Naam",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildNameField(),
-                const SizedBox(height: 20),
-                _buildTypeField(),
-              ],
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Naam",
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                _buildNameField(),
-                const SizedBox(height: 20),
-                _buildTypeField(),
-              ],
+      showCancel: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_isCreate) ...[
+            InlineSearchableDropdown<Campus>(
+              label: "Terrein",
+              hint: "Kies Terrein",
+              value: _selectedCampus,
+              items: CampusService.campusesNotifier.value
+                  .map((c) => InlineSearchableDropdownItem<Campus>(
+                      value: c, label: c.name))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedCampus = v),
             ),
+            const SizedBox(height: 20),
+          ],
+          LabeledFormField(
+            label: "Naam",
+            controller: _nameController,
+            onChanged: (_) => setState(() {}),
+            validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+          ),
+          const SizedBox(height: 20),
+          _buildTypeField(),
+          const SizedBox(height: 16),
+          AiSuggestionsPanel(
+            context: 'building',
+            fields: _currentBuildingFields(),
+            labels: const {'building_types': 'Tipes'},
+            onUse: (key, s) {
+              if (key == 'building_types') {
+                _applyBuildingTypes(s.values ?? const []);
+              }
+            },
+          ),
+        ],
+      ),
     );
   }
 }
