@@ -69,9 +69,9 @@ function AiSuggestPanel({ suggestions = {}, loading = false, filled = 0, error =
       <div
         onClick={() => setCollapsed((c) => !c)}
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', cursor: 'pointer', fontWeight: 600, color: '#935E28', userSelect: 'none', position: 'sticky', top: 0, background: '#fdf8f3', zIndex: 1 }}
-        title="Voorgestelde Werksopdragte-veldvoorstelle"
+        title="KI Voorstelle-veldvoorstelle"
       >
-        <span>💡 Voorgestelde Werksopdragte{entries.length > 0 ? ` (${entries.length})` : ''}</span>
+        <span>💡 KI Voorstelle{entries.length > 0 ? ` (${entries.length})` : ''}</span>
         <span>{collapsed ? '▸' : '▾'}</span>
       </div>
       {!collapsed && <div style={{ padding: '0 14px 10px', lineHeight: 1.35 }}>{body}</div>}

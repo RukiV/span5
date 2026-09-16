@@ -23,12 +23,17 @@ class AiSuggestionsPanel extends StatefulWidget {
   /// Word aangeroep wanneer die gebruiker "Gebruik" tik.
   final void Function(String key, AiSuggestion suggestion)? onUse;
 
+  /// Word geroep wanneer die paneel se voorstelle verander — laat die ouer
+  /// (bv. 'n vorm) spookteks direk in velde toon.
+  final void Function(Map<String, AiSuggestion> suggestions)? onSuggestionsChanged;
+
   const AiSuggestionsPanel({
     super.key,
     required this.context,
     required this.fields,
     this.labels = const {},
     this.onUse,
+    this.onSuggestionsChanged,
   });
 
   @override
@@ -51,7 +56,8 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _filledCount >= 3) _fetch();
+      widget.onSuggestionsChanged?.call(_suggestions);
+      if (mounted && _filledCount >= 1) _fetch();
     });
   }
 
@@ -60,8 +66,9 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
     super.didUpdateWidget(oldWidget);
     if (!mapEquals(oldWidget.fields, widget.fields)) {
       _debounce?.cancel();
-      if (_filledCount < 3) {
+      if (_filledCount < 1) {
         setState(() => _suggestions = {});
+        widget.onSuggestionsChanged?.call({});
         return;
       }
       _debounce = Timer(const Duration(milliseconds: 800), _fetch);
@@ -74,13 +81,16 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
     super.dispose();
   }
 
-  Future<void> _fetch() async {
+Future<void> _fetch() async {
     setState(() => _loading = true);
     final result = await AiService.suggest(context: widget.context, fields: widget.fields);
-    if (mounted) setState(() {
-      _suggestions = result;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _suggestions = result;
+        _loading = false;
+      });
+      widget.onSuggestionsChanged?.call(result);
+    }
   }
 
   @override
@@ -110,7 +120,7 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
                   const SizedBox(width: 7),
                   Expanded(
                     child: Text(
-                      'Voorgestelde Werksopdragte${entries.isNotEmpty ? ' (${entries.length})' : ''}',
+                      'KI Voorstelle${entries.isNotEmpty ? ' (${entries.length})' : ''}',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
@@ -130,9 +140,9 @@ class _AiSuggestionsPanelState extends State<AiSuggestionsPanel> {
   }
 
   Widget _buildBody(List<MapEntry<String, AiSuggestion>> entries) {
-    if (_filledCount < 3) {
+    if (_filledCount < 1) {
       return const Text(
-        'Vul minstens 3 velde in, dan stel ek voor hoe die res gevul kan word.',
+        'Vul minstens 1 veld in en ek stel voor hoe die res gevul kan word.',
         style: TextStyle(color: Colors.grey, fontSize: 12.5),
       );
     }

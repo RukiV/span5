@@ -10,6 +10,9 @@ import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/confirm_delete.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/ghost_overlay.dart';
+import '../../services/ai_service.dart';
 
 class StockFormPage extends StatefulWidget {
   final Stock? stock;
@@ -37,6 +40,13 @@ class _StockFormPageState extends State<StockFormPage> {
   String? _locationError;
   String? _idempotencyKey;
 
+  late final _nameController = TextEditingController(text: "");
+  late final _brandController = TextEditingController(text: "");
+  late final _typeController = TextEditingController(text: "");
+
+  /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
+
   bool get _isCreate => widget.stock == null;
 
   @override
@@ -44,11 +54,14 @@ class _StockFormPageState extends State<StockFormPage> {
     super.initState();
     final s = widget.stock;
     name = s?.name ?? "";
+    _nameController.text = name;
     brand = s?.brand ?? "";
+    _brandController.text = brand;
     amount = s?.amount ?? 0;
     minimum = s?.minimum ?? 0;
     boxTotal = s?.boxTotal ?? 0;
     type = s?.type ?? "Ander";
+    _typeController.text = type;
     description = s?.description ?? "";
 
     if (CampusService.campusesNotifier.value.isEmpty) {
@@ -78,6 +91,9 @@ class _StockFormPageState extends State<StockFormPage> {
   @override
   void dispose() {
     CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    _nameController.dispose();
+    _brandController.dispose();
+    _typeController.dispose();
     super.dispose();
   }
 
@@ -119,6 +135,32 @@ class _StockFormPageState extends State<StockFormPage> {
       _roomId = roomId;
       if (roomId != null) _locationError = null;
     });
+  }
+
+  /// Die vorm se huidige veldwaardes vir die AI-konteks.
+  Map<String, String> _currentStockFields() => {
+        'stock_name': name,
+        'stock_type': type,
+        'stock_brand': brand,
+      };
+
+  /// Pas 'n voorstel toe — via 'n spookknoppie ✓ of die paneel se "Gebruik".
+  void _applyStockGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'stock_name':
+        _nameController.text = s.value;
+        name = s.value;
+        break;
+      case 'stock_brand':
+        _brandController.text = s.value;
+        brand = s.value;
+        break;
+      case 'stock_type':
+        _typeController.text = s.value;
+        type = s.value;
+        break;
+    }
+    setState(() {});
   }
 
   Widget _breadcrumbs() {
@@ -260,16 +302,45 @@ class _StockFormPageState extends State<StockFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _breadcrumbs(),
           Row(
             children: [
               Expanded(
-                child: _buildField("Naam", s?.name ?? "", (v) => name = v),
+                child: TextFormField(
+                  controller: _nameController,
+                  decoration: withSuggestionGhost(
+                    appInputDecoration(label: "Naam"),
+                    ghost: _ghosts['stock_name']?.value,
+                    active: name.isEmpty && _ghosts['stock_name'] != null,
+                    onAccept: _ghosts['stock_name'] != null
+                        ? () =>
+                            _applyStockGhost('stock_name', _ghosts['stock_name']!)
+                        : null,
+                  ),
+                  onChanged: (v) {
+                    name = v;
+                    setState(() {});
+                  },
+                  validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: _buildField(
-                    "Handelsmerk", s?.brand ?? "", (v) => brand = v),
+                child: TextFormField(
+                  controller: _brandController,
+                  decoration: withSuggestionGhost(
+                    appInputDecoration(label: "Handelsmerk"),
+                    ghost: _ghosts['stock_brand']?.value,
+                    active: brand.isEmpty && _ghosts['stock_brand'] != null,
+                    onAccept: _ghosts['stock_brand'] != null
+                        ? () => _applyStockGhost(
+                            'stock_brand', _ghosts['stock_brand']!)
+                        : null,
+                  ),
+                  onChanged: (v) {
+                    brand = v;
+                    setState(() {});
+                  },
+                ),
               ),
             ],
           ),
@@ -277,7 +348,23 @@ class _StockFormPageState extends State<StockFormPage> {
           Row(
             children: [
               Expanded(
-                child: _buildField("Tipe", s?.type ?? "", (v) => type = v),
+                child: TextFormField(
+                  controller: _typeController,
+                  decoration: withSuggestionGhost(
+                    appInputDecoration(label: "Tipe"),
+                    ghost: _ghosts['stock_type']?.value,
+                    active: type.isEmpty && _ghosts['stock_type'] != null,
+                    onAccept: _ghosts['stock_type'] != null
+                        ? () =>
+                            _applyStockGhost('stock_type', _ghosts['stock_type']!)
+                        : null,
+                  ),
+                  onChanged: (v) {
+                    type = v;
+                    setState(() {});
+                  },
+                  validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -307,8 +394,13 @@ class _StockFormPageState extends State<StockFormPage> {
             ],
           ),
           const SizedBox(height: 20),
+          if (_roomId != null) ...[
+            _breadcrumbs(),
+            const SizedBox(height: 16),
+          ],
           LocationCascadePicker(
             label: "Ligging *",
+            showBreadcrumb: false,
             initialCampusId: _campusId,
             initialBuildingId: _buildingId,
             initialRoomId: _roomId,
@@ -319,6 +411,18 @@ class _StockFormPageState extends State<StockFormPage> {
           _buildField(
               "Beskrywing", s?.description ?? "", (v) => description = v,
               maxLines: 3),
+          const SizedBox(height: 16),
+          AiSuggestionsPanel(
+            context: 'stock',
+            fields: _currentStockFields(),
+            labels: const {
+              'stock_name': 'Naam',
+              'stock_type': 'Tipe',
+              'stock_brand': 'Handelsmerk',
+            },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+            onUse: (key, s) => _applyStockGhost(key, s),
+          ),
         ],
       ),
     );

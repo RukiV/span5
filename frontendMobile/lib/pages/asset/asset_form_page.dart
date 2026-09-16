@@ -13,6 +13,10 @@ import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/ghost_overlay.dart';
+import '../../core/suggestion_translations.dart';
+import '../../services/ai_service.dart';
 import '../reporting/scan_page.dart';
 
 class AssetFormPage extends StatefulWidget {
@@ -39,6 +43,21 @@ class _AssetFormPageState extends State<AssetFormPage> {
   String? _locationError;
   String? _idempotencyKey;
   late final _serialController = TextEditingController();
+  late final _nameController = TextEditingController(text: "");
+  late final _brandController = TextEditingController(text: "");
+
+  /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
+
+  /// Wanneer 'n gesuggereerde lokaal aangewend word, dryf dit die kieser vroet.
+  (int?, int?, int?)? _appliedLocation;
+
+  static const _statusItems = [
+    SearchableDropdownItem(value: "active", label: "Aktief"),
+    SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
+    SearchableDropdownItem(value: "retired", label: "Afgedank"),
+    SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+  ];
 
   bool get _isCreate => widget.asset == null;
 
@@ -48,9 +67,11 @@ class _AssetFormPageState extends State<AssetFormPage> {
     AssetTypeService.fetchTypes();
     final a = widget.asset;
     name = a?.name ?? "";
+    _nameController.text = name;
     serialCode = a?.serialCode ?? "";
     _serialController.text = serialCode;
     brand = a?.brand ?? "";
+    _brandController.text = brand;
     isOutdoor = a?.isOutdoor ?? false;
     status = a?.status ?? "active";
     selectedTypeId = a?.assetTypeId;
@@ -87,6 +108,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
       CampusService.campusesNotifier.removeListener(_onCampusesChanged);
     }
     _serialController.dispose();
+    _nameController.dispose();
+    _brandController.dispose();
     super.dispose();
   }
 
@@ -127,6 +150,81 @@ class _AssetFormPageState extends State<AssetFormPage> {
       _serialController.text = code;
       serialCode = code;
     });
+  }
+
+  /// Die vorm se huidige veldwaardes vir die AI-konteks.
+  Map<String, String> _currentAssetFields() {
+    final typeName = selectedTypeId != null
+        ? AssetTypeService.getTypeName(selectedTypeId!)
+        : "";
+    return {
+      'asset_name': name,
+      'asset_type': typeName,
+      'room': selectedLocation?.split(":").last ?? "",
+      'asset_brand': brand,
+      'asset_status': _statusLabel(),
+    };
+  }
+
+  String _statusLabel() =>
+      _statusItems.firstWhere((i) => i.value == status,
+          orElse: () => _statusItems.first).label;
+
+  String? _statusValueForLabel(String label) {
+    final norm = label.trim().toLowerCase();
+    for (final item in _statusItems) {
+      if (item.label.trim().toLowerCase() == norm || item.value == norm) {
+        return item.value;
+      }
+    }
+    return null;
+  }
+
+  /// Pas 'n voorstel toe — via 'n spookknoppie ✓ of die paneel se "Gebruik".
+  void _applyAssetGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'asset_name':
+        _nameController.text = s.value;
+        name = s.value;
+        break;
+      case 'asset_brand':
+        _brandController.text = s.value;
+        brand = s.value;
+        break;
+      case 'asset_type':
+        if (s.id != null) {
+          selectedTypeId = s.id;
+        } else {
+          final match = AssetTypeService.typesNotifier.value
+              .where((t) => t.name.toLowerCase() == s.value.toLowerCase())
+              .firstOrNull;
+          if (match != null) selectedTypeId = match.id;
+        }
+        break;
+      case 'asset_status':
+        final v = _statusValueForLabel(s.value);
+        if (v != null) status = v;
+        break;
+      case 'room':
+        _applyRoomGhost(s.value);
+        return;
+    }
+    setState(() {});
+  }
+
+  /// Soek die gesuggereerde lokaal op en dryf die kieser daarnatoe.
+  void _applyRoomGhost(String roomName) {
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        for (final r in (b.rooms ?? [])) {
+          if (r.name.trim().toLowerCase() == roomName.trim().toLowerCase()) {
+            setState(() => _appliedLocation = (c.id, b.id, r.id));
+            _onLocationChanged(c.id, b.id, r.id);
+            return;
+          }
+        }
+      }
+    }
   }
 
   int? _campusIdForName(String? name) {
@@ -270,12 +368,20 @@ class _AssetFormPageState extends State<AssetFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _breadcrumbs(),
-          const SizedBox(height: 25),
           TextFormField(
-            initialValue: isCreate ? null : name,
-            decoration: appInputDecoration(label: "Naam"),
-            onChanged: (v) => name = v,
+            controller: _nameController,
+            decoration: withSuggestionGhost(
+              appInputDecoration(label: "Naam"),
+              ghost: _ghosts['asset_name']?.value,
+              active: name.isEmpty && _ghosts['asset_name'] != null,
+              onAccept: _ghosts['asset_name'] != null
+                  ? () => _applyAssetGhost('asset_name', _ghosts['asset_name']!)
+                  : null,
+            ),
+            onChanged: (v) {
+              name = v;
+              setState(() {});
+            },
             validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
           ),
           const SizedBox(height: 20),
@@ -287,9 +393,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 tooltip: "Skandeer strepie-/QR-kode",
                 onPressed: _scanSerial,
               ),
-              helperText: isCreate
-                  ? "Tik 'n kode (bv. AK MT123456) of skandeer 'n bestaande een."
-                  : "Skandeer 'n bestaande een of tik 'n kode.",
+              helperText: "AK-MTXXXXXX",
             ),
             onChanged: (v) => serialCode = v,
             validator: (v) {
@@ -300,22 +404,41 @@ class _AssetFormPageState extends State<AssetFormPage> {
           ),
           const SizedBox(height: 20),
           TextFormField(
-            initialValue: isCreate ? null : brand,
-            decoration: appInputDecoration(label: "Handelsmerk"),
-            onChanged: (v) => brand = v,
+            controller: _brandController,
+            decoration: withSuggestionGhost(
+              appInputDecoration(label: "Handelsmerk"),
+              ghost: _ghosts['asset_brand']?.value,
+              active: brand.isEmpty && _ghosts['asset_brand'] != null,
+              onAccept: _ghosts['asset_brand'] != null
+                  ? () => _applyAssetGhost('asset_brand', _ghosts['asset_brand']!)
+                  : null,
+            ),
+            onChanged: (v) {
+              brand = v;
+              setState(() {});
+            },
           ),
           const SizedBox(height: 20),
           ValueListenableBuilder<List<AssetType>>(
             valueListenable: AssetTypeService.typesNotifier,
             builder: (context, types, _) {
+              final typeEmpty = selectedTypeId == null;
+              final typeGhost = _ghosts['asset_type'];
               return SearchableDropdown<int>(
                 label: "Bate Tipe",
-                hint: "Kies 'n tipe",
+                hint: typeEmpty && typeGhost != null
+                    ? translateSuggestion('asset_type', typeGhost.value)
+                    : "Kies 'n tipe",
                 value: selectedTypeId,
                 items: types
                     .map((t) =>
                         SearchableDropdownItem(value: t.id, label: t.name))
                     .toList(),
+                trailing: typeEmpty && typeGhost != null
+                    ? SuggestionAcceptCheck(
+                        onTap: () => _applyAssetGhost('asset_type', typeGhost),
+                      )
+                    : null,
                 onChanged: (v) =>
                     setState(() => selectedTypeId = v ?? selectedTypeId),
                 validator: (v) => v == null ? "Vereis" : null,
@@ -335,27 +458,88 @@ class _AssetFormPageState extends State<AssetFormPage> {
             ],
           ),
           const SizedBox(height: 20),
-          LocationCascadePicker(
-            label: "Ligging *",
-            initialCampusId:
-                _isCreate ? _campusIdForName(selectedCampus) : _initialCampusId,
-            initialBuildingId: _isCreate ? null : _initialBuildingId,
-            initialRoomId: _isCreate ? null : _initialRoomId,
-            errorText: _locationError,
-            onChanged: _onLocationChanged,
+          if (selectedLocation != null) ...[
+            _breadcrumbs(),
+            const SizedBox(height: 16),
+          ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LocationCascadePicker(
+                label: "Ligging *",
+                showBreadcrumb: false,
+                initialCampusId:
+                    _appliedLocation?.$1 ?? (_isCreate ? _campusIdForName(selectedCampus) : _initialCampusId),
+                initialBuildingId: _appliedLocation?.$2 ?? (_isCreate ? null : _initialBuildingId),
+                initialRoomId: _appliedLocation?.$3 ?? (_isCreate ? null : _initialRoomId),
+                errorText: _locationError,
+                onChanged: _onLocationChanged,
+              ),
+              if (selectedLocation == null && _ghosts['room'] != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          "Lokaal-voorstel",
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.navy),
+                        ),
+                      ),
+                      Text(
+                        _ghosts['room']!.value,
+                        style: const TextStyle(
+                          fontSize: 13, fontStyle: FontStyle.italic,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      SuggestionAcceptCheck(
+                        onTap: () => _applyRoomGhost(_ghosts['room']!.value),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 20),
           SearchableDropdown<String>(
             label: "Status",
             hint: "Kies 'n status",
             value: status,
-            items: const [
-              SearchableDropdownItem(value: "active", label: "Aktief"),
-              SearchableDropdownItem(value: "maintenance", label: "Onderhoud"),
-              SearchableDropdownItem(value: "retired", label: "Afgedank"),
-              SearchableDropdownItem(value: "inactive", label: "Onaktief"),
-            ],
+            items: _statusItems,
+            trailing: () {
+              final s = _ghosts['asset_status'];
+              if (s == null) return null;
+              final v = _statusValueForLabel(s.value);
+              return v != null && v != status
+                  ? SuggestionAcceptCheck(
+                      onTap: () => _applyAssetGhost('asset_status', s),
+                    )
+                  : null;
+            }(),
             onChanged: (v) => setState(() => status = v!),
+          ),
+          const SizedBox(height: 16),
+          AiSuggestionsPanel(
+            context: 'asset',
+            fields: _currentAssetFields(),
+            labels: const {
+              'asset_name': 'Naam',
+              'asset_type': 'Tipe',
+              'room': 'Ligging',
+              'asset_brand': 'Handelsmerk',
+              'asset_status': 'Status',
+            },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+            onUse: (key, s) => _applyAssetGhost(key, s),
           ),
         ],
       ),

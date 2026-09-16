@@ -356,7 +356,6 @@ class _EditReportPageState extends State<EditReportPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildBreadcrumbs(),
                     _buildTextField("Titel", _titleController),
                     const SizedBox(height: 20),
                     Row(
@@ -386,8 +385,13 @@ class _EditReportPageState extends State<EditReportPage> {
                               _rawStatus = _displayToRawStatus(val);
                             })),
                     const SizedBox(height: 20),
+                    if (_selectedLocation != null) ...[
+                      _buildBreadcrumbs(),
+                      const SizedBox(height: 16),
+                    ],
                     LocationCascadePicker(
                       label: "Ligging *",
+                      showBreadcrumb: false,
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,

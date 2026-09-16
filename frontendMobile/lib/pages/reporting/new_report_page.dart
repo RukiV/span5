@@ -4,6 +4,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/header_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -404,7 +405,7 @@ class _NewReportPageState extends State<NewReportPage> {
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     inputFormatters: [_AssetCodeFormatter()],
                     decoration: InputDecoration(
-                      hintText: "AK MT000001",
+                      hintText: "AK-MTXXXXXX",
                       hintStyle: TextStyle(
                           color: Colors.white.withValues(alpha: 150 / 255),
                           fontSize: 14),
@@ -507,6 +508,16 @@ class _NewReportPageState extends State<NewReportPage> {
               const SizedBox(height: 8),
               _buildTitleDescriptionBox(),
               const SizedBox(height: 24),
+              if (_selectedCampusId != null) ...[
+                LocationBreadcrumbs(
+                  path: LocationBreadcrumbs.buildLocationPath(
+                    campusId: _selectedCampusId,
+                    buildingId: _selectedBuildingId,
+                    roomId: _selectedRoomId,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               LocationCascadePicker(
                 initialCampusId: _selectedCampusId,
                 initialBuildingId: _selectedBuildingId,

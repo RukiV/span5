@@ -6,6 +6,7 @@ import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/location_breadcrumbs.dart';
 import '../../core/datetime_utils.dart';
 
 /// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
@@ -94,9 +95,22 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                 children: [
                   const Text("Lokaal", style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
+                  if (_roomId != null) ...[
+                    () {
+                      final path = CampusService.findRoomPath(_roomId!);
+                      final campus = path.campus?.name;
+                      final building = path.building?.name;
+                      final room = path.room?.name;
+                      final label = campus == null
+                          ? "Kies Kampus"
+                          : "$campus > $building > $room";
+                      return LocationBreadcrumbs(path: label);
+                    }(),
+                    const SizedBox(height: 12),
+                  ],
                   LocationCascadePicker(
                     depth: LocationDepth.room,
-                    showBreadcrumb: true,
+                    showBreadcrumb: false,
                     onChanged: (campusId, buildingId, roomId) {
                       setState(() {
                         _roomId = roomId;
