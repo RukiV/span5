@@ -12,7 +12,7 @@ void main() {
       expect(find.text("Nuwe Voorraad"), findsOneWidget);
       expect(find.text("STOOR VOORRAAD"), findsOneWidget);
       expect(find.text("OPDATEER VOORRAAD"), findsNothing);
-      expect(find.text("Kanselleer"), findsOneWidget);
+      expect(find.text("Kanselleer"), findsNothing);
       expect(find.text("Naam"), findsOneWidget);
       expect(find.text("Handelsmerk"), findsOneWidget);
       expect(find.text("Tipe"), findsOneWidget);
@@ -25,6 +25,8 @@ void main() {
     testWidgets('skep-modus: leë ligging toon foutboodskap', (tester) async {
       await pumpForm(tester, const StockFormPage());
 
+      await tester.ensureVisible(find.text("STOOR VOORRAAD"));
+      await tester.pumpAndSettle();
       await tester.tap(find.text("STOOR VOORRAAD"));
       await tester.pumpAndSettle();
 
@@ -38,7 +40,7 @@ void main() {
       expect(find.text("Wysig Voorraad"), findsOneWidget);
       expect(find.text("OPDATEER VOORRAAD"), findsOneWidget);
       expect(find.text("STOOR VOORRAAD"), findsNothing);
-      expect(find.text("Kanselleer"), findsOneWidget);
+      expect(find.text("Kanselleer"), findsNothing);
       expect(find.text("VERWYDER VOORRAAD"), findsOneWidget);
       expect(find.text("Projektorlamp"), findsOneWidget);
       expect(find.text("4"), findsWidgets);
@@ -57,6 +59,8 @@ void main() {
     testWidgets('wysig-modus: mislukte stoor bly staan', (tester) async {
       await pumpForm(tester, StockFormPage(stock: sampleStock()));
 
+      await tester.ensureVisible(find.text("OPDATEER VOORRAAD"));
+      await tester.pumpAndSettle();
       await tester.tap(find.text("OPDATEER VOORRAAD"));
       await tester.pumpAndSettle();
 

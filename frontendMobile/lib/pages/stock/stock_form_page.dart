@@ -164,30 +164,53 @@ class _StockFormPageState extends State<StockFormPage> {
   }
 
   Widget _breadcrumbs() {
-    return LocationBreadcrumbs(path: LocationBreadcrumbs.buildLocationPath(
-        campusId: _campusId, buildingId: _buildingId, roomId: _roomId));
+    return LocationBreadcrumbs(
+        path: LocationBreadcrumbs.buildLocationPath(
+            campusId: _campusId, buildingId: _buildingId, roomId: _roomId));
   }
 
   Widget _buildField(String label, String initial, Function(String) onSet,
       {int maxLines = 1}) {
-    return TextFormField(
-      initialValue: initial.isEmpty ? null : initial,
-      maxLines: maxLines,
-      decoration: appInputDecoration(label: label),
-      onChanged: onSet,
-      validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 6),
+        TextFormField(
+          initialValue: initial.isEmpty ? null : initial,
+          maxLines: maxLines,
+          decoration: appInputDecoration(),
+          onChanged: onSet,
+          validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+        ),
+      ],
     );
   }
 
   Widget _buildNumberField(
       String label, String initial, Function(String) onSet) {
-    return TextFormField(
-      initialValue: initial.isEmpty ? null : initial,
-      keyboardType: TextInputType.number,
-      decoration: appInputDecoration(label: label),
-      onChanged: onSet,
-      validator: (v) =>
-          (v == null || int.tryParse(v) == null) ? "Vereis" : null,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 6),
+        TextFormField(
+          initialValue: initial.isEmpty ? null : initial,
+          keyboardType: TextInputType.number,
+          decoration: appInputDecoration(),
+          onChanged: onSet,
+          validator: (v) =>
+              (v == null || int.tryParse(v) == null) ? "Vereis" : null,
+        ),
+      ],
     );
   }
 
@@ -209,8 +232,8 @@ class _StockFormPageState extends State<StockFormPage> {
         description: description,
         roomId: _roomId,
       );
-      final success =
-          await StockService.addStock(newStock, idempotencyKey: _idempotencyKey);
+      final success = await StockService.addStock(newStock,
+          idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
         _idempotencyKey = Idempotency.generate();
@@ -275,6 +298,7 @@ class _StockFormPageState extends State<StockFormPage> {
       saveLabel: isCreate ? "STOOR VOORRAAD" : "OPDATEER VOORRAAD",
       showSaveSpinner: false,
       saveLetterSpacing: 1,
+      showCancel: false,
       formKey: _formKey,
       onSave: _save,
       deleteButton: isCreate || !UserSession.can('stock.manage')
@@ -295,97 +319,100 @@ class _StockFormPageState extends State<StockFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _nameController,
-                  decoration: withSuggestionGhost(
-                    appInputDecoration(label: "Naam"),
-                    ghost: _ghosts['stock_name']?.value,
-                    active: name.isEmpty && _ghosts['stock_name'] != null,
-                    onAccept: _ghosts['stock_name'] != null
-                        ? () =>
-                            _applyStockGhost('stock_name', _ghosts['stock_name']!)
-                        : null,
-                  ),
-                  onChanged: (v) {
-                    name = v;
-                    setState(() {});
-                  },
-                  validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+              const Text("Naam",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _nameController,
+                decoration: withSuggestionGhost(
+                  appInputDecoration(),
+                  ghost: _ghosts['stock_name']?.value,
+                  active: name.isEmpty && _ghosts['stock_name'] != null,
+                  onAccept: _ghosts['stock_name'] != null
+                      ? () =>
+                          _applyStockGhost('stock_name', _ghosts['stock_name']!)
+                      : null,
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextFormField(
-                  controller: _brandController,
-                  decoration: withSuggestionGhost(
-                    appInputDecoration(label: "Handelsmerk"),
-                    ghost: _ghosts['stock_brand']?.value,
-                    active: brand.isEmpty && _ghosts['stock_brand'] != null,
-                    onAccept: _ghosts['stock_brand'] != null
-                        ? () => _applyStockGhost(
-                            'stock_brand', _ghosts['stock_brand']!)
-                        : null,
-                  ),
-                  onChanged: (v) {
-                    brand = v;
-                    setState(() {});
-                  },
-                ),
+                onChanged: (v) {
+                  name = v;
+                  setState(() {});
+                },
+                validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _typeController,
-                  decoration: withSuggestionGhost(
-                    appInputDecoration(label: "Tipe"),
-                    ghost: _ghosts['stock_type']?.value,
-                    active: type.isEmpty && _ghosts['stock_type'] != null,
-                    onAccept: _ghosts['stock_type'] != null
-                        ? () =>
-                            _applyStockGhost('stock_type', _ghosts['stock_type']!)
-                        : null,
-                  ),
-                  onChanged: (v) {
-                    type = v;
-                    setState(() {});
-                  },
-                  validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
+              const Text("Handelsmerk",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _brandController,
+                decoration: withSuggestionGhost(
+                  appInputDecoration(),
+                  ghost: _ghosts['stock_brand']?.value,
+                  active: brand.isEmpty && _ghosts['stock_brand'] != null,
+                  onAccept: _ghosts['stock_brand'] != null
+                      ? () => _applyStockGhost(
+                          'stock_brand', _ghosts['stock_brand']!)
+                      : null,
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildNumberField(
-                    "Hoeveelheid",
-                    s?.amount.toString() ?? '',
-                    (v) => amount = int.tryParse(v) ?? 0),
+                onChanged: (v) {
+                  brand = v;
+                  setState(() {});
+                },
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _buildNumberField(
-                    "Minimum Voorraad",
-                    s?.minimum.toString() ?? '',
-                    (v) => minimum = int.tryParse(v) ?? 0),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildNumberField(
-                    "Boks Totaal",
-                    s?.boxTotal.toString() ?? '',
-                    (v) => boxTotal = int.tryParse(v) ?? 0),
+              const Text("Tipe",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _typeController,
+                decoration: withSuggestionGhost(
+                  appInputDecoration(),
+                  ghost: _ghosts['stock_type']?.value,
+                  active: type.isEmpty && _ghosts['stock_type'] != null,
+                  onAccept: _ghosts['stock_type'] != null
+                      ? () =>
+                          _applyStockGhost('stock_type', _ghosts['stock_type']!)
+                      : null,
+                ),
+                onChanged: (v) {
+                  type = v;
+                  setState(() {});
+                },
+                validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
               ),
             ],
           ),
+          const SizedBox(height: 20),
+          _buildNumberField("Hoeveelheid", s?.amount.toString() ?? '',
+              (v) => amount = int.tryParse(v) ?? 0),
+          const SizedBox(height: 20),
+          _buildNumberField("Minimum Voorraad", s?.minimum.toString() ?? '',
+              (v) => minimum = int.tryParse(v) ?? 0),
+          const SizedBox(height: 20),
+          _buildNumberField("Boks Totaal", s?.boxTotal.toString() ?? '',
+              (v) => boxTotal = int.tryParse(v) ?? 0),
           const SizedBox(height: 20),
           LocationCascadePicker(
             label: "Ligging *",
