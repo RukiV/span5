@@ -18,16 +18,16 @@ class Room {
   });
 
   factory Room.fromJson(Map<String, dynamic> json) => Room(
-    id: json['room_id'] ?? 0,
-    name: json['room_name'] ?? '',
-    type: _frontendRoomType(json['room_type'] ?? 'other'),
-    capacity: json['room_capacity'],
-    buildingId: json['building_id'] ?? 0,
-    locationId: json['location_id'],
-    roomCode: json['room_code'],
-  );
+        id: json['room_id'] ?? 0,
+        name: json['room_name'] ?? '',
+        type: normalizeType(json['room_type'] ?? 'other'),
+        capacity: json['room_capacity'],
+        buildingId: json['building_id'] ?? 0,
+        locationId: json['location_id'],
+        roomCode: json['room_code'],
+      );
 
-  static String _frontendRoomType(String t) {
+  static String normalizeType(String t) {
     switch (t) {
       case 'CLASSROOM':
       case 'Klaskamer':
@@ -76,12 +76,12 @@ class Room {
   }
 
   Map<String, dynamic> toJson() => {
-    'room_name': name,
-    'room_type': _backendRoomType(type),
-    'room_capacity': capacity,
-    'building_id': buildingId,
-    if (roomCode != null) 'room_code': roomCode,
-  };
+        'room_name': name,
+        'room_type': _backendRoomType(type),
+        'room_capacity': capacity,
+        'building_id': buildingId,
+        if (roomCode != null) 'room_code': roomCode,
+      };
 
   static String _backendRoomType(String t) {
     switch (t.toLowerCase()) {

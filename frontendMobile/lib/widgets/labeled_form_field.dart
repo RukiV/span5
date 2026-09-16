@@ -17,6 +17,7 @@ class LabeledFormField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final bool showErrorBorder;
   final InputDecoration? decoration;
+  final TextCapitalization textCapitalization;
 
   const LabeledFormField({
     super.key,
@@ -30,6 +31,7 @@ class LabeledFormField extends StatelessWidget {
     this.inputFormatters,
     this.showErrorBorder = false,
     this.decoration,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -54,6 +56,7 @@ class LabeledFormField extends StatelessWidget {
           keyboardType: keyboardType,
           maxLines: maxLines,
           inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
         ),
       ],
     );

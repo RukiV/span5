@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../core/idempotency.dart';
-import '../../core/input_decoration.dart';
 import '../../models/building.dart';
 import '../../models/campus.dart';
 import '../../models/room.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
+import '../../services/ai_service.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/confirm_delete.dart';
+import '../../widgets/labeled_form_field.dart';
+import '../../widgets/ai_suggestions_panel.dart';
 
 class RoomFormPage extends StatefulWidget {
   final Room? room;
@@ -172,6 +174,31 @@ class _RoomFormPageState extends State<RoomFormPage> {
         onSuccess: () => Navigator.pop(context, true),
       );
 
+  /// Die vorm se huidige veldwaardes vir die AI-konteks.
+  Map<String, dynamic> _currentRoomFields() => {
+        'room_name': _nameController.text,
+        'room_type': _type,
+        'room_capacity': _capacityController.text,
+        'room_status': 'Operasioneel',
+      };
+
+  /// Pas 'n AI-voorstel toe (Tipe/Kapasiteit).
+  void _applyRoomGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'room_type':
+        final t = Room.normalizeType(s.value);
+        if (_types.any((x) => x['value'] == t)) {
+          setState(() => _type = t);
+        }
+        break;
+      case 'room_capacity':
+        if (int.tryParse(s.value.trim()) != null) {
+          setState(() => _capacityController.text = s.value.trim());
+        }
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final room = widget.room;
@@ -185,6 +212,7 @@ class _RoomFormPageState extends State<RoomFormPage> {
       canEdit: UserSession.can('rooms.manage'),
       formKey: _formKey,
       onSave: _save,
+      showCancel: false,
       deleteButton: _isCreate || !UserSession.can('rooms.manage')
           ? null
           : SizedBox(
@@ -203,16 +231,18 @@ class _RoomFormPageState extends State<RoomFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextFormField(
+          LabeledFormField(
+            label: "Naam",
             controller: _nameController,
-            decoration: appInputDecoration(label: "Naam"),
+            onChanged: (_) => setState(() {}),
             validator: (v) => (v == null || v.trim().isEmpty) ? "Vereis" : null,
           ),
           const SizedBox(height: 20),
-          TextFormField(
+          LabeledFormField(
+            label: "Lokaal Kode",
             controller: _codeController,
-            decoration: appInputDecoration(label: "Lokaal Kode"),
             textCapitalization: TextCapitalization.characters,
+            onChanged: (_) => setState(() {}),
             validator: (v) {
               if (v == null || v.trim().isEmpty) return "Vereis";
               if (v.trim().length > 20) return "Maks 20 karakters";
@@ -245,14 +275,25 @@ class _RoomFormPageState extends State<RoomFormPage> {
             onChanged: (v) => setState(() => _type = v ?? _type),
           ),
           const SizedBox(height: 20),
-          TextFormField(
+          LabeledFormField(
+            label: "Kapasiteit",
             controller: _capacityController,
-            decoration: appInputDecoration(label: "Kapasiteit"),
             keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
             validator: (v) {
               if (v == null || v.trim().isEmpty) return null;
               return int.tryParse(v) == null ? "Nie 'n nommer nie" : null;
             },
+          ),
+          const SizedBox(height: 16),
+          AiSuggestionsPanel(
+            context: 'room',
+            fields: _currentRoomFields(),
+            labels: const {
+              'room_type': 'Tipe',
+              'room_capacity': 'Kapasiteit',
+            },
+            onUse: (key, s) => _applyRoomGhost(key, s),
           ),
         ],
       ),

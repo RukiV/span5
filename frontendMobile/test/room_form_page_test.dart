@@ -14,13 +14,16 @@ void main() {
       expect(find.text("Tipe"), findsOneWidget);
       expect(find.text("Kapasiteit"), findsOneWidget);
       expect(find.text("STOOR"), findsOneWidget);
-      expect(find.text("Kanselleer"), findsOneWidget);
+      expect(find.text("Kanselleer"), findsNothing);
       expect(find.text("VERWYDER LOKAAL"), findsNothing);
+      expect(find.text("KI Voorstelle"), findsOneWidget);
     });
 
     testWidgets('skep-modus: leë naam toon "Vereis"', (tester) async {
       await pumpForm(tester, const RoomFormPage());
 
+      await tester.ensureVisible(find.text("STOOR"));
+      await tester.pumpAndSettle();
       await tester.tap(find.text("STOOR"));
       await tester.pumpAndSettle();
 
@@ -51,8 +54,7 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.edit));
       await tester.pumpAndSettle();
-      await tester.enterText(
-          find.widgetWithText(TextFormField, "Lokaal Kode"), "R101");
+      await tester.enterText(find.byType(TextFormField).at(1), "R101");
       await tester.tap(find.text("OPDATEER"));
       await tester.pumpAndSettle();
 
