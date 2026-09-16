@@ -83,8 +83,6 @@ class _DashboardPageState extends State<DashboardPage> {
             const SizedBox(height: 12),
 
             // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
-            _buildSectionHeader("Rapportering"),
-            const SizedBox(height: 12),
             ValueListenableBuilder<List<Report>>(
               valueListenable: ReportService.reportsNotifier,
               builder: (context, reports, _) {
@@ -146,11 +144,6 @@ class _DashboardPageState extends State<DashboardPage> {
               valueListenable: AssetService.assetsNotifier,
               builder: (context, assets, _) {
                 // Totale Bates Kaart
-            _buildSectionHeader("Bates"),
-            const SizedBox(height: 12),
-            ValueListenableBuilder<List<Asset>>(
-              valueListenable: AssetService.assetsNotifier,
-              builder: (context, assets, _) {
                 return _buildWideStatCard(
                   context,
                   "Totale Bates",
