@@ -627,3 +627,121 @@ def test_dashboard_insights_fk_summary_includes_kampus_name(engine, seeded, monk
         resp_admin = generate_insights("dashboard", session)
         assert "Kampus Noorde" not in resp_admin.summary
         assert "Oorsig van" in resp_admin.summary
+
+
+# ---------------------------------------------------------------------------
+# ops dashboard context: overdue jobs / critical stock / maintenance overdue
+# ---------------------------------------------------------------------------
+
+
+def test_dashboard_context_includes_overdue_critical_maintenance(engine, seeded, monkeypatch):
+    """_gather_context('dashboard') exposes overdue_jobs, critical_stock and
+    maintenance_overdue for the weekly ops digest — admin (unscoped) view."""
+    import types
+    from datetime import datetime, timedelta
+
+    from app.models.enums import FaultStatus, JobStatus, RoomStatus, RoomType
+    from app.models.fault import Faultcard
+    from app.models.job import Jobcard
+    from app.models.location import Building, Location, Room
+    from app.models.stock import Stock
+    from app.services.analytics_service import _gather_context
+    from app.services.prediction_service import PredictionService
+
+    now = datetime.now()
+
+    with Session(engine) as session:
+        admin = session.exec(select(User).where(User.role_id == 3)).first()
+
+        # Enkele terrein/gebou/kamer/bate (bate vir die maintenance-voorspelling).
+        loc = Location(location_name="Kampus Toets", location_type="campus",
+                       location_streetnum="1", location_streetname="Testweg")
+        session.add(loc)
+        session.flush()
+        bldg = Building(building_name="Gebou T", location_id=loc.location_id)
+        session.add(bldg)
+        session.flush()
+        room = Room(room_name="Lokaal T", room_code="LT-1",
+                    room_type=RoomType.OFFICE, room_status=RoomStatus.OPERATIONAL,
+                    building_id=bldg.building_id)
+        session.add(room)
+        session.flush()
+        at = Assettype(assettype_name="ToetsTipe")
+        session.add(at)
+        session.flush()
+        asset = Asset(asset_name="Bate T", asset_brand="Toets",
+                      asset_serial="BT-1", assettype_id=at.assettype_id,
+                      room_id=room.room_id)
+        session.add(asset)
+        session.flush()
+
+        # 2 foute: 1 oop, 1 gesluit.
+        session.add(Faultcard(
+            fault_description="oop fout",
+            fault_status=FaultStatus.OPEN,
+            user_id=admin.user_id,
+        ))
+        session.add(Faultcard(
+            fault_description="geslote fout",
+            fault_status=FaultStatus.CLOSED,
+            user_id=admin.user_id,
+        ))
+
+        # 3 werksopdragte: 1 oortydig (verby + Besig), 1 op skedule (toekoms),
+        # 1 voltooid (uitgesluit al is die einddatum verby).
+        session.add(Jobcard(
+            job_desc="oortydige werk",
+            job_status=JobStatus.IN_PROGRESS,
+            job_scheduled_end_datetime=now - timedelta(days=2),
+            room_id=room.room_id,
+            contractor_id=admin.user_id,
+        ))
+        session.add(Jobcard(
+            job_desc="op skedule werk",
+            job_status=JobStatus.SCHEDULED,
+            job_scheduled_end_datetime=now + timedelta(days=2),
+            room_id=room.room_id,
+            contractor_id=admin.user_id,
+        ))
+        session.add(Jobcard(
+            job_desc="voltooide werk",
+            job_status=JobStatus.COMPLETED,
+            job_scheduled_end_datetime=now - timedelta(days=2),
+            room_id=room.room_id,
+            contractor_id=admin.user_id,
+        ))
+
+        # 2 voorraaditems: 1 onder minimum, 1 bo.
+        session.add(Stock(
+            stock_name="Krities Laag",
+            stock_amount=2,
+            stock_minimum=10,
+            stock_type="Verbruik",
+            room_id=room.room_id,
+        ))
+        session.add(Stock(
+            stock_name="Genoeg Voorraad",
+            stock_amount=20,
+            stock_minimum=5,
+            stock_type="Verbruik",
+            room_id=room.room_id,
+        ))
+        session.commit()
+        asset_id = asset.asset_id
+
+    # Mock voorspellings: een in-scope bate agterstallig, een onbekende bate
+    # (nie in asset_map nie → uitgesluit).
+    def _fake_predictions(self, session_):
+        return [
+            types.SimpleNamespace(asset_id=asset_id, maintenance_overdue=True),
+            types.SimpleNamespace(asset_id=999999, maintenance_overdue=True),
+        ]
+
+    monkeypatch.setattr(PredictionService, "getPredictions", _fake_predictions)
+
+    with Session(engine) as session:
+        ctx = _gather_context("dashboard", session)
+
+    assert ctx["overdue_jobs"] == 1
+    assert ctx["critical_stock_count"] == 1
+    assert ctx["maintenance_overdue"] == 1

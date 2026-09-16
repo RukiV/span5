@@ -29,16 +29,20 @@ def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
             f"Page: {page}\n"
             f"Metrics:\n{metrics_block or '(none)'}\n"
             f"Rule insights:\n{insights_block or '(none)'}\n"
-            "Skryf 'n bondige maar insiggewende Afrikaans-bedryfsopsomming van "
-            "2-3 sinne as JSON {\"digest\": \"<string>\"} — noem die belangrikste "
-            "syfers en status-afbrekings; gebruik slegs die gegewe getalle, moenie "
-            "getalle versin nie."
+            "Skryf 'n bondige Afrikaans-bedryfsopsomming van 3-5 sinne as JSON "
+            "{\"digest\": \"<string>\"} — fokus op wat vandag aandag benodig: "
+            "oortydige werksopdragte, kritieke voorraad-items, agterstallige "
+            "onderhoud, en hoë-prioriteit foute. Noem spesifieke syfers en, waar "
+            "moontlik, voorraad-itemname."
         )
         raw = llm_service._generate(
-            "Jy is 'n fasiliteitsbestuur-assistent. Gee slegs 'n kort Afrikaans opsaamfasering van die cijfers.",
+            "Jy is 'n fasiliteitsbestuur-assistent vir 'n fasiliteitkoordineerder. "
+            "Gee 'n bondige Afrikaans-opsomming van wat vandag aandag nodig het: "
+            "oortydige werksopdragte, kritieke voorraad, agterstallige onderhoud, "
+            "en hoë-prioriteit foute. Noem spesifieke syfers. 3-5 sinne.",
             prompt,
             {"type": "object", "properties": {"digest": {"type": "string"}}, "required": ["digest"]},
-            {"temperature": 0.3, "num_predict": 220},
+            {"temperature": 0.3, "num_predict": 300},
         )
         text = (raw.get("response") or "").strip()
         parsed = llm_service._parse_json(text)
@@ -148,6 +152,9 @@ def _fallback_insights(page: str, context: dict, session=None, user=None) -> Ana
         location_name = context.get("location_name", "")
 
         suggestions = _fallback_suggestions(page, context)
+        overdue_jobs = context.get("overdue_jobs", 0)
+        critical_stock_count = context.get("critical_stock_count", 0)
+        maintenance_overdue = context.get("maintenance_overdue", 0)
         all_insights = [
             f"Daar is {total} bates, {active_faults} onopgeloste foutkaartjies, en {active_jobs} aktiewe werksopdragte.",
         ]
@@ -165,6 +172,13 @@ def _fallback_insights(page: str, context: dict, session=None, user=None) -> Ana
                 f"{open_faults} oop foutkaartjies, {high_priority_faults} hoë-prioriteit, "
                 f"{high_priority_jobs} hoë-prioriteit werksopdragte aktief, {auto_drafts} Gemma-auto-konsepte."
             )
+        if overdue_jobs > 0:
+            all_insights.append(f"{overdue_jobs} werksopdragte is oor hul skedule.")
+        if critical_stock_count > 0:
+            names_str = ", ".join(context.get("critical_stock_names", [])[:3])
+            all_insights.append(f"{critical_stock_count} voorraaditems is onder minimum: {names_str}.")
+        if maintenance_overdue > 0:
+            all_insights.append(f"{maintenance_overdue} bates het agterstallige onderhoud.")
 
         if is_fk_scoped and location_name:
             summary = (
@@ -173,6 +187,16 @@ def _fallback_insights(page: str, context: dict, session=None, user=None) -> Ana
             )
         else:
             summary = f"Oorsig van {total} bates, {active_faults} onopgeloste foute, {active_jobs} aktiewe werksopdragte."
+        # Voeg bykomstige syfers by opsomming wanneer > 0.
+        extras = []
+        if overdue_jobs > 0:
+            extras.append(f"{overdue_jobs} oortydig")
+        if critical_stock_count > 0:
+            extras.append(f"{critical_stock_count} kritieke voorraad")
+        if maintenance_overdue > 0:
+            extras.append(f"{maintenance_overdue} agterstallige onderhoud")
+        if extras:
+            summary += " — " + ", ".join(extras) + "."
 
         return AnalyticsResponse(
             summary=summary,
@@ -185,6 +209,9 @@ def _fallback_insights(page: str, context: dict, session=None, user=None) -> Ana
                 Metric(label="Hoë-prioriteit Foute", value=str(high_priority_faults)),
                 Metric(label="Hoë-prioriteit Werksopdragte", value=str(high_priority_jobs)),
                 Metric(label="Gemma Auto-konsepte", value=str(auto_drafts)),
+                Metric(label="Oortydige Werksopdragte", value=str(overdue_jobs)),
+                Metric(label="Kritieke Voorraad Items", value=str(critical_stock_count)),
+                Metric(label="Onderhoud Agterstallig", value=str(maintenance_overdue)),
             ],
             insights=all_insights,
             suggestions=suggestions,
@@ -856,6 +883,44 @@ def _gather_context(page: str, session,
         else:
             ctx["location_name"] = ""
 
+        # ── Ops-dashboard bykomstige konteks ──
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Oortydige werksopdragte: nie voltooid/gekanselleer nie,
+        # geskeduleerde einddatum verby.
+        ctx["overdue_jobs"] = sum(
+            1 for j in jobs
+            if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer")
+            and j.job_scheduled_end_datetime is not None
+            and j.job_scheduled_end_datetime < now
+        )
+
+        # Kritieke voorraad: voorraad onder minimum.
+        critical = [
+            s for s in stocks
+            if s.stock_amount is not None
+            and s.stock_minimum is not None
+            and s.stock_amount > 0
+            and s.stock_minimum > 0
+            and s.stock_amount < s.stock_minimum
+        ]
+        ctx["critical_stock_count"] = len(critical)
+        ctx["critical_stock_names"] = [s.stock_name for s in critical[:5]]
+
+        # Agterstallige onderhoud: voorspellings met maintenance_overdue.
+        from ..services.prediction_service import PredictionService
+
+        preds = PredictionService().getPredictions(session)
+        asset_map = {a.asset_id: a for a in all_assets}
+
+        def _pred_in_scope(p):
+            a = asset_map.get(p.asset_id)
+            return a is not None and _in_scope_asset(session, scope, a)
+
+        ctx["maintenance_overdue"] = sum(
+            1 for p in preds if p.maintenance_overdue and _pred_in_scope(p)
+        )
+
     elif page == "users":
         users = session.exec(select(User)).all()
         ctx["total"] = len(users)
@@ -1102,17 +1167,6 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
     pending = sum(status_counts.get(s, 0) for s in ("Oop", "Wag", "Geskeduleer", "Besig"))
     completed = status_counts.get("Voltooid", 0)
 
-    # ── 9 AI visuals — gegenereer elke keer as AI-statistiek run (via chart_ai_service, LLM waar beskikbaar) ──
-    ai_charts = {}
-    try:
-        from .chart_ai_service import generate_all_charts
-
-        ai_charts = generate_all_charts(session, user)
-    except Exception as e:
-        import logging as _lg
-
-        _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
-        ai_charts = {}
     # ── 9 AI visuals — only generated on the voorspellings page (via ?include_ai_charts=true) ──
     ai_charts = {}
     if include_ai_charts:

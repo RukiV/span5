@@ -194,12 +194,9 @@ const DashboardPage = () => {
     return `${actionLabel} ${label}${nameText}`;
   };
 
-  const fetchData = useCallback(async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       setLoading(true);
-      // Let op: die AI-bedryfsopsomming (digest) word BEWUSTELIK buite die
-      // Promise.all gehou — 'n koue Gemma kan 5-30s vat, en die kernpaneelbord
-      // moet nie daarvoor wag nie. Die digest verskyn sodra dit gereed is.
       const [summaryRes, , auditResponse] = await Promise.all([
         Promise.resolve(apiClient.get('/analytics/dashboard-summary')).catch((e) => {
           console.warn('dashboard-summary failed, using fallback', e?.response?.status);
@@ -209,13 +206,6 @@ const DashboardPage = () => {
         Promise.resolve(auditsAPI.getAll()).catch(() => ({ data: [] })),
         Promise.resolve(ticketsAPI.getAll()).catch(() => ({ data: [] })),
       ]);
-
-      analyticsAPI.getInsights('dashboard')
-        .then((r) => {
-          const digest = r.data?.digest ?? null;
-          if (digest) setOpsDigest(digest);
-        })
-        .catch(() => {});
 
       if (summaryRes?.data) {
         setSummary(summaryRes.data);
@@ -264,16 +254,47 @@ const DashboardPage = () => {
     }
   }, []);
 
+  const fetchDigest = useCallback(async () => {
+    try {
+      const r = await analyticsAPI.getInsights('dashboard');
+      const digest = r.data?.digest ?? null;
+      if (digest) {
+        setOpsDigest(digest);
+        try {
+          const todayKey = new Date().toISOString().slice(0, 10);
+          localStorage.setItem('dashboard_digest_' + todayKey, digest);
+        } catch (e) {
+          // localStorage kan onbeskikbaar wees; caching is beste-poging.
+        }
+      }
+    } catch (e) {
+      // digest is best-effort — mislukking is nie kritiek nie.
+    }
+  }, []);
+
   useEffect(() => {
-    fetchData();
-    const interval = window.setInterval(fetchData, 3600000);
-    const onFocus = () => fetchData();
-    window.addEventListener('focus', onFocus);
+    fetchSummary();
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const cached = localStorage.getItem('dashboard_digest_' + todayKey);
+    if (cached) {
+      setOpsDigest(cached);
+    } else {
+      fetchDigest();
+    }
+
+    const interval = window.setInterval(fetchSummary, 3600000);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
     };
-  }, [fetchData]);
+  }, [fetchSummary, fetchDigest]);
+
+  // Luister na 'digest-refresh' — ander blaaie stuur dit ná mutasies sodat
+  // die opsomming (en sy daaglikse cache) onmiddellik verfris word.
+  useEffect(() => {
+    const handler = () => fetchDigest();
+    window.addEventListener('digest-refresh', handler);
+    return () => window.removeEventListener('digest-refresh', handler);
+  }, [fetchDigest]);
 
   // ── Kalender hulppersone ──
   const applySelectedDateToForm = useCallback((date) => {

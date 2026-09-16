@@ -1086,6 +1086,7 @@ function WorkOrderPage() {
       
       handleCloseModal();
       fetchWorkOrders();
+      window.dispatchEvent(new Event('digest-refresh'));
     } catch (error) {
       console.error("Fout by besparing:", error);
       showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });

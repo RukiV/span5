@@ -382,6 +382,7 @@ function TicketPage() {
       }
       handleCloseModal();
       fetchTickets();
+      window.dispatchEvent(new Event('digest-refresh'));
     } catch (error) {
       console.error("Error saving ticket:", error);
       const errorDetail = error.response?.data?.detail;

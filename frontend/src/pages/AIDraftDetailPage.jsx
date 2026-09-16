@@ -64,6 +64,7 @@ function AIDraftDetailPage() {
       };
       await apiClient.jobDrafts.approve(id, payload);
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep goedgekeur' });
+      window.dispatchEvent(new Event('digest-refresh'));
       navigate('/ai-drafts');
     } catch (error) {
       console.error("Error approving draft:", error);
@@ -91,6 +92,7 @@ function AIDraftDetailPage() {
     try {
       await apiClient.jobDrafts.reject(id, { reason: rejectReason.trim() });
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep is afgewys' });
+      window.dispatchEvent(new Event('digest-refresh'));
       navigate('/ai-drafts');
     } catch (error) {
       console.error("Error rejecting draft:", error);
