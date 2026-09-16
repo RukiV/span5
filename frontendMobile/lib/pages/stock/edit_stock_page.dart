@@ -4,6 +4,9 @@ import '../../services/stock_service.dart';
 import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/mobile_ghost_overlay.dart';
+import '../../services/ai_service.dart';
 import '../../core/app_colors.dart';
 
 class EditStockPage extends StatefulWidget {
@@ -29,6 +32,10 @@ class _EditStockPageState extends State<EditStockPage> {
   int? _buildingId;
   int? _roomId;
   String? _locationError;
+  final _nameController = TextEditingController();
+  final _brandController = TextEditingController();
+  final _typeController = TextEditingController();
+  Map<String, AiSuggestion> _ghosts = {};
 
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
     setState(() {
@@ -65,6 +72,9 @@ class _EditStockPageState extends State<EditStockPage> {
     boxTotal = s.boxTotal;
     type = s.type;
     description = s.description ?? "";
+    _nameController.text = name;
+    _brandController.text = brand;
+    _typeController.text = type;
 
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -85,6 +95,9 @@ class _EditStockPageState extends State<EditStockPage> {
   @override
   void dispose() {
     CampusService.campusesNotifier.removeListener(_onCampusesChanged);
+    _nameController.dispose();
+    _brandController.dispose();
+    _typeController.dispose();
     super.dispose();
   }
 
@@ -95,6 +108,30 @@ class _EditStockPageState extends State<EditStockPage> {
         _resolveRoomPath(widget.stock.roomId!);
       }
     });
+  }
+
+  Map<String, String> _currentStockFields() => {
+        'stock_name': name,
+        'stock_type': type,
+        'stock_brand': brand,
+      };
+
+  void _applyStockGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'stock_name':
+        _nameController.text = s.value;
+        name = s.value;
+        break;
+      case 'stock_brand':
+        _brandController.text = s.value;
+        brand = s.value;
+        break;
+      case 'stock_type':
+        _typeController.text = s.value;
+        type = s.value;
+        break;
+    }
+    setState(() {});
   }
 
   Widget _buildBreadcrumbs() {
@@ -255,13 +292,39 @@ class _EditStockPageState extends State<EditStockPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildField("Naam", (v) => name = v,
-                          initialValue: name),
+                      child: TextFormField(
+                        controller: _nameController,
+                        decoration: withSuggestionGhost(
+                          _inputDecoration("Naam"),
+                          ghost: _ghosts['stock_name']?.value,
+                          active: name.isEmpty,
+                          onAccept: () => _applyStockGhost(
+                              'stock_name', _ghosts['stock_name']!),
+                        ),
+                        onChanged: (v) {
+                          name = v;
+                          setState(() {});
+                        },
+                        validator: (v) =>
+                            (v == null || v.isEmpty) ? "Vereis" : null,
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _buildField("Handelsmerk", (v) => brand = v,
-                          initialValue: brand),
+                      child: TextFormField(
+                        controller: _brandController,
+                        decoration: withSuggestionGhost(
+                          _inputDecoration("Handelsmerk"),
+                          ghost: _ghosts['stock_brand']?.value,
+                          active: brand.isEmpty,
+                          onAccept: () => _applyStockGhost(
+                              'stock_brand', _ghosts['stock_brand']!),
+                        ),
+                        onChanged: (v) {
+                          brand = v;
+                          setState(() {});
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -269,8 +332,20 @@ class _EditStockPageState extends State<EditStockPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildField("Tipe", (v) => type = v,
-                          initialValue: type),
+                      child: TextFormField(
+                        controller: _typeController,
+                        decoration: withSuggestionGhost(
+                          _inputDecoration("Tipe"),
+                          ghost: _ghosts['stock_type']?.value,
+                          active: type.isEmpty,
+                          onAccept: () => _applyStockGhost(
+                              'stock_type', _ghosts['stock_type']!),
+                        ),
+                        onChanged: (v) {
+                          type = v;
+                          setState(() {});
+                        },
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -307,6 +382,18 @@ class _EditStockPageState extends State<EditStockPage> {
                 const SizedBox(height: 20),
                 _buildField("Beskrywing", (v) => description = v,
                     initialValue: description, maxLines: 3),
+                const SizedBox(height: 16),
+                AiSuggestionsPanel(
+                  context: 'stock',
+                  fields: _currentStockFields(),
+                  labels: const {
+                    'stock_name': 'Naam',
+                    'stock_type': 'Tipe',
+                    'stock_brand': 'Handelsmerk',
+                  },
+                  onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+                  onUse: (key, s) => _applyStockGhost(key, s),
+                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,

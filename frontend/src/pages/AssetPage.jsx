@@ -2,6 +2,7 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
 import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
+import { MdHistory } from "react-icons/md";
 import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient, roomChecksAPI  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
@@ -20,6 +21,9 @@ import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
 import GhostSuggestion from "../components/GhostSuggestion";
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import Modal from "../components/Modal/Modal";
+import AssetDetailView from "../components/DetailView/AssetDetailView";
+import "../components/DetailView/DetailView.css";
 import "../styles/App.css";
 import "../styles/Asset.css";
 import "./Page.jsx";
@@ -89,15 +93,9 @@ function AssetPage({ embedded = false }) {
     { key: 'room', label: 'Lokaal', render: (a) => getRoomName(a), sortKey: 'room', defaultVisible: true },
     { key: 'status', label: 'Status', render: (a) => {
       const miss = missingMap[a.asset_id];
-      const label = getStatusLabel(a.asset_status);
-      if (!miss) return label;
+      if (!miss) return getStatusLabel(a.asset_status);
       const tooltip = `Vermis by laaste kontrole${miss.latest_checked ? ` (${new Date(miss.latest_checked).toLocaleString('af-ZA')})` : ''}${miss.original_fault_id ? ` \u2014 Fout #${miss.original_fault_id}` : ''}`;
-      return (
-        <span>
-          {label}{' '}
-          <span className="missing-badge" title={tooltip}>Vermis</span>
-        </span>
-      );
+      return <span className="missing-badge" title={tooltip}>Vermis</span>;
     }, sortKey: 'status', defaultVisible: true },
     { key: 'created', label: 'Geskep', render: (a) => a.asset_created_datetime ? new Date(a.asset_created_datetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
   ];
@@ -120,6 +118,8 @@ function AssetPage({ embedded = false }) {
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [viewAsset, setViewAsset] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [assetHistory, setAssetHistory] = useState([]);
   const [assetImages, setAssetImages] = useState([]);
@@ -220,8 +220,9 @@ function AssetPage({ embedded = false }) {
   useEffect(() => {
     if (location.state?.asset) {
       const target = assets.find((a) => String(a.asset_id) === String(location.state.asset.asset_id));
-      if (target) handleEditAsset(target);
+      if (target) handleViewAsset(target);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state?.asset, assets]);
 
   useEffect(() => {
@@ -608,6 +609,33 @@ function AssetPage({ embedded = false }) {
     setShowModal(true);
   };
 
+  const handleViewAsset = (item) => {
+    setViewAsset(item);
+    fetchAssetImages(item.asset_id);
+    setShowDetailModal(true);
+  };
+
+  const handleCloseDetail = () => {
+    setShowDetailModal(false);
+    setViewAsset(null);
+    setAssetImages([]);
+  };
+
+  const handleEditFromView = () => {
+    if (!viewAsset) return;
+    setShowDetailModal(false);
+    handleEditAsset(viewAsset);
+    setIsViewMode(false);
+  };
+
+  const handleHistoryFromView = () => {
+    if (!viewAsset) return;
+    setShowDetailModal(false);
+    setSelectedAsset(viewAsset);
+    fetchAssetHistory(viewAsset.asset_id);
+    setShowHistoryModal(true);
+  };
+
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
@@ -950,7 +978,7 @@ function AssetPage({ embedded = false }) {
                 {col.label}
               </ResizableTh>
             ))}
-            <th style={{ width: '230px' }}>Aksies</th>
+            <th style={{ width: '310px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
@@ -958,7 +986,7 @@ function AssetPage({ embedded = false }) {
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
             paginatedItems.map((item) => (
-              <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
+              <tr key={item.asset_id} onClick={() => handleViewAsset(item)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
                 </td>
@@ -966,15 +994,13 @@ function AssetPage({ embedded = false }) {
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                    <button className="btn-history" title="Geskiedenis" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}><MdHistory size={18} /></button>
                     <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
-                  </div>
-                  {canManageChecks && missingMap[item.asset_id] && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                    {canManageChecks && missingMap[item.asset_id] && (
                       <button className="btn-brown" onClick={() => openFoundModal(item)}>Merk as gevind</button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </td>
               </tr>
             ))
@@ -1055,26 +1081,39 @@ function AssetPage({ embedded = false }) {
           </div>
           <div className={invalidFields.assettype_id ? "input-group field-invalid" : "input-group"}>
             <label>Bate Tipe *</label>
-            <Select
-              className="basic-single"
-              classNamePrefix="select"
-              placeholder={!newAsset.assettype_id && assetGhostType && !isViewMode ? assetGhostType : "Kies 'n tipe..."}
-              isSearchable={true}
-              isDisabled={isViewMode}
-              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
-              options={assettypeOptions}
-              value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
-              onChange={(selected) => {
-                setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
-                if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
-              }}
-              styles={{
-                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                placeholder: (base) => (!newAsset.assettype_id && assetGhostType && !isViewMode ? { ...base, color: '#a8a29e', fontStyle: 'italic' } : base),
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                placeholder={!newAsset.assettype_id && assetGhostType && !isViewMode ? assetGhostType : "Kies 'n tipe..."}
+                isSearchable={true}
+                isDisabled={isViewMode}
+                components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                options={assettypeOptions}
+                value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
+                onChange={(selected) => {
+                  setNewAsset({ ...newAsset, assettype_id: selected ? Number(selected.value) : null });
+                  if (invalidFields.assettype_id) setInvalidFields(prev => { const n = {...prev}; delete n.assettype_id; return n; });
+                }}
+                styles={{
+                  control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                  valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                  placeholder: (base) => (!newAsset.assettype_id && assetGhostType && !isViewMode ? { ...base, color: '#a8a29e', fontStyle: 'italic' } : base),
+                }}
+              />
+              {!newAsset.assettype_id && assetGhostType && !isViewMode && (
+                <button
+                  type="button"
+                  className="ghost-suggestion-check"
+                  title={`Aanvaar: ${assetGhostType}`}
+                  onMouseDown={(e) => { e.preventDefault(); applyAssetGhost('asset_type'); }}
+                  style={{ position: 'absolute', right: 30, top: '50%', transform: 'translateY(-50%)' }}
+                >
+                  ✓
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1200,9 +1239,7 @@ onMenuClose={modalCascadeMenu.onMenuClose}
                 }}
               />
               {assetGhostStatus && assetGhostStatus !== newAsset.asset_status && !isViewMode && (
-                <div style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.78rem', color: '#a8a29e', fontStyle: 'italic', background: '#fdf8f3', border: '1px solid #e7d9c7', borderRadius: 6, padding: '2px 6px' }}>
-                  → {assetGhostStatus}
-                </div>
+                <GhostSuggestion active={assetGhostStatus !== newAsset.asset_status} onAccept={() => applyAssetGhost('asset_status')}>{assetGhostStatus}</GhostSuggestion>
               )}
             </div>
           </div>
@@ -1274,6 +1311,35 @@ onMenuClose={modalCascadeMenu.onMenuClose}
     </div>
   );
 
+  const detailViewContent = showDetailModal && viewAsset && (() => {
+    const room = rooms.find((r) => String(r.room_id) === String(viewAsset.room_id));
+    const building = buildings.find((b) => String(b.building_id) === String(room?.building_id));
+    const terrain = terrains.find((t) => String(t.location_id) === String(building?.location_id));
+    return (
+      <Modal
+        isOpen={true}
+        onClose={handleCloseDetail}
+        title="Bekyk Bate"
+        size="md"
+        headerActions={
+          hasRight('assets.manage') ? (
+            <IoPencil size={20} className="modal-edit-btn" onClick={handleEditFromView} title="Wysig" />
+          ) : null
+        }
+      >
+        <AssetDetailView
+          asset={viewAsset}
+          assetTypeName={getAssettypeName(viewAsset)}
+          roomName={room?.room_name}
+          buildingName={building?.building_name}
+          terrainName={terrain?.location_name}
+          images={assetImages.map((img) => ({ ...img, url: getAssetImageUrl(img.image_id) }))}
+          onViewHistory={handleHistoryFromView}
+        />
+      </Modal>
+    );
+  });
+
   if (embedded) {
     return (
       <>
@@ -1281,6 +1347,7 @@ onMenuClose={modalCascadeMenu.onMenuClose}
 
         {showModal && modalContent}
         {imageViewerContent}
+        {detailViewContent}
 
         {/* History Modal */}
         {showHistoryModal && selectedAsset && (
@@ -1749,7 +1816,7 @@ onMenuClose={modalCascadeMenu.onMenuClose}
           </div>
         </div>
       )}
-      {foundModalContent}
+      {detailViewContent}
       {foundModalContent}
       {dialog}
     </div>

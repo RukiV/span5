@@ -1,4 +1,5 @@
 import logging
+import threading
 import time
 from datetime import datetime, timedelta
 from typing import Sequence
@@ -10,7 +11,7 @@ from ..models.fault import Faultcard
 from ..models.job import Jobcard, JobStatus
 from ..models.prediction import AssetPredictionRead
 from . import survival_service
-from .survival_features import extract_asset_features
+from .survival_features import FeatureContext, extract_asset_features
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,10 @@ _MAINTENANCE_JOB_TYPES = ("maintenance", "onderhoud")
 _PREDICTIONS_CACHE = None
 _PREDICTIONS_CACHE_TIME = 0
 _PREDICTIONS_CACHE_TTL = 600  # 10 minutes in seconds
+
+# Verhoed 'n "thundering herd": as die kas koud is, bou slegs een request die
+# hele bondel terwyl die res wag en dieselfde resultaat herwin.
+_PREDICTIONS_LOCK = threading.Lock()
 
 
 def _add_months(source: datetime, months: int) -> datetime:
@@ -69,17 +74,30 @@ class PredictionService:
             )
             return _PREDICTIONS_CACHE
 
-        # Compute fresh predictions
-        logger.info("Computing fresh predictions for all assets (count: %d)...", asset_count)
-        assets = session.exec(select(Asset)).all()
-        predictions = [self._predict(session, asset) for asset in assets]
+        # Compute fresh predictions under a lock: one request builds the bulk,
+        # the rest wait and reuse (no duplicate recomputes on a cold cache).
+        with _PREDICTIONS_LOCK:
+            now = time.time()
+            if (
+                _PREDICTIONS_CACHE is not None
+                and (now - _PREDICTIONS_CACHE_TIME) < _PREDICTIONS_CACHE_TTL
+                and len(_PREDICTIONS_CACHE) == asset_count
+            ):
+                return _PREDICTIONS_CACHE
 
-        # Update cache
-        _PREDICTIONS_CACHE = predictions
-        _PREDICTIONS_CACHE_TIME = now
-        logger.info("Cached %d predictions", len(predictions))
+            logger.info("Computing fresh predictions for all assets (count: %d)...", asset_count)
+            # Load all supporting rows once (assettypes, voltooide onderhoud,
+            # foute) — die voorspellingsgang gebruik dan geen per-bate-navrae nie.
+            data = _load_prediction_data(session)
+            assets = session.exec(select(Asset)).all()
+            predictions = [self._predict(session, asset, data) for asset in assets]
 
-        return predictions
+            # Update cache
+            _PREDICTIONS_CACHE = predictions
+            _PREDICTIONS_CACHE_TIME = time.time()
+            logger.info("Cached %d predictions", len(predictions))
+
+        return _PREDICTIONS_CACHE
 
     def invalidateCache(self):
         """Manually invalidate the predictions cache (e.g., after maintenance/fault changes)"""
@@ -92,10 +110,18 @@ class PredictionService:
         asset = session.get(Asset, asset_id)
         if not asset:
             return None
-        return self._predict(session, asset)
+        # Bou 'n bondel-konteks vir net hierdie een bate en gebruik dieselfde
+        # gekoste (query-minimaliseer) rekenpad as die volle gang.
+        data = _load_prediction_data(session, asset_ids=[asset_id])
+        return self._predict(session, asset, data)
 
-    def _predict(self, session: Session, asset: Asset) -> AssetPredictionRead:
-        assettype = session.get(Assettype, asset.assettype_id)
+    def _predict(
+        self, session: Session, asset: Asset, data: FeatureContext | None = None
+    ) -> AssetPredictionRead:
+        if data is None:
+            # Enkele-bate terugval: laai die bondel-konteks vir net hierdie bate.
+            data = _load_prediction_data(session, asset_ids=[asset.asset_id])
+        assettype = data.assettypes.get(asset.assettype_id)
 
         assettype_name = assettype.assettype_name if assettype else None
         avg_lifespan_months = (
@@ -116,7 +142,9 @@ class PredictionService:
 
         now = datetime.utcnow()
 
-        last_maintenance_date = self._last_maintenance(session, asset.asset_id)
+        last_maintenance_date = self._last_maintenance_from(
+            data.maintenance_jobs.get(asset.asset_id, [])
+        )
         next_maintenance_date = None
         maintenance_overdue = False
         if last_maintenance_date and service_interval_months:
@@ -142,15 +170,11 @@ class PredictionService:
             lifespan_exceeded = lifespan_end_date < now
 
         twelve_months_ago = now - timedelta(days=365)
-        fault_count = (
-            session.exec(
-                select(func.count(Faultcard.fault_id))
-                .where(Faultcard.asset_id == asset.asset_id)
-                .where(Faultcard.fault_reportdatetime >= twelve_months_ago)
-            ).one()
-            or 0
+        fault_count = sum(
+            1
+            for f in data.faults.get(asset.asset_id, [])
+            if f.fault_reportdatetime is not None and f.fault_reportdatetime >= twelve_months_ago
         )
-
         replacement_suggested = False
         replacement_reason = None
         reasons = []
@@ -169,7 +193,7 @@ class PredictionService:
         survival_fields = {}
         try:
             if survival_service.is_available():
-                features = extract_asset_features(session, asset, datetime.utcnow())
+                features = extract_asset_features(session, asset, now, ctx=data)
                 survival = survival_service.predict_for_asset(features)
                 if survival:
                     survival_fields = survival
@@ -216,6 +240,21 @@ class PredictionService:
             **survival_fields,
         )
 
+    @staticmethod
+    def _last_maintenance_from(jobs: Sequence[Jobcard]) -> datetime | None:
+        """Laaste onderhoudsdatum sonder DB-aanloop.
+
+        Ekvivalent aan die ou ``_last_maintenance``-navraag (bestel op
+        ``job_finisheddatetime`` DESC met NULL laaste, dan terugval op
+        ``job_createddatetime`` van daardie werk).
+        """
+        finished = [j for j in jobs if j.job_finisheddatetime]
+        if finished:
+            job = max(finished, key=lambda j: j.job_finisheddatetime)
+            return job.job_finisheddatetime
+        created = [j.job_createddatetime for j in jobs if j.job_createddatetime]
+        return max(created) if created else None
+
     def _last_maintenance(self, session: Session, asset_id: int) -> datetime | None:
         job = session.exec(
             select(Jobcard)
@@ -229,6 +268,42 @@ class PredictionService:
         if job and job.job_createddatetime:
             return job.job_createddatetime
         return None
+
+
+def _load_prediction_data(
+    session: Session, asset_ids: list[int] | None = None
+) -> FeatureContext:
+    """Laai al die ondersteunende rye vir die voorspellingsgang in een bondel.
+
+    Drie navrae (assettypes, voltooide onderhoud, foute) in plaas van ~6 per
+    bate. Wanneer ``asset_ids`` gegee word, word slegs daardie bates gelaai
+    (gebruik deur ``getAssetPrediction``).
+    """
+    assettypes = {
+        at.assettype_id: at for at in session.exec(select(Assettype)).all()
+    }
+
+    maintenance_stmt = (
+        select(Jobcard)
+        .where(func.lower(Jobcard.job_type).in_(_MAINTENANCE_JOB_TYPES))
+        .where(Jobcard.job_status == JobStatus.COMPLETED)
+    )
+    if asset_ids is not None:
+        maintenance_stmt = maintenance_stmt.where(Jobcard.asset_id.in_(asset_ids))
+    maintenance_jobs: dict[int, list[Jobcard]] = {}
+    for job in session.exec(maintenance_stmt).all():
+        if job.asset_id is not None:
+            maintenance_jobs.setdefault(job.asset_id, []).append(job)
+
+    fault_stmt = select(Faultcard)
+    if asset_ids is not None:
+        fault_stmt = fault_stmt.where(Faultcard.asset_id.in_(asset_ids))
+    faults: dict[int, list[Faultcard]] = {}
+    for fault in session.exec(fault_stmt).all():
+        if fault.asset_id is not None:
+            faults.setdefault(fault.asset_id, []).append(fault)
+
+    return FeatureContext(assettypes, maintenance_jobs, faults)
 
 
 prediction_service = PredictionService()

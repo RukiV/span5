@@ -18,6 +18,7 @@ class AddRoomPage extends StatefulWidget {
 class _AddRoomPageState extends State<AddRoomPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
   final _capacityController = TextEditingController();
   String _type = 'other';
   Building? _selectedBuilding;
@@ -47,6 +48,7 @@ class _AddRoomPageState extends State<AddRoomPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _codeController.dispose();
     _capacityController.dispose();
     super.dispose();
   }
@@ -93,6 +95,7 @@ class _AddRoomPageState extends State<AddRoomPage> {
     final room = Room(
       id: 0,
       name: _nameController.text.trim(),
+      roomCode: _codeController.text.trim(),
       type: _type,
       capacity: int.tryParse(_capacityController.text),
       buildingId: _selectedBuilding!.id,
@@ -136,6 +139,17 @@ class _AddRoomPageState extends State<AddRoomPage> {
                   decoration: _inputDecoration("Naam"),
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? "Vereis" : null,
+                ),
+                const SizedBox(height: 20),
+                TextFormField(
+                  controller: _codeController,
+                  decoration: _inputDecoration("Lokaal Kode"),
+                  textCapitalization: TextCapitalization.characters,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return "Vereis";
+                    if (v.trim().length > 20) return "Maks 20 karakters";
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 20),
                 SearchableDropdown<Building>(

@@ -1,5 +1,6 @@
 import React from 'react';
 import Barcode from 'react-barcode';
+import { MdHistory } from 'react-icons/md';
 import DetailSection from './DetailSection';
 import DetailCard from './DetailCard';
 import DetailRow from './DetailRow';
@@ -60,11 +61,12 @@ function AssetDetailView({ asset, assetTypeName, roomName, buildingName, terrain
       {onViewHistory && (
         <div style={{ marginTop: 12 }}>
           <button
-            className="btn-view"
+            className="btn-history"
             onClick={onViewHistory}
+            title="Geskiedenis"
             style={{ fontSize: 13 }}
           >
-            Bekyk Geskiedenis
+            <MdHistory size={18} />
           </button>
         </div>
       )}

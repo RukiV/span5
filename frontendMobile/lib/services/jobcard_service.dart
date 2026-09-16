@@ -30,6 +30,8 @@ class JobcardService {
 
   static ValueNotifier<List<Jobcard>> get jobcardsNotifier => _manager.notifier;
 
+  static ValueNotifier<bool> get isLoadingNotifier => _manager.loadingNotifier;
+
   @visibleForTesting
   static void resetForTest() =>
       _manager.reset();
@@ -133,5 +135,4 @@ class JobcardService {
     }
     return false;
   }
-}
 }

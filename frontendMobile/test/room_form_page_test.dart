@@ -51,6 +51,8 @@ void main() {
 
       await tester.tap(find.byIcon(Icons.edit));
       await tester.pumpAndSettle();
+      await tester.enterText(
+          find.widgetWithText(TextFormField, "Lokaal Kode"), "R101");
       await tester.tap(find.text("OPDATEER"));
       await tester.pumpAndSettle();
 

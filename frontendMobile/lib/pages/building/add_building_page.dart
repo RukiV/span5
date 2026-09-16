@@ -136,7 +136,7 @@ class _AddBuildingPageState extends State<AddBuildingPage> {
                               final building = Building(
                                 id: 0,
                                 name: _nameController.text,
-                                type: _type,
+                                types: [_type],
                                 locationId: _selectedCampus!.id,
                               );
                               final success =

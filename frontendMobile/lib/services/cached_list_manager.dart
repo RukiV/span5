@@ -17,6 +17,9 @@ class CachedListManager<T> {
   final List<T> _items = [];
   final ValueNotifier<List<T>> notifier = ValueNotifier(List<T>.empty());
 
+  /// Wys of 'n [fetch] tans besig is (vir laai-indikators in die UI).
+  final ValueNotifier<bool> loadingNotifier = ValueNotifier(false);
+
   Future<void>? _inFlight;
 
   String? lastError;
@@ -45,9 +48,11 @@ class CachedListManager<T> {
     final current = _inFlight;
     if (current != null) return current;
 
+    loadingNotifier.value = true;
     final future = _runFetch();
     _inFlight = future;
     return future.whenComplete(() {
+      loadingNotifier.value = false;
       if (identical(_inFlight, future)) {
         _inFlight = null;
       }

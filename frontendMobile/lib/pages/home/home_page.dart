@@ -1,12 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-import '../reporting/reports_page.dart';
-import '../asset/assets_page.dart';
-import '../stock/stocks_page.dart';
-import '../campus/campuses_page.dart';
-import '../rooms/rooms_page.dart';
-import '../building/buildings_page.dart';
-import '../jobcards/jobcards_page.dart';
 import '../reporting/reporting_page.dart';
 import '../asset/asset_page.dart';
 import '../stock/stock_page.dart';
@@ -49,6 +44,19 @@ class _HomePageState extends State<HomePage> {
   Building? _pendingBuilding;
   String? _pendingRoomId;
 
+  /// Eenmalige filters wat die fasiliteite-bladse toepas na 'n intrek
+  /// (Terreine › Geboue › Lokale › Bates). 'n Terug-pyltjie bly tot die
+  /// diepste vlak dadelik wys, net soos die web.
+  Campus? _drillCampus;
+  Building? _drillBuilding;
+  String? _drillRoomId;
+
+  /// Navigasie-stapel vir die fasiliteite-hiërargie: elke inskrywing is die
+  /// OUER-vlak (titel + sy filter) wat herstel word met die terug-pyltjie.
+  final List<
+      ({String title, Campus? campus, Building? building, String? roomId})>
+      _navStack = [];
+
   @override
   void initState() {
     super.initState();
@@ -63,9 +71,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _initialDataSync() async {
+    // Die fasiliteite-data (terrein → gebou → lokaal) is nie vir die Paneelbord
+    // nodig nie; laai dit op die agtergrond sodat die Paneelbord nie daarvoor
+    // hoef te wag nie. Fasiliteite-bladse haal dit self aan wanneer hulle
+    // oopgemaak word.
+    unawaited(CampusService.fetchCampuses());
     try {
       await Future.wait([
-        CampusService.fetchCampuses(),
         AssetService.fetchAssets(),
         ReportService.fetchReports(),
         JobcardService.fetchJobs(),
@@ -103,7 +115,10 @@ class _HomePageState extends State<HomePage> {
         // geloop het sodra 'n gebruiker nie al die regte gehad het nie.
         'page': DashboardPage(onTabRequested: (title) {
           if (_getFlatMenu().any((item) => item['title'] == title)) {
-            setState(() => _selectedTitle = title);
+            setState(() {
+              _clearDrillNavigation();
+              _selectedTitle = title;
+            });
           }
         }),
       });
@@ -140,20 +155,20 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Voorraad',
         'icon': Icons.construction_outlined,
-        'page': const StocksPage()
-        'page': const StockPage()
+        'page': const StockPage(),
       });
     }
     if (can('rooms.view')) {
       facilitiesChildren.add({
         'title': 'Lokale',
         'icon': Icons.room_outlined,
-        'page': RoomsPage(
         'page': ManageRoomsPage(
           initialBuilding: _pendingBuilding,
           onRoomSelected: (room) {
             setState(() {
+              _navStack.add(_currentFrame());
               _selectedTitle = 'Bates';
+              _drillRoomId = room.id.toString();
               _pendingRoomId = room.id.toString();
             });
             // Skakel die eenmalige lokaal-filter uit sodra die Bates-bladsy dit
@@ -169,12 +184,13 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Geboue',
         'icon': Icons.business_outlined,
-        'page': BuildingsPage(
         'page': BuildingsListPage(
           initialCampus: _pendingCampus,
           onBuildingSelected: (building) {
             setState(() {
+              _navStack.add(_currentFrame());
               _selectedTitle = 'Lokale';
+              _drillBuilding = building;
               _pendingBuilding = building;
             });
             // Skakel die eenmalige gebou-filter uit sodra die Lokale-bladsy dit
@@ -190,10 +206,11 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Terreine',
         'icon': Icons.map_outlined,
-        'page': CampusesPage(onCampusSelected: (campus) {
         'page': CampusManagementPage(onCampusSelected: (campus) {
           setState(() {
+            _navStack.add(_currentFrame());
             _selectedTitle = 'Geboue';
+            _drillCampus = campus;
             _pendingCampus = campus;
           });
           // Skakel die eenmalige kampus-filter uit sodra die Geboue-bladsy dit
@@ -219,14 +236,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Foutkaartjies',
         'icon': Icons.report_gmailerrorred_outlined,
-        'page': const ReportsPage()
-      });
-    }
-
-    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportsPage).
-    // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
-    // sien net hul eie toegewysde take (JobcardsPage). 'n Gebruiker het net een
-        'page': const ReportingPage()
+        'page': const ReportingPage(),
       });
     }
 
@@ -238,14 +248,13 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Werksopdragte',
         'icon': Icons.assignment_outlined,
-        'page': const WorksAssignmentsPage()
+        'page': const WorksAssignmentsPage(),
       });
     } else if (can('jobs.view_own')) {
       menu.add({
         'title': 'Werksopdragte',
         'icon': Icons.engineering_outlined,
-        'page': const JobcardsPage()
-        'page': const JobCardsPage()
+        'page': const JobCardsPage(),
       });
     }
 
@@ -254,7 +263,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Voorspellings',
         'icon': Icons.show_chart_outlined,
-        'page': const VoorspellingsPage()
+        'page': const VoorspellingsPage(),
       });
     }
 
@@ -263,7 +272,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Gebruikers',
         'icon': Icons.group_outlined,
-        'page': const UsersPage()
+        'page': const UsersPage(),
       });
     }
 
@@ -283,6 +292,54 @@ class _HomePageState extends State<HomePage> {
       }
     }
     return flat;
+  }
+
+  /// Die huidige bladsy-vlak as 'n stampbare raam (titel + sy filter), sodat
+  /// die terug-pyltjie presies weet hoe om die ouer te herstel.
+  ({String title, Campus? campus, Building? building, String? roomId})
+      _currentFrame() {
+    return (
+      title: _selectedTitle,
+      campus: _selectedTitle == 'Geboue' ? _drillCampus : null,
+      building: _selectedTitle == 'Lokale' ? _drillBuilding : null,
+      roomId: _selectedTitle == 'Bates' ? _drillRoomId : null,
+    );
+  }
+
+  /// Herstel 'n opgestapelde ouer-vlak (Terreine › Geboue › Lokale › Bates).
+  void _goBack() {
+    if (_navStack.isEmpty) return;
+    final frame = _navStack.removeLast();
+    setState(() {
+      _selectedTitle = frame.title;
+      _drillCampus = frame.campus;
+      _drillBuilding = frame.building;
+      _drillRoomId = frame.roomId;
+      _pendingCampus = frame.title == 'Geboue' ? frame.campus : null;
+      _pendingBuilding = frame.title == 'Lokale' ? frame.building : null;
+      _pendingRoomId = frame.title == 'Bates' ? frame.roomId : null;
+    });
+    // Skakel die eenmalige filter uit sodra die herstelde bladsy dit opgetel het.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _pendingCampus = null;
+          _pendingBuilding = null;
+          _pendingRoomId = null;
+        });
+      }
+    });
+  }
+
+  /// Stel die intrek-navigasie terug (gewone kieslys-/paneelbord-navigasie).
+  void _clearDrillNavigation() {
+    _navStack.clear();
+    _drillCampus = null;
+    _drillBuilding = null;
+    _drillRoomId = null;
+    _pendingCampus = null;
+    _pendingBuilding = null;
+    _pendingRoomId = null;
   }
 
   @override
@@ -326,12 +383,18 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         elevation: 0,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: Colors.white),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
+        leading: _navStack.isEmpty
+            ? Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                ),
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                tooltip: "Terug na vorige vlak",
+                onPressed: _goBack,
+              ),
         title: Text("FBS - ${activeItem['title']}",
             style: const TextStyle(
                 fontWeight: FontWeight.bold,
@@ -505,7 +568,10 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       onTap: () {
-        setState(() => _selectedTitle = title);
+        setState(() {
+          _clearDrillNavigation();
+          _selectedTitle = title;
+        });
         Navigator.pop(context);
       },
     );

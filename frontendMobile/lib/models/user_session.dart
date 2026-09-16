@@ -91,4 +91,3 @@ class UserSession {
     rights = <String>[];
   }
 }
-}

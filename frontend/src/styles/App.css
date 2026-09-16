@@ -1177,3 +1177,75 @@ select:not([class*="cascade"]):focus {
 .col-resizer--active {
   background: rgba(147, 94, 40, 0.55);
 }
+
+/* ── Ghost/spookteks vir AI-veldvoorstelle binne leë velde ─────────────── */
+.ghost-field-wrap {
+  position: relative;
+}
+
+.ghost-suggestion {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 14px;
+  pointer-events: none;
+  z-index: 2;
+  color: #a8a29e;
+  font-size: 0.95rem;
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.ghost-suggestion-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ghost-suggestion-check {
+  flex-shrink: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-style: normal;
+  color: #fff;
+  background: #7a9e5a;
+  border: none;
+  border-radius: 50%;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.ghost-suggestion-check:hover {
+  background: #64874a;
+  transform: scale(1.08);
+}
+
+.ghost-suggestion-check:active {
+  transform: scale(0.95);
+}
+
+/* Verberg native <select> se "Kies…" teks wanneer die ghost sigbaar is;
+   :focus-herstel hou die aftreklys leesbaar. */
+.ghost-field-wrap.ghost-active select {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+
+.ghost-field-wrap.ghost-active select:focus {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit;
+}

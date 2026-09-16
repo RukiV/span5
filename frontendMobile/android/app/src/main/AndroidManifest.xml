@@ -10,7 +10,6 @@
     <application
         android:label="FBS"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
         <activity
@@ -64,5 +63,4 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
-</manifest>
 </manifest>

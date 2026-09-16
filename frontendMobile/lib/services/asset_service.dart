@@ -14,12 +14,12 @@ class AssetService {
 
   static ValueNotifier<List<Asset>> get assetsNotifier => _crud.itemsNotifier;
 
+  static ValueNotifier<bool> get isLoadingNotifier => _crud.isLoadingNotifier;
+
   // Fetches all assets from the backend.
   static Future<void> fetchAssets() => _crud.fetch();
 
   // Used by the reporting system to identify an asset from a scanned QR or barcode.
-  static Future<void> fetchAssets() => _crud.fetch();
-
   static Future<Asset?> getAssetBySerialCode(String serialCode) async {
     try {
       final response =
@@ -50,5 +50,4 @@ class AssetService {
       _crud.update(updatedAsset, updatedAsset.id);
 
   static Future<bool> deleteAsset(String id) => _crud.delete(id);
-}
 }

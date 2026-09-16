@@ -34,16 +34,12 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   String _columnFilter = 'all';
   final MultiSortController _sortCtrl =
       MultiSortController('works-assignments', ['description', 'type', 'status']);
-  final SelectionController<int> _selection = SelectionController<int>();
   final ColumnVisibilityController _colVis =
       ColumnVisibilityController('works-assignments', [
     const ColumnDef(key: 'description', label: 'Beskrywing'),
     const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
     const ColumnDef(key: 'status', label: 'Status'),
   ]);
-  int? _selectedCampusId;
-  int? _selectedBuildingId;
-  int? _selectedRoomId;
   bool _filterOpen = false;
   bool _sortOpen = false;
   final FilterController _filterCtrl = FilterController('works-assignments');
@@ -157,33 +153,6 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
-            ],
-          ),
-          Expanded(
-            child: ValueListenableBuilder<List<Jobcard>>(
-              valueListenable: JobcardService.jobcardsNotifier,
-              builder: (context, jobcards, child) {
-                final filtered = jobcards.where((job) {
-                  if (_selectedCampusId != null &&
-                      job.locationId != _selectedCampusId) {
-                    return false;
-                  }
-                  if (_selectedBuildingId != null &&
-                      job.buildingId != _selectedBuildingId) {
-                    return false;
-                  }
-                  if (_selectedRoomId != null &&
-                      job.roomId != _selectedRoomId) {
-                    return false;
-                  }
-                  if (_query.isNotEmpty &&
-                      !job.description.toLowerCase().contains(_query) &&
-                      !(job.type?.toLowerCase().contains(_query) ?? false) &&
-                      !job.status.toLowerCase().contains(_query)) {
-                    return false;
-                  }
-                  return true;
-                }).toList();
               FilterButton(
                 controller: _filterCtrl,
                 selected: _filterOpen,
@@ -245,168 +214,156 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
               behavior: HitTestBehavior.translucent,
               onTap: _closePanels,
               child: ValueListenableBuilder<List<Jobcard>>(
-              valueListenable: JobcardService.jobcardsNotifier,
-              builder: (context, jobcards, child) {
-final filtered = _sortCtrl.apply(
-              jobcards.where((job) {
-                if (_selectedCampusId != null &&
-                    job.locationId != _selectedCampusId) {
-                  return false;
-                }
-                if (_selectedBuildingId != null &&
-                    job.buildingId != _selectedBuildingId) {
-                  return false;
-                }
-                if (_selectedRoomId != null &&
-                    job.roomId != _selectedRoomId) {
-                  return false;
-                }
-                if (_query.isNotEmpty) {
-                  final searchable = _columnFilter == 'all'
-                      ? [
-                          job.description,
-                          job.type ?? '',
-                          job.status,
-                          job.id.toString(),
-                          job.fullDescription,
-                        ].join(' ')
-                      : switch (_columnFilter) {
-                          'description' => job.description,
-                          'type' => job.type ?? '',
-                          'status' => job.status,
-                          _ => '',
-                        };
-                  if (!searchable.toLowerCase().contains(_query)) {
-                    return false;
-                  }
-                }
-                return true;
-              }).toList(),
-              (job, key) {
-                switch (key) {
-                  case 'description':
-                    return job.description.toLowerCase();
-                  case 'type':
-                    return (job.type ?? '').toLowerCase();
-                  case 'status':
-                    return job.status.toLowerCase();
-                  default:
-                    return '';
-                }
-              },
-            );
+                valueListenable: JobcardService.jobcardsNotifier,
+                builder: (context, jobcards, child) {
+                  final filtered = _sortCtrl.apply(
+                    jobcards.where((job) {
+                      if (_selectedCampusId != null &&
+                          job.locationId != _selectedCampusId) {
+                        return false;
+                      }
+                      if (_selectedBuildingId != null &&
+                          job.buildingId != _selectedBuildingId) {
+                        return false;
+                      }
+                      if (_selectedRoomId != null &&
+                          job.roomId != _selectedRoomId) {
+                        return false;
+                      }
+                      if (_query.isNotEmpty) {
+                        final searchable = _columnFilter == 'all'
+                            ? [
+                                job.description,
+                                job.type ?? '',
+                                job.status,
+                                job.id.toString(),
+                                job.fullDescription,
+                              ].join(' ')
+                            : switch (_columnFilter) {
+                                'description' => job.description,
+                                'type' => job.type ?? '',
+                                'status' => job.status,
+                                _ => '',
+                              };
+                        if (!searchable.toLowerCase().contains(_query)) {
+                          return false;
+                        }
+                      }
+                      return true;
+                    }).toList(),
+                    (job, key) {
+                      switch (key) {
+                        case 'description':
+                          return job.description.toLowerCase();
+                        case 'type':
+                          return (job.type ?? '').toLowerCase();
+                        case 'status':
+                          return job.status.toLowerCase();
+                        default:
+                          return '';
+                      }
+                    },
+                  );
 
-                if (filtered.isEmpty) {
+                  if (filtered.isEmpty) {
+                    return RefreshIndicator(
+                      onRefresh: () => JobcardService.fetchJobs(),
+                      color: AppColors.refreshSpinner,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.3),
+                          const Center(
+                            child: Text(
+                              "Geen werksopdragte beskikbaar nie.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   return RefreshIndicator(
                     onRefresh: () => JobcardService.fetchJobs(),
                     color: AppColors.refreshSpinner,
-                    child: ListView(
+                    child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.3),
-                        const Center(
-                          child: Text(
-                            "Geen werksopdragte beskikbaar nie.",
-                            style: TextStyle(color: Colors.grey),
+                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final job = filtered[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          color: _selection.isSelected(job.id)
+                              ? AppColors.lavender
+                              : null,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            leading: _selection.isSelecting
+                                ? Checkbox(
+                                    value: _selection.isSelected(job.id),
+                                    onChanged: (_) => setState(
+                                        () => _selection.toggle(job.id)),
+                                  )
+                                : CircleAvatar(
+                                    backgroundColor:
+                                        jobStatusColor(job.status)
+                                            .withValues(alpha: 0.2),
+                                    child: Icon(Icons.assignment,
+                                        color: jobStatusColor(job.status)),
+                                  ),
+                            title: Text(
+                              job.description,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.navy),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (job.type != null)
+                                  Text(job.type!,
+                                      style: const TextStyle(fontSize: 12)),
+                                const SizedBox(height: 4),
+                                _buildStatusBadge(job.status),
+                              ],
+                            ),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.gold),
+                            onTap: () async {
+                              if (_selection.isSelecting) {
+                                setState(() => _selection.toggle(job.id));
+                                return;
+                              }
+                              final changed = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      JobcardDetailPage(job: job),
+                                ),
+                              );
+                              if (changed == true) {
+                                await JobcardService.fetchJobs();
+                              }
+                            },
+                            onLongPress: () {
+                              if (!_canManage) return;
+                              setState(() {
+                                _selection.enter();
+                                _selection.toggle(job.id);
+                              });
+                            },
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: () => JobcardService.fetchJobs(),
-                  color: AppColors.refreshSpinner,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final job = filtered[index];
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        color: _selection.isSelected(job.id)
-                            ? AppColors.lavender
-                            : null,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-leading: _selection.isSelecting
-                          leading: _selection.isSelecting
-                              ? Checkbox(
-                                  value: _selection.isSelected(job.id),
-                                  onChanged: (_) => setState(
-                                      () => _selection.toggle(job.id)),
-                                )
-                              : CircleAvatar(
-                                  backgroundColor:
-                                      jobStatusColor(job.status)
-                                          .withValues(alpha: 0.2),
-                                  backgroundColor: jobStatusColor(job.status)
-                                      .withValues(alpha: 0.2),
-                                  child: Icon(Icons.assignment,
-                                      color: jobStatusColor(job.status)),
-                                ),
-                          title: Text(
-                            job.description,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.navy),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (job.type != null)
-                                Text(job.type!,
-                                    style: const TextStyle(fontSize: 12)),
-                              const SizedBox(height: 4),
-                              _buildStatusBadge(job.status),
-                            ],
-                          ),
-                          trailing: const Icon(Icons.chevron_right,
-                              color: AppColors.gold),
-                          onTap: () async {
-                            if (_selection.isSelecting) {
-                              setState(() => _selection.toggle(job.id));
-                              return;
-                            }
-                            final changed = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    JobcardDetailPage(job: job),
-                              ),
-                            );
-                            if (changed == true) {
-                              await JobcardService.fetchJobs();
-                            }
-                          },
-                          onLongPress: () {
-                            if (!_canManage) return;
-                            setState(() {
-                              _selection.enter();
-                              _selection.toggle(job.id);
-                            });
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-);
                 },
               ),
             ),
@@ -470,5 +427,4 @@ leading: _selection.isSelecting
       );
     }
   }
-}
 }
