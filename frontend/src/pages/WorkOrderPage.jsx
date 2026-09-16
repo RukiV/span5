@@ -30,6 +30,7 @@ import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import Modal from '../components/Modal/Modal';
 import WorkOrderDetailView from '../components/DetailView/WorkOrderDetailView';
+import FilterChip from '../components/FilterChip';
 import '../components/DetailView/DetailView.css';
 
 function WorkOrderPage() {
@@ -1454,8 +1455,24 @@ function WorkOrderPage() {
   };
 
   // Filter en sorteer werksopdragte vir tabel
+  const statusFilterParam = (searchParams.get('status') || '').trim().toLowerCase();
+  const priorityFilterParam = (searchParams.get('priority') || '').trim().toLowerCase();
+  const HIGH_PRIORITY_SET = new Set(['hoog', 'dringend', 'high', 'urgent']);
+  const isPriorityFilterActive = HIGH_PRIORITY_SET.has(priorityFilterParam);
+  const clearUrlParam = (param) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete(param);
+    setSearchParams(next);
+  };
+
   const filteredWorkOrders = applySort(
     [...workOrders].filter((order) => {
+      // Pre-filter: URL-parameters (status/priority) word EERSTE toegepas
+      if (statusFilterParam === 'open') {
+        const s = String(order.job_status || '').toLowerCase();
+        if (['voltooid', 'gekanselleer', 'completed', 'cancelled'].includes(s)) return false;
+      }
+      if (isPriorityFilterActive && !HIGH_PRIORITY_SET.has(String(order.job_priority || '').toLowerCase())) return false;
       if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
       if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
       if (roomFilter && String(order.room_id) !== roomFilter) return false;
@@ -1501,7 +1518,7 @@ function WorkOrderPage() {
     },
   );
   const { currentPage, totalPages, paginatedData: paginatedWorkOrders, goToPage } = usePagination(filteredWorkOrders, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, searchParams, sorts, goToPage]);
 
   const translateStatus = (status) => {
     return status || "-";
@@ -1657,6 +1674,17 @@ function WorkOrderPage() {
               )}
             </div>
           </div>
+
+          {(statusFilterParam === 'open' || isPriorityFilterActive) && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              {statusFilterParam === 'open' && (
+                <FilterChip label="Gefiltreer: Oop werksopdragte" onClear={() => clearUrlParam('status')} />
+              )}
+              {isPriorityFilterActive && (
+                <FilterChip label="Gefiltreer: Hoë-prioriteit werksopdragte" onClear={() => clearUrlParam('priority')} />
+              )}
+            </div>
+          )}
 
           {/* Tabel van Werksopdragte */}
           <table className="standard-table">

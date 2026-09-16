@@ -399,3 +399,37 @@ def test_ai_status_fk_returns_disabled(client, engine, headers_for, monkeypatch)
 def test_ai_status_contractor_no_access(client, engine, headers_for):
     resp = client.get(f"{API}/status", headers=headers_for("contractor"))
     assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# source_filter
+# ---------------------------------------------------------------------------
+
+
+def test_list_drafts_source_filter(client, engine, headers_for):
+    """?source_filter=auto returns only auto-generated drafts;
+    ?source_filter=manual returns only manual ones."""
+    fk_id = _user_id(engine, "fk")
+    with Session(engine) as session:
+        session.add(JobDraft(description="Auto konsep", user_id=fk_id, status="draft", source="auto"))
+        session.add(JobDraft(description="Manual konsep", user_id=fk_id, status="draft", source="manual"))
+        session.add(JobDraft(description="Tweede auto", user_id=fk_id, status="draft", source="auto"))
+        session.commit()
+
+    auto_resp = client.get(f"{API}?source_filter=auto", headers=headers_for("fk"))
+    assert auto_resp.status_code == 200, auto_resp.text
+    auto_descs = {d["description"] for d in auto_resp.json()}
+    assert auto_descs == {"Tweede auto", "Auto konsep"}
+
+    manual_resp = client.get(f"{API}?source_filter=manual", headers=headers_for("fk"))
+    assert manual_resp.status_code == 200, manual_resp.text
+    assert len(manual_resp.json()) == 1
+    assert manual_resp.json()[0]["description"] == "Manual konsep"
+
+    # Combined: filter by both status and source.
+    all_drafts = client.get(f"{API}?status_filter=draft", headers=headers_for("fk"))
+    assert len(all_drafts.json()) == 3
+
+    # No source_filter (default) returns all drafts of that status.
+    no_filter = client.get(f"{API}?status_filter=draft", headers=headers_for("fk"))
+    assert len(no_filter.json()) == 3

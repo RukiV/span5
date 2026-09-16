@@ -114,19 +114,15 @@ const SOURCE_LABELS = {
 };
 
 const DashboardPage = () => {
-  const [allJobs, setAllJobs] = useState([]);
-  const [allFaults, setAllFaults] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
   const [summary, setSummary] = useState(null);
   const [opsDigest, setOpsDigest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [executing, setExecuting] = useState({});
 
-  const { rights, hasRight } = useCurrentUser();
+  const { hasRight } = useCurrentUser();
   const { showToast } = useToast();
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
-  const can = (r) => (rights || []).includes(r);
 
   // ── Kalender toestand ──
   const { instance } = useMsal();
@@ -204,7 +200,7 @@ const DashboardPage = () => {
       // Let op: die AI-bedryfsopsomming (digest) word BEWUSTELIK buite die
       // Promise.all gehou — 'n koue Gemma kan 5-30s vat, en die kernpaneelbord
       // moet nie daarvoor wag nie. Die digest verskyn sodra dit gereed is.
-      const [summaryRes, workOrdersResponse, auditResponse, faultsResponse] = await Promise.all([
+      const [summaryRes, , auditResponse] = await Promise.all([
         Promise.resolve(apiClient.get('/analytics/dashboard-summary')).catch((e) => {
           console.warn('dashboard-summary failed, using fallback', e?.response?.status);
           return null;
@@ -225,7 +221,7 @@ const DashboardPage = () => {
         setSummary(summaryRes.data);
       } else {
         setSummary({
-          kpis: { overdue_maintenance: 0, unassigned_high_faults: 0, overdue_jobs: 0, critical_stock: 0, replacement_suggested: 0, high_risk: 0 },
+          kpis: { open_faults: 0, high_priority_faults: 0, high_priority_jobs: 0, auto_drafts: 0 },
           risk_distribution: { veilig: 0, monitor: 0, vervang: 0 },
           faults_per_building: [],
           trend: { labels: ['Geen data'], faults_per_week: [0], jobs_completed_per_week: [0] },
@@ -235,11 +231,7 @@ const DashboardPage = () => {
         });
       }
 
-      const orders = Array.isArray(workOrdersResponse?.data) ? workOrdersResponse.data : [];
       const auditEntries = Array.isArray(auditResponse?.data) ? auditResponse.data : [];
-      const faults = Array.isArray(faultsResponse?.data) ? faultsResponse.data : [];
-      setAllJobs(orders);
-      setAllFaults(faults);
 
       const activities = auditEntries
         .map((entry) => {
@@ -282,34 +274,6 @@ const DashboardPage = () => {
       window.removeEventListener('focus', onFocus);
     };
   }, [fetchData]);
-
-  const handleExecute = useCallback(async (suggestion, key) => {
-    const needsStock = suggestion.type === 'reorder_stock';
-    const requiredRight = needsStock ? 'stock.manage' : 'jobs.manage';
-    if (!can(requiredRight)) {
-      showToast({ type: 'error', title: 'Geen reg', message: 'Geen reg — vra Admin' });
-      return;
-    }
-    const ok = await confirm({
-      title: 'Bevestig aksie',
-      message: `${suggestion.label}${suggestion.description ? ' — ' + suggestion.description : ''}`,
-      confirmLabel: 'Uitvoer',
-      cancelLabel: 'Kanselleer',
-      variant: 'info',
-    });
-    if (!ok) return;
-    setExecuting((prev) => ({ ...prev, [key]: true }));
-    try {
-      const res = await analyticsAPI.executeSuggestion(suggestion);
-      showToast({ type: 'success', title: res.data?.message || 'Aksie uitgevoer' });
-      await fetchData();
-    } catch (err) {
-      const msg = err?.response?.data?.detail || err?.message || 'Kon nie aksie uitvoer nie';
-      showToast({ type: 'error', title: 'Fout', message: String(msg) });
-    } finally {
-      setExecuting((prev) => ({ ...prev, [key]: false }));
-    }
-  }, [can, confirm, showToast, fetchData]);
 
   // ── Kalender hulppersone ──
   const applySelectedDateToForm = useCallback((date) => {
@@ -759,25 +723,7 @@ const DashboardPage = () => {
   }
 
   const kpis = summary?.kpis || {};
-  const topRisk = summary?.top_risk_assets || [];
-  const criticalStockList = summary?.critical_stock_list || [];
   const isFkScoped = summary?.scope === 'fk';
-
-  const overdueJobs = allJobs.filter((j) => {
-    const s = String(j.job_status || '').toLowerCase();
-    if (['voltooid','gekanselleer','completed','cancelled'].includes(s)) return false;
-    if (!j.job_scheduled_end_datetime) return false;
-    return new Date(j.job_scheduled_end_datetime) < new Date();
-  });
-  const firstOverdueJob = overdueJobs[0] || null;
-  const highFaults = allFaults.filter((f) => {
-    const pri = String(f.fault_priority || '').toLowerCase();
-    const stat = String(f.fault_status || '').toLowerCase();
-    return (pri === 'hoog' || pri === 'high' || pri === 'dringend') && ['oop','open','wag','wait','bevestig'].includes(stat);
-  });
-  const firstHighFault = highFaults[0] || null;
-  const firstCriticalStock = criticalStockList[0] || null;
-  const firstTopRisk = topRisk[0] || null;
 
   return (
     <div className="main">
@@ -788,110 +734,35 @@ const DashboardPage = () => {
           </div>
         )}
 
-        {/* ── RY 0: Kritieke Aksie-KPI's — direkte Uitvoer knoppies waar relevant ── */}
+        {/* ── RY 0: Kern-Oorsig — weeklikse kern-KPI's met skakels ── */}
+        <h3 style={{ margin: '0 0 10px', color: '#935e28' }}>Kern-Oorsig</h3>
         <div className="stats-grid">
-          <div className="stat-card" style={{ borderLeft: '5px solid #b91c1c', flexDirection: 'column', alignItems: 'stretch', textAlign: 'center' }}>
-            <Link to="/work-orders" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-              <h4>Werksopdragte Oortyd</h4>
-              <div className="stat-number" style={{ color: (kpis.overdue_jobs || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_jobs ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_jobs > 0 ? 'Oor skedule' : 'Geen oortyd'}</div>
-            </Link>
-            {firstOverdueJob ? (
-              <button
-                className="dash-action-btn"
-                disabled={executing['overdue_job'] || !can('jobs.manage')}
-                title={!can('jobs.manage') ? 'Geen reg — vra Admin' : `Ken WR #${firstOverdueJob.jobcard_id} aan my toe`}
-                onClick={() => handleExecute({ type: 'assign_job', label: `Ken werksopdrag #${firstOverdueJob.jobcard_id} aan my toe`, description: String(firstOverdueJob.job_desc||'').slice(0,80), params: { jobcard_id: firstOverdueJob.jobcard_id } }, 'overdue_job')}
-              >
-                {executing['overdue_job'] ? 'Besig...' : 'Ken aan my toe'}
-              </button>
-            ) : (
-              <Link to="/work-orders" className="dash-link-btn">Bekyk werksopdragte →</Link>
-            )}
-          </div>
-
-          <div className="stat-card" style={{ borderLeft: '5px solid #c97c3c', flexDirection: 'column', alignItems: 'stretch', textAlign: 'center' }}>
-            <Link to="/fault-tickets?priority=Hoog" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-              <h4>Hoë-prioriteit Foute &gt;2d</h4>
-              <div className="stat-number" style={{ color: (kpis.unassigned_high_faults || 0) > 0 ? '#c97c3c' : '#065f46' }}>{kpis.unassigned_high_faults ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.unassigned_high_faults > 0 ? 'Wag vir toewysing' : 'Geen oop hoë-pri'}</div>
-            </Link>
-            {firstHighFault ? (
-              <button
-                className="dash-action-btn"
-                disabled={executing['high_fault'] || !can('jobs.manage')}
-                title={!can('jobs.manage') ? 'Geen reg — vra Admin' : `Skep WO vir fout #${firstHighFault.fault_id}`}
-                onClick={() => handleExecute({ type: 'create_work_order', label: `Werksopdrag vir fout #${firstHighFault.fault_id}`, description: String(firstHighFault.fault_description||'').slice(0,80), params: { fault_id: firstHighFault.fault_id, job_desc: String(firstHighFault.fault_description||''), room_id: firstHighFault.room_id, building_id: firstHighFault.building_id, location_id: firstHighFault.location_id, job_priority: 'Dringend' } }, 'high_fault')}
-              >
-                {executing['high_fault'] ? 'Besig...' : 'Skep werksopdrag'}
-              </button>
-            ) : (
-              <Link to="/fault-tickets?priority=Hoog" className="dash-link-btn">Bekyk foute →</Link>
-            )}
-          </div>
-
-          <div className="stat-card" style={{ borderLeft: '5px solid #b91c1c', flexDirection: 'column', alignItems: 'stretch', textAlign: 'center' }}>
-            <Link to="/predictions" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-              <h4>Onderhoud Agterstallig</h4>
-              <div className="stat-number" style={{ color: (kpis.overdue_maintenance || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.overdue_maintenance ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.overdue_maintenance > 0 ? 'Benodig skedulering' : 'Geen agterstallig'}</div>
-            </Link>
-            {(kpis.overdue_maintenance || 0) > 0 && firstTopRisk ? (
-              <button
-                className="dash-action-btn"
-                disabled={executing['overdue_maint'] || !can('jobs.manage')}
-                title={!can('jobs.manage') ? 'Geen reg — vra Admin' : `Skeduleer onderhoud vir ${firstTopRisk.asset_name}`}
-                onClick={() => handleExecute({ type: 'create_work_order', label: `Werksopdrag vir ${firstTopRisk.asset_name}`, description: `Onderhoud agterstallig: ${firstTopRisk.asset_name}`, params: { asset_id: firstTopRisk.asset_id, job_desc: `Onderhoud: ${firstTopRisk.asset_name}`, job_priority: 'Hoog' } }, 'overdue_maint')}
-              >
-                {executing['overdue_maint'] ? 'Besig...' : 'Skeduleer onderhoud'}
-              </button>
-            ) : (
-              <Link to="/predictions" className="dash-link-btn">Bekyk voorspellings →</Link>
-            )}
-          </div>
-
-          <div className="stat-card" style={{ borderLeft: '5px solid #f59e0b', flexDirection: 'column', alignItems: 'stretch', textAlign: 'center' }}>
-            <Link to="/stock" style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-              <h4>Kritieke Voorraad</h4>
-              <div className="stat-number" style={{ color: (kpis.critical_stock || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.critical_stock ?? 0}</div>
-              <div className="stat-change" style={{ color: '#6b7280' }}>{kpis.critical_stock > 0 ? 'Onder minimum' : 'Voorraad OK'}</div>
-            </Link>
-            {firstCriticalStock ? (
-              <button
-                className="dash-action-btn"
-                disabled={executing['critical_stock'] || !can('stock.manage')}
-                title={!can('stock.manage') ? 'Geen reg — vra Admin' : `Hervul ${firstCriticalStock.stock_name}`}
-                onClick={() => handleExecute({ type: 'reorder_stock', label: `Hervul ${firstCriticalStock.stock_name}`, description: `${firstCriticalStock.stock_name} is krities laag (${firstCriticalStock.amount}/${firstCriticalStock.minimum})`, params: { stock_id: firstCriticalStock.stock_id, name: firstCriticalStock.stock_name, amount: (firstCriticalStock.minimum || 10) * 2 } }, 'critical_stock')}
-              >
-                {executing['critical_stock'] ? 'Besig...' : `Hervul: ${firstCriticalStock.stock_name}`}
-              </button>
-            ) : (
-              <Link to="/stock" className="dash-link-btn">Bestuur voorraad →</Link>
-            )}
-          </div>
-        </div>
-
-        {/* ── RY 1: Sekondêre risiko-KPI's — net skakels (aksie irrelevant) ── */}
-        <div className="stats-grid" style={{ marginBottom: '20px' }}>
-          <Link to="/predictions" className="stat-card" style={{ borderLeft: '4px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
+          <Link to="/fault-tickets?status=open" className="stat-card" style={{ borderLeft: '4px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
-              <h4>ML Hoë Risiko (&gt;50% 12md)</h4>
-              <div className="stat-number" style={{ color: (kpis.high_risk || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.high_risk ?? 0}</div>
-              <div className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>Bekyk besonderhede →</div>
+              <h4>Oop Foutkaartjies</h4>
+              <div className="stat-number" style={{ color: (kpis.open_faults || 0) > 0 ? '#b91c1c' : '#065f46' }}>{kpis.open_faults ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>Bekyk oop foutkaartjies →</div>
             </div>
           </Link>
-          <Link to="/predictions" className="stat-card" style={{ borderLeft: '4px solid #935e28', textDecoration: 'none', color: 'inherit' }}>
+          <Link to="/fault-tickets?priority=Hoog" className="stat-card" style={{ borderLeft: '4px solid #c97c3c', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
-              <h4>Vervanging Voorgestel</h4>
-              <div className="stat-number">{kpis.replacement_suggested ?? 0}</div>
-              <div className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>Bekyk voorspellings →</div>
+              <h4>Hoë-prioriteit Foute</h4>
+              <div className="stat-number" style={{ color: (kpis.high_priority_faults || 0) > 0 ? '#c97c3c' : '#065f46' }}>{kpis.high_priority_faults ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>Bekyk hoë-prioriteit foute →</div>
             </div>
           </Link>
-          <Link to="/work-orders" className="stat-card" style={{ borderLeft: '4px solid #3b82f6', textDecoration: 'none', color: 'inherit' }}>
+          <Link to="/work-orders?priority=Hoog" className="stat-card" style={{ borderLeft: '4px solid #3b82f6', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
-              <h4>Hangende vs Voltooi</h4>
-              <div className="stat-number" style={{ fontSize: '1.4rem' }}>{kpis.pending_jobs ?? 0} / {kpis.completed_jobs ?? 0}</div>
-              <div className="stat-change" style={{ color: '#935e28', fontWeight: 600 }}>Bekyk werksopdragte →</div>
+              <h4>Hoë-prioriteit Werksopdragte</h4>
+              <div className="stat-number" style={{ color: (kpis.high_priority_jobs || 0) > 0 ? '#3b82f6' : '#065f46' }}>{kpis.high_priority_jobs ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>Bekyk hoë-prioriteit werksopdragte →</div>
+            </div>
+          </Link>
+          <Link to="/ai-drafts?source=auto" className="stat-card" style={{ borderLeft: '4px solid #7c3aed', textDecoration: 'none', color: 'inherit' }}>
+            <div style={{ flex: 1 }}>
+              <h4>Gemma Auto-konsepte</h4>
+              <div className="stat-number" style={{ color: (kpis.auto_drafts || 0) > 0 ? '#7c3aed' : '#065f46' }}>{kpis.auto_drafts ?? 0}</div>
+              <div className="stat-change" style={{ color: '#6b7280' }}>Bekyk outomatiese konsepte →</div>
             </div>
           </Link>
         </div>

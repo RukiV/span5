@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import Select from "react-select";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiClient } from "../services/api";
 import { useToast } from '../components/Toast/useToast';
+import FilterChip from '../components/FilterChip';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
@@ -47,11 +48,17 @@ function getSourceLabel(source) {
 function AIDraftQueuePage() {
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const colPickerRef = useRef(null);
 
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("draft");
+  // Bron-filter word uit die URL geïnisialiseer (bv. /ai-drafts?source=auto)
+  const [sourceFilter, setSourceFilter] = useState(() => {
+    const src = (searchParams.get('source') || '').trim().toLowerCase();
+    return src === 'auto' || src === 'manual' ? src : '';
+  });
   const [aiActive, setAiActive] = useState(null);
 
   useEffect(() => {
@@ -70,12 +77,12 @@ function AIDraftQueuePage() {
   useEffect(() => {
     fetchDrafts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [statusFilter, sourceFilter]);
 
   const fetchDrafts = async () => {
     setLoading(true);
     try {
-      const params = { status_filter: statusFilter }; // '' = Alle (backend treats empty as no filter)
+      const params = { status_filter: statusFilter, source_filter: sourceFilter }; // '' = Alle (backend treats empty as no filter)
       const response = await apiClient.jobDrafts.getAll(params);
       setDrafts(response.data || []);
     } catch (error) {
@@ -84,6 +91,13 @@ function AIDraftQueuePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const clearSourceFilter = () => {
+    setSourceFilter('');
+    const next = new URLSearchParams(searchParams);
+    next.delete('source');
+    setSearchParams(next);
   };
 
   const sortedDrafts = applySort([...drafts], (d, key) => {
@@ -99,7 +113,7 @@ function AIDraftQueuePage() {
     }
   });
   const { currentPage, totalPages, paginatedData: paginatedDrafts, goToPage } = usePagination(sortedDrafts, 100);
-  useEffect(() => { goToPage(1); }, [statusFilter, sorts, goToPage]);
+  useEffect(() => { goToPage(1); }, [statusFilter, sourceFilter, sorts, goToPage]);
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -123,6 +137,7 @@ function AIDraftQueuePage() {
         <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />
+            <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "auto", label: "Outomaties" }, { value: "manual", label: "Handmatig" }].find((option) => option.value === sourceFilter)} onChange={(selected) => setSourceFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "auto", label: "Outomaties" }, { value: "manual", label: "Handmatig" }]} isSearchable={false} placeholder="Bron" />
           <SortPicker
               columns={DRAFT_COLUMNS}
               sorts={sorts}
@@ -146,6 +161,15 @@ function AIDraftQueuePage() {
             <button className="btn-edit" onClick={fetchDrafts} style={{ marginLeft: '0.5rem' }}>Vernuwe</button>
           </div>
         </div>
+
+        {sourceFilter && (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <FilterChip
+              label={sourceFilter === 'auto' ? 'Gefiltreer: Outomaties' : 'Gefiltreer: Handmatig'}
+              onClear={clearSourceFilter}
+            />
+          </div>
+        )}
 
         <table className="standard-table">
           <thead>

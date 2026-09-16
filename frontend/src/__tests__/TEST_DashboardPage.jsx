@@ -57,7 +57,7 @@ beforeEach(() => {
     if (typeof url === 'string' && url.includes('dashboard-summary')) {
       return Promise.resolve({
         data: {
-          kpis: { overdue_maintenance: 2, unassigned_high_faults: 1, overdue_jobs: 3, critical_stock: 1, replacement_suggested: 4, high_risk: 2, pending_jobs: 5, completed_jobs: 10 },
+          kpis: { open_faults: 2, high_priority_faults: 3, high_priority_jobs: 4, auto_drafts: 5 },
           risk_distribution: { veilig: 10, monitor: 5, vervang: 3 },
           faults_per_building: [{ building: 'Gebou A', count: 2 }],
           trend: { labels: ['01 Jan', '08 Jan'], faults_per_week: [1, 2], jobs_completed_per_week: [2, 3] },
@@ -71,17 +71,35 @@ beforeEach(() => {
   });
 });
 
-test('renders dashboard with all KPI cards', async () => {
+test('renders dashboard with the 4 new Kern-Oorsig KPI cards and correct hrefs', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
   render(<MemoryRouter><DashboardPage /></MemoryRouter>);
   await waitFor(() => {
-    expect(screen.getByText('Onderhoud Agterstallig')).toBeInTheDocument();
-    expect(screen.getByText(/Hoë-prioriteit Foute/)).toBeInTheDocument();
-    expect(screen.getByText('Werksopdragte Oortyd')).toBeInTheDocument();
-    expect(screen.getByText('Kritieke Voorraad')).toBeInTheDocument();
-    expect(screen.getByText('Vervanging Voorgestel')).toBeInTheDocument();
-    expect(screen.getByText(/ML Hoë Risiko/)).toBeInTheDocument();
+    expect(screen.getByText('Oop Foutkaartjies')).toBeInTheDocument();
+    expect(screen.getByText('Hoë-prioriteit Foute')).toBeInTheDocument();
+    expect(screen.getByText('Hoë-prioriteit Werksopdragte')).toBeInTheDocument();
+    expect(screen.getByText('Gemma Auto-konsepte')).toBeInTheDocument();
+    expect(screen.getByText('Kern-Oorsig')).toBeInTheDocument();
   });
+  const hrefs = screen.getAllByRole('link').map((l) => l.getAttribute('href'));
+  expect(hrefs).toContain('/fault-tickets?status=open');
+  expect(hrefs).toContain('/fault-tickets?priority=Hoog');
+  expect(hrefs).toContain('/work-orders?priority=Hoog');
+  expect(hrefs).toContain('/ai-drafts?source=auto');
+});
+
+test('old KPI cards are gone', async () => {
+  const DashboardPage = require('../pages/DashboardPage').default;
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(screen.getByText('Oop Foutkaartjies')).toBeInTheDocument();
+  });
+  expect(screen.queryByText('Werksopdragte Oortyd')).not.toBeInTheDocument();
+  expect(screen.queryByText('Hoë-prioriteit Foute >2d')).not.toBeInTheDocument();
+  expect(screen.queryByText('Onderhoud Agterstallig')).not.toBeInTheDocument();
+  expect(screen.queryByText('Kritieke Voorraad')).not.toBeInTheDocument();
+  expect(screen.queryByText('ML Hoë Risiko')).not.toBeInTheDocument();
+  expect(screen.queryByText('Hangende vs Voltooi')).not.toBeInTheDocument();
 });
 
 test('renders activity log', async () => {
@@ -100,15 +118,7 @@ test('shows empty state for activity log', async () => {
   });
 });
 
-test('prediction links point to /predictions', async () => {
-  const DashboardPage = require('../pages/DashboardPage').default;
-  render(<MemoryRouter><DashboardPage /></MemoryRouter>);
-  await waitFor(() => {
-    const links = screen.getAllByText(/Bekyk.*voorspellings/i);
-    expect(links.length).toBeGreaterThan(0);
-    links.forEach(l => expect(l.closest('a')).toHaveAttribute('href', '/predictions'));
-  });
-});
+
 
 test('renders calendar section for users with calendar.view', async () => {
   const DashboardPage = require('../pages/DashboardPage').default;
