@@ -24,6 +24,9 @@
 
 .btn-view { background: green; color: white; }
 
+.btn-history { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; color: white; background-color: #3b82f6; display: inline-flex; align-items: center; justify-content: center; }
+.btn-history:hover { background-color: #0056b3; }
+
 
 .btn-cancel {
     background-color: #eee; 
@@ -41,6 +44,31 @@
 .form-group { display: flex; flex-direction: column; padding: 10px 20px;}
 .form-group label { font-weight: bold; margin-bottom: 5px; }
 .form-group input, .form-group select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+
+.input-row {
+    display: flex;
+    gap: 15px;
+    padding: 10px 20px;
+}
+
+.input-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-group label {
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.input-group input, .input-group select, .input-group textarea {
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: inherit;
+}
 
 
 

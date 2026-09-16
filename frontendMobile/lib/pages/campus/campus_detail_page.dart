@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
-import '../../services/campus_service.dart';
 import '../../models/campus.dart';
 import '../../models/user_session.dart';
-import '../asset/asset_page.dart';
-import 'edit_campus_page.dart';
-import '../building/buildings_list_page.dart';
+import '../../services/campus_service.dart';
+import '../../widgets/confirm_delete.dart';
+import '../../widgets/detail_row.dart';
+import 'campus_form_page.dart';
 
 class CampusDetailPage extends StatefulWidget {
   final Campus campus;
@@ -22,54 +22,6 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
   void initState() {
     super.initState();
     _currentCampus = widget.campus;
-    CampusService.campusesNotifier.addListener(_updateLocalState);
-  }
-
-  @override
-  void dispose() {
-    CampusService.campusesNotifier.removeListener(_updateLocalState);
-    super.dispose();
-  }
-
-  void _updateLocalState() {
-    if (!mounted) return;
-    try {
-      final updated = CampusService.campusesNotifier.value.firstWhere((c) => c.id == _currentCampus.id);
-      setState(() => _currentCampus = updated);
-    } catch (_) {}
-  }
-
-  Future<void> _deleteCampus() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Verwyder Terrein"),
-        content: Text("Is jy seker jy wil '${_currentCampus.name}' verwyder? Hierdie aksie kan nie ongedaan gemaak word nie."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("KANSELLEER")),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("VERWYDER", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      final success = await CampusService.removeCampus(_currentCampus.id);
-      if (mounted) {
-        if (success) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Terrein suksesvol verwyder"), backgroundColor: AppColors.successGreen),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Kon nie terrein verwyder nie."), backgroundColor: AppColors.errorRed),
-          );
-        }
-      }
-    }
   }
 
   @override
@@ -77,97 +29,210 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(_currentCampus.name),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
+        title: Text(_currentCampus.name.toUpperCase()),
         actions: [
-          if (UserSession.can('locations.manage')) ...[
+          if (UserSession.can('locations.manage'))
             IconButton(
-              icon: const Icon(Icons.edit, color: AppColors.gold),
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => EditCampusPage(campus: _currentCampus)),
-              ),
+              icon: const Icon(Icons.edit),
+              tooltip: 'Wysig',
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        CampusFormPage(campus: _currentCampus, startEditing: true),
+                  ),
+                );
+                if (result == true && mounted) {
+                  final updated = CampusService.campusesNotifier.value
+                      .where((c) => c.id == _currentCampus.id)
+                      .firstOrNull;
+                  if (updated != null) {
+                    setState(() => _currentCampus = updated);
+                  }
+                }
+              },
             ),
+          if (UserSession.can('locations.manage'))
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: _deleteCampus,
+              tooltip: 'Verwyder',
+              onPressed: _confirmDelete,
             ),
-          ]
         ],
       ),
-      body: Column(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader("Besonderhede"),
+            const SizedBox(height: 12),
+            _buildInfoCard(),
+            const SizedBox(height: 25),
+            _buildSectionHeader("Ligging op Kaart"),
+            const SizedBox(height: 12),
+            _buildMapCard(),
+            const SizedBox(height: 25),
+            _buildSectionHeader("Geboue (${_currentCampus.buildings.length})"),
+            const SizedBox(height: 12),
+            _currentCampus.buildings.isEmpty
+                ? _buildEmptyState("Geen geboue geregistreer nie.")
+                : _buildBuildingsList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Text(
+      title.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.navy,
+        fontWeight: FontWeight.bold,
+        fontSize: 13,
+        letterSpacing: 1.2,
+      ),
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
+      ),
+      child: Column(
         children: [
-          _buildInfoSection(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-            child: Row(
-              children: [
-                const Icon(Icons.business, color: AppColors.gold, size: 20),
-                const SizedBox(width: 10),
-                const Text(
-                  "GEBOUE",
-                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, letterSpacing: 1.1),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => BuildingsListPage(initialCampus: _currentCampus),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.visibility, size: 16),
-                  label: const Text("BESIGTIG", style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.gold),
-                ),
-              ],
-            ),
-          ),
-          Expanded(child: _buildBuildingsList()),
+          DetailRow(
+              label: "Naam",
+              valueWidget: Flexible(
+                child: Text(_currentCampus.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Tipe / Kode",
+              valueWidget: Flexible(
+                child: Text(_currentCampus.code,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Straatnommer",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.streetNum.isEmpty
+                        ? "-"
+                        : _currentCampus.streetNum,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Straatnaam",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.streetName.isEmpty
+                        ? "-"
+                        : _currentCampus.streetName,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Voorstad",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.suburb.isEmpty
+                        ? "-"
+                        : _currentCampus.suburb,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Stad",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.city.isEmpty ? "-" : _currentCampus.city,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Provinsie",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.province.isEmpty
+                        ? "-"
+                        : _currentCampus.province,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Land",
+              valueWidget: Flexible(
+                child: Text(
+                    _currentCampus.country.isEmpty
+                        ? "-"
+                        : _currentCampus.country,
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
+          const Divider(height: 24),
+          DetailRow(
+              label: "Radius",
+              valueWidget: Flexible(
+                child: Text(
+                    "${_currentCampus.radius.toStringAsFixed(0)} m",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              )),
         ],
       ),
     );
   }
 
-  Widget _buildInfoSection() {
+  Widget _buildMapCard() {
+    final loc = _currentCampus.location;
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(20),
-      color: Colors.white,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            _currentCampus.name,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.navy),
-          ),
-          const SizedBox(height: 5),
           Row(
             children: [
-              const Icon(Icons.location_on, color: AppColors.gold, size: 16),
-              const SizedBox(width: 5),
+              const Icon(Icons.location_on, color: AppColors.gold, size: 20),
+              const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _currentCampus.address,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  "Lat: ${loc.latitude.toStringAsFixed(6)}, Lng: ${loc.longitude.toStringAsFixed(6)}",
+                  style: const TextStyle(fontSize: 13),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(
-              _currentCampus.code,
-              style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12),
-            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.radio_button_checked,
+                  color: AppColors.gold, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                "Radius: ${_currentCampus.radius.toStringAsFixed(0)} m",
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
           ),
         ],
       ),
@@ -175,42 +240,57 @@ class _CampusDetailPageState extends State<CampusDetailPage> {
   }
 
   Widget _buildBuildingsList() {
-    if (_currentCampus.buildings.isEmpty) {
-      return const Center(child: Text("Geen geboue geregistreer nie.", style: TextStyle(color: Colors.grey)));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      itemCount: _currentCampus.buildings.length,
-      itemBuilder: (context, index) {
-        final building = _currentCampus.buildings[index];
-        final roomCount = building.rooms?.length ?? 0;
-        return Card(
-          elevation: 1,
-          margin: const EdgeInsets.only(bottom: 10),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          child: ListTile(
-            title: Text(building.name, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("$roomCount lokale", style: const TextStyle(fontSize: 11, color: AppColors.gold, fontWeight: FontWeight.bold)),
-                if (building.address.isNotEmpty)
-                  Text(building.address, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ],
-            ),
-            trailing: const Icon(Icons.chevron_right, color: AppColors.gold),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AssetsPage(filterRoomId: building.id.toString()),
-                ),
-              );
-            },
-          ),
-        );
-      },
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)
+        ],
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _currentCampus.buildings.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final b = _currentCampus.buildings[index];
+          return ListTile(
+            leading: const Icon(Icons.location_city,
+                color: AppColors.navy, size: 28),
+            title: Text(b.name,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 14)),
+            subtitle: Text("${b.rooms?.length ?? 0} lokale",
+                style: const TextStyle(fontSize: 12)),
+          );
+        },
+      ),
     );
   }
+
+  Widget _buildEmptyState(String message) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(message,
+          style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 13,
+              fontStyle: FontStyle.italic)),
+    );
+  }
+
+  Future<void> _confirmDelete() => confirmDeleteAndRun(
+      context,
+      entityLabel: 'terrein',
+      itemName: _currentCampus.name,
+      delete: () => CampusService.removeCampus(_currentCampus.id),
+      onSuccess: () => Navigator.pop(context),
+    );
 }

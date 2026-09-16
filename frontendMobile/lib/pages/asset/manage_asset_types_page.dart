@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
+import '../../core/idempotency.dart';
+import '../../models/user_session.dart';
 import '../../services/asset_type_service.dart';
 import '../../models/asset_type.dart';
+import '../../widgets/selection_manager.dart';
 
 class ManageAssetTypesPage extends StatefulWidget {
   const ManageAssetTypesPage({super.key});
@@ -15,11 +18,14 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
   final _avgController = TextEditingController();
   final _minController = TextEditingController();
   final _maxController = TextEditingController();
+  final SelectionController<int> _selection = SelectionController<int>();
   bool _isSaving = false;
+  String? _idempotencyKey;
 
   @override
   void initState() {
     super.initState();
+    _idempotencyKey = Idempotency.generate();
     AssetTypeService.fetchTypes();
   }
 
@@ -34,16 +40,25 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
 
   Future<void> _save() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Gee 'n naam vir die bate tipe in"),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     final avg = int.tryParse(_avgController.text.trim());
     final min = int.tryParse(_minController.text.trim());
     final max = int.tryParse(_maxController.text.trim());
-    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max);
+    final success = await AssetTypeService.addType(name, avgLifespan: avg, minLifespan: min, maxLifespan: max, idempotencyKey: _idempotencyKey);
     if (!mounted) return;
     setState(() {
       _isSaving = false;
       if (success) {
+        _idempotencyKey = Idempotency.generate();
         _nameController.clear();
         _avgController.clear();
         _minController.clear();
@@ -199,16 +214,41 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
                           return Card(
                             margin: const EdgeInsets.only(bottom: 8),
                             elevation: 1,
+                            color: _selection.isSelected(type.id)
+                                ? AppColors.lavender
+                                : null,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(type.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                if (_selection.isSelecting) {
+                                  setState(() => _selection.toggle(type.id));
+                                }
+                              },
+                              onLongPress: () {
+                                if (!UserSession.can('assets.manage')) return;
+                                setState(() {
+                                  _selection.enter();
+                                  _selection.toggle(type.id);
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    if (_selection.isSelecting) ...[
+                                      Checkbox(
+                                        value: _selection.isSelected(type.id),
+                                        onChanged: (_) => setState(() =>
+                                            _selection.toggle(type.id)),
+                                      ),
+                                      const SizedBox(width: 8),
+                                    ],
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(type.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                         const SizedBox(height: 2),
                                         Text(
                                           _lifespanString(type),
@@ -217,15 +257,18 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
                                       ],
                                     ),
                                   ),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                    onPressed: () => _confirmDelete(type),
-                                  ),
+                                  if (!_selection.isSelecting) ...[
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                      onPressed: () => _confirmDelete(type),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                          );
-                        }),
+                          ),
+                        );
+                      }),
                       ],
                     );
                   },
@@ -235,7 +278,41 @@ class _ManageAssetTypesPageState extends State<ManageAssetTypesPage> {
           ),
         ),
       ),
+      floatingActionButton: UserSession.can('assets.manage')
+          ? BulkDeleteFloatingAction<int>(
+              controller: _selection,
+              confirmTitle: 'Verwyder Bate Tipes',
+              confirmMessage:
+                  'Wil jy ${_selection.count} geselekteerde bate tipe(s) verwyder?',
+              onDelete: _bulkDeleteTypes,
+            )
+          : null,
     );
+  }
+
+  Future<void> _bulkDeleteTypes(BuildContext context, Set<int> ids) async {
+    int ok = 0;
+    int fail = 0;
+    for (final id in ids) {
+      if (await AssetTypeService.deleteType(id)) {
+        ok++;
+      } else {
+        fail++;
+      }
+    }
+    await AssetTypeService.fetchTypes();
+    if (context.mounted) {
+      setState(() => _selection.exit());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(fail == 0
+              ? "$ok tipe(s) verwyder."
+              : "$ok verwyder, $fail kon nie verwyder word nie."),
+          backgroundColor:
+              fail == 0 ? AppColors.successGreen : AppColors.errorRed,
+        ),
+      );
+    }
   }
 
   String _lifespanString(AssetType t) {

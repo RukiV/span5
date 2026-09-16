@@ -51,7 +51,7 @@ class _ScanPageState extends State<ScanPage> {
                   controller: cameraController,
                   onDetect: (capture) {
                     if (_isDetected) return;
-                    final String? code = capture.barcodes.first.rawValue;
+                    final String? code = capture.barcodes.firstOrNull?.rawValue;
                     if (code != null && code.isNotEmpty) {
                       _isDetected = true;
                       Navigator.pop(context, code);
@@ -194,8 +194,8 @@ class _ScanPageState extends State<ScanPage> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: widget.isLocation 
-                          ? const Icon(Icons.door_sliding, color: Colors.white24, size: 40) // Vervang met Image.asset
-                          : const Icon(Icons.chair, color: Colors.white24, size: 40),      // Vervang met Image.asset
+                          ? const Icon(Icons.door_sliding, color: Colors.white24, size: 40)
+                          : const Icon(Icons.chair, color: Colors.white24, size: 40),
                       ),
                     ),
                     const SizedBox(width: 20),

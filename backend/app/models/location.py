@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from pydantic import field_validator
 from sqlmodel import SQLModel, Field
 from .base import Base
@@ -9,7 +9,6 @@ from .validators import sanitize_text, validate_positive_int
 class BuildingBase(SQLModel):
     """Base model for building data."""
     building_name: str = Field(max_length=100)
-    building_type: BuildingType = Field(default=BuildingType.OTHER)
 
     @field_validator('building_name', mode='before')
     @classmethod
@@ -23,21 +22,34 @@ class Building(BuildingBase, Base, table=True):
     location_id: int = Field(foreign_key="location.location_id")
 
 
+class BuildingTypeLink(Base, table=True):
+    """Junction table linking a building to one of its types.
+
+    A building can serve multiple purposes (e.g. classrooms and a cafeteria),
+    so each building may have zero or more of these rows.
+    """
+    __tablename__ = "building_type_link"
+    building_id: int = Field(primary_key=True, foreign_key="building.building_id")
+    building_type: BuildingType = Field(primary_key=True)
+
+
 class BuildingCreate(BuildingBase):
     """Input model for creating building records."""
     location_id: int
+    building_types: List[BuildingType] = Field(default_factory=list)
 
 
 class BuildingRead(BuildingBase):
     """Output model for reading building records."""
     building_id: int
     location_id: int
+    building_types: List[BuildingType] = Field(default_factory=list)
 
 
 class BuildingUpdate(SQLModel):
     """Input model for updating building records."""
     building_name: Optional[str] = None
-    building_type: Optional[BuildingType] = None
+    building_types: Optional[List[BuildingType]] = None
     location_id: Optional[int] = None
 
 
@@ -123,6 +135,17 @@ class RoomRead(RoomBase):
     """Output model for reading room records."""
     room_id: int
     building_id: int
+
+
+class RoomWithPathRead(RoomBase):
+    """Output model for reading a room together with its building and campus path.
+
+    Used by the "scan a room" flow so the client can resolve the full
+    campus -> building -> room path from a scanned room code.
+    """
+    room_id: int
+    building_id: int
+    location_id: Optional[int] = None
 
 
 class RoomUpdate(SQLModel):

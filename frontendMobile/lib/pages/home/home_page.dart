@@ -1,28 +1,32 @@
 import 'package:flutter/material.dart';
 
-import '../reporting/reporting_page.dart';
-import '../asset/asset_page.dart';
-import '../stock/stock_page.dart';
-import '../campus/campus_management_page.dart';
-import '../rooms/manage_rooms_page.dart';
-import '../building/buildings_list_page.dart';
-import '../jobcards/job_cards_page.dart';
+import '../reporting/reports_page.dart';
+import '../asset/assets_page.dart';
+import '../stock/stocks_page.dart';
+import '../campus/campuses_page.dart';
+import '../rooms/rooms_page.dart';
+import '../building/buildings_page.dart';
+import '../jobcards/jobcards_page.dart';
 import 'dashboard_page.dart';
-import 'calendar_page.dart';
+import 'voorspellings_page.dart';
 import 'works_assignments_page.dart';
 import '../users/users_page.dart';
 import '../notifications/notification_list_page.dart';
 import '../../models/user_session.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/count_badge.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
 import '../../services/asset_service.dart';
 import '../../services/campus_service.dart';
+import '../../models/campus.dart';
+import '../../models/building.dart';
 import '../../services/report_service.dart';
 import '../../services/quote_service.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/outlook_token_manager.dart';
 import '../room_checklist/room_check_session_page.dart';
+import '../settings/server_config_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,6 +38,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String _selectedTitle = "Paneelbord";
   final Map<String, bool> _expandedStates = {};
+  Campus? _pendingCampus;
+  Building? _pendingBuilding;
+  String? _pendingRoomId;
 
   @override
   void initState() {
@@ -95,10 +102,10 @@ class _HomePageState extends State<HomePage> {
       });
     }
 
-    // Kontrole Skedules — FK/Admin bestuur skedules; Dosent sien eie.
+    // Lokaal Kontrole — FK/Admin bestuur skedules; Dosent sien eie.
     if (can('room_checks.manage')) {
       menu.add({
-        'title': 'Kontrole Skedules',
+        'title': 'Lokaal Kontrole',
         'icon': Icons.event_available_outlined,
         'page': const RoomCheckSessionPage(manageMode: true),
       });
@@ -113,19 +120,79 @@ class _HomePageState extends State<HomePage> {
     // Fasiliteite — bates, voorraad en die ligging-hiërargie onder een groep.
     final facilitiesChildren = <Map<String, dynamic>>[];
     if (can('assets.view')) {
-      facilitiesChildren.add({'title': 'Bates', 'icon': Icons.inventory_2_outlined, 'page': const AssetsPage()});
+      facilitiesChildren.add({
+        'title': 'Bates',
+        'icon': Icons.inventory_2_outlined,
+        'page': AssetsPage(
+          filterRoomId: _pendingRoomId,
+          inShell: true,
+        ),
+      });
     }
     if (can('stock.view')) {
-      facilitiesChildren.add({'title': 'Voorraad', 'icon': Icons.construction_outlined, 'page': const StockPage()});
-    }
-    if (can('locations.view')) {
-      facilitiesChildren.add({'title': 'Terreine', 'icon': Icons.map_outlined, 'page': const CampusManagementPage()});
-    }
-    if (can('buildings.view')) {
-      facilitiesChildren.add({'title': 'Geboue', 'icon': Icons.business_outlined, 'page': const BuildingsListPage()});
+      facilitiesChildren.add({
+        'title': 'Voorraad',
+        'icon': Icons.construction_outlined,
+        'page': const StocksPage()
+      });
     }
     if (can('rooms.view')) {
-      facilitiesChildren.add({'title': 'Lokale', 'icon': Icons.room_outlined, 'page': const ManageRoomsPage()});
+      facilitiesChildren.add({
+        'title': 'Lokale',
+        'icon': Icons.room_outlined,
+        'page': RoomsPage(
+          initialBuilding: _pendingBuilding,
+          onRoomSelected: (room) {
+            setState(() {
+              _selectedTitle = 'Bates';
+              _pendingRoomId = room.id.toString();
+            });
+            // Skakel die eenmalige lokaal-filter uit sodra die Bates-bladsy dit
+            // opgetel het; 'n latere handmatige keuse van Bates wys weer alles.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _pendingRoomId = null);
+            });
+          },
+        ),
+      });
+    }
+    if (can('buildings.view')) {
+      facilitiesChildren.add({
+        'title': 'Geboue',
+        'icon': Icons.business_outlined,
+        'page': BuildingsPage(
+          initialCampus: _pendingCampus,
+          onBuildingSelected: (building) {
+            setState(() {
+              _selectedTitle = 'Lokale';
+              _pendingBuilding = building;
+            });
+            // Skakel die eenmalige gebou-filter uit sodra die Lokale-bladsy dit
+            // opgetel het; 'n latere handmatige keuse van Lokale wys weer alles.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _pendingBuilding = null);
+            });
+          },
+        ),
+      });
+    }
+    if (can('locations.view')) {
+      facilitiesChildren.add({
+        'title': 'Terreine',
+        'icon': Icons.map_outlined,
+        'page': CampusesPage(onCampusSelected: (campus) {
+          setState(() {
+            _selectedTitle = 'Geboue';
+            _pendingCampus = campus;
+          });
+          // Skakel die eenmalige kampus-filter uit sodra die Geboue-bladsy dit
+          // opgetel het; 'n latere handmatige keuse van Geboue wys weer die
+          // verstek-kampus.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _pendingCampus = null);
+          });
+        })
+      });
     }
     if (facilitiesChildren.isNotEmpty) {
       menu.add({
@@ -138,27 +205,47 @@ class _HomePageState extends State<HomePage> {
 
     // Foutkaartjies / Rapportering — Student (net eie kaartjies) en Admin/FK.
     if (can('faults.create') || can('faults.view_own') || can('faults.view')) {
-      menu.add({'title': 'Foutkaartjies', 'icon': Icons.report_gmailerrorred_outlined, 'page': const ReportingPage()});
+      menu.add({
+        'title': 'Foutkaartjies',
+        'icon': Icons.report_gmailerrorred_outlined,
+        'page': const ReportsPage()
+      });
     }
 
-    // AI Konsepte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
+    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportsPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
-    // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
+    // sien net hul eie toegewysde take (JobcardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
     if (can('jobs.manage') || can('jobs.view')) {
-      menu.add({'title': 'Werksopdragte', 'icon': Icons.assignment_outlined, 'page': const WorksAssignmentsPage()});
+      menu.add({
+        'title': 'Werksopdragte',
+        'icon': Icons.assignment_outlined,
+        'page': const WorksAssignmentsPage()
+      });
     } else if (can('jobs.view_own')) {
-      menu.add({'title': 'Werksopdragte', 'icon': Icons.engineering_outlined, 'page': const JobCardsPage()});
+      menu.add({
+        'title': 'Werksopdragte',
+        'icon': Icons.engineering_outlined,
+        'page': const JobcardsPage()
+      });
     }
 
-    // Kalender — Admin/FK/Kontrakteur (calendar.view).
-    if (can('calendar.view')) {
-      menu.add({'title': 'Kalender', 'icon': Icons.calendar_today_outlined, 'page': const CalendarPage()});
+    // Voorspellings — analise/grafieke-verdeling (predictions.view).
+    if (can('predictions.view')) {
+      menu.add({
+        'title': 'Voorspellings',
+        'icon': Icons.show_chart_outlined,
+        'page': const VoorspellingsPage()
+      });
     }
 
     // Gebruikers — Admin slegs (users.manage), laaste item in die navigasie.
     if (can('users.manage')) {
-      menu.add({'title': 'Gebruikers', 'icon': Icons.group_outlined, 'page': const UsersPage()});
+      menu.add({
+        'title': 'Gebruikers',
+        'icon': Icons.group_outlined,
+        'page': const UsersPage()
+      });
     }
 
     return menu; // Kan leeg wees as geen reg pas nie (gebruiker moet weer aanmeld).
@@ -226,10 +313,11 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        title: Text(
-            "FBS - ${activeItem['title']}",
-            style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1, color: Colors.white)
-        ),
+        title: Text("FBS - ${activeItem['title']}",
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.1,
+                color: Colors.white)),
         centerTitle: false,
         actions: [
           if (UserSession.rights.contains('notifications.view'))
@@ -240,7 +328,8 @@ class _HomePageState extends State<HomePage> {
                   clipBehavior: Clip.none,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                      icon: const Icon(Icons.notifications_outlined,
+                          color: Colors.white),
                       onPressed: () async {
                         if (context.mounted) {
                           Navigator.push(
@@ -256,19 +345,13 @@ class _HomePageState extends State<HomePage> {
                       Positioned(
                         right: 4,
                         top: 2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
+                        child: CountBadge(count,
                             color: Colors.red,
                             shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                          child: Text(
-                            count > 99 ? '99+' : '$count',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+                            padding: const EdgeInsets.all(4),
+                            fontSize: 10,
+                            minSize: const Size(18, 18),
+                            maxCount: 99),
                       ),
                   ],
                 );
@@ -278,25 +361,28 @@ class _HomePageState extends State<HomePage> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.only(right: 15.0),
-                child: Text(roleTitle, style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 10)),
+                child: Text(roleTitle,
+                    style: const TextStyle(
+                        color: AppColors.gold,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10)),
               ),
             ),
         ],
       ),
-
       drawer: Drawer(
         backgroundColor: AppColors.navy,
         child: Column(
           children: [
             const DrawerHeader(
               child: Center(
-                child: Text(
-                    "FBS",
-                    style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)
-                ),
+                child: Text("FBS",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold)),
               ),
             ),
-
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -308,19 +394,31 @@ class _HomePageState extends State<HomePage> {
                 }).toList(),
               ),
             ),
-
             const Divider(color: Colors.white24),
-
+            ListTile(
+              leading: const Icon(Icons.dns, color: Colors.white70),
+              title: const Text("Bediener-instellings",
+                  style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ServerConfigPage()),
+                );
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text("Teken Uit", style: TextStyle(color: Colors.redAccent)),
+              title: const Text("Teken Uit",
+                  style: TextStyle(color: Colors.redAccent)),
               onTap: () async {
                 await ApiClient().clearToken();
                 await OutlookTokenManager.instance.signOut();
                 UserSession.clear();
                 if (!mounted) return;
                 if (context.mounted) {
-                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, '/', (route) => false);
                 }
               },
             ),
@@ -328,21 +426,25 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-
       body: activeItem['page'],
     );
   }
 
   Widget _buildExpandableItem(Map<String, dynamic> item) {
     bool isExpanded = _expandedStates[item['title']] ?? false;
-    bool containsSelected = (item['children'] as List).any((child) => child['title'] == _selectedTitle);
-    
+    bool containsSelected = (item['children'] as List)
+        .any((child) => child['title'] == _selectedTitle);
+
     return Column(
       children: [
         ListTile(
-          leading: Icon(item['icon'], color: containsSelected ? AppColors.gold : Colors.white70),
-          title: Text(item['title'], 
-            style: TextStyle(color: containsSelected ? AppColors.gold : Colors.white, fontWeight: containsSelected ? FontWeight.bold : FontWeight.normal)),
+          leading: Icon(item['icon'],
+              color: containsSelected ? AppColors.gold : Colors.white70),
+          title: Text(item['title'],
+              style: TextStyle(
+                  color: containsSelected ? AppColors.gold : Colors.white,
+                  fontWeight:
+                      containsSelected ? FontWeight.bold : FontWeight.normal)),
           trailing: Icon(
             isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
             color: Colors.white54,
@@ -367,11 +469,13 @@ class _HomePageState extends State<HomePage> {
     return ListTile(
       contentPadding: EdgeInsets.only(left: isSubItem ? 40.0 : 16.0),
       // Verwyder die background highlight soos versoek
-      selected: false, 
+      selected: false,
       leading: Icon(
-          icon,
-          color: isSelected ? AppColors.gold : (isSubItem ? Colors.white54 : Colors.white70),
-          size: isSubItem ? 20 : 24,
+        icon,
+        color: isSelected
+            ? AppColors.gold
+            : (isSubItem ? Colors.white54 : Colors.white70),
+        size: isSubItem ? 20 : 24,
       ),
       title: Text(
         title,

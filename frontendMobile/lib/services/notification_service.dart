@@ -52,13 +52,12 @@ class NotificationService {
   // --- ValueNotifiers waarna die UI kan luister vir opdaterings ---
   static final ValueNotifier<int> unreadCountNotifier = ValueNotifier(0);
 
-  static int get unreadCount => _unreadCount;
-
   // --- Begin polling (roep in app-start) ---
   static Future<void> startPolling() async {
     await fetchUnread();
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => fetchUnread());
+    _pollTimer =
+        Timer.periodic(const Duration(seconds: 20), (_) => fetchUnread());
   }
 
   // --- Stop polling (roep by app-afsluit) ---
@@ -93,7 +92,8 @@ class NotificationService {
       };
       if (type != null && type.isNotEmpty) params['notification_type'] = type;
       if (isRead != null) params['is_read'] = isRead;
-      final response = await _api.client.get('/notifications', queryParameters: params);
+      final response =
+          await _api.client.get('/notifications', queryParameters: params);
       final items = (response.data['items'] as List? ?? [])
           .map((j) => AppNotification.fromJson(j))
           .toList();
@@ -147,7 +147,8 @@ class NotificationService {
   }
 
   // --- Stoor een voorkeur-veld (of meer) vir 'n kennisgewing-tipe ---
-  static Future<bool> updatePreference(String type, {bool? inAppEnabled, bool? emailEnabled, bool? pushEnabled}) async {
+  static Future<bool> updatePreference(String type,
+      {bool? inAppEnabled, bool? emailEnabled, bool? pushEnabled}) async {
     try {
       final body = <String, dynamic>{'notification_type': type};
       if (inAppEnabled != null) body['in_app_enabled'] = inAppEnabled;
@@ -164,7 +165,8 @@ class NotificationService {
   // --- Registreer 'n FCM-toestel-token ---
   static Future<bool> registerDeviceToken(String token) async {
     try {
-      final platform = defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+      final platform =
+          defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
       await _api.client.post('/notifications/device-token', data: {
         'fcm_token': token,
         'platform': platform,

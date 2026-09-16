@@ -3,14 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/api_client.dart';
+import '../../core/input_decoration.dart';
 import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
+import '../../services/room_service.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../widgets/searchable_dropdown.dart';
+import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
+import 'scan_page.dart';
 import 'location_page.dart';
 
 class EditReportPage extends StatefulWidget {
@@ -29,9 +33,12 @@ class _EditReportPageState extends State<EditReportPage> {
   late String _category;
   late String _priority;
   late String _status;
+  String? _rawStatus;
   String? _selectedCampus;
   String? _selectedBuilding;
   String? _selectedLocation;
+  int? _selectedCampusId;
+  int? _selectedBuildingId;
   bool _isLoading = false;
 
   static const int _maxPhotos = 3;
@@ -42,7 +49,12 @@ class _EditReportPageState extends State<EditReportPage> {
 
   LatLng? _mapPoint;
 
-  final List<String> _categories = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
+  final List<String> _categories = [
+    "Onderhoud",
+    "Herstel",
+    "Inspeksie",
+    "Installasie"
+  ];
   final List<String> _priorities = ["Laag", "Medium", "Hoog"];
   final List<String> _statuses = ["Ontvang", "Besig", "Voltooi", "Geweier"];
 
@@ -50,12 +62,20 @@ class _EditReportPageState extends State<EditReportPage> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.report.title);
-    _descriptionController = TextEditingController(text: widget.report.description);
-    _category = _categories.contains(widget.report.category) ? widget.report.category : "Onderhoud";
+    _descriptionController =
+        TextEditingController(text: widget.report.description);
+    _category = _categories.contains(widget.report.category)
+        ? widget.report.category
+        : "Onderhoud";
     _priority = widget.report.priority;
     _status = widget.report.phase;
-    _selectedCampus = CampusService.getCampusNameByRoomId(widget.report.location);
-    _selectedBuilding = CampusService.getBuildingNameByRoomId(widget.report.location);
+    _rawStatus = widget.report.rawStatus;
+    _selectedCampus =
+        CampusService.getCampusNameByRoomId(widget.report.location);
+    _selectedBuilding =
+        CampusService.getBuildingNameByRoomId(widget.report.location);
+    _selectedCampusId = _initialCampusId;
+    _selectedBuildingId = _initialBuildingId;
     _selectedLocation = widget.report.location;
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
@@ -65,11 +85,30 @@ class _EditReportPageState extends State<EditReportPage> {
     _loadMapPoint();
   }
 
+  // Map die UI-status (vertoon) terug na die rou backend-status wanneer die
+  // gebruiker dit self verander. As dit nie verander word nie, bly die rou
+  // status (rawStatus) onaangeraak sodat 'n opdatering nie die status afskaal nie.
+  String _displayToRawStatus(String display) {
+    switch (display) {
+      case 'Ontvang':
+        return 'Wag';
+      case 'Besig':
+        return 'Besig';
+      case 'Voltooi':
+        return 'Opgelos';
+      case 'Geweier':
+        return 'Gesluit';
+      default:
+        return 'Wag';
+    }
+  }
+
   // Haal die bestaande kaartligging vir die kaartjie op.
   Future<void> _loadMapPoint() async {
     if (widget.report.latitude != null && widget.report.longitude != null) {
       if (mounted) {
-        setState(() => _mapPoint = LatLng(widget.report.latitude!, widget.report.longitude!));
+        setState(() => _mapPoint =
+            LatLng(widget.report.latitude!, widget.report.longitude!));
       }
       return;
     }
@@ -94,19 +133,14 @@ class _EditReportPageState extends State<EditReportPage> {
       context,
       MaterialPageRoute(
         builder: (context) => LocationPage(
-          initialLocation: _mapPoint ?? const LatLng(-25.8480, 28.2366),
+          initialLocation: _mapPoint ?? LocationPage.defaultLocation,
         ),
       ),
     );
     if (result == null || !mounted) return;
-    final coords = result['coords'] as String?;
-    if (coords == null) return;
-    final parts = coords.split(',');
-    if (parts.length != 2) return;
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null) return;
-    setState(() => _mapPoint = LatLng(lat, lng));
+    final loc = result['location'] as LatLng?;
+    if (loc == null) return;
+    setState(() => _mapPoint = loc);
   }
 
   @override
@@ -123,11 +157,14 @@ class _EditReportPageState extends State<EditReportPage> {
   void _onCampusesChanged() {
     if (!mounted) return;
     final original = widget.report.location;
-    final userHasNotChanged = _selectedLocation == null || _selectedLocation == original;
+    final userHasNotChanged =
+        _selectedLocation == null || _selectedLocation == original;
     setState(() {
       if (userHasNotChanged) {
         _selectedCampus = CampusService.getCampusNameByRoomId(original);
         _selectedBuilding = CampusService.getBuildingNameByRoomId(original);
+        _selectedCampusId = _initialCampusId;
+        _selectedBuildingId = _initialBuildingId;
         _selectedLocation = original;
       }
     });
@@ -176,18 +213,42 @@ class _EditReportPageState extends State<EditReportPage> {
 
   /// Vertaal die kieser se ID's na die string-vorm wat [_saveChanges] verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
-    final campuses = CampusService.campusesNotifier.value;
-    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
-    final building =
-        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
-    final room =
-        (building?.rooms ?? const <Room>[]).where((r) => r.id == roomId).firstOrNull;
+    final path = CampusService.findLocationPath(campusId, buildingId, roomId);
 
     setState(() {
-      _selectedCampus = campus?.name;
-      _selectedBuilding = building?.name;
-      _selectedLocation = room == null ? null : '${room.id}:${room.name}';
+      _selectedCampusId = campusId;
+      _selectedBuildingId = buildingId;
+      _selectedCampus = path.campus?.name;
+      _selectedBuilding = path.building?.name;
+      _selectedLocation =
+          path.room == null ? null : '${path.room!.id}:${path.room!.name}';
     });
+  }
+
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanPage(isLocation: true),
+      ),
+    );
+    if (scannedCode == null || !mounted) return;
+
+    final room = await RoomService.getRoomByCode(scannedCode.trim());
+    if (!mounted) return;
+    if (room == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geen lokaal gevind met hierdie kode nie"),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
   }
 
   Future<void> _saveChanges() async {
@@ -200,18 +261,8 @@ class _EditReportPageState extends State<EditReportPage> {
       roomId = roomId.split(":").first;
     }
 
-    int? resolvedLocationId;
-    int? resolvedBuildingId;
-    if (_selectedCampus != null) {
-      final campus = CampusService.getCampusByName(_selectedCampus!);
-      if (campus != null) {
-        resolvedLocationId = campus.id;
-        if (_selectedBuilding != null) {
-          final building = campus.buildings.where((b) => b.name == _selectedBuilding).firstOrNull;
-          resolvedBuildingId = building?.id;
-        }
-      }
-    }
+    int? resolvedLocationId = _selectedCampusId;
+    int? resolvedBuildingId = _selectedBuildingId;
 
     final updatedReport = widget.report.copyWith(
       title: _titleController.text,
@@ -219,6 +270,7 @@ class _EditReportPageState extends State<EditReportPage> {
       category: _category,
       priority: _priority,
       phase: _status,
+      rawStatus: _rawStatus,
       location: roomId,
       locationId: resolvedLocationId,
       buildingId: resolvedBuildingId,
@@ -228,28 +280,44 @@ class _EditReportPageState extends State<EditReportPage> {
 
     final success = await ReportService.updateReport(updatedReport);
 
-    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket'):
-    // verwyder gemerkte fotos, laai dan nuwes op teen die bestaande kaartjie.
-    final faultId = int.tryParse(widget.report.id);
-    for (final id in _removedImageIds) {
-      await ImageService.deleteImage(id);
-    }
-    if (faultId != null) {
-      for (final photo in _newPhotos) {
-        await ImageService.uploadImage(photo, parentId: faultId, parentType: 'ticket');
+    // Fotos word apart hanteer (ImageAssetLink, parent_type 'ticket').
+    // Slegs nadat die opdatering suksesvol was - enige foto-jaartree word
+    // NOOIT uitgevoer as die stoor misluk nie.
+    List<String> photoFailures = [];
+    if (success) {
+      final faultId = int.tryParse(widget.report.id);
+      for (final id in _removedImageIds) {
+        if (!await ImageService.deleteImage(id)) photoFailures.add('verwyder');
       }
+      if (faultId != null) {
+        for (final photo in _newPhotos) {
+          if (await ImageService.uploadImage(photo,
+                  parentId: faultId, parentType: 'ticket') ==
+              null) {
+            photoFailures.add('opgelaai');
+          }
+        }
+      }
+      _removedImageIds.clear();
     }
 
     if (mounted) {
       setState(() => _isLoading = false);
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Foutkaartjie suksesvol opgedateer"), backgroundColor: AppColors.successGreen),
+          SnackBar(
+            content: Text(photoFailures.isEmpty
+                ? "Foutkaartjie suksesvol opgedateer"
+                : "Foutkaartjie opgedateer, maar sommige fotos kon nie verwerk word nie"),
+            backgroundColor: AppColors.successGreen,
+          ),
         );
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Kon nie foutkaartjie opdateer nie"), backgroundColor: AppColors.errorRed),
+          const SnackBar(
+              content: Text("Kon nie foutkaartjie opdateer nie"),
+              backgroundColor: AppColors.errorRed),
         );
       }
     }
@@ -268,32 +336,7 @@ class _EditReportPageState extends State<EditReportPage> {
       }
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: AppColors.navy.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.navy.withValues(alpha: 0.1)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.location_on_outlined, size: 16, color: AppColors.gold),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              "$campus > $building > $room",
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppColors.navy,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return LocationBreadcrumbs(path: "$campus > $building > $room");
   }
 
   @override
@@ -318,25 +361,56 @@ class _EditReportPageState extends State<EditReportPage> {
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Expanded(child: _buildDropdown("Werksoort", _category, _categories, (val) => setState(() => _category = val!))),
+                        Expanded(
+                            child: _buildDropdown(
+                                "Werksoort",
+                                _category,
+                                _categories,
+                                (val) => setState(() => _category = val!))),
                         const SizedBox(width: 12),
-                        Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities, (val) => setState(() => _priority = val!))),
+                        Expanded(
+                            child: _buildDropdown(
+                                "Prioriteit",
+                                _priority,
+                                _priorities,
+                                (val) => setState(() => _priority = val!))),
                       ],
                     ),
                     const SizedBox(height: 20),
-                    _buildDropdown("Status", _status, _statuses, (val) => setState(() => _status = val!)),
+                    _buildDropdown(
+                        "Status",
+                        _status,
+                        _statuses,
+                        (val) => setState(() {
+                              _status = val!;
+                              _rawStatus = _displayToRawStatus(val);
+                            })),
                     const SizedBox(height: 20),
                     LocationCascadePicker(
                       label: "Ligging *",
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.qr_code_scanner,
+                            color: AppColors.navy),
+                        tooltip: "Skandeer Lokaal",
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey[100],
+                          side: BorderSide(color: Colors.grey[300]!),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.all(10),
+                        ),
+                        onPressed: _scanRoom,
+                      ),
                       onChanged: _onLocationChanged,
                     ),
                     const SizedBox(height: 20),
                     _buildMapSection(),
                     const SizedBox(height: 20),
-                    _buildTextField("Beskrywing", _descriptionController, maxLines: 5),
+                    _buildTextField("Beskrywing", _descriptionController,
+                        maxLines: 5),
                     const SizedBox(height: 16),
                     _buildPhotoSection(),
                     const SizedBox(height: 40),
@@ -347,9 +421,13 @@ class _EditReportPageState extends State<EditReportPage> {
                         onPressed: _saveChanges,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.gold,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
-                        child: const Text("OPDATEER", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: const Text("OPDATEER",
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -358,11 +436,16 @@ class _EditReportPageState extends State<EditReportPage> {
             ),
     );
   }
+
   Widget _buildMapSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Kaartligging (Opsioneel)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+        const Text("Kaartligging (Opsioneel)",
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+                fontSize: 13)),
         const SizedBox(height: 8),
         if (_mapPoint == null)
           InkWell(
@@ -378,8 +461,14 @@ class _EditReportPageState extends State<EditReportPage> {
                 children: [
                   Icon(Icons.map_outlined, color: AppColors.gold),
                   SizedBox(width: 10),
-                  Expanded(child: Text("Kies 'n presiese ligging op die kaart", style: TextStyle(fontSize: 14))),
-                  Text("KIES OP KAART", style: TextStyle(color: AppColors.gold, fontWeight: FontWeight.bold, fontSize: 12)),
+                  Expanded(
+                      child: Text("Kies 'n presiese ligging op die kaart",
+                          style: TextStyle(fontSize: 14))),
+                  Text("KIES OP KAART",
+                      style: TextStyle(
+                          color: AppColors.gold,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12)),
                 ],
               ),
             ),
@@ -389,7 +478,8 @@ class _EditReportPageState extends State<EditReportPage> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.successGreen.withValues(alpha: 0.08),
-              border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.4)),
+              border: Border.all(
+                  color: AppColors.successGreen.withValues(alpha: 0.4)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -399,16 +489,21 @@ class _EditReportPageState extends State<EditReportPage> {
                 Expanded(
                   child: Text(
                     "${_mapPoint!.latitude.toStringAsFixed(6)}, ${_mapPoint!.longitude.toStringAsFixed(6)}",
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.navy),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.edit_location_alt, size: 18, color: AppColors.gold),
+                  icon: const Icon(Icons.edit_location_alt,
+                      size: 18, color: AppColors.gold),
                   tooltip: "Verander kaartligging",
                   onPressed: _pickMapLocation,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, size: 18, color: AppColors.errorRed),
+                  icon: const Icon(Icons.close,
+                      size: 18, color: AppColors.errorRed),
                   tooltip: "Verwyder kaartligging",
                   onPressed: () => setState(() => _mapPoint = null),
                 ),
@@ -422,18 +517,25 @@ class _EditReportPageState extends State<EditReportPage> {
 //checkmark for room asset scanning and barcode scanning
   Widget _buildPhotoSection() {
     final baseUrl = ApiClient().client.options.baseUrl;
-    final visibleExisting = _existingImageIds.where((id) => !_removedImageIds.contains(id)).toList();
+    final visibleExisting = _existingImageIds
+        .where((id) => !_removedImageIds.contains(id))
+        .toList();
     final total = visibleExisting.length + _newPhotos.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Foto's (maks $_maxPhotos)", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+        const Text("Foto's (maks $_maxPhotos)",
+            style:
+                TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
         const SizedBox(height: 8),
         if (_imagesLoading)
           const Padding(
             padding: EdgeInsets.all(8),
-            child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+            child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2)),
           )
         else
           Wrap(
@@ -444,9 +546,13 @@ class _EditReportPageState extends State<EditReportPage> {
                 _photoThumb(
                   child: Image.network(
                     '$baseUrl/image/$id/file',
-                    height: 80, width: 80, fit: BoxFit.cover,
+                    height: 80,
+                    width: 80,
+                    fit: BoxFit.cover,
                     errorBuilder: (c, e, s) => Container(
-                      height: 80, width: 80, color: Colors.grey[200],
+                      height: 80,
+                      width: 80,
+                      color: Colors.grey[200],
                       child: const Icon(Icons.broken_image, color: Colors.grey),
                     ),
                   ),
@@ -454,7 +560,8 @@ class _EditReportPageState extends State<EditReportPage> {
                 ),
               for (int i = 0; i < _newPhotos.length; i++)
                 _photoThumb(
-                  child: Image.file(_newPhotos[i], height: 80, width: 80, fit: BoxFit.cover),
+                  child: Image.file(_newPhotos[i],
+                      height: 80, width: 80, fit: BoxFit.cover),
                   onRemove: () => setState(() => _newPhotos.removeAt(i)),
                 ),
               if (total < _maxPhotos)
@@ -466,13 +573,15 @@ class _EditReportPageState extends State<EditReportPage> {
                     }
                   },
                   child: Container(
-                    height: 80, width: 80,
+                    height: 80,
+                    width: 80,
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.grey[300]!),
                     ),
-                    child: const Icon(Icons.camera_alt, color: Colors.grey, size: 30),
+                    child: const Icon(Icons.camera_alt,
+                        color: Colors.grey, size: 30),
                   ),
                 ),
             ],
@@ -486,11 +595,13 @@ class _EditReportPageState extends State<EditReportPage> {
       children: [
         ClipRRect(borderRadius: BorderRadius.circular(8), child: child),
         Positioned(
-          right: 0, top: 0,
+          right: 0,
+          top: 0,
           child: InkWell(
             onTap: onRemove,
             child: Container(
-              decoration: const BoxDecoration(color: AppColors.errorRed, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                  color: AppColors.errorRed, shape: BoxShape.circle),
               child: const Icon(Icons.close, color: Colors.white, size: 18),
             ),
           ),
@@ -499,49 +610,37 @@ class _EditReportPageState extends State<EditReportPage> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {int maxLines = 1}) {
+  Widget _buildTextField(String label, TextEditingController controller,
+      {int maxLines = 1}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy, fontSize: 13)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppColors.navy,
+                fontSize: 13)),
         const SizedBox(height: 6),
         TextFormField(
           controller: controller,
           maxLines: maxLines,
           style: const TextStyle(fontSize: 14),
-          decoration: _inputDecoration(),
-          validator: (value) => value == null || value.isEmpty ? "Verpligtend" : null,
+          decoration: appInputDecoration(),
+          validator: (value) =>
+              value == null || value.isEmpty ? "Verpligtend" : null,
         ),
       ],
     );
   }
 
-  InputDecoration _inputDecoration() {
-    return InputDecoration(
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide(color: Colors.grey[300]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: AppColors.gold, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-    );
-  }
-
-  Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
+  Widget _buildDropdown(String label, String value, List<String> items,
+      ValueChanged<String?> onChanged) {
     return SearchableDropdown<String>(
       label: label,
       hint: "Kies $label",
       value: value,
-      items: items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
+      items:
+          items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
       onChanged: onChanged,
     );
   }

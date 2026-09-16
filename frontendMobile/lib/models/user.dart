@@ -58,6 +58,7 @@ class User {
         'user_number': number,
         'user_status': status,
         'role_id': roleId,
+        'location_id': locationId,
         if (password != null && password.isNotEmpty) 'user_password': password,
       };
 

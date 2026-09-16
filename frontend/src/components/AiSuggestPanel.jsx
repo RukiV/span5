@@ -9,7 +9,7 @@ import React, { useState } from "react";
  * props:
  *  - suggestions: { veldKey: { value, id? } }   (soos deur useAiSuggestions)
  *  - loading: bool — wag tans op die backend
- *  - filled: hoeveel vormvelde reeds ingevul is (<3 = poort nog toe)
+ *  - filled: hoeveel vormvelde reeds ingevul is (0 = poort toe)
  *  - error: bool — laaste versoek het misluk (bv. ou backend sonder /ai/suggest)
  *  - labels: { veldKey: 'Vertoonnaam' }
  *  - onUse: (veldKey, voorstel) => void
@@ -23,8 +23,8 @@ function AiSuggestPanel({ suggestions = {}, loading = false, filled = 0, error =
   let body;
   if (error) {
     body = <div style={{ color: '#b91c1c' }}>AI-diens onbereikbaar — kontroleer dat die backend op datum is.</div>;
-  } else if (filled < 3) {
-    body = <div style={{ color: '#666' }}>Vul minstens 3 velde in (tans {filled}) en ek stel voor hoe die res gevul kan word.</div>;
+  } else if (filled < 1) {
+    body = <div style={{ color: '#666' }}>Vul minstens 1 veld in en ek stel voor hoe die res gevul kan word.</div>;
   } else if (loading && entries.length === 0) {
     body = <div style={{ color: '#666', display: 'flex', alignItems: 'center', gap: 8 }}><span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />Dink…</div>;
   } else if (entries.length === 0) {
@@ -69,9 +69,9 @@ function AiSuggestPanel({ suggestions = {}, loading = false, filled = 0, error =
       <div
         onClick={() => setCollapsed((c) => !c)}
         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', cursor: 'pointer', fontWeight: 600, color: '#935E28', userSelect: 'none', position: 'sticky', top: 0, background: '#fdf8f3', zIndex: 1 }}
-        title="AI-veldvoorstelle"
+        title="Voorgestelde Werksopdragte-veldvoorstelle"
       >
-        <span>💡 AI Voorstelle{entries.length > 0 ? ` (${entries.length})` : ''}</span>
+        <span>💡 Voorgestelde Werksopdragte{entries.length > 0 ? ` (${entries.length})` : ''}</span>
         <span>{collapsed ? '▸' : '▾'}</span>
       </div>
       {!collapsed && <div style={{ padding: '0 14px 10px', lineHeight: 1.35 }}>{body}</div>}

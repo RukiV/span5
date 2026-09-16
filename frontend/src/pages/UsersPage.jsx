@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Select from 'react-select';
-import { IoTrashOutline } from 'react-icons/io5';
+import { IoTrashOutline, IoPencil } from 'react-icons/io5';
 import { apiClient, locationAPI } from '../services/api';
 import '../styles/App.css';
 import '../styles/Users.css';
@@ -9,9 +8,14 @@ import { useToast } from '../components/Toast/useToast';
 import useColumnSort from "../hooks/useColumnSort";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { getApiErrorMessage, getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { useCurrentUser } from "../hooks/useCurrentUser";
 
 const EMAIL_REGEX = /^[\w\.-]+@[\w\.-]+\.\w+$/;
 const PASSWORD_SPECIAL = /[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/;
@@ -32,6 +36,7 @@ function isFieldTouchedEmail(email) {
 function UsersPage({ embedded = false }) {
   const { confirm, dialog } = useConfirmDialog();
   const { showToast } = useToast();
+  const { isAdmin } = useCurrentUser();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [terrains, setTerrains] = useState([]);
@@ -39,7 +44,6 @@ function UsersPage({ embedded = false }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('almal');
   const [filterColumn, setFilterColumn] = useState('all');
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
   const USER_COLUMNS = [
     { key: 'id', label: 'ID', render: (u) => u.user_id, sortKey: 'id', defaultVisible: false },
@@ -54,10 +58,15 @@ function UsersPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('users-page', USER_COLUMNS);
   const colWidths = useColumnWidths('users-page', USER_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: USER_COLUMNS,
+    storageKey: 'users-page',
+  });
   const colPickerRef = useRef(null);
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [formUser, setFormUser] = useState({
     user_name: '',
     user_surname: '',
@@ -176,7 +185,8 @@ function UsersPage({ embedded = false }) {
           user_email: '',
           user_password: '',
           user_status: 'active',
-          role_id: 1
+          role_id: 1,
+          location_id: ''
         });
         fetchUsers();
       }, 1500);
@@ -209,6 +219,7 @@ function UsersPage({ embedded = false }) {
 
   const handleEditUser = (user) => {
     resetFieldStatus();
+    setIsViewMode(true);
     setEditingUser(user);
     setFormUser({
       user_name: user.user_name,
@@ -236,9 +247,6 @@ function UsersPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredUsers.map((x) => x.user_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -257,6 +265,7 @@ function UsersPage({ embedded = false }) {
 
   // Sluit modal en stel vorm terug
   const handleCloseModal = () => {
+    setIsViewMode(false);
     setShowModal(false);
     setEditingUser(null);
     resetFieldStatus();
@@ -285,8 +294,8 @@ function UsersPage({ embedded = false }) {
   };
 
   // Filter gebruikers op soekterm EN status
-  const filteredUsers = [...users]
-    .filter(user => {
+  const filteredUsers = applySort(
+    [...users].filter(user => {
       const query = searchTerm.trim().toLowerCase();
       const matchesFilter = filter === 'almal' || user.user_status === filter;
       if (!query) return matchesFilter;
@@ -300,30 +309,34 @@ function UsersPage({ embedded = false }) {
         ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
         : String(values[filterColumn] || '').toLowerCase().includes(query);
       return matchesFilter && matchesColumn;
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'id') return ((a.user_id || 0) - (b.user_id || 0)) * dir;
-      if (sortKey === 'name') return String(a.user_name || '').localeCompare(String(b.user_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'surname') return String(a.user_surname || '').localeCompare(String(b.user_surname || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'email') return String(a.user_email || '').localeCompare(String(b.user_email || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'number') return String(a.user_number || '').localeCompare(String(b.user_number || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'role') return String(getRoleName(a.role_id) || '').localeCompare(String(getRoleName(b.role_id) || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'status') return String(a.user_status || '').localeCompare(String(b.user_status || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'terrain') {
-        const ta = terrains.find(t => t.location_id === a.location_id);
-        const tb = terrains.find(t => t.location_id === b.location_id);
-        return String(ta ? ta.location_name : '').localeCompare(String(tb ? tb.location_name : ''), 'af', { sensitivity: 'base' }) * dir;
+    }),
+    (u, key) => {
+      switch (key) {
+        case 'id': return Number(u.user_id || 0);
+        case 'name': return String(u.user_name || '');
+        case 'surname': return String(u.user_surname || '');
+        case 'email': return String(u.user_email || '');
+        case 'number': return String(u.user_number || '');
+        case 'role': return String(getRoleName(u.role_id) || '');
+        case 'status': return String(u.user_status || '');
+        case 'terrain': { const t = terrains.find(t2 => t2.location_id === u.location_id); return String(t ? t.location_name : ''); }
+        case 'lastlogin': return u.user_lastlogintime ? new Date(u.user_lastlogintime).getTime() : 0;
+        default: return '';
       }
-      if (sortKey === 'lastlogin') {
-        const da = a.user_lastlogintime ? new Date(a.user_lastlogintime).getTime() : 0;
-        const db = b.user_lastlogintime ? new Date(b.user_lastlogintime).getTime() : 0;
-        return (da - db) * dir;
-      }
-      return 0;
-    });
-  const allSelected = filteredUsers.length > 0 && selectedIds.length === filteredUsers.length;
+    },
+  );
+    const { currentPage, totalPages, paginatedData: paginatedUsers, goToPage } = usePagination(filteredUsers, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filter, filterColumn, sorts, goToPage]);
+  const allSelected = paginatedUsers.length > 0 && paginatedUsers.every((x) => selectedIds.includes(x.user_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedUsers.map((x) => x.user_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedUsers.map((x) => x.user_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   // Gee CSS-klasse vir rol vir styling
   const getRoleClass = (roleId) => {
@@ -343,7 +356,7 @@ function UsersPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -354,10 +367,38 @@ function UsersPage({ embedded = false }) {
             />
           </div>
 
-          <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "almal", label: "Alle Statusse" }, { value: "active", label: "Aktief" }, { value: "inactive", label: "Onaktief" }].find((option) => option.value === filter)} onChange={(selected) => setFilter(selected?.value || "almal")} options={[{ value: "almal", label: "Alle Statusse" }, { value: "active", label: "Aktief" }, { value: "inactive", label: "Onaktief" }]} isSearchable={false} />
-          <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "all", label: "Alle kolomme" }, { value: "name", label: "Naam" }, { value: "email", label: "E-pos" }, { value: "role", label: "Rol" }, { value: "status", label: "Status" }].find((option) => option.value === filterColumn)} onChange={(selected) => setFilterColumn(selected?.value || "all")} options={[{ value: "all", label: "Alle kolomme" }, { value: "name", label: "Naam" }, { value: "email", label: "E-pos" }, { value: "role", label: "Rol" }, { value: "status", label: "Status" }]} isSearchable={false} />
-        </div>
-        <div className="controls-right">
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={[
+              { value: "all", label: "Alle kolomme" },
+              { value: "name", label: "Naam" },
+              { value: "email", label: "E-pos" },
+              { value: "role", label: "Rol" },
+              { value: "status", label: "Status" },
+            ]}
+            statusValue={filter === 'almal' ? '' : filter}
+            onStatusChange={(v) => setFilter(v || 'almal')}
+            statusOptions={[
+              { value: "active", label: "Aktief" },
+              { value: "inactive", label: "Onaktief" },
+            ]}
+            onReset={() => {
+              setSearchTerm("");
+              setFilter("almal");
+            }}
+          />
+        <SortPicker
+            columns={USER_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
           <ColumnPicker
             ref={colPickerRef}
             columns={USER_COLUMNS}
@@ -366,7 +407,9 @@ function UsersPage({ embedded = false }) {
             resetVisibility={colVis.resetVisibility}
             onResetWidths={colWidths.resetWidths}
           />
-          <button className="btn-add" onClick={() => { resetFieldStatus(); setShowModal(true); }}>+ Nuwe Gebruiker</button>
+        </div>
+        <div className="controls-right">
+          <button className="btn-add" onClick={() => { resetFieldStatus(); setIsViewMode(false); setShowModal(true); }}>+ Nuwe Gebruiker</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
               Verwyder Geselekteerde ({selectedIds.length})
@@ -386,11 +429,9 @@ function UsersPage({ embedded = false }) {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '150px' }}>Aksies</th>
@@ -400,141 +441,173 @@ function UsersPage({ embedded = false }) {
           {filteredUsers.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen gebruikers gevind</td></tr>
           ) : (
-            filteredUsers.map(user => (
+            paginatedUsers.map(user => (
               <tr key={user.user_id} onClick={() => handleEditUser(user)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.includes(user.user_id)} onChange={() => toggleOne(user.user_id)} />
+                  <input type="checkbox" checked={selectedIds.includes(user.user_id)} disabled={!isAdmin && (user.role_id === 2 || user.role_id === 3)} onChange={() => toggleOne(user.user_id)} />
                 </td>
                 {colVis.visibleColumns.map((col) => (
                   <td key={col.key}>{col.render(user)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
+                  {isAdmin || (user.role_id !== 2 && user.role_id !== 3) ? (
                   <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteUser(user.user_id)}><IoTrashOutline size={18} /></button>
+                  ) : null}
                 </td>
               </tr>
             ))
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredUsers.length} pageSize={100} />
     </>
   );
 
   const modalContent = showModal && (
-    <div className="modal">
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3 >{editingUser ? 'Wysig Gebruiker' : 'Nuwe Gebruiker'}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? 'Bekyk' : editingUser ? 'Wysig' : 'Nuwe'} Gebruiker</h3>
+          <div className="modal-header-actions">
+            {editingUser && isViewMode && editingUser.role_id !== 2 && editingUser.role_id !== 3 && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
 
-        <div className="form-group">
-          <label>Voornaam *</label>
-          <input
-            ref={el => fieldRefs.current.user_name = el}
-            type="text"
-            className={invalidFields.user_name ? "field-invalid" : ""}
-            value={formUser.user_name}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_name: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
-            }}
-          />
-        </div>
-        <div className="form-group">
-          <label>Van *</label>
-          <input
-            ref={el => fieldRefs.current.user_surname = el}
-            type="text"
-            className={invalidFields.user_surname ? "field-invalid" : ""}
-            value={formUser.user_surname}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_surname: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
-            }}
-          />
-        </div>
-        <div className="form-group">
-          <label>E-pos *</label>
-          <input
-            ref={el => fieldRefs.current.user_email = el}
-            type="email"
-            className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
-            value={formUser.user_email}
-            onChange={(e) => {
-              const value = e.target.value;
-              setFormUser({ ...formUser, user_email: value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
-              setFieldStatus(p => ({ ...p, user_email: computeEmailStatus(value) }));
-            }}
-          />
-        </div>
-        {!editingUser && (
-          <div className="form-group">
-            <label>Wagwoord *</label>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Voornaam *</label>
             <input
-              ref={el => fieldRefs.current.user_password = el}
-              type="password"
-              className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
-              value={formUser.user_password}
+              ref={el => fieldRefs.current.user_name = el}
+              type="text"
+              className={invalidFields.user_name ? "field-invalid" : ""}
+              value={formUser.user_name}
+              disabled={isViewMode}
               onChange={(e) => {
-                const value = e.target.value;
-                setFormUser({ ...formUser, user_password: value });
-                setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
-                setFieldStatus(p => ({ ...p, user_password: computePasswordStatus(value) }));
+                setFormUser({ ...formUser, user_name: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.user_name; return n; });
               }}
             />
-            <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
-              Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
-            </small>
+          </div>
+          <div className="input-group">
+            <label>Van *</label>
+            <input
+              ref={el => fieldRefs.current.user_surname = el}
+              type="text"
+              className={invalidFields.user_surname ? "field-invalid" : ""}
+              value={formUser.user_surname}
+              disabled={isViewMode}
+              onChange={(e) => {
+                setFormUser({ ...formUser, user_surname: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.user_surname; return n; });
+              }}
+            />
+          </div>
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>E-pos *</label>
+            <input
+              ref={el => fieldRefs.current.user_email = el}
+              type="email"
+              className={invalidFields.user_email ? "field-invalid" : emailFieldClass}
+              value={formUser.user_email}
+              disabled={isViewMode}
+              onChange={(e) => {
+                const value = e.target.value;
+                setFormUser({ ...formUser, user_email: value });
+                setInvalidFields(p => { const n = {...p}; delete n.user_email; return n; });
+                setFieldStatus(p => ({ ...p, user_email: computeEmailStatus(value) }));
+              }}
+            />
+          </div>
+          {!editingUser && (
+            <div className="input-group">
+              <label>Wagwoord *</label>
+              <input
+                ref={el => fieldRefs.current.user_password = el}
+                type="password"
+                className={invalidFields.user_password ? "field-invalid" : passwordFieldClass}
+                value={formUser.user_password}
+                disabled={isViewMode}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFormUser({ ...formUser, user_password: value });
+                  setInvalidFields(p => { const n = {...p}; delete n.user_password; return n; });
+                  setFieldStatus(p => ({ ...p, user_password: computePasswordStatus(value) }));
+                }}
+              />
+              <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                Vereistes: ten minste 8 karakters, een hoofletter, een syfer en 'n simbool.
+              </small>
+            </div>
+          )}
+        </div>
+        <div className="input-row">
+          <div className="input-group">
+            <label>Rol *</label>
+            <select
+              ref={el => fieldRefs.current.role_id = el}
+              className={invalidFields.role_id ? "field-invalid" : ""}
+              value={formUser.role_id}
+              disabled={isViewMode}
+              onChange={(e) => {
+                const newRoleId = parseInt(e.target.value);
+                setFormUser({
+                  ...formUser,
+                  role_id: newRoleId,
+                  location_id: [2, 3, 5].includes(newRoleId) ? formUser.location_id : null,
+                });
+                setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
+              }}
+            >
+              {roles.filter(r => isAdmin || r.role_id !== 3).map(role => (
+                <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="input-group">
+            <label>Status *</label>
+            <select
+              ref={el => fieldRefs.current.user_status = el}
+              className={invalidFields.user_status ? "field-invalid" : ""}
+              value={formUser.user_status}
+              disabled={isViewMode}
+              onChange={(e) => {
+                setFormUser({ ...formUser, user_status: e.target.value });
+                setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
+              }}
+            >
+              <option value="active">Aktief</option>
+              <option value="inactive">Onaktief</option>
+            </select>
+          </div>
+        </div>
+        {[2, 3, 5].includes(formUser.role_id) && (
+        <div className="input-row">
+          <div className="input-group">
+            <label>Terrein</label>
+            <select
+              value={formUser.location_id || ''}
+              disabled={isViewMode}
+              onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
+            >
+              <option value="">Geen terrein</option>
+              {terrains.map(t => (
+                <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        )}
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleAddUser}>Stoor</button>
           </div>
         )}
-        <div className="form-group">
-          <label>Rol *</label>
-          <select
-            ref={el => fieldRefs.current.role_id = el}
-            className={invalidFields.role_id ? "field-invalid" : ""}
-            value={formUser.role_id}
-            onChange={(e) => {
-              setFormUser({ ...formUser, role_id: parseInt(e.target.value) });
-              setInvalidFields(p => { const n = {...p}; delete n.role_id; return n; });
-            }}
-          >
-            {roles.map(role => (
-              <option key={role.role_id} value={role.role_id}>{role.role_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Terrein (slegs vir FK)</label>
-          <select
-            value={formUser.location_id || ''}
-            onChange={(e) => setFormUser({ ...formUser, location_id: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">Geen terrein</option>
-            {terrains.map(t => (
-              <option key={t.location_id} value={t.location_id}>{t.location_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="form-group">
-          <label>Status *</label>
-          <select
-            ref={el => fieldRefs.current.user_status = el}
-            className={invalidFields.user_status ? "field-invalid" : ""}
-            value={formUser.user_status}
-            onChange={(e) => {
-              setFormUser({ ...formUser, user_status: e.target.value });
-              setInvalidFields(p => { const n = {...p}; delete n.user_status; return n; });
-            }}
-          >
-            <option value="active">Aktief</option>
-            <option value="inactive">Onaktief</option>
-          </select>
-        </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleAddUser}>Stoor</button>
-        </div>
       </div>
     </div>
   );

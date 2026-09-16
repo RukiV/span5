@@ -61,6 +61,22 @@
 }
 .modal-close:hover { color: white; }
 
+.modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-edit-btn {
+  color: #999;
+  cursor: pointer;
+  font-size: 20px;
+  transition: color 0.15s;
+  display: inline-flex;
+  align-items: center;
+}
+.modal-edit-btn:hover { color: white; }
+
 .modal-panel-body {
   padding: 20px;
   overflow-y: auto;
@@ -69,8 +85,9 @@
 
 .modal-panel-footer {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   justify-content: flex-end;
+  flex-wrap: nowrap;
   padding: 15px 20px;
   border-top: 1px solid #e0e0e0;
   flex-shrink: 0;

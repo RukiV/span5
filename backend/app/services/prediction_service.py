@@ -2,16 +2,21 @@ import logging
 import time
 from datetime import datetime, timedelta
 from typing import Sequence
-from sqlmodel import Session, select, func
+
+from sqlmodel import Session, func, select
 
 from ..models.asset import Asset, Assettype
-from ..models.job import Jobcard, JobStatus
 from ..models.fault import Faultcard
+from ..models.job import Jobcard, JobStatus
 from ..models.prediction import AssetPredictionRead
 from . import survival_service
 from .survival_features import extract_asset_features
 
 logger = logging.getLogger(__name__)
+
+#: job_type is free-text in the DB ('MAINTENANCE', 'maintenance', 'Onderhoud');
+#: the rules path must accept the same variants as the ML feature extraction.
+_MAINTENANCE_JOB_TYPES = ("maintenance", "onderhoud")
 
 # In-memory cache for predictions with TTL
 _PREDICTIONS_CACHE = None
@@ -23,38 +28,57 @@ def _add_months(source: datetime, months: int) -> datetime:
     month = source.month - 1 + months
     year = source.year + month // 12
     month = month % 12 + 1
-    day = min(source.day, [31, 29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
-                           31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1])
+    day = min(
+        source.day,
+        [
+            31,
+            29 if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0) else 28,
+            31,
+            30,
+            31,
+            30,
+            31,
+            31,
+            30,
+            31,
+            30,
+            31,
+        ][month - 1],
+    )
     return source.replace(year=year, month=month, day=day)
 
 
 class PredictionService:
-
     def getPredictions(self, session: Session) -> Sequence[AssetPredictionRead]:
         global _PREDICTIONS_CACHE, _PREDICTIONS_CACHE_TIME
         now = time.time()
-        
+
         # Quick check: if asset count changed, invalidate cache
         asset_count = session.exec(select(func.count(Asset.asset_id))).one()
-        
+
         # Return cached predictions if still valid and asset count matches
-        if (_PREDICTIONS_CACHE is not None and 
-            (now - _PREDICTIONS_CACHE_TIME) < _PREDICTIONS_CACHE_TTL and
-            len(_PREDICTIONS_CACHE) == asset_count):
-            logger.debug("Returning cached predictions (age: %.1fs, count: %d)", 
-                         now - _PREDICTIONS_CACHE_TIME, asset_count)
+        if (
+            _PREDICTIONS_CACHE is not None
+            and (now - _PREDICTIONS_CACHE_TIME) < _PREDICTIONS_CACHE_TTL
+            and len(_PREDICTIONS_CACHE) == asset_count
+        ):
+            logger.debug(
+                "Returning cached predictions (age: %.1fs, count: %d)",
+                now - _PREDICTIONS_CACHE_TIME,
+                asset_count,
+            )
             return _PREDICTIONS_CACHE
-        
+
         # Compute fresh predictions
         logger.info("Computing fresh predictions for all assets (count: %d)...", asset_count)
         assets = session.exec(select(Asset)).all()
         predictions = [self._predict(session, asset) for asset in assets]
-        
+
         # Update cache
         _PREDICTIONS_CACHE = predictions
         _PREDICTIONS_CACHE_TIME = now
         logger.info("Cached %d predictions", len(predictions))
-        
+
         return predictions
 
     def invalidateCache(self):
@@ -74,9 +98,21 @@ class PredictionService:
         assettype = session.get(Assettype, asset.assettype_id)
 
         assettype_name = assettype.assettype_name if assettype else None
-        avg_lifespan_months = assettype.assettype_avg_lifespan if (assettype and assettype.assettype_avg_lifespan is not None) else None
-        service_interval_months = assettype.assettype_service_interval if (assettype and assettype.assettype_service_interval is not None) else None
-        replacement_threshold = assettype.assettype_replacement_threshold if (assettype and assettype.assettype_replacement_threshold is not None) else 3
+        avg_lifespan_months = (
+            assettype.assettype_avg_lifespan
+            if (assettype and assettype.assettype_avg_lifespan is not None)
+            else None
+        )
+        service_interval_months = (
+            assettype.assettype_service_interval
+            if (assettype and assettype.assettype_service_interval is not None)
+            else None
+        )
+        replacement_threshold = (
+            assettype.assettype_replacement_threshold
+            if (assettype and assettype.assettype_replacement_threshold is not None)
+            else 3
+        )
 
         now = datetime.utcnow()
 
@@ -87,8 +123,11 @@ class PredictionService:
             next_maintenance_date = _add_months(last_maintenance_date, service_interval_months)
             maintenance_overdue = next_maintenance_date < now
         elif service_interval_months and asset.asset_created_datetime:
+            # No completed maintenance record yet: be forgiving and only mark an
+            # asset overdue once it passes 2x its interval, so older but healthy
+            # assets do not immediately show as red due to missing job history.
             next_maintenance_date = _add_months(asset.asset_created_datetime, service_interval_months)
-            maintenance_overdue = next_maintenance_date < now
+            maintenance_overdue = _add_months(asset.asset_created_datetime, service_interval_months * 2) < now
 
         creation_date = asset.asset_created_datetime
         lifespan_end_date = None
@@ -103,11 +142,14 @@ class PredictionService:
             lifespan_exceeded = lifespan_end_date < now
 
         twelve_months_ago = now - timedelta(days=365)
-        fault_count = session.exec(
-            select(func.count(Faultcard.fault_id))
-            .where(Faultcard.asset_id == asset.asset_id)
-            .where(Faultcard.fault_reportdatetime >= twelve_months_ago)
-        ).one() or 0
+        fault_count = (
+            session.exec(
+                select(func.count(Faultcard.fault_id))
+                .where(Faultcard.asset_id == asset.asset_id)
+                .where(Faultcard.fault_reportdatetime >= twelve_months_ago)
+            ).one()
+            or 0
+        )
 
         replacement_suggested = False
         replacement_reason = None
@@ -123,9 +165,7 @@ class PredictionService:
 
         # --- ML survival layer (Phase 2c) ---
         # The survival model is optional: sparse data or a missing sksurv leaves
-        # _model_available False and every survival field at its default, so the
-        # rules-only pipeline above is unaffected. Feature extraction only runs
-        # when a model is actually loaded (avoids per-asset queries otherwise).
+        # the model unavailable and the rules-only pipeline continues unaffected.
         survival_fields = {}
         try:
             if survival_service.is_available():
@@ -133,16 +173,17 @@ class PredictionService:
                 survival = survival_service.predict_for_asset(features)
                 if survival:
                     survival_fields = survival
-                    # predict_for_asset omits this flag; surface it explicitly.
                     survival_fields["survival_model_available"] = True
         except Exception:
             logger.exception(
-                "Survival-voorspelling misluk vir bate %s — reëls-only.", asset.asset_id
+                "Survival-voorspelling misluk vir bate %s — reëls-only.",
+                asset.asset_id,
             )
 
-        if survival_fields.get("survival_high_risk") and survival_fields.get(
-            "survival_failure_prob_12mo"
-        ) is not None:
+        if (
+            survival_fields.get("survival_high_risk")
+            and survival_fields.get("survival_failure_prob_12mo") is not None
+        ):
             ml_reason = (
                 f"ML: {survival_fields['survival_failure_prob_12mo'] * 100:.0f}% "
                 f"faalkans binne 12 maande"
@@ -179,7 +220,7 @@ class PredictionService:
         job = session.exec(
             select(Jobcard)
             .where(Jobcard.asset_id == asset_id)
-            .where(Jobcard.job_type == "maintenance")
+            .where(func.lower(Jobcard.job_type).in_(_MAINTENANCE_JOB_TYPES))
             .where(Jobcard.job_status == JobStatus.COMPLETED)
             .order_by(Jobcard.job_finisheddatetime.desc())
         ).first()
@@ -191,3 +232,4 @@ class PredictionService:
 
 
 prediction_service = PredictionService()
+

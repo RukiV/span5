@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../core/app_colors.dart';
+import '../../core/datetime_utils.dart';
 import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/notification_service.dart';
 import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
 import 'notification_preferences_page.dart';
-import '../../widgets/sort_utils.dart';
-import '../../widgets/column_visibility.dart';
 
 class NotificationListPage extends StatefulWidget {
   const NotificationListPage({super.key});
@@ -23,13 +22,6 @@ class _NotificationListPageState extends State<NotificationListPage> {
   int _page = 1;
   bool _hasMore = true;
   String _filterType = '';
-  final SortController _sortCtrl = SortController();
-  final ColumnVisibilityController _colVis = ColumnVisibilityController('notifications', [
-    const ColumnDef(key: 'type', label: 'Tipe'),
-    const ColumnDef(key: 'title', label: 'Titel'),
-    const ColumnDef(key: 'message', label: 'Boodskap', defaultVisible: false),
-    const ColumnDef(key: 'date', label: 'Datum'),
-  ]);
   final _scrollController = ScrollController();
 
   @override
@@ -66,23 +58,6 @@ class _NotificationListPageState extends State<NotificationListPage> {
         _notifications = items;
       } else {
         _notifications.addAll(items);
-      }
-      if (_sortCtrl.isActive) {
-        _notifications.sort((a, b) {
-          final dir = _sortCtrl.direction;
-          switch (_sortCtrl.sortKey) {
-            case 'title':
-              return a.title.toLowerCase().compareTo(b.title.toLowerCase()) * dir;
-            case 'type':
-              return a.notificationType.toLowerCase().compareTo(b.notificationType.toLowerCase()) * dir;
-            case 'date':
-              final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
-              final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
-              return da.compareTo(db) * dir;
-            default:
-              return 0;
-          }
-        });
       }
       _hasMore = items.length >= 20;
       _loading = false;
@@ -145,11 +120,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
 
   String _timeAgo(String dateStr) {
     try {
-      // Backend writes naive UTC datetimes. If no timezone offset is present,
-      // treat the value as UTC so it is converted to the device's local time
-      // (10:00 UTC -> 12:00 for a UTC+2 user).
-      final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(dateStr);
-      final dt = DateTime.parse(hasOffset ? dateStr : '${dateStr}Z').toLocal();
+      final dt = parseServerDatetime(dateStr);
+      if (dt == null) return '';
       final diff = DateTime.now().difference(dt);
       if (diff.inSeconds < 60) return 'Nou net';
       if (diff.inMinutes < 60) return '${diff.inMinutes}m gelede';
@@ -252,7 +224,8 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       SearchableDropdownItem(
                           value: 'job.created', label: 'Werksopdrag Geskep'),
                       SearchableDropdownItem(
-                          value: 'job.completion_requested', label: 'Voltooiingsversoek'),
+                          value: 'job.completion_requested',
+                          label: 'Voltooiingsversoek'),
                       SearchableDropdownItem(
                           value: 'stock.low', label: 'Lae Voorraad'),
                       SearchableDropdownItem(
@@ -265,8 +238,6 @@ class _NotificationListPageState extends State<NotificationListPage> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
-                ColumnVisibilityButton(controller: _colVis),
               ],
             ),
           ),
@@ -282,6 +253,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       )
                     : RefreshIndicator(
                         onRefresh: _onRefresh,
+                        color: AppColors.refreshSpinner,
                         child: ListView.builder(
                           controller: _scrollController,
                           itemCount: _notifications.length,

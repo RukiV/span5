@@ -24,6 +24,8 @@ import '../../models/room.dart';
 import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
+import '../../services/room_service.dart';
+import '../../services/wrong_room_service.dart';
 
 class NewReportPage extends StatefulWidget {
   final String? prefillSerialCode;
@@ -76,6 +78,7 @@ class _NewReportPageState extends State<NewReportPage> {
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
   /// kieser; word teruggestel wanneer die soekveld skoongemaak word.
   bool _assetResolved = false;
+  AssetState? _assetState;
   @override
   void initState() {
     super.initState();
@@ -109,6 +112,9 @@ class _NewReportPageState extends State<NewReportPage> {
     }
   }
 
+  bool _isSubmitting = false;
+  Asset? _resolvedAsset;
+
   Future<void> _autoFillFromCode(String serialCode) async {
     setState(() => _isAutoFilling = true);
     final asset = await AssetService.getAssetBySerialCode(serialCode);
@@ -130,7 +136,12 @@ class _NewReportPageState extends State<NewReportPage> {
       _correctingLocation = false;
       _isAutoFilling = false;
       _assetResolved = true;
+      _resolvedAsset = asset;
     });
+
+    final state = await WrongRoomService.getAssetState(asset.id);
+    if (!mounted) return;
+    setState(() => _assetState = state);
   }
 
   /// Bepaal die volledige pad (terrein/gebou/lokaal) direk vanaf die
@@ -206,8 +217,35 @@ class _NewReportPageState extends State<NewReportPage> {
     });
   }
 
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ScanPage(isLocation: true),
+      ),
+    );
+    if (scannedCode == null || !mounted) return;
+
+    final room = await RoomService.getRoomByCode(scannedCode.trim());
+    if (!mounted) return;
+    if (room == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Geen lokaal gevind met hierdie kode nie"),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
+    setState(() => _isOutdoor = false);
+  }
+
   /// Skep 'n AI-konsep vanaf die huidige beskrywingstek. Die gebruiker bly op
-  /// die vorm — die konsep wag daarna in die AI Konsepte-goedkeuringsry.
+  /// die vorm — die konsep wag daarna in die Voorgestelde-Werksopdragte-goedkeuringsry.
   Future<void> _handleAiDraft() async {
     final desc = descController.text.trim();
     if (desc.isEmpty) {
@@ -234,165 +272,75 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("AI-konsep geskep — wag op goedkeuring in AI Konsepte."),
+        content: Text("AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
         backgroundColor: AppColors.successGreen,
       ),
     );
   }
 
-  /// Opsommingsblok bokant die kieser-veld: wys die gekose
-  /// terrein/gebou/lokaal as 'n gestapelde lys en bied die opsionele
-  /// koördinate (kaart/GPS) aan.
-  Widget _buildLocationBlock() {
-    final roomName = selectedLocation?.split(':').last;
-    final hasCoords = _mapLocation != null;
-    final coordsText = hasCoords
-        ? '${_mapLocation!.latitude.toStringAsFixed(6)}, ${_mapLocation!.longitude.toStringAsFixed(6)}'
-        : null;
-
-    return GestureDetector(
-      // Tik op die boks skakel die wysig-modus hieronder aan/af.
-      onTap: () => setState(() => _correctingLocation = !_correctingLocation),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (UserSession.can('faults.view')) ...[
-              _locationRow(
-                  Icons.priority_high_outlined, 'Prioriteit', selectedPriority),
-              const SizedBox(height: 6),
-            ],
-            _locationRow(Icons.school_outlined, 'Terrein', selectedCampus),
-            const SizedBox(height: 6),
-            _locationRow(Icons.apartment_outlined, 'Gebou', selectedBuilding),
-            const SizedBox(height: 6),
-            _locationRow(Icons.meeting_room_outlined, 'Lokaal', roomName),
-            const SizedBox(height: 6),
-            _locationRow(Icons.wb_sunny_outlined, 'Buite Lokaal',
-                _isOutdoor == null ? null : (_isOutdoor! ? 'Ja' : 'Nee')),
-            const SizedBox(height: 6),
-            _locationRow(
-                Icons.handyman_outlined, 'Werksoort', selectedCategory),
-            const SizedBox(height: 10),
-            Divider(height: 1, color: Colors.grey[300], thickness: 1),
-            const SizedBox(height: 10),
-            if (hasCoords)
-              Row(
-                children: [
-                  const Icon(Icons.location_on,
-                      size: 16, color: AppColors.successGreen),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      coordsText!,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.navy),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit_location_alt,
-                        size: 18, color: AppColors.gold),
-                    tooltip: "Verander kaartligging",
-                    visualDensity: VisualDensity.compact,
-                    onPressed: _pickMapLocation,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close,
-                        size: 18, color: AppColors.errorRed),
-                    tooltip: "Verwyder kaartligging",
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => setState(() {
-                      _mapLocation = null;
-                      _mapScreenshot = null;
-                      _locationError = null;
-                    }),
-                  ),
-                ],
-              )
-            else if (_assetResolved)
-              // "Verander Foutkaartjie?" staan alleen (ná 'n bate-skandering
-              // of -opsoek); die kaart-kieser is nou 'n "Kies op Kaart"-
-              // knoppie langs die Ja/Nee-knoppies in die korreksie-afdeling.
-              // By 'n leë vorm is daar niks om te verander nie, dus geen
-              // knoppie nie.
-              _smallActionButton(
-                Icons.edit_location_alt,
-                "Verander Foutkaartjie?",
-                () =>
-                    setState(() => _correctingLocation = !_correctingLocation),
-              ),
-            if (_locationError != null) ...[
-              const SizedBox(height: 8),
-              Text(_locationError!,
-                  style:
-                      const TextStyle(color: AppColors.errorRed, fontSize: 12)),
-            ],
-          ],
-        ),
+  /// Kompakte QR-ikoonknoppie wat regs langs die ligging-kieser staan om 'n
+  /// lokaal se kode te skandeer — in plaas van die ou vol-breedte knoppie.
+  Widget _buildScanRoomIcon() {
+    return IconButton(
+      icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
+      tooltip: "Skandeer Lokaal",
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.grey[100],
+        side: BorderSide(color: Colors.grey[300]!),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.all(10),
       ),
+      onPressed: _scanRoom,
     );
   }
 
-  Widget _locationRow(IconData icon, String label, String? value) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.gold),
-        const SizedBox(width: 8),
-        Text('$label: ',
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.navy)),
-        Expanded(
-          child: Text(
-            value ?? '-',
-            style: TextStyle(
-                fontSize: 13,
-                color: value == null ? Colors.grey[400] : Colors.grey[800]),
-            overflow: TextOverflow.ellipsis,
+  Widget? _buildWrongRoomBanner() {
+    final state = _assetState;
+    if (state == null || state.isClear) return null;
+    final isWrongRoom = state.isWrongRoom;
+    final color = isWrongRoom ? AppColors.warningOrange : AppColors.errorRed;
+    final foundRoom = state.foundRoomName ?? 'onbekende lokaal';
+    final message = isWrongRoom
+        ? "Gevind in $foundRoom — wag om terug te skuif. "
+            "Maak die foutkaartjie klaar om die bate terug te skuif."
+        : "Bate vermis in $foundRoom (laaste kontrole). "
+            "As dit hier gevind word, rapporteer dit as gevind.";
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(isWrongRoom ? Icons.place : Icons.highlight_off,
+              color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isWrongRoom ? "BATE GEVIND IN VERKEERDE LOKAAL" : "BATE VERMIS",
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(message, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _smallActionButton(IconData icon, String label, VoidCallback onTap,
-      {bool active = false}) {
-    final fg = active ? Colors.white : AppColors.gold;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color:
-              active ? AppColors.gold : AppColors.gold.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: fg),
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold, color: fg)),
-          ],
-        ),
+        ],
       ),
     );
   }
-
   /// Opskrif & Beskrywing — staan bo-aan die vorm sodat die gebruiker eers die
   /// fout self beskryf en dan die ligging nasien.
   Widget _buildTitleDescriptionBox() {
@@ -401,6 +349,10 @@ class _NewReportPageState extends State<NewReportPage> {
       descController: descController,
       photoFiles: _photoFiles,
       onAddPhoto: _pickPhoto,
+      onPickMap: () {
+        setState(() => _isOutdoor = true);
+        _pickMapLocation();
+      },
       onRemovePhoto: (i) => setState(() => _photoFiles.removeAt(i)),
       titleValidator: (v) {
         if ((v == null || v.trim().isEmpty) &&
@@ -474,6 +426,7 @@ class _NewReportPageState extends State<NewReportPage> {
                                   onPressed: () => setState(() {
                                     serialController.clear();
                                     _assetResolved = false;
+                                    _assetState = null;
                                   }),
                                 )
                               : null,
@@ -508,32 +461,19 @@ class _NewReportPageState extends State<NewReportPage> {
                         MaterialPageRoute(
                             builder: (context) => const ScanPage()));
                     if (scannedCode != null) {
-                      setState(() => serialController.text = scannedCode);
-                      _autoFillFromCode(scannedCode);
+                      final trimmed = scannedCode.trim();
+                      setState(() => serialController.text = trimmed);
+                      await _autoFillFromCode(trimmed);
                     }
                   },
                 ),
 
                 if (UserSession.can('ai.use'))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: OutlinedButton.icon(
-                      onPressed: _isAiCreating ? null : _handleAiDraft,
-                      icon: _isAiCreating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.auto_awesome, size: 18),
-                      label: const Text("AI-konsep"),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.gold,
-                        side: const BorderSide(color: AppColors.gold),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
+                  HeaderIconAction(
+                    icon: Icons.auto_awesome,
+                    tooltip: "AI-konsep",
+                    loading: _isAiCreating,
+                    onTap: _isAiCreating ? null : _handleAiDraft,
                   ),
                 // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
                 // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
@@ -560,76 +500,70 @@ class _NewReportPageState extends State<NewReportPage> {
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                       color: AppColors.navy)),
-              const SizedBox(height: 8),
-              _buildLocationBlock(),
-              const SizedBox(height: 24),
-              _buildTitleDescriptionBox(),
-              if (_correctingLocation) ...[
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    const Text("Buite Lokaal:",
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.navy)),
-                    const SizedBox(width: 2),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text("Nee")),
-                        ButtonSegment(value: true, label: Text("Ja")),
-                      ],
-                      selected: {_isOutdoor ?? false},
-                      onSelectionChanged: (s) => setState(() {
-                        _isOutdoor = s.first;
-                        _locationError = null;
-                        // Buite-lokaal = Nee beteken binne: die kaartpunt (en
-                        // sy skermgreep) is nie meer van toepassing nie.
-                        if (_isOutdoor == false) {
-                          _mapLocation = null;
-                          _mapScreenshot = null;
-                        }
-                      }),
-                      showSelectedIcon: false,
-                      style: const ButtonStyle(
-                          visualDensity: VisualDensity.compact),
-                    ),
-                    _smallActionButton(
-                      Icons.map_outlined,
-                      "Kies op Kaart",
-                      () {
-                        setState(() => _isOutdoor = true);
-                        _pickMapLocation();
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                LocationCascadePicker(
-                  initialCampusId: _selectedCampusId,
-                  initialBuildingId: _selectedBuildingId,
-                  initialRoomId: _selectedRoomId,
-                  label: "Waargeneemde Ligging",
-                  editing: _assetResolved,
-                  showBreadcrumb: false,
-                  onChanged: _onLocationChanged,
-                ),
-                const SizedBox(height: 10),
-                InlineSearchableDropdown<String>(
-                  label: "Werksoort",
-                  hint: "Kies Werksoort",
-                  value: selectedCategory,
-                  items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
-                      .map((e) => SearchableDropdownItem(value: e, label: e))
-                      .toList(),
-                  onChanged: (v) => setState(() => selectedCategory = v),
-                ),
+              if (_buildWrongRoomBanner() != null) ...[
+                const SizedBox(height: 8),
+                _buildWrongRoomBanner()!,
               ],
+              const SizedBox(height: 8),
+              _buildTitleDescriptionBox(),
+              const SizedBox(height: 24),
+              LocationCascadePicker(
+                initialCampusId: _selectedCampusId,
+                initialBuildingId: _selectedBuildingId,
+                initialRoomId: _selectedRoomId,
+                label: "Waargeneemde Ligging",
+                editing: _assetResolved,
+                showBreadcrumb: false,
+                errorText: _locationError,
+                trailing: _buildScanRoomIcon(),
+                onChanged: _onLocationChanged,
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  const Text("Buite Lokaal:",
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.navy)),
+                  const SizedBox(width: 2),
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text("Nee")),
+                      ButtonSegment(value: true, label: Text("Ja")),
+                    ],
+                    selected: {_isOutdoor ?? false},
+                    onSelectionChanged: (s) => setState(() {
+                      _isOutdoor = s.first;
+                      _locationError = null;
+                      // Buite-lokaal = Nee beteken binne: die kaartpunt (en
+                      // sy skermgreep) is nie meer van toepassing nie.
+                      if (_isOutdoor == false) {
+                        _mapLocation = null;
+                        _mapScreenshot = null;
+                      }
+                    }),
+                    showSelectedIcon: false,
+                    style:
+                        const ButtonStyle(visualDensity: VisualDensity.compact),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              InlineSearchableDropdown<String>(
+                label: "Werksoort",
+                hint: "Kies Werksoort",
+                value: selectedCategory,
+                items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
+                    .map((e) => SearchableDropdownItem(value: e, label: e))
+                    .toList(),
+                onChanged: (v) => setState(() => selectedCategory = v),
+              ),
               if (UserSession.can('faults.view')) ...[
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
                 InlineSearchableDropdown<String>(
                   label: "Prioriteit",
                   hint: "Kies Prioriteit",
@@ -652,7 +586,29 @@ class _NewReportPageState extends State<NewReportPage> {
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () async {
+                            onPressed: _isSubmitting ? null : _submitReport,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                elevation: 2,
+              ),
+              child: const Text("STUUR FOUTKAARTJIE",
+                  style:
+                      TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitReport() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+    try {
                 // Die ligging-kieser is nie 'n FormField nie, so die
                 // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
                 // buite enige terrein het reeds 'n spesifieke fout van
@@ -695,13 +651,26 @@ class _NewReportPageState extends State<NewReportPage> {
 
                 int? finalAssetIdInt;
                 String? finalAssetSerialCode;
-                if (serialController.text.isNotEmpty) {
-                  final asset = await AssetService.getAssetBySerialCode(
-                      serialController.text);
-                  if (asset != null) {
-                    finalAssetIdInt = int.tryParse(asset.id);
-                    finalAssetSerialCode = asset.serialCode;
+                final serial = serialController.text.trim();
+                final Asset? asset = (_resolvedAsset != null &&
+                        _resolvedAsset!.serialCode == serial)
+                    ? _resolvedAsset
+                    : (serial.isNotEmpty
+                        ? await AssetService.getAssetBySerialCode(serial)
+                        : null);
+                if (serial.isNotEmpty && asset == null) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Kon nie bate met kode vind nie — kontroleer die kode"),
+                        backgroundColor: AppColors.errorRed),
+                    );
                   }
+                  return;
+                }
+                if (asset != null) {
+                  finalAssetIdInt = int.tryParse(asset.id);
+                  finalAssetSerialCode = asset.serialCode;
                 }
 
                 final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
@@ -744,6 +713,7 @@ class _NewReportPageState extends State<NewReportPage> {
                   latitude: _mapLocation?.latitude,
                   longitude: _mapLocation?.longitude,
                   isOutdoor: _isOutdoor ?? false,
+                  rawStatus: null,
                 );
 
                 try {
@@ -812,43 +782,23 @@ class _NewReportPageState extends State<NewReportPage> {
                     );
                   }
                 }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 2,
-              ),
-              child: const Text("STUUR FOUTKAARTJIE",
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-            ),
-          ),
-        ),
-      ),
-    );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
-
   Future<void> _pickMapLocation() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(builder: (context) => const LocationPage()),
     );
     if (result == null || !mounted) return;
-    final coords = result['coords'] as String?;
-    if (coords == null) return;
-    final parts = coords.split(',');
-    if (parts.length != 2) return;
-    final lat = double.tryParse(parts[0].trim());
-    final lng = double.tryParse(parts[1].trim());
-    if (lat == null || lng == null) return;
+    final loc = result['location'] as LatLng?;
+    if (loc == null) return;
     setState(() {
-      _mapLocation = LatLng(lat, lng);
+      _mapLocation = loc;
       _mapScreenshot = result['screenshot'] as Uint8List?;
     });
-    _resolveCampusFromPoint(LatLng(lat, lng));
+    _resolveCampusFromPoint(loc);
   }
 
   /// Bepaal die naaste terrein (binne sy radius) vir die gekose kaartpunt,
@@ -1088,6 +1038,9 @@ class _TitleDescriptionBox extends StatefulWidget {
 
   /// Maak 'n keuse-dialoog oop (kamera of galery) en voeg die foto by.
   final VoidCallback? onAddPhoto;
+
+  /// "Kies op Kaart" — maak die kaart-kieser oop (stel Buite Lokaal = Ja).
+  final VoidCallback? onPickMap;
   final ValueChanged<int>? onRemovePhoto;
   final String? Function(String?)? titleValidator;
   final String? Function(String?)? descValidator;
@@ -1097,6 +1050,7 @@ class _TitleDescriptionBox extends StatefulWidget {
     required this.descController,
     this.photoFiles = const [],
     this.onAddPhoto,
+    this.onPickMap,
     this.onRemovePhoto,
     this.titleValidator,
     this.descValidator,
@@ -1195,14 +1149,27 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                           left: 15, right: 145, top: 12, bottom: 12),
                     ),
                   ),
-                  if (widget.onAddPhoto != null)
+                  if (widget.onAddPhoto != null || widget.onPickMap != null)
                     Positioned(
                       right: 6,
                       bottom: 6,
-                      child: _photoActionButton(
-                        Icons.photo_camera_outlined,
-                        "Voeg foto by (kamera/galery)",
-                        widget.onAddPhoto!,
+                      child: Row(
+                        children: [
+                          if (widget.onPickMap != null)
+                            _photoActionButton(
+                              Icons.map_outlined,
+                              "Kies op Kaart",
+                              widget.onPickMap!,
+                            ),
+                          if (widget.onAddPhoto != null) ...[
+                            const SizedBox(width: 6),
+                            _photoActionButton(
+                              Icons.photo_camera_outlined,
+                              "Voeg foto by (kamera/galery)",
+                              widget.onAddPhoto!,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                 ],

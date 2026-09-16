@@ -1,5 +1,7 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import useColumnVisibility from '../../hooks/useColumnVisibility';
+import usePagination from '../../hooks/usePagination';
+import Pagination from '../Pagination/Pagination';
 import ColumnPicker from './ColumnPicker';
 
 /**
@@ -32,13 +34,23 @@ export default function DynamicTable({
   actionsLabel = 'Aksies',
   emptyMessage = 'Geen data gevind',
   extraControls, // Extra JSX to put next to the ColumnPicker button
+  pageSize = 100,
+  paginate = true,
 }) {
   const columnPickerRef = useRef(null);
   const { visibleColumns, toggleColumn, resetVisibility, columnDefs } =
     useColumnVisibility(storageKey, columns);
 
   const btnRef = useRef(null);
-  const { handleSort, getSortIndicator, getSortClass } = sortProps;
+  const { handleSort, getSortIndicator, getSortClass, sortKey, sortDirection } = sortProps;
+
+  const { currentPage, totalPages, paginatedData, goToPage, totalItems } = usePagination(data, pageSize);
+  const displayData = paginate ? paginatedData : data;
+
+  // Reset to first page when data changes (filter/sort)
+  useEffect(() => {
+    goToPage(1);
+  }, [data.length, sortKey, sortDirection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Right-click handler
   const onHeaderContextMenu = useCallback((e, colKey) => {
@@ -81,14 +93,14 @@ export default function DynamicTable({
           </tr>
         </thead>
         <tbody>
-          {data.length === 0 ? (
+          {displayData.length === 0 ? (
             <tr>
               <td colSpan={visibleColumns.length + (actions ? 1 : 0)} style={{ textAlign: 'center', padding: '20px' }}>
                 {emptyMessage}
               </td>
             </tr>
           ) : (
-            data.map((item, idx) => (
+            displayData.map((item, idx) => (
               <tr
                 key={item.id || item[Object.keys(item)[0]] || idx}
                 onClick={() => onRowClick && onRowClick(item)}
@@ -103,6 +115,15 @@ export default function DynamicTable({
           )}
         </tbody>
       </table>
+      {paginate && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={goToPage}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
+      )}
     </>
   );
 }

@@ -10,6 +10,8 @@ class _RoomCheckRecord {
   final int? userId;
   final String? userName;
   final String summary;
+  final String? checkStatus;
+  final List<dynamic> items;
   final DateTime checkedDatetime;
 
   _RoomCheckRecord({
@@ -18,16 +20,21 @@ class _RoomCheckRecord {
     this.userId,
     this.userName,
     required this.summary,
+    this.checkStatus,
+    required this.items,
     required this.checkedDatetime,
   });
 
   factory _RoomCheckRecord.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
     return _RoomCheckRecord(
       id: json['room_check_id'] ?? 0,
       roomId: json['room_id'] ?? 0,
       userId: json['user_id'],
       userName: json['user_name'],
       summary: json['summary'] ?? '[]',
+      checkStatus: json['check_status'],
+      items: rawItems is List ? rawItems : [],
       checkedDatetime: DateTime.tryParse(json['checked_datetime'] ?? '') ?? DateTime.now(),
     );
   }
@@ -56,10 +63,12 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
     try {
       final response = await ApiClient().client.get('/room-checks', queryParameters: {'room_id': widget.roomId});
       final List data = response.data as List;
-      setState(() {
-        _checks = data.map((j) => _RoomCheckRecord.fromJson(j as Map<String, dynamic>)).toList();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _checks = data.map((j) => _RoomCheckRecord.fromJson(j as Map<String, dynamic>)).toList();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -70,19 +79,27 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
     }
   }
 
-  int _countConfirmed(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'confirmed').length;
+  List<dynamic> _decodeSummary(String s) {
+    try {
+      final decoded = jsonDecode(s);
+      return decoded is List ? decoded : const [];
+    } catch (_) {
+      return const [];
+    }
   }
 
-  int _countMissing(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'missing').length;
+  int _countConfirmed(List<dynamic> items) {
+    return items.where((e) => e is Map && e['status'] == 'confirmed').length;
   }
 
-  int _countFaultReported(String s) {
-    final list = jsonDecode(s) as List;
-    return list.where((e) => e['status'] == 'fault_reported').length;
+  int _countMissing(List<dynamic> items) {
+    return items.where((e) => e is Map && e['status'] == 'missing').length;
+  }
+
+  int _countFaultReported(List<dynamic> items) {
+    return items
+        .where((e) => e is Map && e['status'] == 'fault_reported')
+        .length;
   }
 
   @override
@@ -111,9 +128,10 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
   }
 
   Widget _buildCheckCard(_RoomCheckRecord check) {
-    final confirmed = _countConfirmed(check.summary);
-    final missing = _countMissing(check.summary);
-    final faultReported = _countFaultReported(check.summary);
+    final summaryItems = _decodeSummary(check.summary);
+    final confirmed = _countConfirmed(summaryItems);
+    final missing = _countMissing(summaryItems);
+    final faultReported = _countFaultReported(summaryItems);
     final total = confirmed + missing + faultReported;
 
     final dateStr = "${check.checkedDatetime.day}/${check.checkedDatetime.month}/${check.checkedDatetime.year} "
@@ -128,6 +146,8 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
             Expanded(
               child: Text(dateStr, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
             ),
+            _statusPill(check.checkStatus),
+            const SizedBox(width: 6),
             if (check.userName != null && check.userName!.isNotEmpty)
               Text("Uitgevoer deur: ${check.userName}",
                 style: TextStyle(color: Colors.grey[600], fontSize: 11)),
@@ -151,8 +171,24 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
           ),
         ),
         children: [
-          _buildSummaryDetail(check.summary),
+          _buildSummaryDetail(check),
         ],
+      ),
+    );
+  }
+
+  Widget _statusPill(String? status) {
+    final isVoltooi = status == "Voltooi";
+    final color = isVoltooi ? AppColors.successGreen : AppColors.errorRed;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        status ?? "Onvoltooi",
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -168,15 +204,14 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
     );
   }
 
-  Widget _buildSummaryDetail(String summaryJson) {
-    List items;
-    try {
-      items = jsonDecode(summaryJson) as List;
-    } catch (_) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text("Ongeldige opsommingsdata", style: TextStyle(color: Colors.grey)),
-      );
+  Widget _buildSummaryDetail(_RoomCheckRecord check) {
+    List items = check.items;
+    if (items.isEmpty) {
+      try {
+        items = jsonDecode(check.summary) as List;
+      } catch (_) {
+        items = [];
+      }
     }
 
     if (items.isEmpty) {
@@ -193,6 +228,8 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
           final statusStr = item['status'] ?? 'pending';
           final assetId = item['asset_id'] ?? 0;
           final faultId = item['fault_id'];
+          final assetName = item['asset_name'];
+          final assetSerial = item['asset_serial'];
 
           IconData icon;
           Color iconColor;
@@ -219,6 +256,10 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
               label = "Hangend";
           }
 
+          final title = assetName != null && assetName.toString().trim().isNotEmpty
+              ? assetName.toString()
+              : "Bate #$assetId";
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
@@ -226,7 +267,12 @@ class _RoomCheckHistoryPageState extends State<RoomCheckHistoryPage> {
                 Icon(icon, color: iconColor, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text("Bate #$assetId", style: const TextStyle(fontSize: 13)),
+                  child: Text(
+                    assetSerial != null && assetSerial.toString().trim().isNotEmpty
+                        ? "$title ($assetSerial)"
+                        : title,
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
                 Text(label, style: TextStyle(color: iconColor, fontSize: 12, fontWeight: FontWeight.bold)),
                 if (faultId != null) ...[

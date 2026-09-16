@@ -35,6 +35,10 @@ class LocationCascadePicker extends StatefulWidget {
   final String? label;
   final String? errorText;
 
+  /// Maak die etiket (en veldraam) rooi — gebruik vir vereiste liggings wat
+  /// nog nie gekies is nie.
+  final bool error;
+
   /// Wys die krummelpad bo die kieser-veld. Skakel af (false) wanneer die
   /// ouder self 'n opsommingsblok bokant die veld wys.
   final bool showBreadcrumb;
@@ -42,6 +46,10 @@ class LocationCascadePicker extends StatefulWidget {
   /// Wys 'n wysig-inskiet by vlak 0 wanneer 'n geskandeerde/opgesoekte bate
   /// se bestaande ligging verander word ("Verander ... van ...").
   final bool editing;
+
+  /// Opsionele knoppie (bv. 'n QR-skandering-ikoon) wat regs langs die
+  /// keuse-veld vertoon word. Bly in plek ongeag die geselekteerde waarde.
+  final Widget? trailing;
 
   const LocationCascadePicker({
     super.key,
@@ -52,8 +60,10 @@ class LocationCascadePicker extends StatefulWidget {
     required this.onChanged,
     this.label,
     this.errorText,
+    this.error = false,
     this.showBreadcrumb = true,
     this.editing = false,
+    this.trailing,
   });
 
   @override
@@ -389,8 +399,9 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
   }
 
   Widget _buildBreadcrumb(List<Campus> campuses) {
-    // Wortel is altyd sigbaar; daarna een krummel per gemaakte keuse.
-    final crumbs = <({int level, String name})>[(level: -1, name: 'Terreine')];
+    // Een krummel per gemaakte keuse (sonder 'n statiese "Terrein"-wortel).
+    // Die eerste krummel tree as wortel op en stel alles terug.
+    final crumbs = <({int level, String name})>[];
 
     final campus = _campusOf(campuses);
     if (campus != null) crumbs.add((level: 0, name: campus.name));
@@ -408,7 +419,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
       children: [
         for (var i = 0; i < crumbs.length; i++) ...[
           InkWell(
-            onTap: () => _clearFromLevel(crumbs[i].level + 1),
+            onTap: () => _clearFromLevel(i == 0 ? 0 : crumbs[i].level + 1),
             borderRadius: BorderRadius.circular(4),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -477,10 +488,10 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
             if (widget.label != null) ...[
               Text(
                 widget.label!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
-                  color: AppColors.navy,
+                  color: widget.error ? AppColors.errorRed : AppColors.navy,
                 ),
               ),
               const SizedBox(height: 6),
@@ -489,21 +500,33 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
               _buildBreadcrumb(campuses),
               const SizedBox(height: 6),
             ],
-            InlineSearchableDropdown<_LocationChoice>(
-              hint: hint,
-              items: _isComplete ? const [] : _buildOptions(campuses),
-              value: null,
-              enabled: true,
-              closeOnSelect: false,
-              restoreOnBlur: false,
-              onFocus: () {
-                // "Tik om te verander": 'n voltooide kaskade spring terug na
-                // vlak 0 sodat die hele pad oor gekies kan word.
-                if (_isComplete) _clearFromLevel(0);
-              },
-              onChanged: (v) {
-                if (v != null) _pick(v);
-              },
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: InlineSearchableDropdown<_LocationChoice>(
+                    hint: hint,
+                    items: _isComplete ? const [] : _buildOptions(campuses),
+                    value: null,
+                    enabled: true,
+                    error: widget.error,
+                    closeOnSelect: false,
+                    restoreOnBlur: false,
+                    onFocus: () {
+                      // "Tik om te verander": 'n voltooide kaskade spring terug
+                      // na vlak 0 sodat die hele pad oor gekies kan word.
+                      if (_isComplete) _clearFromLevel(0);
+                    },
+                    onChanged: (v) {
+                      if (v != null) _pick(v);
+                    },
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 8),
+                  widget.trailing!,
+                ],
+              ],
             ),
             if (widget.errorText != null) ...[
               const SizedBox(height: 6),

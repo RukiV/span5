@@ -136,7 +136,10 @@ class Jobcard {
   static List<int> _parseQuoteIds(dynamic raw) {
     if (raw == null) return [];
     if (raw is List) {
-      return raw.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+      return raw
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .where((e) => e != 0)
+          .toList();
     }
     return raw
         .toString()
@@ -144,83 +147,5 @@ class Jobcard {
         .map((e) => int.tryParse(e.trim()) ?? 0)
         .where((e) => e != 0)
         .toList();
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'job_desc': description,
-      'job_status': status,
-      'job_type': type,
-      'fault_id': faultId,
-      'contractor_id': contractorId,
-      'asset_id': assetId,
-      'room_id': roomId,
-      'building_id': buildingId,
-      'location_id': locationId,
-      if (scheduledDatetime != null)
-        'job_scheduled_datetime': scheduledDatetime!.toIso8601String(),
-      if (finishedDatetime != null)
-        'job_finisheddatetime': finishedDatetime!.toIso8601String(),
-      if (jobNotes != null) 'job_notes': jobNotes,
-    };
-  }
-
-  String get statusLabel => status;
-
-  Jobcard copyWith({
-    int? id,
-    String? description,
-    String? status,
-    String? type,
-    int? faultId,
-    int? contractorId,
-    int? creatorId,
-    int? assetId,
-    int? roomId,
-    int? buildingId,
-    int? locationId,
-    DateTime? createdDatetime,
-    DateTime? scheduledDatetime,
-    DateTime? scheduledEndDatetime,
-    DateTime? finishedDatetime,
-    String? priority,
-    String? nature,
-    String? scheduleType,
-    int? assignedTo,
-    String? ccUsers,
-    String? jobNotes,
-    int? quoteId,
-    List<int>? quoteIds,
-    String? assignedName,
-    String? contractorName,
-  }) {
-    return Jobcard(
-      id: id ?? this.id,
-      description: description ?? this.description,
-      status: status ?? this.status,
-      fullDescription: fullDescription,
-      type: type ?? this.type,
-      faultId: faultId ?? this.faultId,
-      contractorId: contractorId ?? this.contractorId,
-      creatorId: creatorId ?? this.creatorId,
-      assetId: assetId ?? this.assetId,
-      roomId: roomId ?? this.roomId,
-      buildingId: buildingId ?? this.buildingId,
-      locationId: locationId ?? this.locationId,
-      createdDatetime: createdDatetime ?? this.createdDatetime,
-      scheduledDatetime: scheduledDatetime ?? this.scheduledDatetime,
-      scheduledEndDatetime: scheduledEndDatetime ?? this.scheduledEndDatetime,
-      finishedDatetime: finishedDatetime ?? this.finishedDatetime,
-      priority: priority ?? this.priority,
-      nature: nature ?? this.nature,
-      scheduleType: scheduleType ?? this.scheduleType,
-      assignedTo: assignedTo ?? this.assignedTo,
-      ccUsers: ccUsers ?? this.ccUsers,
-      jobNotes: jobNotes ?? this.jobNotes,
-      quoteId: quoteId ?? this.quoteId,
-      quoteIds: quoteIds ?? this.quoteIds,
-      assignedName: assignedName ?? this.assignedName,
-      contractorName: contractorName ?? this.contractorName,
-    );
   }
 }

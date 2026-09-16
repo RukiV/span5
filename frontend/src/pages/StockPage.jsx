@@ -1,25 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link } from "react-router-dom";
 import Select from "react-select";
-import { IoTrashOutline } from "react-icons/io5";
+import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { roomsAPI, stockAPI, buildingsAPI, locationAPI, apiClient } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/Asset.css";
 import "../styles/App.css";
 import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import Modal from '../components/Modal/Modal';
+import StockDetailView from '../components/DetailView/StockDetailView';
+import '../components/DetailView/DetailView.css';
 
 function StockPage({ embedded = false }) {
   const { showToast } = useToast();
@@ -31,14 +40,14 @@ function StockPage({ embedded = false }) {
   const [buildings, setBuildings] = useState([]); // Bygevoeg
   const [terrains, setTerrains] = useState([]); // Bygevoeg
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "stock-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
 
   const STOCK_COLUMNS = [
-    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID Voorraad', render: (s) => s.stock_id, sortKey: 'id', defaultVisible: false },
     { key: 'name', label: 'Naam', render: (s) => s.stock_name, sortKey: 'name', defaultVisible: true },
-    { key: 'brand', label: 'Merk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
+    { key: 'brand', label: 'Handelsmerk', render: (s) => s.stock_brand, sortKey: 'brand', defaultVisible: true },
     { key: 'type', label: 'Tipe', render: (s) => s.stock_type, sortKey: 'type', defaultVisible: true },
     { key: 'amount', label: 'Hoeveelheid', render: (s) => s.stock_amount, sortKey: 'amount', defaultVisible: true },
     { key: 'minimum', label: 'Minimum', render: (s) => s.stock_minimum, sortKey: 'minimum', defaultVisible: true },
@@ -48,6 +57,10 @@ function StockPage({ embedded = false }) {
   ];
   const colVis = useColumnVisibility('stock-page', STOCK_COLUMNS);
   const colWidths = useColumnWidths('stock-page', STOCK_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: STOCK_COLUMNS,
+    storageKey: 'stock-page',
+  });
   const colPickerRef = useRef(null);
 
   const [stockImages, setStockImages] = useState([]);
@@ -56,15 +69,15 @@ function StockPage({ embedded = false }) {
   const [imagesToDelete, setImagesToDelete] = useState([]);
   const [activeImageViewer, setActiveImageViewer] = useState(null);
   const MAX_STOCK_IMAGES = 1;
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, null), [terrains, buildings, rooms]);
-  const filterCascade = useCascadeMenu();
   const modalCascadeMenu = useCascadeMenu();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [cascadeToast, setCascadeToast] = useState(null);
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
@@ -82,7 +95,7 @@ function StockPage({ embedded = false }) {
     building_id: ""  // Bygevoeg vir cascading logika
   });
 
-  // AI-veldvoorstel: stock_type uit soortgelyke voorraadname.
+  // AI-veldvoorstel: stock_type (+ handelsmerk) uit soortgelyke voorraadname.
   const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
     context: 'stock',
     values: {
@@ -94,6 +107,19 @@ function StockPage({ embedded = false }) {
       stock_type: newStock.stock_type,
     },
   });
+  const stockGhostType = aiSuggestions?.stock_type?.value || null;
+  const stockGhostBrand = aiSuggestions?.stock_brand?.value || null;
+  const applyStockGhost = (key) => {
+    if (key === 'stock_type' && stockGhostType) setNewStock(p => ({ ...p, stock_type: String(stockGhostType) }));
+    else if (key === 'stock_brand' && stockGhostBrand) setNewStock(p => ({ ...p, stock_brand: String(stockGhostBrand) }));
+  };
+  const handleStockGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'stock_type' ? stockGhostType : stockGhostBrand;
+      const empty = key === 'stock_type' ? !newStock.stock_type : !newStock.stock_brand;
+      if (ghost && empty) applyStockGhost(key);
+    }
+  };
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -105,10 +131,18 @@ function StockPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   const fetchStock = async () => {
     try {
@@ -215,7 +249,6 @@ function StockPage({ embedded = false }) {
     try {
       const errors = {};
       if (!newStock.stock_name.trim()) errors.stock_name = true;
-      if (!newStock.stock_brand.trim()) errors.stock_brand = true;
       if (!newStock.stock_type.trim()) errors.stock_type = true;
       if (!newStock.stock_minimum || Number(newStock.stock_minimum) <= 0) errors.stock_minimum = true;
       if (!newStock.stock_boxTotal || Number(newStock.stock_boxTotal) <= 0) errors.stock_boxTotal = true;
@@ -289,9 +322,6 @@ function StockPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredStock.map((x) => x.stock_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -314,6 +344,7 @@ function StockPage({ embedded = false }) {
     const building = room ? buildings.find((b) => b.building_id === room.building_id) : null;
 
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.stock_id);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -338,6 +369,7 @@ function StockPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -349,6 +381,7 @@ function StockPage({ embedded = false }) {
 
   const handleNewStock = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -379,7 +412,7 @@ function StockPage({ embedded = false }) {
     return room ? room.room_name : `Room ${item.room_id}`;
   };
 
-  const filteredStock = [...stock]
+  const filteredStock = applySort([...stock]
     .filter((item) => {
       if (terrainFilter) {
         const locId = getStockLocationId(item);
@@ -409,22 +442,34 @@ function StockPage({ embedded = false }) {
         return Object.values(values).some((value) => String(value || '').toLowerCase().includes(query));
       }
       return String(values[filterColumn] || '').toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      if (sortKey === 'id') return (Number(a.stock_id || 0) - Number(b.stock_id || 0)) * dir;
-      if (sortKey === 'name') return String(a.stock_name || '').localeCompare(String(b.stock_name || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'brand') return String(a.stock_brand || '').localeCompare(String(b.stock_brand || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'type') return String(a.stock_type || '').localeCompare(String(b.stock_type || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'amount') return (Number(a.stock_amount || 0) - Number(b.stock_amount || 0)) * dir;
-      if (sortKey === 'minimum') return (Number(a.stock_minimum || 0) - Number(b.stock_minimum || 0)) * dir;
-      if (sortKey === 'boxTotal') return (Number(a.stock_boxTotal || 0) - Number(b.stock_boxTotal || 0)) * dir;
-      if (sortKey === 'room') return String(getRoomName(a) || '').localeCompare(String(getRoomName(b) || ''), 'af', { sensitivity: 'base' }) * dir;
-      if (sortKey === 'description') return String(a.stock_desc || '').localeCompare(String(b.stock_desc || ''), 'af', { sensitivity: 'base' }) * dir;
-      return 0;
-    });
-  const allSelected = filteredStock.length > 0 && selectedIds.length === filteredStock.length;
+    }),
+    (item, key) => {
+      switch (key) {
+        case 'id': return Number(item.stock_id || 0);
+        case 'name': return String(item.stock_name || '');
+        case 'brand': return String(item.stock_brand || '');
+        case 'type': return String(item.stock_type || '');
+        case 'amount': return Number(item.stock_amount || 0);
+        case 'minimum': return Number(item.stock_minimum || 0);
+        case 'boxTotal': return Number(item.stock_boxTotal || 0);
+        case 'room': return String(getRoomName(item) || '');
+        case 'description': return String(item.stock_desc || '');
+        default: return '';
+      }
+    },
+  );
+    const { currentPage, totalPages, paginatedData: paginatedStock, goToPage } = usePagination(filteredStock, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
+const allSelected = paginatedStock.length > 0 && paginatedStock.every((x) => selectedIds.includes(x.stock_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedStock.map((x) => x.stock_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedStock.map((x) => x.stock_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   if (loading) {
     return <div className="main"><div className="content">Laai...</div></div>;
@@ -432,7 +477,7 @@ function StockPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -442,27 +487,16 @@ function StockPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={[
+          <FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={[
               { value: "all", label: "Alle kolomme" },
               { value: "id", label: "ID" },
               { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
-              { value: "type", label: "Tipe" },
-              { value: "amount", label: "Hoeveelheid" },
-              { value: "minimum", label: "Minimum" },
-              { value: "boxTotal", label: "Boks Totaal" },
-              { value: "room", label: "Lokaal" },
-              { value: "description", label: "Beskrywing" },
-            ].find((option) => option.value === filterColumn)}
-            onChange={(selected) => setFilterColumn(selected?.value || "all")}
-            options={[
-              { value: "all", label: "Alle kolomme" },
-              { value: "id", label: "ID" },
-              { value: "name", label: "Naam" },
-              { value: "brand", label: "Merk" },
+              { value: "brand", label: "Handelsmerk" },
               { value: "type", label: "Tipe" },
               { value: "amount", label: "Hoeveelheid" },
               { value: "minimum", label: "Minimum" },
@@ -470,72 +504,41 @@ function StockPage({ embedded = false }) {
               { value: "room", label: "Lokaal" },
               { value: "description", label: "Beskrywing" },
             ]}
-            isSearchable={false}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
+            }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            return (
-              <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                <div className="control-cascade-breadcrumb">
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                </div>
-                  <Select
-                    className="react-select-container"
-                    classNamePrefix="react-select"
-                    placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                    isClearable
-                    isDisabled={cascadeCount >= 3}
-                    closeMenuOnSelect={false}
-                    menuIsOpen={filterCascade.menuIsOpen}
-                    onMenuOpen={filterCascade.onMenuOpen}
-                    onMenuClose={filterCascade.onMenuClose}
-                    components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    styles={{
-                      container: (base) => ({ ...base, minWidth: '260px' }),
-                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                      singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                    }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 3)
-                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={STOCK_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={STOCK_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('stock.manage') && (
@@ -548,14 +551,6 @@ function StockPage({ embedded = false }) {
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={STOCK_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
           {selectedIds.length > 0 && (
             <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -584,18 +579,16 @@ function StockPage({ embedded = false }) {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '190px' }}>Aksies</th>
           </tr>
         </thead>
         <tbody>
-          {filteredStock.map((item) => (
+          {paginatedStock.map((item) => (
             <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
               <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -610,15 +603,47 @@ function StockPage({ embedded = false }) {
           ))}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
     </>
   );
 
+  const viewModalContent = showModal && isViewMode && isEditing && (() => {
+    const room = rooms.find(r => String(r.room_id) === String(newStock.room_id));
+    const building = buildings.find(b => String(b.building_id) === String(room?.building_id || newStock.building_id));
+    const terrain = terrains.find(t => String(t.location_id) === String(building?.location_id || newStock.location_id));
+    return (
+      <Modal
+        isOpen={true}
+        onClose={handleCloseModal}
+        title={`Bekyk Voorraad`}
+        size="md"
+        headerActions={
+          hasRight('stock.manage') ? (
+            <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+          ) : null
+        }
+      >
+        <StockDetailView
+          stock={newStock}
+          roomName={room?.room_name}
+          buildingName={building?.building_name}
+          terrainName={terrain?.location_name}
+        />
+      </Modal>
+    );
+  })();
+
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Voorraad {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Voorraad {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('stock.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -627,37 +652,49 @@ function StockPage({ embedded = false }) {
               type="text"
               value={newStock.stock_name}
               ref={el => fieldRefs.current.stock_name = el}
+              disabled={isViewMode}
               className={invalidFields.stock_name ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_name: e.target.value }); if (invalidFields.stock_name) setInvalidFields(prev => { const n = {...prev}; delete n.stock_name; return n; }); }}
             />
           </div>
-          <div className="input-group">
-            <label>Merk *</label>
-            <input
-              type="text"
-              value={newStock.stock_brand}
-              ref={el => fieldRefs.current.stock_brand = el}
-              className={invalidFields.stock_brand ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
-            />
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
+            <label>Handelsmerk</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_brand}
+                ref={el => fieldRefs.current.stock_brand = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_brand ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_brand: e.target.value }); if (invalidFields.stock_brand) setInvalidFields(prev => { const n = {...prev}; delete n.stock_brand; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_brand')}
+              />
+              <GhostSuggestion active={!newStock.stock_brand && !!stockGhostBrand && !isViewMode} onAccept={() => applyStockGhost('stock_brand')}>{stockGhostBrand}</GhostSuggestion>
+            </div>
           </div>
         </div>
         <div className="input-row">
-          <div className="input-group">
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
             <label>Tipe *</label>
-            <input
-              type="text"
-              value={newStock.stock_type}
-              ref={el => fieldRefs.current.stock_type = el}
-              className={invalidFields.stock_type ? "field-invalid" : ""}
-              onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={newStock.stock_type}
+                ref={el => fieldRefs.current.stock_type = el}
+                disabled={isViewMode}
+                className={invalidFields.stock_type ? "field-invalid" : ""}
+                onChange={(e) => { setNewStock({ ...newStock, stock_type: e.target.value }); if (invalidFields.stock_type) setInvalidFields(prev => { const n = {...prev}; delete n.stock_type; return n; }); }}
+                onKeyDown={(e) => handleStockGhostTab(e, 'stock_type')}
+              />
+              <GhostSuggestion active={!newStock.stock_type && !!stockGhostType && !isViewMode} onAccept={() => applyStockGhost('stock_type')}>{stockGhostType}</GhostSuggestion>
+            </div>
           </div>
           <div className="input-group">
             <label>Hoeveelheid</label>
             <input
               type="number"
               value={newStock.stock_amount}
+              disabled={isViewMode}
               onChange={(e) => setNewStock({ ...newStock, stock_amount: e.target.value })}
             />
           </div>
@@ -669,6 +706,7 @@ function StockPage({ embedded = false }) {
               type="number"
               value={newStock.stock_minimum}
               ref={el => fieldRefs.current.stock_minimum = el}
+              disabled={isViewMode}
               className={invalidFields.stock_minimum ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_minimum: e.target.value }); if (invalidFields.stock_minimum) setInvalidFields(prev => { const n = {...prev}; delete n.stock_minimum; return n; }); }}
             />
@@ -679,6 +717,7 @@ function StockPage({ embedded = false }) {
               type="number"
               value={newStock.stock_boxTotal}
               ref={el => fieldRefs.current.stock_boxTotal = el}
+              disabled={isViewMode}
               className={invalidFields.stock_boxTotal ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_boxTotal: e.target.value }); if (invalidFields.stock_boxTotal) setInvalidFields(prev => { const n = {...prev}; delete n.stock_boxTotal; return n; }); }}
             />
@@ -687,7 +726,6 @@ function StockPage({ embedded = false }) {
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newStock.location_id, newStock.building_id, newStock.room_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -700,24 +738,24 @@ function StockPage({ embedded = false }) {
                 else if (levelIndex === 1) setNewStock(p => ({...p, building_id: "", room_id: ""}));
                 else if (levelIndex === 2) setNewStock(p => ({...p, room_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newStock.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newStock.location_id))?.location_name || newStock.location_id });
               if (newStock.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newStock.building_id))?.building_name || newStock.building_id });
               if (newStock.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newStock.room_id))?.room_name || newStock.room_id });
               return (
                 <div ref={modalCascadeMenu.containerRef}>
-                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px" })}
+                  {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3, marginTop: "6px", marginBottom: "6px", disabled: isViewMode, pendingLabels: ["Kies Terrein","Kies Gebou","Kies Lokaal"] })}
                     <Select
                       className="react-select-container"
                       classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                      placeholder={cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                       isClearable
-                      isDisabled={cascadeCount >= 3}
+                      isDisabled={isViewMode || cascadeCount >= 3}
                       closeMenuOnSelect={false}
                       menuIsOpen={modalCascadeMenu.menuIsOpen}
                       onMenuOpen={modalCascadeMenu.onMenuOpen}
                       onMenuClose={modalCascadeMenu.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} disabled={isViewMode} />, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       options={allLocationOptions}
                       styles={{
                         container: (base) => ({ ...base, minWidth: '260px' }),
@@ -768,6 +806,7 @@ function StockPage({ embedded = false }) {
             <textarea
               value={newStock.stock_desc}
               ref={el => fieldRefs.current.stock_desc = el}
+              disabled={isViewMode}
               className={invalidFields.stock_desc ? "field-invalid" : ""}
               onChange={(e) => { setNewStock({ ...newStock, stock_desc: e.target.value }); if (invalidFields.stock_desc) setInvalidFields(prev => { const n = {...prev}; delete n.stock_desc; return n; }); }}
             />
@@ -777,7 +816,7 @@ function StockPage({ embedded = false }) {
         <div className="input-row">
           <div className="input-group" style={{ width: "100%" }}>
             <label>Beelde</label>
-            <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+            <input type="file" accept="image/*" multiple disabled={isViewMode} onChange={handleImageFilesChange} />
             <div className="image-preview-grid">
               {stockImages.map((image) => (
                 <div key={image.image_id} className="record-image-card">
@@ -803,18 +842,21 @@ function StockPage({ embedded = false }) {
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
-          <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
-        </div>
+        {!isViewMode && (
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
+            <button className="btn-add" onClick={handleSaveStock}>{isEditing ? "Opdateer" : "Stoor"}</button>
+          </div>
+        )}
         <AiSuggestPanel
           suggestions={aiSuggestions}
           loading={aiLoading}
           filled={aiFilled}
           error={aiError}
-          labels={{ stock_type: 'Tipe' }}
+          labels={{ stock_type: 'Tipe', stock_brand: 'Handelsmerk' }}
           onUse={(key, s) => {
             if (key === 'stock_type') setNewStock(p => ({ ...p, stock_type: String(s.value) }));
+            else if (key === 'stock_brand') setNewStock(p => ({ ...p, stock_brand: String(s.value) }));
           }}
         />
       </div>
@@ -835,7 +877,8 @@ function StockPage({ embedded = false }) {
       <>
         {pageContent}
 
-        {showModal && modalContent}
+        {viewModalContent}
+        {showModal && !isViewMode && modalContent}
         {imageViewerContent}
       {dialog}
       </>
@@ -845,7 +888,7 @@ function StockPage({ embedded = false }) {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -855,90 +898,53 @@ function StockPage({ embedded = false }) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select
-                className="react-select-container"
-                classNamePrefix="react-select"
-                value={[
+              <FilterPicker
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                filterColumn={filterColumn}
+                onFilterColumnChange={setFilterColumn}
+                filterColumnOptions={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
-                  { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
-                  { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
-                  { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
-                ].find((option) => option.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected?.value || "all")}
-                options={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "name", label: "Naam" }, { value: "brand", label: "Merk" },
+                  { value: "name", label: "Naam" }, { value: "brand", label: "Handelsmerk" },
                   { value: "type", label: "Tipe" }, { value: "amount", label: "Hoeveelheid" },
                   { value: "minimum", label: "Minimum" }, { value: "boxTotal", label: "Boks Totaal" },
                   { value: "room", label: "Lokaal" }, { value: "description", label: "Beskrywing" },
                 ]}
-                  isSearchable={false}
+                terrainFilter={terrainFilter}
+                buildingFilter={buildingFilter}
+                roomFilter={roomFilter}
+                onLocationChange={(loc, bld, room) => {
+                  setTerrainFilter(loc || "");
+                  setBuildingFilter(bld || "");
+                  setRoomFilter(room || "");
+                }}
+                locationOptions={allLocationOptions}
+                maxLevel={3}
+                lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+                onReset={() => {
+                  setSearchTerm("");
+                  setTerrainFilter("");
+                  setBuildingFilter("");
+                  setRoomFilter("");
+                }}
               />
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                return (
-                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                    <div className="control-cascade-breadcrumb">
-                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                    </div>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                      placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                      isClearable
-                      isDisabled={cascadeCount >= 3}
-                      closeMenuOnSelect={false}
-                      menuIsOpen={filterCascade.menuIsOpen}
-                      onMenuOpen={filterCascade.onMenuOpen}
-                      onMenuClose={filterCascade.onMenuClose}
-                      components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                      styles={{
-                        container: (base) => ({ ...base, minWidth: '260px' }),
-                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                      }}
-                      options={allLocationOptions}
-                      filterOption={(option, rawInput) => {
-                        if (rawInput) {
-                          if (cascadeCount === 0)
-                            return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 1)
-                            return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 2)
-                            return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                          if (cascadeCount === 3)
-                            return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        }
-                        if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                        if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                        if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                        return false;
-                      }}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                        const f = selectedOption._fields;
-                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                      }}
-                    />
-                  </div>
-                );
-              })()}
+            <SortPicker
+                columns={STOCK_COLUMNS}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
+              />
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={STOCK_COLUMNS}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
             </div>
             <div className="controls-right">
               {hasRight('stock.manage') && (
@@ -951,14 +957,6 @@ function StockPage({ embedded = false }) {
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              <ColumnPicker
-                ref={colPickerRef}
-                columns={STOCK_COLUMNS}
-                visibleColumns={colVis.visibleColumns}
-                toggleColumn={colVis.toggleColumn}
-                resetVisibility={colVis.resetVisibility}
-                onResetWidths={colWidths.resetWidths}
-              />
           <button className="btn-add" onClick={handleNewStock}>+ Nuwe Voorraad</button>
             {selectedIds.length > 0 && (
               <button className="btn-delete" style={{ marginLeft: '0.5rem' }} onClick={handleDeleteSelected}>
@@ -987,11 +985,9 @@ function StockPage({ embedded = false }) {
                     key={col.key}
                     col={col}
                     colWidths={colWidths}
-                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                    onClick={() => col.sortKey && handleSort(col.sortKey)}
                     onContextMenu={(e) => colPickerRef.current?.openAt(e)}
                   >
-                    {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                    {col.label}
                   </ResizableTh>
                 ))}
                 <th style={{ width: '190px' }}>Aksies</th>
@@ -1001,7 +997,7 @@ function StockPage({ embedded = false }) {
               {filteredStock.length === 0 ? (
                 <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen voorraad gevind</td></tr>
               ) : (
-                filteredStock.map((item) => (
+                paginatedStock.map((item) => (
                   <tr key={item.stock_id} onClick={() => handleEditStock(item)} style={{ cursor: "pointer" }}>
                     <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selectedIds.includes(item.stock_id)} onChange={() => toggleOne(item.stock_id)} />
@@ -1017,9 +1013,11 @@ function StockPage({ embedded = false }) {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredStock.length} pageSize={100} />
         </div>
 
-      {showModal && modalContent}
+      {viewModalContent}
+      {showModal && !isViewMode && modalContent}
       {imageViewerContent}
       {dialog}
     </div>

@@ -1,18 +1,24 @@
 ﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Select, { components } from "react-select";
-import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
-import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient  } from "../services/api";
+import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
+import { assetsAPI, assettypesAPI, roomsAPI, authAPI, workOrdersAPI, buildingsAPI, locationAPI, apiClient, roomChecksAPI  } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
+import usePagination from "../hooks/usePagination";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
 import ResizableTh from "../components/ResizableTh";
+import Pagination from "../components/Pagination/Pagination";
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import "../styles/App.css";
 import "../styles/Asset.css";
@@ -21,6 +27,8 @@ import { buildFlatLocationOptions } from './locationSearchUtils';
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+
+const idemKey = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 // Prevent react-select from toggling a dropdown closed when you click the control again.
 // Only opening is allowed via the control; closing happens via outside-click (key remount) or Escape.
@@ -68,31 +76,46 @@ function AssetPage({ embedded = false }) {
   const [buildings, setBuildings] = useState([]);
   const [terrains, setTerrains] = useState([]); 
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const filterPersist = useFilterState({ storageKey: "asset-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: null });
   const ASSET_COLUMNS = [
     { key: 'id', label: 'ID', render: (a) => a.asset_id, sortKey: 'id', defaultVisible: false },
     { key: 'asset_name', label: 'Naam', render: (a) => a.asset_name, sortKey: 'asset_name', defaultVisible: true },
-    { key: 'asset_brand', label: 'Merk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
+    { key: 'asset_brand', label: 'Handelsmerk', render: (a) => a.asset_brand, sortKey: 'asset_brand', defaultVisible: true },
     { key: 'asset_serial', label: 'Serienommer', render: (a) => a.asset_serial, sortKey: 'asset_serial', defaultVisible: true },
     { key: 'assettype', label: 'Tipe', render: (a) => getAssettypeName(a), sortKey: 'assettype', defaultVisible: true },
     { key: 'isoutdoor', label: 'Buite', render: (a) => a.asset_isoutdoor ? 'Ja' : 'Nee', sortKey: 'isoutdoor', defaultVisible: false },
     { key: 'room', label: 'Lokaal', render: (a) => getRoomName(a), sortKey: 'room', defaultVisible: true },
-    { key: 'status', label: 'Status', render: (a) => getStatusLabel(a.asset_status), sortKey: 'status', defaultVisible: true },
+    { key: 'status', label: 'Status', render: (a) => {
+      const miss = missingMap[a.asset_id];
+      const label = getStatusLabel(a.asset_status);
+      if (!miss) return label;
+      const tooltip = `Vermis by laaste kontrole${miss.latest_checked ? ` (${new Date(miss.latest_checked).toLocaleString('af-ZA')})` : ''}${miss.original_fault_id ? ` \u2014 Fout #${miss.original_fault_id}` : ''}`;
+      return (
+        <span>
+          {label}{' '}
+          <span className="missing-badge" title={tooltip}>Vermis</span>
+        </span>
+      );
+    }, sortKey: 'status', defaultVisible: true },
     { key: 'created', label: 'Geskep', render: (a) => a.asset_created_datetime ? new Date(a.asset_created_datetime).toLocaleDateString('af-ZA') : '-', sortKey: 'created', defaultVisible: false },
   ];
   const colVis = useColumnVisibility('asset-page', ASSET_COLUMNS);
   const colWidths = useColumnWidths('asset-page', ASSET_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: ASSET_COLUMNS,
+    storageKey: 'asset-page',
+  });
   const colPickerRef = useRef(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [cascadeToast, setCascadeToast] = useState(null);
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
-  const filterCascade = useCascadeMenu();
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const modalCascadeMenu = useCascadeMenu();
   const allLocationOptions = useMemo(() => buildFlatLocationOptions(terrains, buildings, rooms, assets), [terrains, buildings, rooms, assets]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -105,6 +128,15 @@ function AssetPage({ embedded = false }) {
   const [imagesToDelete, setImagesToDelete] = useState([]);
   const [activeImageViewer, setActiveImageViewer] = useState(null);
   const MAX_ASSET_IMAGES = 1;
+
+  const [missingMap, setMissingMap] = useState({});
+  const [showFoundModal, setShowFoundModal] = useState(false);
+  const [foundAsset, setFoundAsset] = useState(null);
+  const [foundLocId, setFoundLocId] = useState("");
+  const [foundBldId, setFoundBldId] = useState("");
+  const [foundRoomId, setFoundRoomId] = useState("");
+  const [foundSaving, setFoundSaving] = useState(false);
+  const foundCascadeMenu = useCascadeMenu();
 
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [isEditingType, setIsEditingType] = useState(false);
@@ -133,7 +165,7 @@ function AssetPage({ embedded = false }) {
   const [invalidFields, setInvalidFields] = useState({});
   const fieldRefs = useRef({});
 
-  // AI-veldvoorstelle: tipe/kamer uit soortgelyke bestaande bates se name.
+  // AI-veldvoorstelle: tipe/kamer/handelsmerk/status uit soortgelyke bates se name.
   const { suggestions: aiSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = useAiSuggestions({
     context: 'asset',
     values: {
@@ -141,9 +173,28 @@ function AssetPage({ embedded = false }) {
       asset_brand: newAsset.asset_brand,
       asset_serial: newAsset.asset_serial,
       asset_type: newAsset.assettype_id,
+      asset_status: newAsset.asset_status,
       room: newAsset.room_id,
     },
   });
+  const assetGhostBrand = aiSuggestions?.asset_brand?.value || null;
+  const assetGhostStatus = aiSuggestions?.asset_status?.value || null;
+  const assetGhostType = aiSuggestions?.asset_type?.value || null;
+  const assetGhostRoom = aiSuggestions?.room?.value || null;
+  const applyAssetGhost = (key) => {
+    if (key === 'asset_brand' && assetGhostBrand) setNewAsset(p => ({ ...p, asset_brand: String(assetGhostBrand) }));
+    else if (key === 'asset_type' && aiSuggestions?.asset_type?.id != null) setNewAsset(p => ({ ...p, assettype_id: Number(aiSuggestions.asset_type.id) }));
+    else if (key === 'asset_status' && assetGhostStatus) setNewAsset(p => ({ ...p, asset_status: String(assetGhostStatus) }));
+    else if (key === 'room' && aiSuggestions?.room?.id != null) applyAiRoom(aiSuggestions.room);
+  };
+  const handleAssetGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const map = { asset_brand: [!newAsset.asset_brand, assetGhostBrand], asset_type: [!newAsset.assettype_id, assetGhostType], asset_status: [false, null], room: [!newAsset.room_id && !newAsset.location_id, assetGhostRoom] };
+      // Status het 'n verstek — ghost net via paneel; inset-velde: brand + tipe + ligging
+      const entry = map[key];
+      if (entry && entry[0] && entry[1]) applyAssetGhost(key);
+    }
+  };
 
   const applyAiRoom = (s) => {
     if (s.id == null) return;
@@ -189,10 +240,18 @@ function AssetPage({ embedded = false }) {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   const fetchAssets = async () => {
     try {
@@ -202,6 +261,81 @@ function AssetPage({ embedded = false }) {
       console.error("Error fetching assets:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const canSeeMissing = hasRight("room_checks.manage") || hasRight("roomchecks.execute");
+  const canManageChecks = hasRight("room_checks.manage");
+
+  const fetchMissing = async () => {
+    try {
+      const response = await roomChecksAPI.missing();
+      const list = response.data || [];
+      const map = {};
+      for (const m of list) map[m.asset_id] = m;
+      setMissingMap(map);
+    } catch (error) {
+      console.error("Error fetching missing assets:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (canSeeMissing) fetchMissing();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSeeMissing]);
+
+  const openFoundModal = (asset) => {
+    setFoundAsset(asset);
+    setFoundLocId("");
+    setFoundBldId("");
+    setFoundRoomId("");
+    setShowFoundModal(true);
+  };
+
+  const foundErrorMessage = (err) => {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+    return "Kon nie die bate as gevind aanteken nie.";
+  };
+
+  const markFoundInOwnRoom = async () => {
+    if (!foundAsset) return;
+    setFoundSaving(true);
+    try {
+      await roomChecksAPI.create(
+        { room_id: Number(foundAsset.room_id), summary: JSON.stringify([{ asset_id: foundAsset.asset_id, status: "confirmed" }]) },
+        { headers: { "X-Idempotency-Key": idemKey() } }
+      );
+      showToast({ type: "success", title: "Sukses", message: "Bate is in sy aangewese lokaal as gevind aangeteken." });
+      setShowFoundModal(false);
+      if (canSeeMissing) fetchMissing();
+    } catch (err) {
+      showToast({ type: "error", title: "Fout", message: foundErrorMessage(err) });
+    } finally {
+      setFoundSaving(false);
+    }
+  };
+
+  const markFoundInOtherRoom = async () => {
+    if (!foundAsset || !foundRoomId) {
+      showToast({ type: "warning", title: "Kies 'n lokaal", message: "Kies asseblief die lokaal waar die bate gevind is." });
+      return;
+    }
+    setFoundSaving(true);
+    try {
+      const info = missingMap[foundAsset.asset_id] || {};
+      await roomChecksAPI.markMissingFound(
+        { asset_id: foundAsset.asset_id, room_id: Number(foundRoomId), original_fault_id: info.original_fault_id ?? null },
+        { headers: { "X-Idempotency-Key": idemKey() } }
+      );
+      showToast({ type: "success", title: "Sukses", message: "Bate is in die ander lokaal as gevind aangeteken." });
+      setShowFoundModal(false);
+      if (canSeeMissing) fetchMissing();
+    } catch (err) {
+      showToast({ type: "error", title: "Fout", message: foundErrorMessage(err) });
+    } finally {
+      setFoundSaving(false);
     }
   };
 
@@ -340,7 +474,6 @@ function AssetPage({ embedded = false }) {
     try {
       const errors = {};
       if (!newAsset.asset_name.trim()) errors.asset_name = true;
-      if (!newAsset.asset_brand.trim()) errors.asset_brand = true;
       const cleanedSerial = newAsset.asset_serial.trim();
       const serialRegex = /^AK [A-Za-z]{2}\d{6}$/;
       if (!serialRegex.test(cleanedSerial)) {
@@ -433,9 +566,6 @@ function AssetPage({ embedded = false }) {
   };
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const toggleAll = () => {
-    setSelectedIds(allSelected ? [] : filteredItems.map((x) => x.asset_id));
-  };
   const toggleOne = (id) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -457,6 +587,7 @@ function AssetPage({ embedded = false }) {
     const building = room ? buildings.find((b) => b.building_id === room.building_id) : null;
     
     setIsEditing(true);
+    setIsViewMode(true);
     setEditingId(item.asset_id);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -480,6 +611,7 @@ function AssetPage({ embedded = false }) {
   const handleCloseModal = () => {
     setShowModal(false);
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -491,6 +623,7 @@ function AssetPage({ embedded = false }) {
 
   const handleNewAsset = () => {
     setIsEditing(false);
+    setIsViewMode(false);
     setEditingId(null);
     setSelectedImageFiles([]);
     setSelectedImagePreviewUrls([]);
@@ -622,7 +755,7 @@ function AssetPage({ embedded = false }) {
     }
   };
   
-  const filteredItems = [...assets]
+  const filteredItems = applySort([...assets]
     .filter((asset) => {
       if (terrainFilter) {
         const locId = getAssetLocationId(asset);
@@ -653,20 +786,34 @@ function AssetPage({ embedded = false }) {
           .some((value) => String(value).toLowerCase().includes(query));
       }
       return String(getColumnValue(filterColumn) ?? "").toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === "asc" ? 1 : -1;
-      if (sortKey === "asset_name") return String(a.asset_name || "").localeCompare(String(b.asset_name || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "asset_brand") return String(a.asset_brand || "").localeCompare(String(b.asset_brand || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "asset_serial") return String(a.asset_serial || "").localeCompare(String(b.asset_serial || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "assettype") return String(getAssettypeName(a) || "").localeCompare(String(getAssettypeName(b) || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "isoutdoor") return String(a.asset_isoutdoor ? "Ja" : "Nee").localeCompare(String(b.asset_isoutdoor ? "Ja" : "Nee"), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "room") return String(getRoomName(a) || "").localeCompare(String(getRoomName(b) || ""), "af", { sensitivity: "base" }) * dir;
-      if (sortKey === "status") return String(getStatusLabel(a.asset_status)).localeCompare(String(getStatusLabel(b.asset_status)), "af", { sensitivity: "base" }) * dir;
-      return 0;
-    });
-  const allSelected = filteredItems.length > 0 && selectedIds.length === filteredItems.length;
+    }),
+    (a, key) => {
+      switch (key) {
+        case "id": return Number(a.asset_id || 0);
+        case "asset_name": return String(a.asset_name || "");
+        case "asset_brand": return String(a.asset_brand || "");
+        case "asset_serial": return String(a.asset_serial || "");
+        case "assettype": return String(getAssettypeName(a) || "");
+        case "isoutdoor": return String(a.asset_isoutdoor ? "Ja" : "Nee");
+        case "room": return String(getRoomName(a) || "");
+        case "status": return String(getStatusLabel(a.asset_status));
+        case "created": return a.asset_created_datetime ? new Date(a.asset_created_datetime).getTime() : 0;
+        default: return "";
+      }
+    },
+  );
+  const { currentPage, totalPages, paginatedData: paginatedItems, goToPage } = usePagination(filteredItems, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
+  const allSelected = paginatedItems.length > 0 && paginatedItems.every((x) => selectedIds.includes(x.asset_id));
+  const toggleAll = () => {
+    if (allSelected) {
+      const pageIds = new Set(paginatedItems.map((x) => x.asset_id));
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    } else {
+      const pageIds = paginatedItems.map((x) => x.asset_id);
+      setSelectedIds((prev) => [...new Set([...prev, ...pageIds])]);
+    }
+  };
 
   const getStatusClass = (status) => {
     switch (status) {
@@ -686,7 +833,7 @@ function AssetPage({ embedded = false }) {
   const filterColumnOptions = [
     { value: "all", label: "Alle kolomme" },
     { value: "asset_name", label: "Naam" },
-    { value: "asset_brand", label: "Brand" },
+    { value: "asset_brand", label: "Handelsmerk" },
     { value: "asset_serial", label: "Serienommer" },
     { value: "asset_isoutdoor", label: "Buite" },
     { value: "room", label: "Lokaal" },
@@ -707,7 +854,7 @@ function AssetPage({ embedded = false }) {
 
   const pageContent = (
     <>
-      <div className="controls">
+      <div className="controls controls--sticky">
         <div className="controls-left">
           <div className="control-input-shell">
             <input
@@ -717,108 +864,47 @@ function AssetPage({ embedded = false }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Select
-            className="react-select-container"
-            classNamePrefix="react-select"
-            value={filterColumnOptions.find(option => option.value === filterColumn)}
-            onChange={(selectedOption) => setFilterColumn(selectedOption.value)}
-            options={filterColumnOptions}
-            isSearchable={false}
-            components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
-            styles={{
-              container: (base) => ({ ...base, minWidth: '160px' }),
-              control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-              valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+<FilterPicker
+            search={searchTerm}
+            onSearch={setSearchTerm}
+            filterColumn={filterColumn}
+            onFilterColumnChange={setFilterColumn}
+            filterColumnOptions={filterColumnOptions}
+            terrainFilter={terrainFilter}
+            buildingFilter={buildingFilter}
+            roomFilter={roomFilter}
+            onLocationChange={(loc, bld, room) => {
+              setTerrainFilter(loc || "");
+              setBuildingFilter(bld || "");
+              setRoomFilter(room || "");
+            }}
+            locationOptions={allLocationOptions}
+            maxLevel={3}
+            lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+            onReset={() => {
+              setSearchTerm("");
+              setTerrainFilter("");
+              setBuildingFilter("");
+              setRoomFilter("");
             }}
           />
-          {(() => {
-            const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-            const currentDisplayValue = cascadeCount === 0 ? null
-              : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-              : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-              : null;
-            const clearFromLevel = (levelIndex) => {
-              if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-              else if (levelIndex === 2) { setRoomFilter(''); }
-            };
-            const breadcrumbData = [{ level: -1, name: "Terreine" }];
-            if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-            if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-            if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-            const renderBreadcrumb = () => (
-              <div style={{ display: "flex", flexWrap: "nowrap", whiteSpace: "nowrap", alignItems: "center", gap: "4px", fontSize: "13px", color: "#111827", marginTop: "6px", marginBottom: "6px" }}>
-                {breadcrumbData.map((item, i) => {
-                  const isLast = i === breadcrumbData.length - 1;
-                  const showArrow = isLast ? cascadeCount < 3 : true;
-                  return (
-                    <React.Fragment key={i}>
-                      <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
-                      {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            );
-            const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
-              const CascadeControl = ({ children, ...props }) => (
-                <components.Control {...props}>
-                  {children}
-                  {cascadeCount > 0 && (
-                    <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
-                      <IoReturnUpBack size={24} />
-                    </span>
-                  )}
-                </components.Control>
-              );
-              return (
-                <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                  <div className="control-cascade-breadcrumb">
-                    {renderBreadcrumb()}
-                  </div>
-                  <Select
-                     className="react-select-container"
-                     classNamePrefix="react-select"
-                     placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                     isClearable
-                     isDisabled={cascadeCount >= 3}
-                     closeMenuOnSelect={false}
-                     menuIsOpen={filterCascade.menuIsOpen}
-                     onMenuOpen={filterCascade.onMenuOpen}
-                     onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                    styles={{
-                      container: (base) => ({ ...base, minWidth: '260px' }),
-                      control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                      valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                    }}
-                    options={allLocationOptions}
-                    filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                    }}
-                    value={currentDisplayValue}
-                    onChange={(selectedOption) => {
-                      if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                      const f = selectedOption._fields;
-                      setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                    }}
-                  />
-              </div>
-            );
-          })()}
+        <SortPicker
+            columns={ASSET_COLUMNS}
+            sorts={sorts}
+            onAdd={addSort}
+            onRemove={removeSort}
+            onToggleDirection={toggleDirection}
+            onMove={moveSort}
+            onClear={clearSorts}
+          />
+          <ColumnPicker
+            ref={colPickerRef}
+            columns={ASSET_COLUMNS}
+            visibleColumns={colVis.visibleColumns}
+            toggleColumn={colVis.toggleColumn}
+            resetVisibility={colVis.resetVisibility}
+            onResetWidths={colWidths.resetWidths}
+          />
         </div>
         <div className="controls-right">
           {hasRight('assets.manage') && (
@@ -830,14 +916,6 @@ function AssetPage({ embedded = false }) {
               ⇅ Invoer / Uitvoer rekords
             </button>
           )}
-          <ColumnPicker
-            ref={colPickerRef}
-            columns={ASSET_COLUMNS}
-            visibleColumns={colVis.visibleColumns}
-            toggleColumn={colVis.toggleColumn}
-            resetVisibility={colVis.resetVisibility}
-            onResetWidths={colWidths.resetWidths}
-          />
           <button className="btn-add" onClick={() => handleOpenTypeModal(null)}>Bestuur Bate Tipes</button>
           <button className="btn-add" onClick={handleNewAsset}>+ Nuwe Bate</button>
           {selectedIds.length > 0 && (
@@ -867,11 +945,9 @@ function AssetPage({ embedded = false }) {
                 key={col.key}
                 col={col}
                 colWidths={colWidths}
-                className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                onClick={() => col.sortKey && handleSort(col.sortKey)}
                 onContextMenu={(e) => colPickerRef.current?.openAt(e)}
               >
-                {col.label}{col.sortKey && getSortIndicator(col.sortKey)}
+                {col.label}
               </ResizableTh>
             ))}
             <th style={{ width: '230px' }}>Aksies</th>
@@ -881,7 +957,7 @@ function AssetPage({ embedded = false }) {
           {filteredItems.length === 0 ? (
             <tr><td colSpan={colVis.visibleColumns.length + 2} style={{ textAlign: 'center', padding: '20px' }}>Geen bates gevind</td></tr>
           ) : (
-            filteredItems.map((item) => (
+            paginatedItems.map((item) => (
               <tr key={item.asset_id} onClick={() => handleEditAsset(item)} style={{ cursor: "pointer" }}>
                 <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                   <input type="checkbox" checked={selectedIds.includes(item.asset_id)} onChange={() => toggleOne(item.asset_id)} />
@@ -890,23 +966,36 @@ function AssetPage({ embedded = false }) {
                   <td key={col.key}>{col.render(item)}</td>
                 ))}
                 <td onClick={e => e.stopPropagation()}>
-                  <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
-                  <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button className="btn-edit" onClick={() => { setSelectedAsset(item); fetchAssetHistory(item.asset_id); fetchAssetImages(item.asset_id); setShowHistoryModal(true); }}>Geskiedenis</button>
+                    <button className="btn-delete" title="Verwyder" onClick={() => handleDeleteAsset(item.asset_id)}><IoTrashOutline size={18} /></button>
+                  </div>
+                  {canManageChecks && missingMap[item.asset_id] && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                      <button className="btn-brown" onClick={() => openFoundModal(item)}>Merk as gevind</button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))
           )}
         </tbody>
       </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredItems.length} pageSize={100} />
     </>
   );
 
   const modalContent = (
-    <div className="modal" style={{ display: "flex" }}>
+    <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
       <div className="modal-content">
         <div className="modal-header">
-          <h3>{isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
-          <span className="close" onClick={handleCloseModal}>&times;</span>
+          <h3>{isViewMode ? "Bekyk" : isEditing ? "Wysig" : "Nuwe"} Bate {!isEditing && "(ID sal outomaties gegenereer word)"}</h3>
+          <div className="modal-header-actions">
+            {isEditing && isViewMode && hasRight('assets.manage') && (
+              <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+            )}
+            <span className="close" onClick={handleCloseModal}>&times;</span>
+          </div>
         </div>
         <div className="input-row">
           <div className="input-group">
@@ -916,24 +1005,30 @@ function AssetPage({ embedded = false }) {
               type="text"
               className={invalidFields.asset_name ? "field-invalid" : ""}
               value={newAsset.asset_name}
+              disabled={isViewMode}
               onChange={(e) => {
                 setNewAsset({ ...newAsset, asset_name: e.target.value });
                 if (invalidFields.asset_name) setInvalidFields(prev => { const n = {...prev}; delete n.asset_name; return n; });
               }}
             />
           </div>
-          <div className="input-group">
-            <label>Brand *</label>
-            <input
-              ref={el => fieldRefs.current.asset_brand = el}
-              type="text"
-              className={invalidFields.asset_brand ? "field-invalid" : ""}
-              value={newAsset.asset_brand}
-              onChange={(e) => {
-                setNewAsset({ ...newAsset, asset_brand: e.target.value });
-                if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
-              }}
-            />
+          <div className="input-group ghost-field-wrap" style={{ position: 'relative' }}>
+            <label>Handelsmerk</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                ref={el => fieldRefs.current.asset_brand = el}
+                type="text"
+                className={invalidFields.asset_brand ? "field-invalid" : ""}
+                value={newAsset.asset_brand}
+                disabled={isViewMode}
+                onChange={(e) => {
+                  setNewAsset({ ...newAsset, asset_brand: e.target.value });
+                  if (invalidFields.asset_brand) setInvalidFields(prev => { const n = {...prev}; delete n.asset_brand; return n; });
+                }}
+                onKeyDown={(e) => handleAssetGhostTab(e, 'asset_brand')}
+              />
+              <GhostSuggestion active={!newAsset.asset_brand && !!assetGhostBrand && !isViewMode} onAccept={() => applyAssetGhost('asset_brand')}>{assetGhostBrand}</GhostSuggestion>
+            </div>
           </div>
           <div className="input-group">
             <label>Serienommer *</label>
@@ -941,6 +1036,7 @@ function AssetPage({ embedded = false }) {
               type="text"
               value={newAsset.asset_serial}
               onChange={handleSerialChange}
+              disabled={isViewMode}
               placeholder="bv. AK MT000001"
             />
           </div>
@@ -951,6 +1047,7 @@ function AssetPage({ embedded = false }) {
               <input
                 type="checkbox"
                 checked={newAsset.asset_isoutdoor}
+                disabled={isViewMode}
                 onChange={(e) => setNewAsset({ ...newAsset, asset_isoutdoor: e.target.checked })}
               />
               Buite
@@ -961,8 +1058,9 @@ function AssetPage({ embedded = false }) {
             <Select
               className="basic-single"
               classNamePrefix="select"
-              placeholder="Kies 'n tipe..."
+              placeholder={!newAsset.assettype_id && assetGhostType && !isViewMode ? assetGhostType : "Kies 'n tipe..."}
               isSearchable={true}
+              isDisabled={isViewMode}
               components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
               options={assettypeOptions}
               value={assettypeOptions.find(o => Number(o.value) === Number(newAsset.assettype_id)) || null}
@@ -974,6 +1072,7 @@ function AssetPage({ embedded = false }) {
                 control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                 valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
               singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                placeholder: (base) => (!newAsset.assettype_id && assetGhostType && !isViewMode ? { ...base, color: '#a8a29e', fontStyle: 'italic' } : base),
               }}
             />
           </div>
@@ -981,7 +1080,6 @@ function AssetPage({ embedded = false }) {
 
         <div className="input-row">
           <div className={invalidFields.location_id ? "input-group field-invalid" : "input-group"} style={{ position: "relative", flex: 1 }}>
-            <label>Ligging *</label>
             {(() => {
               const cascadeCount = [newAsset.location_id, newAsset.building_id, newAsset.room_id].filter(Boolean).length;
               const currentDisplayValue = cascadeCount === 0 ? null
@@ -994,7 +1092,7 @@ function AssetPage({ embedded = false }) {
                 else if (levelIndex === 1) setNewAsset(p => ({...p, building_id: "", room_id: ""}));
                 else if (levelIndex === 2) setNewAsset(p => ({...p, room_id: ""}));
               };
-              const breadcrumbData = [{ level: -1, name: "Terreine" }];
+              const breadcrumbData = [];
               if (newAsset.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(newAsset.location_id))?.location_name || newAsset.location_id });
               if (newAsset.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(newAsset.building_id))?.building_name || newAsset.building_id });
               if (newAsset.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(newAsset.room_id))?.room_name || newAsset.room_id });
@@ -1005,18 +1103,21 @@ function AssetPage({ embedded = false }) {
                     const showArrow = isLast ? cascadeCount < 3 : true;
                     return (
                       <React.Fragment key={i}>
-                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} style={{ border: "none", cursor: "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFromLevel(item.level + 1)} disabled={isViewMode} style={{ border: "none", cursor: isViewMode ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
                         {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
                       </React.Fragment>
                     );
                   })}
+                  {cascadeCount < 3 && ["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount] && (
+                    <span className="breadcrumb-pending">/{["Kies Terrein","Kies Gebou","Kies Lokaal"][cascadeCount]}</span>
+                  )}
                 </div>
               );
               const backBtnStyle = { background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" };
                const CascadeControl = ({ children, ...props }) => (
                  <components.Control {...props}>
                    {children}
-                   {cascadeCount > 0 && (
+                   {!isViewMode && cascadeCount > 0 && (
                      <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }} title="Terug na vorige vlak" style={backBtnStyle}>
                        <IoReturnUpBack size={24} />
                      </span>
@@ -1025,22 +1126,23 @@ function AssetPage({ embedded = false }) {
                );
                return (
                  <div ref={modalCascadeMenu.containerRef}>
-                   {renderBreadcrumb()}
-                     <Select
-                       className="react-select-container"
-                       classNamePrefix="react-select"
-                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
+                    {renderBreadcrumb()}
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder={cascadeCount === 0 && assetGhostRoom && !isViewMode ? assetGhostRoom : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][cascadeCount]}
                        isClearable
-                       isDisabled={cascadeCount >= 3}
+                       isDisabled={isViewMode || cascadeCount >= 3}
                        closeMenuOnSelect={false}
                        menuIsOpen={modalCascadeMenu.menuIsOpen}
                        onMenuOpen={modalCascadeMenu.onMenuOpen}
-                       onMenuClose={modalCascadeMenu.onMenuClose}
-                     components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+onMenuClose={modalCascadeMenu.onMenuClose}
+                      components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
               singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                        placeholder: (base) => (cascadeCount === 0 && assetGhostRoom && !isViewMode ? { ...base, color: '#a8a29e', fontStyle: 'italic' } : base),
                       }}
                       options={allLocationOptions}
                       filterOption={(option, rawInput) => {
@@ -1079,29 +1181,37 @@ function AssetPage({ embedded = false }) {
         </div>
 
         <div className="input-row">
-          <div className="input-group">
+          <div className="input-group" style={{ position: 'relative' }}>
             <label>Status</label>
-            <Select
-              className="basic-single"
-              classNamePrefix="select"
-              value={statusOptions.find(option => option.value === newAsset.asset_status)}
-              onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
-              options={statusOptions}
-              isSearchable={false}
-              components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
-              styles={{
-                control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-              singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-              }}
-            />
+            <div style={{ position: 'relative' }}>
+              <Select
+                className="basic-single"
+                classNamePrefix="select"
+                value={statusOptions.find(option => option.value === newAsset.asset_status)}
+                onChange={(selectedOption) => setNewAsset({ ...newAsset, asset_status: selectedOption ? selectedOption.value : "Aktief" })}
+                options={statusOptions}
+                isSearchable={false}
+                isDisabled={isViewMode}
+                components={{ Control: NoCloseControl, DropdownIndicator: NoCloseDropdownIndicator }}
+                styles={{
+                  control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
+                  valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
+                singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
+                }}
+              />
+              {assetGhostStatus && assetGhostStatus !== newAsset.asset_status && !isViewMode && (
+                <div style={{ position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.78rem', color: '#a8a29e', fontStyle: 'italic', background: '#fdf8f3', border: '1px solid #e7d9c7', borderRadius: 6, padding: '2px 6px' }}>
+                  → {assetGhostStatus}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="input-row">
           <div className="input-group" style={{ width: "100%" }}>
             <label>Beelde</label>
-            <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+            <input type="file" accept="image/*" multiple disabled={isViewMode} onChange={handleImageFilesChange} />
             <div className="image-preview-grid">
               {assetImages.map((image) => (
                 <div key={image.image_id} className="record-image-card">
@@ -1127,21 +1237,27 @@ function AssetPage({ embedded = false }) {
             </div>
           </div>
         </div>
+        {!isViewMode && (
         <div className="modal-footer">
           <button className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
           <button className="btn-add" onClick={handleSaveAsset}>{isEditing ? "Opdateer" : "Stoor"}</button>
         </div>
+        )}
         <AiSuggestPanel
           suggestions={aiSuggestions}
           loading={aiLoading}
           filled={aiFilled}
           error={aiError}
-          labels={{ asset_type: 'Bate Tipe', room: 'Ligging (kamer)' }}
+          labels={{ asset_type: 'Bate Tipe', room: 'Ligging (kamer)', asset_brand: 'Handelsmerk', asset_status: 'Status' }}
           onUse={(key, s) => {
             if (key === 'asset_type') {
               if (s.id != null) setNewAsset(p => ({ ...p, assettype_id: Number(s.id) }));
             } else if (key === 'room') {
               applyAiRoom(s);
+            } else if (key === 'asset_brand') {
+              setNewAsset(p => ({ ...p, asset_brand: String(s.value) }));
+            } else if (key === 'asset_status') {
+              setNewAsset(p => ({ ...p, asset_status: String(s.value) }));
             }
           }}
         />
@@ -1298,7 +1414,6 @@ function AssetPage({ embedded = false }) {
                   <table className="standard-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
                         <th>Naam</th>
                         <th>Gem. Lewensduur</th>
                         <th>Diensinterval</th>
@@ -1309,7 +1424,6 @@ function AssetPage({ embedded = false }) {
                     <tbody>
                       {assettypes.map((at) => (
                         <tr key={at.assettype_id}>
-                          <td>{at.assettype_id}</td>
                           <td>{at.assettype_name}</td>
                           <td>{at.assettype_avg_lifespan != null ? `${at.assettype_avg_lifespan}m` : '-'}</td>
                           <td>{at.assettype_service_interval != null ? `${at.assettype_service_interval}m` : '-'}</td>
@@ -1331,10 +1445,133 @@ function AssetPage({ embedded = false }) {
             </div>
           </div>
         )}
+      {foundModalContent}
       {dialog}
       </>
     );
   }
+
+  const foundModalContent = showFoundModal && foundAsset && (() => {
+    const currentFoundDisplayValue = (() => {
+      if (foundRoomId && foundBldId) return { value: foundRoomId, label: rooms?.find(r => String(r.room_id) === String(foundRoomId))?.room_name || foundRoomId };
+      if (foundBldId && foundLocId) return { value: foundBldId, label: buildings?.find(b => String(b.building_id) === String(foundBldId))?.building_name || foundBldId };
+      if (foundLocId) return { value: foundLocId, label: terrains?.find(t => String(t.location_id) === String(foundLocId))?.location_name || foundLocId };
+      return null;
+    })();
+    const foundCascadeCount = [foundLocId, foundBldId, foundRoomId].filter(Boolean).length;
+    const foundBreadcrumbData = [{ level: -1, name: "Terreine" }];
+    if (foundLocId) foundBreadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === String(foundLocId))?.location_name || foundLocId });
+    if (foundBldId) foundBreadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === String(foundBldId))?.building_name || foundBldId });
+    if (foundRoomId) foundBreadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === String(foundRoomId))?.room_name || foundRoomId });
+
+    const clearFoundFromLevel = (levelIndex) => {
+      if (levelIndex <= 0) { setFoundLocId(""); setFoundBldId(""); setFoundRoomId(""); }
+      else if (levelIndex === 1) { setFoundBldId(""); setFoundRoomId(""); }
+      else if (levelIndex === 2) { setFoundRoomId(""); }
+    };
+
+    const FoundCascadeControl = ({ children, ...props }) => (
+      <components.Control {...props}>
+        {children}
+        {foundCascadeCount > 0 && (
+          <span className="cascade-back-indicator" onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFoundFromLevel(foundCascadeCount - 1); }} title="Terug na vorige vlak" style={{ background: "#935e28", border: "none", borderRadius: "4px", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: "4px 8px", margin: "2px" }}>
+            <IoReturnUpBack size={24} />
+          </span>
+        )}
+      </components.Control>
+    );
+
+    return (
+      <div className="modal" style={{ display: "flex" }} onClick={(e) => { if (e.target === e.currentTarget && !foundSaving) setShowFoundModal(false); }}>
+        <div className="modal-content" style={{ maxWidth: "620px" }}>
+          <div className="modal-header">
+            <h3>Merk as gevind &mdash; {foundAsset.asset_name}</h3>
+            <span className="close" onClick={() => { if (!foundSaving) setShowFoundModal(false); }}>&times;</span>
+          </div>
+          <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+
+            {/* Option A: confirm in own room */}
+            <div style={{ background: "#f9f5ef", border: "1px solid #e2d5c0", borderRadius: "6px", padding: "14px" }}>
+              <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b3f1d" }}>Gevind in sy aangewese lokaal</h4>
+              <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6b7280" }}>
+                Die bate word in die lokaal bevestig. 'n Kort kontrole-rekord word in die geskiedenis aangeteken.
+              </p>
+              <button className="btn-brown" disabled={foundSaving} onClick={markFoundInOwnRoom}>
+                {foundSaving ? "Besig..." : "Bevestig in hierdie lokaal"}
+              </button>
+            </div>
+
+            {/* Option B: found in another room */}
+            <div style={{ background: "#f9f5ef", border: "1px solid #e2d5c0", borderRadius: "6px", padding: "14px" }}>
+              <h4 style={{ margin: "0 0 6px", fontSize: "14px", color: "#6b3f1d" }}>Gevind in 'n ander lokaal</h4>
+              <p style={{ margin: "0 0 10px", fontSize: "13px", color: "#6b7280" }}>
+                Kies die lokaal waar die bate werklik is. 'n Fout word outomaties geskep.
+              </p>
+              <div style={{ position: "relative", marginBottom: "10px" }} ref={foundCascadeMenu.containerRef}>
+                <label style={{ fontSize: "13px", color: "#6b7280", marginBottom: "4px", display: "block" }}>Lokaal waarin gevind</label>
+                <div className="control-cascade-breadcrumb" style={{ marginBottom: "6px" }}>
+                  {foundBreadcrumbData.map((item, i) => {
+                    const isLast = i === foundBreadcrumbData.length - 1;
+                    const showArrow = isLast ? foundCascadeCount < 3 : true;
+                    return (
+                      <React.Fragment key={i}>
+                        <button type="button" className="breadcrumb-btn" onClick={() => clearFoundFromLevel(item.level + 1)} disabled={foundSaving} style={{ border: "none", cursor: foundSaving ? "default" : "pointer", margin: "0", color: "#111827", fontWeight: isLast ? 700 : 600, fontSize: "13px", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>{item.name}</button>
+                        {showArrow && <span style={{ color: "#9ca3af", lineHeight: "1", display: "inline-flex", alignItems: "center" }}>›</span>}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+                <Select
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Ligging voltooi"][foundCascadeCount]}
+                  isClearable
+                  isDisabled={foundSaving || foundCascadeCount >= 3}
+                  closeMenuOnSelect={false}
+                  menuIsOpen={foundCascadeMenu.menuIsOpen}
+                  onMenuOpen={foundCascadeMenu.onMenuOpen}
+                  onMenuClose={foundCascadeMenu.onMenuClose}
+                  components={{ Control: FoundCascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                  styles={{
+                    control: (base) => ({ ...base, minHeight: "40px", height: "40px", display: "flex", alignItems: "center" }),
+                    valueContainer: (base) => ({ ...base, padding: "0 12px", display: "flex", alignItems: "center" }),
+                    singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: "38px", whiteSpace: "nowrap" }),
+                  }}
+                  options={allLocationOptions}
+                  filterOption={(option, rawInput) => {
+                    if (rawInput) {
+                      if (foundCascadeCount === 0) return option.data._cascadeLevel <= 2 && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (foundCascadeCount === 1) return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 2 && String(option.data._fields.location_id) === String(foundLocId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                      if (foundCascadeCount === 2) return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 2 && String(option.data._fields.building_id) === String(foundBldId) && option.label.toLowerCase().includes(rawInput.toLowerCase());
+                    }
+                    if (foundCascadeCount === 0) return option.data._cascadeLevel === 0;
+                    if (foundCascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(foundLocId);
+                    if (foundCascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(foundBldId);
+                    return false;
+                  }}
+                  value={currentFoundDisplayValue}
+                  onChange={(selected) => {
+                    if (!selected) { setFoundLocId(""); setFoundBldId(""); setFoundRoomId(""); return; }
+                    const f = selected._fields || {};
+                    setFoundLocId(f.location_id || "");
+                    setFoundBldId(f.building_id || "");
+                    setFoundRoomId(f.room_id || "");
+                  }}
+                />
+              </div>
+              <button className="btn-brown" disabled={foundSaving || !foundRoomId} onClick={markFoundInOtherRoom}>
+                {foundSaving ? "Besig..." : "Stoor in nuwe lokaal"}
+              </button>
+            </div>
+
+          </div>
+          <div className="modal-footer">
+            <button className="btn-cancel" onClick={() => { if (!foundSaving) setShowFoundModal(false); }}>Kanselleer</button>
+          </div>
+        </div>
+      </div>
+    );
+  })();
 
   return (
     <div className="main">
@@ -1512,6 +1749,8 @@ function AssetPage({ embedded = false }) {
           </div>
         </div>
       )}
+      {foundModalContent}
+      {foundModalContent}
       {dialog}
     </div>
   );

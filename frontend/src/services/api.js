@@ -10,12 +10,16 @@ import axios from 'axios';
 // API-pad vir alle versoeke
 const API_PATH = '/api/v1';
 
-// Haal backend-URL van omgewings-veranderlikes (default localhost:8000)
-const rawApiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-const normalizedApiUrl = rawApiUrl.replace(/\/+$/, '');
-const baseURL = normalizedApiUrl.endsWith(API_PATH)
-  ? normalizedApiUrl
-  : `${normalizedApiUrl}${API_PATH}`;
+// Backend-URL: verstek is 'n RELATIEWE pad sodat dieselfde geboude bundel by enige
+// hostname werk (localhost, LAN-IP of publieke domein). nginx proxy /api/ na die
+// backend, so dieselfde oorsprong word gebruik en CORS word heeltemal vermy.
+// Oorheers slegs met REACT_APP_API_URL wanneer jy 'n grootliks aparte API wil hê.
+const customApiUrl = process.env.REACT_APP_API_URL;
+const baseURL = customApiUrl
+  ? customApiUrl.replace(/\/+$/, '').endsWith(API_PATH)
+    ? customApiUrl.replace(/\/+$/, '')
+    : `${customApiUrl.replace(/\/+$/, '')}${API_PATH}`
+  : API_PATH;
 
 // Skep Axios-klien met basis-konfigurasie
 const apiClient = axios.create({
@@ -124,13 +128,13 @@ export const ticketsAPI = {
   getAll: () => apiClient.get('/fault'),
   getById: (id) => apiClient.get(`/fault/${id}`),
   // create: Ondersteun multipart form data vir image uploads (mobiele app)
-  create: (data) => {
+  create: (data, config) => {
     // As data bevat FormData, stuur die FormData direk; axios sal die regte header self stel
     if (data instanceof FormData) {
-      return apiClient.post('/fault', data);
+      return apiClient.post('/fault', data, config);
     }
     // Anders stuur as JSON
-    return apiClient.post('/fault', data);
+    return apiClient.post('/fault', data, config);
   },
   update: (id, data) => apiClient.patch(`/fault/${id}`, data),
   delete: (id) => apiClient.delete(`/fault/${id}`),
@@ -177,6 +181,7 @@ export const usersAPI = {
   getAll: () => apiClient.get('/users'),
   getById: (id) => apiClient.get(`/users/${id}`),
   create: (data) => apiClient.post('/users', data),
+  createContractor: (data) => apiClient.post('/users/contractors', data),
   update: (id, data) => apiClient.patch(`/users/${id}`, data),
   delete: (id) => apiClient.delete(`/users/${id}`),
   getAssignable: () => apiClient.get('/users/assignable'),
@@ -197,7 +202,6 @@ export const rolesAPI = {
 export const rightsAPI = {
   getAll: () => apiClient.get('/rights'),
   getById: (id) => apiClient.get(`/rights/${id}`),
-  create: (data) => apiClient.post('/rights', data),
   update: (id, data) => apiClient.patch(`/rights/${id}`, data),
   delete: (id) => apiClient.delete(`/rights/${id}`),
 };
@@ -214,6 +218,12 @@ export const quotesAPI = {
 export const predictionsAPI = {
   getAll: () => apiClient.get('/predictions'),
   getByAsset: (id) => apiClient.get(`/predictions/${id}`),
+  // ML-model status (survival-model): { available, enabled, trained_at, assets, events }
+  getModelStatus: () => apiClient.get('/predictions/model/status'),
+  // Dwing 'n heropleiding van die survival-model
+  retrainModel: () => apiClient.post('/predictions/model/retrain'),
+  // Aktiveer/deaktiveer die model: body { enabled: bool }
+  setModelEnabled: (enabled) => apiClient.post('/predictions/model/enabled', { enabled }),
 };
 
 // Die audit-log is doelbewus LEES-ALLEEN aan die agterkant: audit-rye word net
@@ -307,7 +317,9 @@ export const suggestAPI = {
 export const roomChecksAPI = {
   getByRoom: (roomId) => apiClient.get('/room-checks', { params: { room_id: roomId } }),
   getById: (id) => apiClient.get(`/room-checks/${id}`),
-  create: (data) => apiClient.post('/room-checks', data),
+  create: (data, config) => apiClient.post('/room-checks', data, config),
+  missing: () => apiClient.get('/room-checks/missing'),
+  markMissingFound: (data, config) => apiClient.post('/room-checks/missing-found', data, config),
   sessions: {
     getAll: (params) => apiClient.get('/room-checks/sessions', { params }),
     create: (data) => apiClient.post('/room-checks/sessions', data),

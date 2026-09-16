@@ -6,7 +6,7 @@ import { useToast } from '../components/Toast/useToast';
 
 /**
  * JobTabs — tab chrome shared by the Werksopdragte (work orders) page and
- * the AI Konsepte (AI job-draft queue/new/detail) pages.
+ * the Voorgestelde Werksopdragte (AI job-draft queue/new/detail) pages.
  *
  * Renders a tab bar above the routed page content. The AI tab is only shown to
  * users holding the `ai.approve` right; its badge shows the number of drafts
@@ -29,7 +29,7 @@ function JobTabs({ children }) {
         if (!cancelled) setPendingCount(Array.isArray(res.data) ? res.data.length : 0);
       })
       .catch(() => {
-        if (!cancelled) showToast({ type: 'error', title: 'Fout', message: 'Kon nie die AI-konseptelling laai nie' });
+        if (!cancelled) showToast({ type: 'error', title: 'Fout', message: 'Kon nie die voorgestelde-werksopdragtelling laai nie' });
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,7 +51,7 @@ function JobTabs({ children }) {
           to="/ai-drafts"
           className={`fault-tab${isAi ? ' active' : ''}`}
         >
-          AI Konsepte
+          Voorgestelde Werksopdragte
           {pendingCount > 0 && <span className="fault-tab-badge">{pendingCount}</span>}
         </Link>
       </div>

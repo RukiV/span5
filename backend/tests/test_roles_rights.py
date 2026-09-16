@@ -46,7 +46,7 @@ def test_admin_lists_builtin_roles_and_rights(client, headers_for):
     assert "right_ids" in admin_role and len(admin_role["right_ids"]) >= 1
 
     rights = client.get(f"{API}/rights", headers=h).json()
-    assert len(rights) == 39
+    assert len(rights) == 40  # 39 + predictions.manage
     assert all(r["is_builtin"] for r in rights)
 
 
@@ -77,16 +77,19 @@ def test_admin_role_cannot_lose_admin_console_rights(client, headers_for):
 
 
 # --------------------------------------------------------------------------
-# Custom rights CRUD
+# Custom rights update/delete (creating new rights is no longer supported)
 # --------------------------------------------------------------------------
 
-def test_custom_right_full_crud(client, headers_for):
+def test_custom_right_update_and_delete(client, headers_for, engine):
     h = headers_for("admin")
-    created = client.post(f"{API}/rights", json={"right_name": "custom.thing", "right_description": "d"}, headers=h)
-    assert created.status_code == 201
-    body = created.json()
-    assert body["is_builtin"] is False
-    rid = body["right_id"]
+
+    # Directly insert a custom (non-built-in) right — creation via the API was removed.
+    with Session(engine) as session:
+        r = Rights(right_name="custom.thing", right_description="d")
+        session.add(r)
+        session.commit()
+        session.refresh(r)
+        rid = r.right_id
 
     assert client.patch(f"{API}/rights/{rid}", json={"right_description": "updated"}, headers=h).status_code == 200
     assert client.delete(f"{API}/rights/{rid}", headers=h).status_code == 204

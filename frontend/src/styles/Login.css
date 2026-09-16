@@ -3,42 +3,57 @@
 .login-page {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  background: transparent;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
-.login-form {
-  max-width: 400px;
-  margin: 0 auto;
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.login-page h2 {
+  text-align: center;
+  color: #0e1e3b;
+  font-size: 18px;
+  margin-bottom: 25px;
+  letter-spacing: 1px;
 }
 
 .login-card {
   background: white;
   padding: 35px;
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
   border-top: 5px solid var(--bruin);
   width: 100%;
   max-width: 380px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 }
 
-.login-card h2 {
+.login-page .login-logo {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+  width: 333px;
+  max-width: 100%;
+  height: auto;
+}
+
+.login-page .login-system {
   text-align: center;
-  color: #0e1e3b;
-  margin-bottom: 25px;
-  letter-spacing: 1px;
+  color: #000;
+  font-size: 24px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  margin: 0 0 8px;
 }
 
 .btn-login {
   width: 100%;
   padding: 12px;
-  background-color: var(--blou);
+  background-color: var(--bruin);
   color: white;
   border: none;
   border-radius: 5px;
@@ -49,7 +64,7 @@
 }
 
 .btn-login:hover {
-  background-color: var(--bruin);
+  background-color: #7a4a1f;
 }
 
 .divider {
@@ -70,7 +85,7 @@
 .btn-microsoft {
   width: 100%;
   padding: 12px;
-  background-color: var(--blou);
+  background-color: var(--bruin);
   color: white;
   border: none;
   border-radius: 5px;
@@ -85,7 +100,7 @@
 }
 
 .btn-microsoft:hover {
-  background-color: var(--bruin);
+  background-color: #7a4a1f;
 }
 
 .btn-microsoft svg {

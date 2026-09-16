@@ -58,10 +58,12 @@ class _NotificationPreferencesPageState
   Future<void> _load() async {
     setState(() => _loading = true);
     final prefs = await NotificationService.fetchPreferences();
-    setState(() {
-      _prefs = prefs;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _prefs = prefs;
+        _loading = false;
+      });
+    }
   }
 
   // --- Lees een voorkeur-veld (gee verstek: in_app=waar, push=waar, e-pos=onwaar) ---
@@ -87,10 +89,10 @@ class _NotificationPreferencesPageState
     }
     if (!ok) {
       // Terugrol as die bedienerversoek misluk
-      setState(() {
-        _prefs[type][field] = current;
-      });
       if (mounted) {
+        setState(() {
+          _prefs[type][field] = current;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Kon nie voorkeur stoor nie'),

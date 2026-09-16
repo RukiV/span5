@@ -1,0 +1,119 @@
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0 8px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  font-size: 14px;
+}
+
+.pagination--sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 15;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+  margin: auto -25px -25px -25px;
+  padding: 12px 25px;
+  border-radius: 0;
+}
+
+.pagination-info,
+.pagination-meta {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+  flex: 1;
+}
+
+.pagination-btn {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0e1e3b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.pagination-btn:hover:not(:disabled):not(.pagination-btn--active) {
+  background: #e8d5c4;
+  border-color: #935e28;
+  color: #7a4e21;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+.pagination-btn--active {
+  background: #935e28;
+  color: #fff;
+  border-color: #935e28;
+  box-shadow: 0 2px 8px rgba(147,94,40,0.3);
+}
+
+.pagination-btn--active:hover {
+  background: #7a4e21;
+  border-color: #7a4e21;
+  color: #fff;
+}
+
+.pagination-btn--nav {
+  min-width: 72px;
+  font-weight: 600;
+}
+
+.pagination-ellipsis {
+  padding: 0 4px;
+  color: #94a3b8;
+  font-weight: 700;
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pagination-controls {
+    order: 2;
+  }
+  .pagination-info {
+    order: 1;
+    text-align: center;
+  }
+  .pagination-meta {
+    order: 3;
+    text-align: center;
+  }
+}

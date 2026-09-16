@@ -16,6 +16,8 @@ class RoomCheckSession {
   final int roomId;
   final int assignedUserId;
   final DateTime? scheduledDatetime;
+  final DateTime? completedDatetime;
+  final DateTime? createdAt;
   final String status;
   final int? calendarEventId;
   final int? roomCheckId;
@@ -28,6 +30,8 @@ class RoomCheckSession {
     required this.roomId,
     required this.assignedUserId,
     this.scheduledDatetime,
+    this.completedDatetime,
+    this.createdAt,
     this.status = 'scheduled',
     this.calendarEventId,
     this.roomCheckId,
@@ -39,12 +43,20 @@ class RoomCheckSession {
   bool get isCompleted => status == 'completed';
   bool get isCancelled => status == 'cancelled';
 
+  bool get isCompletedEarly =>
+      isCompleted &&
+      scheduledDatetime != null &&
+      completedDatetime != null &&
+      completedDatetime!.isBefore(scheduledDatetime!);
+
   factory RoomCheckSession.fromJson(Map<String, dynamic> json) =>
       RoomCheckSession(
         sessionId: json['session_id'] ?? 0,
         roomId: json['room_id'] ?? 0,
         assignedUserId: json['assigned_user_id'] ?? 0,
         scheduledDatetime: sessionFromJsonDatetime(json['scheduled_datetime']),
+        completedDatetime: sessionFromJsonDatetime(json['completed_datetime']),
+        createdAt: sessionFromJsonDatetime(json['created_at']),
         status: json['status'] ?? 'scheduled',
         calendarEventId: json['calendar_event_id'],
         roomCheckId: json['room_check_id'],
@@ -60,6 +72,13 @@ class RoomCheckSessionService {
       ValueNotifier(_sessions);
   static final ValueNotifier<bool> loadingNotifier = ValueNotifier(false);
 
+  @visibleForTesting
+  static void resetForTest() {
+    _sessions.clear();
+    sessionsNotifier.value = _sessions;
+    loadingNotifier.value = false;
+  }
+
   static Future<void> fetchSessions({
     int? assignedUserId,
     int? roomId,
@@ -72,7 +91,8 @@ class RoomCheckSessionService {
         if (roomId != null) 'room_id': roomId,
         if (status != null) 'status': status,
       };
-      final response = await ApiClient().client
+      final response = await ApiClient()
+          .client
           .get('/room-checks/sessions', queryParameters: query);
       if (response.statusCode == 200) {
         final List<dynamic> data = response.data;
@@ -94,22 +114,18 @@ class RoomCheckSessionService {
     DateTime? scheduledDatetime,
     String? notes,
   }) async {
-    try {
-      final payload = <String, dynamic>{
-        'room_id': roomId,
-        'assigned_user_id': assignedUserId,
-        if (scheduledDatetime != null)
-          'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
-        if (notes != null) 'notes': notes,
-      };
-      final response = await ApiClient().client
-          .post('/room-checks/sessions', data: payload);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        await fetchSessions();
-        return RoomCheckSession.fromJson(response.data);
-      }
-    } catch (e) {
-      debugPrint("Error creating room check session: $e");
+    final payload = <String, dynamic>{
+      'room_id': roomId,
+      'assigned_user_id': assignedUserId,
+      if (scheduledDatetime != null)
+        'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
+      if (notes != null) 'notes': notes,
+    };
+    final response =
+        await ApiClient().client.post('/room-checks/sessions', data: payload);
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      await fetchSessions();
+      return RoomCheckSession.fromJson(response.data);
     }
     return null;
   }
@@ -127,7 +143,8 @@ class RoomCheckSessionService {
           'scheduled_datetime': scheduledDatetime.toUtc().toIso8601String(),
         if (status != null) 'status': status,
       };
-      final response = await ApiClient().client
+      final response = await ApiClient()
+          .client
           .patch('/room-checks/sessions/$sessionId', data: payload);
       if (response.statusCode == 200) {
         await fetchSessions();
@@ -141,8 +158,8 @@ class RoomCheckSessionService {
 
   static Future<bool> deleteSession(int sessionId) async {
     try {
-      final response = await ApiClient().client
-          .delete('/room-checks/sessions/$sessionId');
+      final response =
+          await ApiClient().client.delete('/room-checks/sessions/$sessionId');
       if (response.statusCode == 204 || response.statusCode == 200) {
         await fetchSessions();
         return true;
@@ -156,7 +173,8 @@ class RoomCheckSessionService {
 
   static Future<RoomCheckSession?> completeSession(int sessionId) async {
     try {
-      final response = await ApiClient().client
+      final response = await ApiClient()
+          .client
           .post('/room-checks/sessions/$sessionId/complete');
       if (response.statusCode == 200) {
         await fetchSessions();

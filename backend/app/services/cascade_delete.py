@@ -8,7 +8,7 @@ toepassingslaag — binne die transaksie van die ouer se `delete()`.
 Rekursie volg die hiërargie:
     Terrein (Location) -> Geboue (Building) -> Lokale (Room)
         -> Bates (Asset), Voorraad (Stock), Lokale-kontroles (RoomCheck),
-           Kontrole-skedules (RoomCheckSession), Foutkaartjies (Faultcard),
+           Lokaal-kontroles (RoomCheckSession), Foutkaartjies (Faultcard),
            Werksopdragte (Jobcard), AI-konsepte (JobDraft)
 
 Elke rekord wat beelde/kaartliggings het, word skoongemaak voordat dit
@@ -23,7 +23,7 @@ from ..models.fault import Faultcard
 from ..models.image import ImageAsset, ImageAssetLink
 from ..models.job import Jobcard, Jobrecurring
 from ..models.jobdraft import JobDraft
-from ..models.location import Building, Location, Room
+from ..models.location import Building, BuildingTypeLink, Location, Room
 from ..models.mappoint import Mappoint
 from ..models.quote import Quote
 from ..models.room_check import RoomCheck
@@ -188,12 +188,16 @@ def _delete_single_building(session: Session, building_id: int) -> None:
     building = session.get(Building, building_id)
     if building is None:
         return
+    for row in session.exec(select(BuildingTypeLink).where(BuildingTypeLink.building_id == building_id)).all():
+        session.delete(row)
     for room in session.exec(select(Room).where(Room.building_id == building_id)).all():
         _delete_single_room(session, room.room_id)
     for fault in session.exec(select(Faultcard).where(Faultcard.building_id == building_id)).all():
         _delete_single_faultcard(session, fault.fault_id)
     for job in session.exec(select(Jobcard).where(Jobcard.building_id == building_id)).all():
         _delete_single_jobcard(session, job.jobcard_id)
+    for link in session.exec(select(BuildingTypeLink).where(BuildingTypeLink.building_id == building_id)).all():
+        session.delete(link)
     delete_images_for_parent(session, building.building_id, "building")
     session.delete(building)
 

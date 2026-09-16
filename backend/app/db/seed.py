@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from sqlmodel import Session, select
 from .database import engine
-from ..models.location import Building, BuildingType, Location, Room, RoomType, RoomStatus
+from ..models.location import Building, BuildingType, BuildingTypeLink, Location, Room, RoomType, RoomStatus
 from ..models.asset import Asset, AssetStatus, Assettype
 from ..models.stock import Stock
 from ..models.job import Jobcard, JobStatus
@@ -126,17 +126,40 @@ def _get_or_create_location(session: Session, name: str, location_type: str, str
     return location
 
 
-def _get_or_create_building(session: Session, name: str, building_type: BuildingType, location_id: int) -> Building:
+def _get_or_create_building(
+    session: Session,
+    name: str,
+    building_type: BuildingType,
+    location_id: int,
+    *,
+    building_types: Optional[list[BuildingType]] = None,
+) -> Building:
     building = session.exec(select(Building).where(Building.building_name == name)).first()
-    if building:
+
+    types = list(building_types) if building_types else [building_type]
+
+    if building is not None:
+        existing = {
+            row.building_type
+            for row in session.exec(
+                select(BuildingTypeLink).where(BuildingTypeLink.building_id == building.building_id)
+            ).all()
+        }
+        missing = [t for t in types if t not in existing]
+        if missing:
+            for t in missing:
+                session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
+            session.commit()
         return building
 
     building = Building(
         building_name=name,
-        building_type=building_type,
         location_id=location_id,
     )
     session.add(building)
+    session.flush()
+    for t in types:
+        session.add(BuildingTypeLink(building_id=building.building_id, building_type=t))
     session.commit()
     session.refresh(building)
     return building
@@ -776,6 +799,7 @@ suburb="Villieria",
             name="Blok L",
             building_type=BuildingType.EDUCATIONAL,
             location_id=loc1.location_id,
+            building_types=[BuildingType.EDUCATIONAL, BuildingType.KAFERERIA],
         )
 
         bld4 = _get_or_create_building(
@@ -1208,6 +1232,30 @@ suburb="Villieria",
                     room_id=room.room_id,
                     building_id=building_f,
                 )
+
+        # Sonder hierdie lyk ALLES hoë risiko: die model leer "eerste foute
+        # gebeur gedurig op elke ouderdom" en gee ~50% faalkans aan almal.
+        for ci in range(60):
+            h_name, h_brand, h_type, h_prefix, h_max_age = _fleet_kinds[ci % len(_fleet_kinds)]
+            h_room = [room6, room7, room8, room9, room10, room11, room12,
+                      room15, room16, room17, room18, room19, room20, room21, room22][(ci * 7) % 15]
+            h_asset = _get_or_create_asset(
+                session, h_name, h_brand, f"{h_prefix}-H{200 + ci}",
+                AssetStatus.ACTIVE, False, h_room.room_id, h_type.assettype_id,
+                now - timedelta(days=100 + (ci * 37) % 700),
+            )
+            h_room_obj = session.get(Room, h_room.room_id)
+            _get_or_create_job(
+                session,
+                desc=f"{h_name}: instellings- en diensbeurt",
+                status=JobStatus.COMPLETED,
+                job_type="MAINTENANCE",
+                created_dt=now - timedelta(days=20 + (ci * 13) % 160),
+                finished_dt=now - timedelta(days=15 + (ci * 13) % 160),
+                asset_id=h_asset.asset_id,
+                room_id=h_room.room_id,
+                building_id=h_room_obj.building_id if h_room_obj else None,
+            )
 
         # ── Probleemkinders: die werklike vervangings-kandidate ────────────
         _problem_specs = [

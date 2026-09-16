@@ -3,6 +3,8 @@ import '../../core/app_colors.dart';
 import '../../models/user.dart';
 import '../../models/user_session.dart';
 import '../../services/user_service.dart';
+import '../../services/campus_service.dart';
+import '../../models/campus.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/fixed_page_header.dart';
 import '../../widgets/header_action_button.dart';
@@ -25,6 +27,9 @@ class _UsersPageState extends State<UsersPage> {
     if (UserService.rolesNotifier.value.isEmpty) {
       UserService.fetchRoles();
     }
+    if (CampusService.campusesNotifier.value.isEmpty) {
+      CampusService.fetchCampuses();
+    }
     _searchController.addListener(() {
       setState(() => _query = _searchController.text.toLowerCase());
     });
@@ -38,8 +43,11 @@ class _UsersPageState extends State<UsersPage> {
 
   List<User> get _filteredUsers {
     final users = UserService.usersNotifier.value;
-    if (_query.isEmpty) return users;
-    return users
+    final visible = (UserSession.isAdmin || UserSession.isManager)
+        ? users
+        : users.where((u) => u.roleId != 3).toList();
+    if (_query.isEmpty) return visible;
+    return visible
         .where((u) =>
             u.fullName.toLowerCase().contains(_query) ||
             u.email.toLowerCase().contains(_query))
@@ -49,8 +57,6 @@ class _UsersPageState extends State<UsersPage> {
   Future<void> _showUserDialog({User? existing}) async {
     final isEdit = existing != null;
 
-    // Die rol-kieslys is nodig vir beide nuwe en gewysigde gebruikers; sonder
-    // dit kan 'n stoor stilweg na rol 1 (Student) terugval.
     if (UserService.rolesNotifier.value.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -71,150 +77,169 @@ class _UsersPageState extends State<UsersPage> {
     final formKey = GlobalKey<FormState>();
 
     int? roleId = existing?.roleId;
+    int? locationId = existing?.locationId;
     String status = existing?.status ?? "active";
 
     await showDialog(
       context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(isEdit ? "Wysig Gebruiker" : "Nuwe Gebruiker",
-                        style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold)),
-                    IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(dialogContext)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _field("Naam", nameController),
-                const SizedBox(height: 16),
-                _field("Van", surnameController),
-                const SizedBox(height: 16),
-                _field("E-pos", emailController,
-                    keyboardType: TextInputType.emailAddress),
-                const SizedBox(height: 16),
-                _field("Telefoonnommer", numberController,
-                    keyboardType: TextInputType.phone),
-                if (!isEdit) ...[
-                  const SizedBox(height: 16),
-                  _field("Wagwoord", passwordController,
-                      obscureText: true, required: true),
-                ],
-                const SizedBox(height: 16),
-                ValueListenableBuilder<List<AppRole>>(
-                  valueListenable: UserService.rolesNotifier,
-                  builder: (context, roles, _) => SearchableDropdown<int>(
-                    label: "Rol",
-                    hint: "Kies 'n rol",
-                    value: roleId,
-                    items: roles
-                        .map((r) => SearchableDropdownItem(value: r.id, label: r.name))
-                        .toList(),
-                    onChanged: (v) => roleId = v,
-                    validator: (v) => (v == null) ? "Vereis" : null,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(isEdit ? "Wysig Gebruiker" : "Nuwe Gebruiker",
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold)),
+                      IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(dialogContext)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                SearchableDropdown<String>(
-                  label: "Status",
-                  hint: "Kies status",
-                  value: status,
-                  items: const [
-                    SearchableDropdownItem(value: "active", label: "Aktief"),
-                    SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+                  const SizedBox(height: 20),
+                  _field("Naam", nameController),
+                  const SizedBox(height: 16),
+                  _field("Van", surnameController),
+                  const SizedBox(height: 16),
+                  _field("E-pos", emailController,
+                      keyboardType: TextInputType.emailAddress),
+                  const SizedBox(height: 16),
+                  _field("Telefoonnommer", numberController,
+                      keyboardType: TextInputType.phone),
+                  if (!isEdit) ...[
+                    const SizedBox(height: 16),
+                    _field("Wagwoord", passwordController,
+                        obscureText: true, required: true),
                   ],
-                  onChanged: (v) => status = v ?? "active",
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(dialogContext),
-                      child: const Text("Kanselleer",
-                          style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 16),
+                  ValueListenableBuilder<List<AppRole>>(
+                    valueListenable: UserService.rolesNotifier,
+                    builder: (context, roles, _) => SearchableDropdown<int>(
+                      label: "Rol",
+                      hint: "Kies 'n rol",
+                      value: roleId,
+                      items: roles
+                          .where((r) => UserSession.isAdmin || r.id != 3)
+                          .map((r) => SearchableDropdownItem(value: r.id, label: r.name))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() {
+                        roleId = v;
+                        if (v != 2 && v != 3 && v != 5) locationId = null;
+                      }),
+                      validator: (v) => (v == null) ? "Vereis" : null,
                     ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                  ),
+                  if (roleId == 2 || roleId == 3 || roleId == 5) ...[
+                    const SizedBox(height: 16),
+                    ValueListenableBuilder<List<Campus>>(
+                      valueListenable: CampusService.campusesNotifier,
+                      builder: (context, campuses, _) => SearchableDropdown<int>(
+                        label: "Terrein",
+                        hint: "Kies 'n terrein",
+                        value: locationId,
+                        items: campuses
+                            .map((c) => SearchableDropdownItem(
+                                value: c.id, label: c.name))
+                            .toList(),
+                        onChanged: (v) => setDialogState(() => locationId = v),
                       ),
-                      onPressed: () async {
-                        if (!formKey.currentState!.validate()) return;
-                        if (nameController.text.trim().isEmpty ||
-                            surnameController.text.trim().isEmpty ||
-                            emailController.text.trim().isEmpty ||
-                            (isEdit ? false : passwordController.text.isEmpty)) {
-                          return;
-                        }
-                        if (roleId == null) {
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext);
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SearchableDropdown<String>(
+                    label: "Status",
+                    hint: "Kies status",
+                    value: status,
+                    items: const [
+                      SearchableDropdownItem(value: "active", label: "Aktief"),
+                      SearchableDropdownItem(value: "inactive", label: "Onaktief"),
+                    ],
+                    onChanged: (v) => setDialogState(() => status = v ?? "active"),
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext),
+                        child: const Text("Kanselleer",
+                            style: TextStyle(color: Colors.grey)),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.navy,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          if (nameController.text.trim().isEmpty ||
+                              surnameController.text.trim().isEmpty ||
+                              emailController.text.trim().isEmpty ||
+                              (isEdit ? false : passwordController.text.isEmpty)) {
+                            return;
                           }
-                          if (mounted) {
+                          if (roleId == null) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text("Kies 'n rol vir die gebruiker"),
                                 backgroundColor: AppColors.errorRed,
                               ),
                             );
+                            return;
                           }
-                          return;
-                        }
-                        final user = User(
-                          id: existing?.id,
-                          name: nameController.text.trim(),
-                          surname: surnameController.text.trim(),
-                          email: emailController.text.trim(),
-                          number: numberController.text.trim().isEmpty
-                              ? null
-                              : numberController.text.trim(),
-                          status: status,
-                          roleId: roleId!,
-                        );
-                        final ok = isEdit
-                            ? await UserService.updateUser(user,
-                                password: passwordController.text)
-                            : await UserService.addUser(
-                                user, passwordController.text);
-                        if (dialogContext.mounted) {
-                          Navigator.pop(dialogContext);
-                        }
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(ok
-                                  ? (isEdit
-                                      ? "Gebruiker opgedateer"
-                                      : "Gebruiker geskep")
-                                  : "Kon nie stoor nie"),
-                              backgroundColor:
-                                  ok ? AppColors.successGreen : AppColors.errorRed,
-                            ),
+                          final user = User(
+                            id: existing?.id,
+                            name: nameController.text.trim(),
+                            surname: surnameController.text.trim(),
+                            email: emailController.text.trim(),
+                            number: numberController.text.trim().isEmpty
+                                ? null
+                                : numberController.text.trim(),
+                            status: status,
+                            roleId: roleId!,
+                            locationId: locationId,
                           );
-                        }
-                      },
-                      child: const Text("Stoor",
-                          style: TextStyle(color: Colors.white)),
-                    ),
-                  ],
-                ),
-              ],
+                          final ok = isEdit
+                              ? await UserService.updateUser(user,
+                                  password: passwordController.text)
+                              : await UserService.addUser(
+                                  user, passwordController.text);
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(ok
+                                    ? (isEdit
+                                        ? "Gebruiker opgedateer"
+                                        : "Gebruiker geskep")
+                                    : "Kon nie stoor nie"),
+                                backgroundColor:
+                                    ok ? AppColors.successGreen : AppColors.errorRed,
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text("Stoor",
+                            style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -266,6 +291,7 @@ class _UsersPageState extends State<UsersPage> {
   void _reload() {
     UserService.fetchUsers();
     UserService.fetchRoles();
+    CampusService.fetchCampuses();
   }
 
   @override
@@ -401,7 +427,7 @@ class _UsersPageState extends State<UsersPage> {
               ),
             ),
           ),
-          if (UserSession.can('users.manage')) ...[
+          if (UserSession.can('users.manage') && user.roleId != 2 && user.roleId != 3) ...[
             IconButton(
               icon: const Icon(Icons.edit_outlined, size: 20),
               color: AppColors.navy,

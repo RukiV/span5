@@ -4,9 +4,12 @@ import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
 import '../../core/app_colors.dart';
+import '../../core/input_decoration.dart';
 import '../../models/user_session.dart';
 import '../../core/api_client.dart';
 import '../../services/outlook_token_manager.dart';
+import '../../widgets/app_snack_bar.dart';
+import '../settings/server_config_page.dart';
 
 /// LoginPage: Die hoof-toegangspunt vir gebruikersstawing.
 /// Dit ondersteun e-pos/wagwoord-aanmelding, Microsoft Outlook SSO,
@@ -21,7 +24,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final LocalAuthentication auth = LocalAuthentication();
   final _secureStorage = const FlutterSecureStorage();
-  
+
   bool _isLoading = false;
   bool _canCheckBiometrics = false;
   bool _obscurePassword = true; // Beheer die sigbaarheid van die wagwoord
@@ -82,7 +85,7 @@ class _LoginPageState extends State<LoginPage> {
       String password = _passControl.text;
 
       if (email.isEmpty || password.isEmpty) {
-        _showError("Vul asseblief alle velde in.");
+        showAppSnackBar(context, "Vul asseblief alle velde in.", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -98,35 +101,59 @@ class _LoginPageState extends State<LoginPage> {
 
         if (response.statusCode == 200) {
           final token = response.data['access_token'];
-          
-          // SEKURE BERGING: Gebruik ApiClient om die token geënkripteerd te stoor.
+          final refreshToken = response.data['refresh_token'];
+
+          // SEKURE BERGING: Gebruik ApiClient om die token(s) geënkripteerd te stoor.
           await ApiClient().saveToken(token);
+          if (refreshToken != null) {
+            await ApiClient().saveRefreshToken(refreshToken);
+          }
 
           await _fetchProfileAndNavigate();
           return;
         }
       } on DioException catch (e) {
         String msg = "Aanmelding het misluk.";
-        
-        debugPrint("❌ Login error: status=${e.response?.statusCode} body=${e.response?.data}");
-        
+
+        debugPrint(
+            "❌ Login error: status=${e.response?.statusCode} body=${e.response?.data}");
+
         // Verbeterde foutbestuur vir netwerk en spesifieke statuskodes.
         if (e.type == DioExceptionType.connectionError) {
-          msg = "Kon nie die bediener bereik nie. Kontroleer jou internetverbinding of IP-adres.";
+          msg =
+              "Kon nie die bediener bereik nie. Kontroleer jou internetverbinding of IP-adres.";
         } else if (e.response?.statusCode == 401) {
-          final detail = e.response?.data is Map ? e.response?.data['detail'] : null;
+          final detail =
+              e.response?.data is Map ? e.response?.data['detail'] : null;
           msg = detail ?? "Ongeldige e-pos of wagwoord.";
           debugPrint("   Login 401 detail: $detail");
         } else if (e.response?.statusCode == 403) {
           // Hanteer die platform-hekwagter boodskap vanaf die backend.
-          msg = e.response?.data['detail'] ?? "Jy het nie toegang tot hierdie stelsel nie.";
+          // Oppas: die liggaam is nie noodwendig 'n JSON-kaart nie.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Jy het nie toegang tot hierdie stelsel nie.";
+        } else if (e.response?.statusCode == 429) {
+          // Rekening gesluit ná te veel mislukte pogings — wys die werklike
+          // slotboodskap (met oorblywende tyd) vanaf die bediener.
+          final rawDetail = e.response?.data is Map
+              ? e.response?.data['detail']
+              : null;
+          msg = rawDetail is String && rawDetail.isNotEmpty
+              ? rawDetail
+              : "Account is gesluit. Probeer later weer aan.";
         }
-        
-        _showError(msg);
+
+        if (!mounted) return;
+        showAppSnackBar(context, msg, error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       } catch (e) {
-        _showError("Onverwagse fout: $e");
+        if (!mounted) return;
+        showAppSnackBar(context, "Onverwagse fout: $e", error: true, floating: true);
         setState(() => _isLoading = false);
         return;
       }
@@ -141,7 +168,6 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final response = await ApiClient().client.get('/auth/me');
       if (response.statusCode == 200) {
-        
         // SENTRALE LOGIKA: Gebruik die UserSession klas om die data te inisieer.
         // Dit hanteer ook die roldoewysing (Admin/Manager/Student).
         UserSession.initialize(response.data);
@@ -152,7 +178,8 @@ class _LoginPageState extends State<LoginPage> {
           final existing = await _secureStorage.read(key: 'use_biometrics');
           if (existing == null) {
             bool? wantBio = await _showBiometricPrompt();
-            await _secureStorage.write(key: 'use_biometrics', value: (wantBio ?? false).toString());
+            await _secureStorage.write(
+                key: 'use_biometrics', value: (wantBio ?? false).toString());
           }
         }
 
@@ -162,23 +189,14 @@ class _LoginPageState extends State<LoginPage> {
       }
     } on DioException catch (e) {
       debugPrint("Profiel laai fout: ${e.message}");
-      _showError("Kon nie profiel laai nie. Teken asseblief weer in.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Kon nie profiel laai nie. Teken asseblief weer in.", error: true, floating: true);
       setState(() => _isLoading = false);
     } catch (e) {
-      _showError("Fout met die verwerking van profiel-data.");
+      if (!mounted) return;
+      showAppSnackBar(context, "Fout met die verwerking van profiel-data.", error: true, floating: true);
       setState(() => _isLoading = false);
     }
-  }
-
-  void _showError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message), 
-        backgroundColor: AppColors.errorRed,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   /// Dialoog om biometrie te aktiveer na die eerste suksesvolle login.
@@ -188,18 +206,19 @@ class _LoginPageState extends State<LoginPage> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: const Text("Vinnige Intrekening", 
-          style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
-        content: const Text("Wil jy volgende keer biometrie (vingerafdruk of gesig) gebruik om vinniger in te teken?"),
+        title: const Text("Vinnige Intrekening",
+            style:
+                TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold)),
+        content: const Text(
+            "Wil jy volgende keer biometrie (vingerafdruk of gesig) gebruik om vinniger in te teken?"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false), 
-            child: const Text("NEE DANKIE", style: TextStyle(color: Colors.grey))
-          ),
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("NEE DANKIE",
+                  style: TextStyle(color: Colors.grey))),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true), 
-            child: const Text("JA, AKTIVEER")
-          ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("JA, AKTIVEER")),
         ],
       ),
     );
@@ -213,7 +232,7 @@ class _LoginPageState extends State<LoginPage> {
     // flutter_appauth (stelsel-webblaaier) ondersteun nie Windows/Linux nie —
     // wys net 'n boodskap.
     if (!Platform.isAndroid && !Platform.isIOS) {
-      _showError("Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.");
+      showAppSnackBar(context, "Microsoft-sign-in is nie beskikbaar op hierdie toestel nie.", error: true, floating: true);
       return;
     }
 
@@ -225,10 +244,12 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      final accessToken = await OutlookTokenManager.instance.getGraphAccessToken();
+      final accessToken =
+          await OutlookTokenManager.instance.getGraphAccessToken();
       if (accessToken == null) {
         setState(() => _isLoading = false);
-        _showError("Kon nie die Microsoft-token verkry nie.");
+        if (!mounted) return;
+        showAppSnackBar(context, "Kon nie die Microsoft-token verkry nie.", error: true, floating: true);
         return;
       }
 
@@ -246,7 +267,8 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      _showError("Outlook SSO Fout: $e");
+      if (!mounted) return;
+      showAppSnackBar(context, "Outlook SSO Fout: $e", error: true, floating: true);
     }
   }
 
@@ -256,18 +278,25 @@ class _LoginPageState extends State<LoginPage> {
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.navy,
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: AppColors.gold),
-              const SizedBox(height: 25),
-              const Text("Besig om aan te meld...", 
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-              const SizedBox(height: 8),
-              Text("Een oomblik asseblief", 
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12)),
-            ],
+        body: _buildBackground(
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: AppColors.gold),
+                const SizedBox(height: 25),
+                const Text("Besig om aan te meld...",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.1)),
+                const SizedBox(height: 8),
+                Text("Een oomblik asseblief",
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontSize: 12)),
+              ],
+            ),
           ),
         ),
       );
@@ -275,102 +304,167 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: AppColors.navy,
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(25.0),
-            child: Column(
-              children: [
-                // Hoof aanmeldingshouer
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 40),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3), 
-                        blurRadius: 15, 
-                        offset: const Offset(0, 5)
-                      )
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text("Teken In", 
-                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.navy)),
-                      const SizedBox(height: 35),
+      body: _buildBackground(
+        Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(25.0),
+              child: Column(
+                children: [
+                  // Hoof aanmeldingshouer
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 25, vertical: 40),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5))
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Image.asset('assets/images/logo.png', width: 333),
+                        const SizedBox(height: 10),
+                        const Text("FBS - Fasiliteitsbestuurstelsel",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                                color: Colors.black)),
+                        const SizedBox(height: 6),
+                        const SizedBox(height: 35),
 
-                      _buildInputLabel("E-pos Adres"),
-                      TextField(
-                        controller: _userControl,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: _inputDecoration("e-pos adres"),
-                      ),
-                      const SizedBox(height: 20),
+                        _buildInputLabel("E-pos Adres"),
+                        TextField(
+                          controller: _userControl,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: appInputDecoration(
+                              hintText: "e-pos adres",
+                              hintStyle: const TextStyle(color: Colors.black26),
+                              labelStyle: null,
+                              fillColor: AppColors.inputFill,
+                              borderColor: Colors.black12,
+                              focusedBorderColor: Colors.black38,
+                              focusedBorderWidth: 1,
+                              radius: 8),
+                        ),
+                        const SizedBox(height: 20),
 
-                      _buildInputLabel("Wagwoord"),
-                      TextField(
-                        controller: _passControl,
-                        obscureText: _obscurePassword,
-                        decoration: _inputDecoration("wagwoord").copyWith(
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                              color: Colors.grey,
+                        _buildInputLabel("Wagwoord"),
+                        TextField(
+                          controller: _passControl,
+                          obscureText: _obscurePassword,
+                          decoration: appInputDecoration(
+                                  hintText: "wagwoord",
+                                  hintStyle:
+                                      const TextStyle(color: Colors.black26),
+                                  labelStyle: null,
+                                  fillColor: AppColors.inputFill,
+                                  borderColor: Colors.black12,
+                                  focusedBorderColor: Colors.black38,
+                                  focusedBorderWidth: 1,
+                                  radius: 8)
+                              .copyWith(
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
                             ),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 25),
+                        const SizedBox(height: 25),
 
-                      // Aanmeld-knoppie
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: () => _navigateToHome(),
-                          child: const Text("Teken In", style: TextStyle(fontSize: 16, letterSpacing: 1.2)),
-                        ),
-                      ),
-                      
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Row(
-                          children: [
-                            Expanded(child: Divider()),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 10), 
-                              child: Text("of", style: TextStyle(color: Colors.grey))
+                        // Aanmeld-knoppie
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
-                            Expanded(child: Divider()),
-                          ],
+                            onPressed: () => _navigateToHome(),
+                            child: const Text("Teken In",
+                                style: TextStyle(
+                                    fontSize: 16, letterSpacing: 1.2)),
+                          ),
                         ),
-                      ),
-                      
-                      // Microsoft SSO Alternatief
-                      OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 50),
-                          side: const BorderSide(color: Colors.grey, width: 0.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: Row(
+                            children: [
+                              Expanded(child: Divider()),
+                              Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 10),
+                                  child: Text("of",
+                                      style: TextStyle(color: Colors.grey))),
+                              Expanded(child: Divider()),
+                            ],
+                          ),
                         ),
-                        onPressed: _outlookLogin,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _microsoftIcon(),
-                            const SizedBox(width: 10),
-                            const Text("Teken in met Microsoft", style: TextStyle(color: Colors.black87)),
-                          ],
+
+                        // Microsoft SSO Alternatief
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: AppColors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: _outlookLogin,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _microsoftIcon(),
+                                const SizedBox(width: 10),
+                                const Text("Teken in met Microsoft",
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        letterSpacing: 1.2)),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ServerConfigPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.dns,
+                              size: 16, color: Colors.grey),
+                          label: const Text(
+                            "Bediener-instellings",
+                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -378,26 +472,21 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// Styl vir die inset-velde.
-  InputDecoration _inputDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black26),
-      fillColor: AppColors.inputFill,
-      filled: true,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black12),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.black38),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+  Widget _buildBackground(Widget child) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/background.jpg'),
+              fit: BoxFit.cover,
+              alignment: Alignment.topRight,
+            ),
+          ),
+        ),
+        child,
+      ],
     );
   }
 
@@ -406,7 +495,8 @@ class _LoginPageState extends State<LoginPage> {
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(bottom: 5, left: 2),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        child: Text(label,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
       ),
     );
   }
@@ -416,9 +506,17 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [_colorBox(Colors.red), const SizedBox(width: 2), _colorBox(Colors.green)]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          _colorBox(Colors.red),
+          const SizedBox(width: 2),
+          _colorBox(Colors.green)
+        ]),
         const SizedBox(height: 2),
-        Row(mainAxisSize: MainAxisSize.min, children: [_colorBox(Colors.blue), const SizedBox(width: 2), _colorBox(Colors.yellow)]),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          _colorBox(Colors.blue),
+          const SizedBox(width: 2),
+          _colorBox(Colors.yellow)
+        ]),
       ],
     );
   }

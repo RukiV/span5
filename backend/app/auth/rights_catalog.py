@@ -71,6 +71,7 @@ RIGHTS_CATALOG: dict[str, str] = {
     "notifications.send": "Send system-wide announcements.",
     # Analytics & Audit
     "predictions.view": "View asset lifespan predictions.",
+    "predictions.manage": "Retrain / enable the survival model.",
     "reports.view": "View analytics reports.",
     "analytics.view": "View AI analytics panel.",
     "audit.view": "Read the audit log (read-only, no manage right exists).",
@@ -98,7 +99,9 @@ _FK_RIGHTS = {
     "contractors.view", "contractors.manage",
     "quotes.view", "quotes.manage",
     "notifications.view", "notifications.manage",
-    "predictions.view", "reports.view", "analytics.view", "audit.view",
+    "users.view", "users.manage",
+    "roles.manage", "rights.manage",
+    "predictions.view", "predictions.manage", "reports.view", "analytics.view", "audit.view",
     "ai.use", "ai.approve",
 }
 ROLE_RIGHTS: dict[int, set[str]] = {
@@ -144,6 +147,7 @@ LEGACY_RIGHT_MIGRATION: dict[str, set[str]] = {
     "notifications.manage": {"notifications.manage"},
     "notifications.send": {"notifications.send"},
     "predictions.view": {"predictions.view"},
+    "predictions.manage": {"predictions.manage"},
     "reports.view": {"reports.view"},
     "analytics.view": {"analytics.view"},
     "audit.view": {"audit.view"},

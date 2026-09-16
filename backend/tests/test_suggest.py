@@ -4,7 +4,7 @@ from sqlmodel import Session
 
 from app.models.asset import Asset, Assettype
 from app.models.enums import BuildingType, RoomStatus, RoomType
-from app.models.location import Building, Location, Room
+from app.models.location import Building, BuildingTypeLink, Location, Room
 from app.models.jobdraft import JobDraft
 from app.models.stock import Stock
 from app.services import suggest_service
@@ -23,9 +23,10 @@ def _mk_location(session: Session, name="Toetskampus"):
 
 
 def _mk_building(session: Session, location_id, name="T Blok"):
-    b = Building(building_name=name, building_type=BuildingType.EDUCATIONAL,
-                 location_id=location_id)
+    b = Building(building_name=name, location_id=location_id)
     session.add(b)
+    session.flush()
+    session.add(BuildingTypeLink(building_id=b.building_id, building_type=BuildingType.EDUCATIONAL))
     session.commit()
     session.refresh(b)
     return b

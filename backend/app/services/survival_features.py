@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import numpy as np
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from ..models.asset import Asset, Assettype
 from ..models.enums import JobStatus, Priority
@@ -21,7 +21,11 @@ from ..models.job import Jobcard
 
 logger = logging.getLogger(__name__)
 
-#: Column order — never change: the forest is trained and scored on this layout.
+#: job_type is free-text in the DB ('MAINTENANCE', 'maintenance', 'Onderhoud')
+#: — match case-insensitively oor albei tale, anders vind die soektog niks en
+#: lyk elke bate onderhoud-agterstallig.
+_MAINTENANCE_JOB_TYPES = ("maintenance", "onderhoud")
+
 FEATURE_NAMES = [
     "age_days",
     "lifespan_ratio",
@@ -43,7 +47,7 @@ def _completed_maintenance_jobs(session: Session, asset_id: int) -> list[Jobcard
     return session.exec(
         select(Jobcard)
         .where(Jobcard.asset_id == asset_id)
-        .where(Jobcard.job_type == "maintenance")
+        .where(func.lower(Jobcard.job_type).in_(_MAINTENANCE_JOB_TYPES))
         .where(Jobcard.job_status == JobStatus.COMPLETED)
         .order_by(Jobcard.job_finisheddatetime.desc(), Jobcard.job_createddatetime.desc())
     ).all()
@@ -64,9 +68,7 @@ def _asset_faults(session: Session, asset_id: int) -> list[Faultcard]:
     training runs once per ``SURVIVAL_RETRAIN_INTERVAL`` and prediction runs on
     a single asset, so the cost is acceptable.
     """
-    return session.exec(
-        select(Faultcard).where(Faultcard.asset_id == asset_id)
-    ).all()
+    return session.exec(select(Faultcard).where(Faultcard.asset_id == asset_id)).all()
 
 
 def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> dict[str, float]:
@@ -85,32 +87,24 @@ def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> d
     avg_lifespan = assettype.assettype_avg_lifespan if assettype else None
     service_interval = assettype.assettype_service_interval if assettype else None
 
-    # 1. age_days
-    # 2. lifespan_ratio — fraction of the expected lifespan already consumed.
-    lifespan_ratio = (
-        age_days / (avg_lifespan * DAYS_PER_MONTH) if avg_lifespan else 0.0
-    )
-
-    # 3. service_interval_days — the assettype's scheduled maintenance cadence.
+    lifespan_ratio = age_days / (avg_lifespan * DAYS_PER_MONTH) if avg_lifespan else 0.0
     service_interval_days = service_interval * DAYS_PER_MONTH if service_interval else 0.0
-
-    # Guard against a divide-by-zero on brand-new assets (or missing created_at).
     years_floor = max(age_days / DAYS_PER_YEAR, 0.1)
 
-    # 4./5. maintenance history (only jobs finished/created at or before t_ref).
     maintenance_times = [
         dt
-        for dt in (_maintenance_datetime(job) for job in _completed_maintenance_jobs(session, asset.asset_id))
+        for dt in (
+            _maintenance_datetime(job)
+            for job in _completed_maintenance_jobs(session, asset.asset_id)
+        )
         if dt is not None and dt <= t_ref
     ]
     maintenance_count_per_year = len(maintenance_times) / years_floor
     if maintenance_times:
         days_since_last_maintenance = float((t_ref - max(maintenance_times)).days)
     else:
-        # No maintenance ever: the asset has gone its whole life unserviced.
         days_since_last_maintenance = age_days
 
-    # 6./7./8. fault history.
     window_start = t_ref - ONE_YEAR
     fault_count_12mo = 0
     total_faults = 0
@@ -129,8 +123,6 @@ def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> d
                 priority = fault.fault_priority
                 if priority is not None:
                     priority_count += 1
-                    # Python 3.14 gotcha: ``Priority(value)`` resolves by VALUE
-                    # (``"Hoog"``); comparing the enum NAME is unambiguous.
                     if priority.name == Priority.HIGH.name:
                         high_count += 1
 
@@ -152,22 +144,7 @@ def extract_asset_features(session: Session, asset: Asset, t_ref: datetime) -> d
 def build_training_set(
     session: Session, t_ref_cutoff: datetime
 ) -> tuple[np.ndarray, np.ndarray, list[int], list[tuple[Any, datetime | None]]]:
-    """Build the (X, y, asset_ids, rows) training set for the survival model.
-
-    Event definition: time-to-first-fault. ``event_time`` is the earliest
-    faultcard datetime for the asset (duplicates excluded); assets with no
-    fault before ``t_ref_cutoff`` are right-censored at the cutoff. Features
-    are computed at ``t_ref = min(event_time, cutoff)`` — the lookahead-bias
-    rule. Assets without a created_datetime are skipped (no age baseline).
-
-    Returns:
-        X:      (n_assets, 8) float64 array, columns in ``FEATURE_NAMES`` order.
-        y:      structured array ``[("event", bool), ("time", float)]`` where
-                ``time`` is time-to-first-fault in days (right-censored for
-                assets that never faulted before the cutoff).
-        ids:    asset ids, ascending by asset_id (deterministic row order).
-        rows:   ``(asset, event_time_or_None)`` tuples for tracing/debugging.
-    """
+    """Build the (X, y, asset_ids, rows) training set for the survival model."""
     assets = session.exec(select(Asset).order_by(Asset.asset_id)).all()
 
     x_rows: list[list[float]] = []
@@ -191,7 +168,7 @@ def build_training_set(
 
         if first_fault is not None and first_fault <= t_ref_cutoff:
             event = True
-            t_ref = first_fault - timedelta(microseconds=1)  # no lookahead: exclude the triggering fault itself
+            t_ref = first_fault - timedelta(microseconds=1)
             feature_time = first_fault
         else:
             event = False
@@ -206,12 +183,9 @@ def build_training_set(
         ids.append(asset.asset_id)
         rows.append((asset, first_fault))
 
-    X = (
-        np.array(x_rows, dtype=float)
-        if x_rows
-        else np.empty((0, len(FEATURE_NAMES)), dtype=float)
-    )
+    X = np.array(x_rows, dtype=float) if x_rows else np.empty((0, len(FEATURE_NAMES)), dtype=float)
     y = np.zeros(len(ids), dtype=[("event", bool), ("time", float)])
     y["event"] = np.array(events, dtype=bool)
     y["time"] = np.array(times, dtype=float)
     return X, y, ids, rows
+

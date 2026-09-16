@@ -33,6 +33,7 @@ from ..models.job import Jobcard, JobcardCreate, JobcardUpdate
 from ..models.location import (
     Building,
     BuildingCreate,
+    BuildingTypeLink,
     BuildingUpdate,
     Location,
     LocationCreate,
@@ -134,6 +135,24 @@ def coerce_value(kind: Any, raw: Any):
     return sanitize_text(text)
 
 
+def coerce_enum_list(kind: Any, raw: Any):
+    """Koppel 'n komma/kommapunt-geskeide string na 'n lys enum-lede.
+
+    Gebruik vir velde wat 'n multi-waarde aanvaar (bv. 'n gebou se tipes),
+    waar 'n enkele sel verskeie tipes kan bevat: "Onderwys, Kafeteria".
+    """
+    parts = str(raw).split(",")
+    out = []
+    for part in parts:
+        for member in kind:
+            p = part.strip()
+            if p.lower() in (member.value.lower(), member.name.lower(), member.name.replace("_", " ").lower()):
+                if member not in out:
+                    out.append(member)
+                break
+    return out
+
+
 @dataclass
 class FieldSpec:
     target: str
@@ -206,8 +225,8 @@ TABLES: dict[str, TableSpec] = {
         fields=(
             FieldSpec("building_name", "Naam", required=True,
                       aliases=("naam", "gebou naam", "gebou", "name", "building name")),
-            FieldSpec("building_type", "Tipe", kind=BuildingType,
-                      aliases=("tipe", "type", "gebou tipe", "soort")),
+            FieldSpec("building_types", "Tipes", kind=BuildingType,
+                      aliases=("tipes", "tipe", "type", "gebou tipe", "soort", "gebou tipes")),
         ),
         refs=(RefSpec("location_id", "location_ref", "location", "Terrein", required=True,
                       aliases=("kampus", "terrein", "location", "campus", "kampus naam")),),
@@ -261,7 +280,7 @@ TABLES: dict[str, TableSpec] = {
         fields=(
             FieldSpec("asset_name", "Naam", required=True,
                       aliases=("naam", "asset naam", "name")),
-            FieldSpec("asset_brand", "Merk", required=True,
+            FieldSpec("asset_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand", "make", "vervaardiger")),
             FieldSpec("asset_serial", "Serienommer",
                       aliases=("serienommer", "serial", "serial number", "sn")),
@@ -286,7 +305,7 @@ TABLES: dict[str, TableSpec] = {
         sheet_aliases=("voorraad", "stock", "items"),
         fields=(
             FieldSpec("stock_name", "Naam", aliases=("naam", "item", "name")),
-            FieldSpec("stock_brand", "Merk", required=True,
+            FieldSpec("stock_brand", "Merk",
                       aliases=("merk", "handelsmerk", "brand")),
             FieldSpec("stock_amount", "Hoeveelheid", kind="int",
                       aliases=("hoeveelheid", "aantal", "amount", "qty", "quantity")),
@@ -317,6 +336,8 @@ TABLES: dict[str, TableSpec] = {
                       aliases=("selnommer", "foon", "phone", "mobile", "selfoon", "nummer")),
             FieldSpec("user_status", "Status", required=True,
                       aliases=("status", "toestand")),
+            FieldSpec("user_role_name", "Rol",
+                      aliases=("rol", "role", "funksie", "gebruiker rol", "user role")),
         ),
     ),
     # Kontrakteurs is gewone gebruikers (rol "Kontrakteur") en word deur die
@@ -513,10 +534,22 @@ def build_export(session: Session, requested: list[dict], template: bool = False
         if not template:
             if ref_maps is None:
                 ref_maps = _load_ref_display(session)
+            building_types_map = None
+            if spec.key == "building":
+                building_types_map = {}
+                for link in session.exec(select(BuildingTypeLink)).all():
+                    building_types_map.setdefault(link.building_id, []).append(link.building_type.value)
+                building_types_map = {
+                    bid: ", ".join(sorted(vals))
+                    for bid, vals in building_types_map.items()
+                }
             for rec in session.exec(select(spec.model)).all():
                 vals = []
                 for f in field_specs:
-                    if f.kind == "quote_list":
+                    if f.target == "building_types":
+                        pk = getattr(rec, spec.pk_field)
+                        vals.append(building_types_map.get(pk, "") if building_types_map is not None else "")
+                    elif f.kind == "quote_list":
                         if quote_display is None:
                             quote_display = {
                                 q.quote_id: (q.quote_date, getattr(q, "contractor_id", None))
@@ -971,8 +1004,41 @@ _UPDATE_EXCLUDE: dict[str, set] = {"user": {"role_id", "user_password"}}
 
 def _apply_fixed_create_fields(session: Session, key: str, payload: dict) -> None:
     if key == "user":
-        payload["role_id"] = _get_student_role_id(session)
+        # Veilig: net User/Dosent/Kontrakteur via import; ander → default User. Terrein word geïgnoreer (net FK het terrein via seed).
+        raw_role = str(payload.pop("user_role_name", "") or "").strip()
+        # Remove any Terrein field that might have been mapped (net FK het terrein, nie via import)
+        payload.pop("location_id", None)
+        payload.pop("user_terrein", None)
+        payload.pop("terrein", None)
+        allowed = {"user": 1, "dosent": 5, "kontrakteur": 4}
+        # Also accept English and Afrikaans variations
+        norm_role = raw_role.lower().strip()
+        # Map common variations
+        role_map = {
+            "user": 1, "gebruiker": 1, "student": 1,
+            "dosent": 5, "lecturer": 5,
+            "kontrakteur": 4, "contractor": 4, " kontrakteur": 4,
+        }
+        role_id = role_map.get(norm_role, 1)  # default User
+        # Validate role exists, else fallback to User
+        from ..models.role import Role
+        role_exists = session.exec(select(Role).where(Role.role_id == role_id)).first()
+        if not role_exists:
+            role_id = _get_student_role_id(session)
+        payload["role_id"] = role_id
         payload["user_password"] = _generate_password()
+    if key == "assettype":
+        # Valideer drempel 1-10 (keer 80) en min≤avg≤max
+        thr = payload.get("assettype_replacement_threshold")
+        if thr is not None and not (1 <= thr <= 10):
+            raise ValueError(f"Vervangingsdrempel moet 1-10 wees (gekry {thr}), nie 80 nie")
+        avg = payload.get("assettype_avg_lifespan")
+        mn = payload.get("assettype_min_lifespan")
+        mx = payload.get("assettype_max_lifespan")
+        if avg is not None and mn is not None and mn > avg:
+            raise ValueError(f"Min lewensduur ({mn}) kan nie groter as gemiddeld ({avg}) wees nie")
+        if avg is not None and mx is not None and avg > mx:
+            raise ValueError(f"Gemiddelde lewensduur ({avg}) kan nie groter as maks ({mx}) wees nie")
 
 
 def _resolve_quote_list(session: Session, ctx: dict, raw: Any):
@@ -1083,6 +1149,13 @@ def run_import(
                             errors.extend(q_errs)
                             if ids:
                                 payload["quote_ids"] = ",".join(str(i) for i in ids)
+                            continue
+                        if fspec.target == "building_types" and isinstance(fspec.kind, type) and issubclass(fspec.kind, enum.Enum):
+                            vals = coerce_enum_list(fspec.kind, raw)
+                            if not vals and fspec.required:
+                                errors.append(f"'{fspec.label}' is verplig")
+                            else:
+                                payload[fspec.target] = vals
                             continue
                         val = coerce_value(fspec.kind, raw)
                         if val is None and fspec.required:

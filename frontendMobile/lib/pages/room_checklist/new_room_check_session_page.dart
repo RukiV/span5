@@ -1,13 +1,14 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../../core/app_colors.dart';
 import '../../models/user.dart';
-import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../services/room_check_session_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../core/datetime_utils.dart';
 
-/// Volblad-skepping van 'n nuwe "Kontrole Skedule" (room check session).
+/// Volblad-skepping van 'n nuwe "Lokaal Kontrole" (room check session).
 ///
 /// Vervang die ou pop-op (AlertDialog) wat die [LocationCascadePicker] sonder
 /// gelaaide kampusdata vertoon het en binne 'n dialog gebreek het. Hier word
@@ -22,7 +23,7 @@ class NewRoomCheckSessionPage extends StatefulWidget {
 
 class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   bool _loading = true;
-  int? _campusId;
+  bool _creating = false;
   int? _roomId;
   int? _assignedUserId;
   DateTime? _scheduled;
@@ -43,13 +44,14 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
     if (mounted) setState(() => _loading = false);
   }
 
-  List<User> get _filteredUsers => UserService.users.where((u) {
-        if (u.id == UserSession.userId) return true;
-        if (u.roleId == 1 || u.roleId == 4) return false;
-        if (u.roleId != 5) return false;
-        if (_campusId == null) return false;
-        return u.locationId == null || u.locationId == _campusId;
-      }).toList();
+  List<User> get _filteredUsers => UserService.roomCheckAssignable();
+
+  String _displayName(User u) {
+    final campus = u.locationId == null
+        ? ""
+        : CampusService.getCampusName(u.locationId!);
+    return campus.isEmpty ? u.displayName : "${u.displayName} — $campus";
+  }
 
   Future<void> _pickDateTime() async {
     final now = DateTime.now();
@@ -72,7 +74,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
   }
 
   String get _dateLabel =>
-      _scheduled == null ? "Kies datum en tyd" : "${_scheduled!.day}/${_scheduled!.month}/${_scheduled!.year} ${_scheduled!.hour}:${_scheduled!.minute}";
+      _scheduled == null ? "Kies datum en tyd" : formatDateTime(_scheduled!);
 
   @override
   Widget build(BuildContext context) {
@@ -81,7 +83,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: const Text("Nuwe Kontrole Skedule"),
+        title: const Text("Nuwe Lokaal Kontrole"),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -97,7 +99,6 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                     showBreadcrumb: true,
                     onChanged: (campusId, buildingId, roomId) {
                       setState(() {
-                        _campusId = campusId;
                         _roomId = roomId;
                         _assignedUserId = null;
                       });
@@ -117,7 +118,7 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                       hint: const Text("Kies gebruiker"),
                       items: [
                         for (final u in _filteredUsers)
-                          DropdownMenuItem(value: u.id, child: Text(u.displayName)),
+                          DropdownMenuItem(value: u.id, child: Text(_displayName(u))),
                       ],
                       onChanged: (val) => setState(() => _assignedUserId = val),
                     ),
@@ -144,16 +145,30 @@ class _NewRoomCheckSessionPageState extends State<NewRoomCheckSessionPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _roomId == null || _assignedUserId == null
+                      onPressed: _roomId == null ||
+                              _assignedUserId == null ||
+                              _creating
                           ? null
                           : () async {
                               final navigator = Navigator.of(context);
-                              await RoomCheckSessionService.createSession(
-                                roomId: _roomId!,
-                                assignedUserId: _assignedUserId!,
-                                scheduledDatetime: _scheduled,
-                              );
-                              if (mounted) navigator.pop(true);
+                              final messenger = ScaffoldMessenger.of(context);
+                              try {
+                                await RoomCheckSessionService.createSession(
+                                  roomId: _roomId!,
+                                  assignedUserId: _assignedUserId!,
+                                  scheduledDatetime: _scheduled,
+                                );
+                                if (mounted) navigator.pop(true);
+                              } catch (e) {
+                                String msg = "Kon nie die skedule stoor nie";
+                                if (e is DioException &&
+                                    e.response?.data?['detail'] != null) {
+                                  msg = e.response!.data['detail'].toString();
+                                }
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text(msg)),
+                                );
+                              }
                             },
                       child: const Text("Skeduleer"),
                     ),

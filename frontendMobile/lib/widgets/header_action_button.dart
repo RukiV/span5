@@ -13,8 +13,9 @@ class HeaderIconAction extends StatelessWidget {
   /// Wys 'n klein goue kolletjie wanneer 'n filter aktief is.
   final bool activeBadge;
 
-  /// Tellenkies wat bo-aan die hoekie verskyn (bv. versteekte kolomme).
-  final int? badgeCount;
+  /// Vervang die ikoon met 'n spinner en deaktiveer die knoppie (bv. tydens
+  /// 'n AI-versoek) sodat die gebruiker weet dié aksie is besig.
+  final bool loading;
 
   const HeaderIconAction({
     super.key,
@@ -23,7 +24,7 @@ class HeaderIconAction extends StatelessWidget {
     this.onTap,
     this.iconColor = Colors.white,
     this.activeBadge = false,
-    this.badgeCount,
+    this.loading = false,
   });
 
   @override
@@ -32,15 +33,26 @@ class HeaderIconAction extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
-          icon: Icon(icon, color: iconColor),
+          icon: loading
+              ? const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  ),
+                )
+              : Icon(icon, color: iconColor),
           tooltip: tooltip,
           style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 30 / 255),
+            backgroundColor:
+                Colors.white.withValues(alpha: loading ? 0 : 30 / 255),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
           ),
-          onPressed: onTap,
+          onPressed: loading ? null : onTap,
         ),
         if (activeBadge)
           Positioned(
@@ -52,28 +64,6 @@ class HeaderIconAction extends StatelessWidget {
               decoration: const BoxDecoration(
                 color: AppColors.gold,
                 shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        if (badgeCount != null && badgeCount! > 0)
-          Positioned(
-            right: -4,
-            top: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppColors.gold,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-              child: Text(
-                '$badgeCount',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
               ),
             ),
           ),

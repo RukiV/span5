@@ -188,7 +188,7 @@ def test_asset_resolves_room_and_type_created_same_run(client, admin_headers):
         "Kamers": [["Naam", "Kode", "Gebou"], ["Lab 1", "L001", "C Gebou"]],
         "AssetTypes": [["Naam"], ["Rekenaar"]],
         "Aktiwiteite": [
-            ["Naam", "Merk", "Serienommer", "Tipe", "Kamer Kode"],
+            ["Naam", "Handelsmerk", "Serienommer", "Tipe", "Kamer Kode"],
             ["HP EliteDesk", "HP", "SN777", "Rekenaar", "L001"],
         ],
     })
@@ -306,7 +306,7 @@ def _seed_hierarchy(client, headers):
         "Kamers": [["Naam", "Kode", "Gebou"], ["Lab R", "R001", "R Gebou"]],
         "AssetTypes": [["Naam"], ["Skerm"]],
         "Aktiwiteite": [
-            ["Naam", "Merk", "Serienommer", "Status", "Buitelug", "Aanskafdatum", "Tipe", "Kamer Kode"],
+            ["Naam", "Handelsmerk", "Serienommer", "Status", "Buitelug", "Aanskafdatum", "Tipe", "Kamer Kode"],
             ["Monitor A", "Dell", "SN-EX-1", "Aktief", "Nee", "2024-03-01 09:30:00", "Skerm", "R001"],
         ],
     })
@@ -422,7 +422,7 @@ def test_export_csv_values_are_import_format(client, admin_headers):
     assert resp.status_code == 200, resp.text
     text = resp.content.decode("utf-8-sig")
     lines = text.strip().splitlines()
-    # Kanonieke register-volgorde: Naam, Merk, Serienommer, Status, Buite, Geskep, ⟶Tipe, ⟶Lokaal
+    # Kanonieke register-volgorde: Naam, Handelsmerk, Serienommer, Status, Buite, Geskep, ⟶Tipe, ⟶Lokaal
     assert lines[0] == "Serienommer,Status,Buite,Geskep,Lokaal"
     assert len(lines) == 2
     data_row = next(csv.reader(lines[1:]))
@@ -442,7 +442,7 @@ def test_export_template_headers_only(client, admin_headers):
     from openpyxl import load_workbook
     ws = load_workbook(io.BytesIO(resp.content)).active
     assert ws.title == "Geboue"
-    assert [c.value for c in ws[1]] == ["Naam", "Tipe", "Terrein"]
+    assert [c.value for c in ws[1]] == ["Naam", "Tipes", "Terrein"]
     assert ws.max_row == 1
 
 

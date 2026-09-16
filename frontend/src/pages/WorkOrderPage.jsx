@@ -2,8 +2,8 @@
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
 import Select, { components } from "react-select";
-import { IoReturnUpBack, IoTrashOutline } from "react-icons/io5";
-import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
+import { IoReturnUpBack, IoTrashOutline, IoPencil } from "react-icons/io5";
+import { CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
 import { apiClient, assetsAPI, workOrdersAPI, quotesAPI, roomsAPI, ticketsAPI, buildingsAPI, locationAPI, usersAPI } from "../services/api";
 import { useCurrentUser } from "../hooks/useCurrentUser";
 import { loginRequest } from '../services/msalConfig';
@@ -14,14 +14,23 @@ import '../styles/App.css';
 import "../styles/WorkOrder.css";
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
 import useColumnSort from "../hooks/useColumnSort";
+import useFilterState from "../hooks/useFilterState";
 import useColumnVisibility from "../hooks/useColumnVisibility";
 import ColumnPicker from "../components/ColumnPicker/ColumnPicker";
+import SortPicker from "../components/ColumnPicker/SortPicker";
+import FilterPicker from "../components/ColumnPicker/FilterPicker";
 import useColumnWidths from "../hooks/useColumnWidths";
+import usePagination from "../hooks/usePagination";
+import Pagination from "../components/Pagination/Pagination";
 import ResizableTh from "../components/ResizableTh";
 import useAiSuggestions from "../hooks/useAiSuggestions";
 import AiSuggestPanel from "../components/AiSuggestPanel";
+import GhostSuggestion from "../components/GhostSuggestion";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
+import Modal from '../components/Modal/Modal';
+import WorkOrderDetailView from '../components/DetailView/WorkOrderDetailView';
+import '../components/DetailView/DetailView.css';
 
 function WorkOrderPage() {
   const { confirm, dialog } = useConfirmDialog();
@@ -39,12 +48,12 @@ function WorkOrderPage() {
   const [terrains, setTerrains] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");        // Soek op ID/Beskrywing
+  const filterPersist = useFilterState({ storageKey: "workorder-page" });
+  const [searchTerm, setSearchTerm] = useState(() => filterPersist.value.search);        // Soek op ID/Beskrywing
   const [filterColumn, setFilterColumn] = useState("all");
-  const { handleSort, sortKey, sortDirection, getSortIndicator, getSortClass } = useColumnSort({ defaultSortKey: 'id' });
 
   const WORKORDER_COLUMNS = [
-    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: true },
+    { key: 'id', label: 'ID', render: (o) => o.jobcard_id, sortKey: 'id', defaultVisible: false },
     { key: 'description', label: 'Beskrywing', render: (o) => o.job_desc || '-', sortKey: 'description', defaultVisible: true },
     { key: 'type', label: 'Werksoort', render: (o) => o.job_type || '-', sortKey: 'type', defaultVisible: true },
     { key: 'priority', label: 'Prioriteit', render: (o) => o.job_priority || '-', sortKey: 'priority', defaultVisible: false },
@@ -62,26 +71,37 @@ function WorkOrderPage() {
   ];
   const colVis = useColumnVisibility('workorder-page', WORKORDER_COLUMNS);
   const colWidths = useColumnWidths('workorder-page', WORKORDER_COLUMNS);
+  const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
+    columns: WORKORDER_COLUMNS,
+    storageKey: 'workorder-page',
+    defaultSorts: [{ key: 'id', direction: 'asc' }],
+  });
   const colPickerRef = useRef(null);
 
-  const [terrainFilter, setTerrainFilter] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState("");
-  const [roomFilter, setRoomFilter] = useState("");
-  const filterCascade = useCascadeMenu();
+  const [terrainFilter, setTerrainFilter] = useState(() => filterPersist.value.location_id);
+  const [buildingFilter, setBuildingFilter] = useState(() => filterPersist.value.building_id);
+  const [roomFilter, setRoomFilter] = useState(() => filterPersist.value.room_id);
   const modalCascadeMenu = useCascadeMenu();
 
    
   // Modal en redigerings-state
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isViewMode, setIsViewMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [pendingJobcardId, setPendingJobcardId] = useState(null);
   const [users, setUsers] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [selectedQuoteId, setSelectedQuoteId] = useState(null);
-  const [newQuote, setNewQuote] = useState({ contractor_id: "" });
+  const [newQuote, setNewQuote] = useState({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
   const [quoteEditId, setQuoteEditId] = useState(null);
   const [quoteSelectionReasons, setQuoteSelectionReasons] = useState({});
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [showCreateContractorModal, setShowCreateContractorModal] = useState(false);
+  const [pendingQuoteIdForContractor, setPendingQuoteIdForContractor] = useState(null);
+  const [newContractorForm, setNewContractorForm] = useState({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+  const [contractorFormErrors, setContractorFormErrors] = useState({});
+  const [isCreatingContractor, setIsCreatingContractor] = useState(false);
   const [connectionType, setConnectionType] = useState("");
   const [connectionTargetId, setConnectionTargetId] = useState("");
 
@@ -170,6 +190,23 @@ function WorkOrderPage() {
     },
   });
   const { suggestions: jobSuggestions, loading: aiLoading, filled: aiFilled, error: aiError } = aiSuggestions;
+
+  // Ghost-spookteks — kaart EN-enums na Afrikaanse vertoonwaardes.
+  const jobGhostType = jobSuggestions?.job_type?.value ? (JOB_TYPE_EN_AF[jobSuggestions.job_type.value] || jobSuggestions.job_type.value) : null;
+  const jobGhostPrio = jobSuggestions?.job_priority?.value ? (JOB_PRIO_EN_AF[jobSuggestions.job_priority.value] || jobSuggestions.job_priority.value) : null;
+  const jobGhostNature = jobSuggestions?.nature?.value || null;
+  const applyJobSuggestion = (key) => {
+    if (key === 'job_type' && jobGhostType) { setFormData(p => ({ ...p, job_type: jobGhostType })); setInvalidFields(p => { const n = {...p}; delete n.job_type; return n; }); }
+    else if (key === 'job_priority' && jobGhostPrio) { setFormData(p => ({ ...p, job_priority: jobGhostPrio })); setInvalidFields(p => { const n = {...p}; delete n.job_priority; return n; }); }
+    else if (key === 'nature' && jobGhostNature) { setFormData(p => ({ ...p, nature: jobGhostNature })); setInvalidFields(p => { const n = {...p}; delete n.nature; return n; }); }
+  };
+  const handleJobGhostTab = (e, key) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      const ghost = key === 'job_type' ? jobGhostType : key === 'job_priority' ? jobGhostPrio : jobGhostNature;
+      const empty = key === 'job_type' ? !formData.job_type : key === 'job_priority' ? !formData.job_priority : !formData.nature;
+      if (ghost && empty) applyJobSuggestion(key);
+    }
+  };
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -281,10 +318,18 @@ function WorkOrderPage() {
   useEffect(() => {
     if (user?.role_id === 2 && user?.location_id) {
       setTerrainFilter(String(user.location_id));
-    } else {
-      setTerrainFilter("");
     }
   }, [user]);
+
+  useEffect(() => {
+    filterPersist.set({
+      search: searchTerm,
+      location_id: terrainFilter,
+      building_id: buildingFilter,
+      room_id: roomFilter,
+      status: "",
+    });
+  }, [filterPersist, searchTerm, terrainFilter, buildingFilter, roomFilter]);
 
   useEffect(() => {
     return () => {
@@ -726,6 +771,7 @@ function WorkOrderPage() {
 
   // Hanteer redigering van werksopdrag
   async function handleEditWorkOrder(order) {
+    setIsViewMode(true);
     setIsEditing(true);
     setEditingId(order.jobcard_id);
 
@@ -816,7 +862,9 @@ function WorkOrderPage() {
               id: quoteData.quote_id,
               dbId: quoteData.quote_id,
               contractor_id: quoteData.contractor_id ? Number(quoteData.contractor_id) : "",
-              contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
+              contractor_name: String(quoteData.contractor_name || "").trim()
+                || (contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : ""),
+              contractor_mode: quoteData.contractor_id ? "existing" : "new",
               createdAt: quoteData.quote_date || new Date().toLocaleDateString('af-ZA'),
               selection_reason: quoteData.quote_selection_reason || ""
             };
@@ -926,9 +974,17 @@ function WorkOrderPage() {
         workOrderId = savedWorkOrder?.jobcard_id || editingId;
       }
 
-      if (quotes.some((quote) => !quote.contractor_id || !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
-        showToast({ type: 'warning', title: "Elke kwotasie moet 'n kontrakteur en 'n PDF-dokument hê." });
+      if (quotes.some((quote) => !(quotePdfFiles[quote.id] || quoteDocuments[quote.id]?.[0]))) {
+        showToast({ type: 'warning', title: "Elke kwotasie moet 'n PDF-dokument hê." });
         return;
+      }
+
+      if (selectedQuoteId) {
+        const selectedQuoteForCheck = quotes.find((q) => String(q.id) === String(selectedQuoteId));
+        if (selectedQuoteForCheck && !(selectedQuoteForCheck.contractor_id || String(selectedQuoteForCheck.contractor_name || "").trim())) {
+          showToast({ type: 'warning', title: "Gee asseblief 'n kontrakteur vir die gekose kwotasie." });
+          return;
+        }
       }
 
       if (selectedQuoteId && !String(quoteSelectionReasons[selectedQuoteId] || "").trim()) {
@@ -946,6 +1002,7 @@ function WorkOrderPage() {
           quote_status: "Pending",
           quote_selection_reason: quoteSelectionReasons[quote.id] || null,
           contractor_id: quote.contractor_id ? Number(quote.contractor_id) : null,
+          contractor_name: String(quote.contractor_name || "").trim() || null,
         };
 
         try {
@@ -1039,18 +1096,21 @@ function WorkOrderPage() {
 
   // ===== QUOTES FUNKSIES =====
   const handleAddQuote = () => {
-    if (!newQuote.contractor_id || !quotePdfFiles[quoteEditId || "new"]) {
-      showToast({ type: 'warning', title: "Kies 'n kontrakteur en laai 'n PDF op vir die kwotasie." });
+    if (!quotePdfFiles[quoteEditId || "new"]) {
+      showToast({ type: 'warning', title: "Laai 'n PDF-dokument op vir die kwotasie." });
       return;
     }
 
-    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const existingQuote = quoteEditId ? quotes.find((q) => q.id === quoteEditId) : null;
+    const contractorUser = users.find(u => u.user_id === Number(newQuote.contractor_id));
     const updatedQuote = {
       id: quoteEditId || Date.now(),
       dbId: existingQuote?.dbId ?? null,
       contractor_id: newQuote.contractor_id ? Number(newQuote.contractor_id) : null,
-      contractor_name: contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : "",
+      contractor_name: newQuote.contractor_mode === "new"
+        ? newQuote.contractor_name.trim()
+        : (contractorUser ? contractorUser.user_name + " " + contractorUser.user_surname : newQuote.contractor_name.trim()),
+      contractor_mode: newQuote.contractor_mode,
       createdAt: existingQuote?.createdAt || new Date().toLocaleDateString('af-ZA'),
       selection_reason: quoteSelectionReasons[quoteEditId] || ""
     };
@@ -1095,7 +1155,8 @@ function WorkOrderPage() {
       });
     }
 
-    setNewQuote({ contractor_id: "" });
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
+    setShowQuoteModal(false);
   };
 
   const handleStartEditQuote = (quoteId) => {
@@ -1103,9 +1164,23 @@ function WorkOrderPage() {
     if (!quoteToEdit) return;
 
     setNewQuote({
-      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : ""
+      contractor_mode: quoteToEdit.contractor_id ? "existing" : "new",
+      contractor_id: quoteToEdit.contractor_id ? String(quoteToEdit.contractor_id) : "",
+      contractor_name: quoteToEdit.contractor_name || ""
     });
     setQuoteEditId(quoteId);
+    setShowQuoteModal(true);
+  };
+
+  const openAddQuote = () => {
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
+    setQuoteEditId(null);
+    setShowQuoteModal(true);
+  };
+
+  const handleCloseQuoteModal = () => {
+    setShowQuoteModal(false);
+    handleCancelQuoteEdit();
   };
 
   const handleCancelQuoteEdit = () => {
@@ -1121,7 +1196,7 @@ function WorkOrderPage() {
       delete next["new"];
       return next;
     });
-    setNewQuote({ contractor_id: "" });
+    setNewQuote({ contractor_mode: "existing", contractor_id: "", contractor_name: "" });
   };
 
   const handleDeleteQuote = (quoteId) => {
@@ -1153,15 +1228,108 @@ function WorkOrderPage() {
 
   const handleSelectQuote = (quoteId) => {
     const nextSelectedId = quoteId === selectedQuoteId ? null : quoteId;
+    if (!nextSelectedId) {
+      setSelectedQuoteId(null);
+      return;
+    }
+
+    const quote = quotes.find((q) => q.id === nextSelectedId);
+    const isNameOnlyContractor = quote && !quote.contractor_id && String(quote.contractor_name || "").trim();
+    if (isNameOnlyContractor) {
+      const parts = String(quote.contractor_name).trim().split(/\s+/);
+      const surname = parts.length > 1 ? parts.pop() : "";
+      const name = parts.join(" ") || String(quote.contractor_name).trim();
+      setPendingQuoteIdForContractor(nextSelectedId);
+      setNewContractorForm({ user_name: name, user_surname: surname, user_email: "", user_password: "" });
+      setContractorFormErrors({});
+      setShowCreateContractorModal(true);
+      return;
+    }
+
     setSelectedQuoteId(nextSelectedId);
-    if (nextSelectedId) {
-      if (!quoteSelectionReasons[nextSelectedId]) {
-        setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
-      }
+    if (!quoteSelectionReasons[nextSelectedId]) {
+      setQuoteSelectionReasons((prev) => ({ ...prev, [nextSelectedId]: "" }));
     }
   };
 
+  const handleCreateContractor = async () => {
+    try {
+      const errors = {};
+      if (!newContractorForm.user_name?.trim()) errors.user_name = true;
+      if (!newContractorForm.user_surname?.trim()) errors.user_surname = true;
+      const email = newContractorForm.user_email?.trim() || "";
+      if (!email) {
+        errors.user_email = true;
+      } else if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) {
+        errors.user_email = true;
+        showToast({ type: 'warning', title: 'Geldige e-posadres word vereis.' });
+      }
+      const pw = newContractorForm.user_password || "";
+      if (!pw) {
+        errors.user_password = true;
+      } else if (pw.length < 8 || pw.length > 128 || !/[a-z]/.test(pw) || !/[A-Z]/.test(pw) || !/\d/.test(pw) || !/[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/`~]/.test(pw)) {
+        errors.user_password = true;
+        showToast({ type: 'warning', title: 'Wagwoord moet minstens 8 karakters, \'n hoofletter, \'n syfer en \'n simbool bevat.' });
+      }
+      setContractorFormErrors(errors);
+      if (Object.keys(errors).length > 0) return;
+
+      setIsCreatingContractor(true);
+      const response = await usersAPI.createContractor({
+        user_name: newContractorForm.user_name.trim(),
+        user_surname: newContractorForm.user_surname.trim(),
+        user_email: newContractorForm.user_email.trim(),
+        user_password: newContractorForm.user_password,
+        user_status: "active",
+        role_id: 4,
+        location_id: null,
+      });
+      const createdUser = response?.data || response;
+      setContractorFormErrors({});
+
+      const contractorId = createdUser?.user_id ?? null;
+      if (contractorId) {
+        setQuotes((prev) => prev.map((q) =>
+          q.id === pendingQuoteIdForContractor
+            ? { ...q, contractor_id: Number(contractorId), contractor_mode: "existing" }
+            : q
+        ));
+      }
+      fetchUsers();
+
+      setSelectedQuoteId(pendingQuoteIdForContractor);
+      if (pendingQuoteIdForContractor && !quoteSelectionReasons[pendingQuoteIdForContractor]) {
+        setQuoteSelectionReasons((prev) => ({ ...prev, [pendingQuoteIdForContractor]: "" }));
+      }
+
+      setShowCreateContractorModal(false);
+      setPendingQuoteIdForContractor(null);
+      setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+      showToast({ type: 'success', title: 'Kontrakteur is suksesvol by die lys gevoeg.' });
+    } catch (error) {
+      console.error("Fout by skep van kontrakteur:", error);
+      const status = error?.response?.status;
+      if (status === 409) {
+        showToast({ type: 'error', title: 'Daar is reeds \'n gebruiker met hierdie e-posadres.' });
+      } else if (error?.response?.data?.detail) {
+        showToast({ type: 'error', title: String(error.response.data.detail) });
+      } else {
+        showToast({ type: 'error', title: 'Fout by skep van kontrakteur. Probeer asseblief weer.' });
+      }
+    } finally {
+      setIsCreatingContractor(false);
+    }
+  };
+
+  const handleCloseCreateContractorModal = () => {
+    if (isCreatingContractor) return;
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setContractorFormErrors({});
+  };
+
   const handleCloseModal = () => {
+    setIsViewMode(false);
     setShowModal(false);
     setIsEditing(false);
     setEditingId(null);
@@ -1182,6 +1350,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setConnectionType("");
     setConnectionTargetId("");
     setSelectedTerrein(null);
@@ -1216,6 +1389,7 @@ function WorkOrderPage() {
   };
 
   const handleNewWorkOrder = () => {
+    setIsViewMode(false);
     setIsEditing(false);
     setEditingId(null);
     setSelectedTerrein(null);
@@ -1230,6 +1404,11 @@ function WorkOrderPage() {
     setQuoteDocuments({});
     setQuotePdfFiles({});
     setQuotePdfPreviewUrls((prev) => { Object.values(prev).forEach((u) => URL.revokeObjectURL(u)); return {}; });
+    setShowCreateContractorModal(false);
+    setPendingQuoteIdForContractor(null);
+    setNewContractorForm({ user_name: "", user_surname: "", user_email: "", user_password: "" });
+    setContractorFormErrors({});
+    setIsCreatingContractor(false);
     setFormData({
       job_desc: "",
       job_type: "",
@@ -1275,8 +1454,8 @@ function WorkOrderPage() {
   };
 
   // Filter en sorteer werksopdragte vir tabel
-  const filteredWorkOrders = [...workOrders]
-    .filter((order) => {
+  const filteredWorkOrders = applySort(
+    [...workOrders].filter((order) => {
       if (terrainFilter && String(order.location_id) !== terrainFilter) return false;
       if (buildingFilter && String(order.building_id) !== buildingFilter) return false;
       if (roomFilter && String(order.room_id) !== roomFilter) return false;
@@ -1299,27 +1478,30 @@ function WorkOrderPage() {
         ? Object.values(values).some((value) => String(value || '').toLowerCase().includes(query))
         : String(values[filterColumn] || '').toLowerCase().includes(query);
       return matchesColumn;
-    })
-    .sort((a, b) => {
-      if (!sortKey) return 0;
-      const dir = sortDirection === 'asc' ? 1 : -1;
-      switch (sortKey) {
-        case "date":
-          return (new Date(a.job_createddatetime) - new Date(b.job_createddatetime)) * dir;
-        case "status":
-          return String(a.job_status || "").localeCompare(String(b.job_status || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "description":
-          return String(a.job_desc || "").localeCompare(String(b.job_desc || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "type":
-          return String(a.job_type || "").localeCompare(String(b.job_type || ""), 'af', { sensitivity: 'base' }) * dir;
-        case "asset_id":
-          return (Number(a.asset_id || 0) - Number(b.asset_id || 0)) * dir;
-        case "fault_id":
-          return (Number(a.fault_id || 0) - Number(b.fault_id || 0)) * dir;
-        default:
-          return (Number(a.jobcard_id || 0) - Number(b.jobcard_id || 0)) * dir;
+    }),
+    (o, key) => {
+      switch (key) {
+        case 'id': return Number(o.jobcard_id || 0);
+        case 'description': return String(o.job_desc || '');
+        case 'type': return String(o.job_type || '');
+        case 'priority': return String(o.job_priority || '');
+        case 'asset_id': return Number(o.asset_id || 0);
+        case 'fault_id': return Number(o.fault_id || 0);
+        case 'location_id': return Number(o.location_id || 0);
+        case 'building_id': return Number(o.building_id || 0);
+        case 'room_id': return Number(o.room_id || 0);
+        case 'date': return (o.job_scheduled_datetime || o.job_createddatetime) ? new Date(o.job_scheduled_datetime || o.job_createddatetime).getTime() : 0;
+        case 'status': return String(o.job_status || '');
+        case 'assigned': return String(o.assigned_to || '');
+        case 'nature': return String(o.nature || '');
+        case 'created': return o.job_createddatetime ? new Date(o.job_createddatetime).getTime() : 0;
+        case 'finished': return o.job_finisheddatetime ? new Date(o.job_finisheddatetime).getTime() : 0;
+        default: return '';
       }
-    });
+    },
+  );
+  const { currentPage, totalPages, paginatedData: paginatedWorkOrders, goToPage } = usePagination(filteredWorkOrders, 100);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
 
   const translateStatus = (status) => {
     return status || "-";
@@ -1383,7 +1565,7 @@ function WorkOrderPage() {
   return (
     <div className="main">
       <div className="content">
-          <div className="controls">
+          <div className="controls controls--sticky controls--with-tabs">
             <div className="controls-left">
               <div className="control-input-shell">
                 <input
@@ -1395,19 +1577,12 @@ function WorkOrderPage() {
                 />
               </div>
               
-              <Select
-                className="react-select-container"
-                classNamePrefix="react-select"
-                value={[
-                  { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
-                  { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
-                  { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
-                  { value: "building_id", label: "Gebou ID" }, { value: "location_id", label: "Terrein ID" },
-                  { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
-                  { value: "status", label: "Status" },
-                ].find((option) => option.value === filterColumn)}
-                onChange={(selected) => setFilterColumn(selected?.value || "all")}
-                options={[
+              <FilterPicker
+                search={searchTerm}
+                onSearch={setSearchTerm}
+                filterColumn={filterColumn}
+                onFilterColumnChange={setFilterColumn}
+                filterColumnOptions={[
                   { value: "all", label: "Alle kolomme" }, { value: "id", label: "ID" },
                   { value: "description", label: "Beskrywing" }, { value: "job_type", label: "Werksoort" },
                   { value: "asset_id", label: "Bate ID" }, { value: "room_id", label: "Lokaal ID" },
@@ -1415,72 +1590,41 @@ function WorkOrderPage() {
                   { value: "fault_id", label: "Fout ID" }, { value: "scheduled", label: "Datum" },
                   { value: "status", label: "Status" },
                 ]}
-                isSearchable={false}
+                terrainFilter={terrainFilter}
+                buildingFilter={buildingFilter}
+                roomFilter={roomFilter}
+                onLocationChange={(loc, bld, room) => {
+                  setTerrainFilter(loc || "");
+                  setBuildingFilter(bld || "");
+                  setRoomFilter(room || "");
+                }}
+                locationOptions={allLocationOptions}
+                maxLevel={3}
+                lockedTerrain={user?.role_id === 2 ? String(user?.location_id || "") : null}
+                onReset={() => {
+                  setSearchTerm("");
+                  setTerrainFilter("");
+                  setBuildingFilter("");
+                  setRoomFilter("");
+                }}
               />
-              {(() => {
-                const cascadeCount = [terrainFilter, buildingFilter, roomFilter].filter(Boolean).length;
-                const currentDisplayValue = cascadeCount === 0 ? null
-                  : cascadeCount === 1 && terrainFilter ? { value: terrainFilter, label: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter }
-                  : cascadeCount === 2 && buildingFilter ? { value: buildingFilter, label: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter }
-                  : null;
-                const clearFromLevel = (levelIndex) => {
-                  if (levelIndex <= 0) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 1) { setBuildingFilter(''); setRoomFilter(''); }
-                  else if (levelIndex === 2) { setRoomFilter(''); }
-                };
-                const breadcrumbData = [{ level: -1, name: "Terreine" }];
-                if (terrainFilter) breadcrumbData.push({ level: 0, name: terrains?.find(t => String(t.location_id) === terrainFilter)?.location_name || terrainFilter });
-                if (buildingFilter) breadcrumbData.push({ level: 1, name: buildings?.find(b => String(b.building_id) === buildingFilter)?.building_name || buildingFilter });
-                if (roomFilter) breadcrumbData.push({ level: 2, name: rooms?.find(r => String(r.room_id) === roomFilter)?.room_name || roomFilter });
-                return (
-                  <div className="control-cascade-stack" ref={filterCascade.containerRef}>
-                    <div className="control-cascade-breadcrumb">
-                      {renderBreadcrumb({ breadcrumbData, cascadeCount, clearFromLevel, maxLevel: 3 })}
-                    </div>
-                    <Select
-                      className="react-select-container"
-                      classNamePrefix="react-select"
-                       placeholder={["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Filter voltooi"][cascadeCount]}
-                       isClearable
-                       isDisabled={cascadeCount >= 3}
-                       closeMenuOnSelect={false}
-                       menuIsOpen={filterCascade.menuIsOpen}
-                       onMenuOpen={filterCascade.onMenuOpen}
-                       onMenuClose={filterCascade.onMenuClose}
-                       components={{ Control: (p) => <CascadeControl {...p} cascadeCount={cascadeCount} clearFromLevel={clearFromLevel} />, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
-                      styles={{
-                        container: (base) => ({ ...base, minWidth: '260px' }),
-                        control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
-                        valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
-                        singleValue: (base) => ({ ...base, margin: 0, padding: 0, lineHeight: '38px', whiteSpace: 'nowrap' }),
-                      }}
-                       options={allLocationOptions}
-                      filterOption={(option, rawInput) => {
-                      if (rawInput) {
-                        if (cascadeCount === 0)
-                          return option.data._cascadeLevel <= 3 && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 1)
-                          return option.data._cascadeLevel >= 1 && option.data._cascadeLevel <= 3 && String(option.data._fields.location_id) === String(terrainFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 2)
-                          return option.data._cascadeLevel >= 2 && option.data._cascadeLevel <= 3 && String(option.data._fields.building_id) === String(buildingFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                        if (cascadeCount === 3)
-                          return option.data._cascadeLevel >= 3 && option.data._cascadeLevel <= 3 && String(option.data._fields.room_id) === String(roomFilter) && option.label.toLowerCase().includes(rawInput.toLowerCase());
-                      }
-                      if (cascadeCount === 0) return option.data._cascadeLevel === 0;
-                      if (cascadeCount === 1) return option.data._cascadeLevel === 1 && String(option.data._parentId) === String(terrainFilter);
-                      if (cascadeCount === 2) return option.data._cascadeLevel === 2 && String(option.data._parentId) === String(buildingFilter);
-                      return false;
-                      }}
-                      value={currentDisplayValue}
-                      onChange={(selectedOption) => {
-                        if (!selectedOption) { setTerrainFilter(''); setBuildingFilter(''); setRoomFilter(''); return; }
-                        const f = selectedOption._fields;
-                        setTerrainFilter(f.location_id); setBuildingFilter(f.building_id); setRoomFilter(f.room_id);
-                      }}
-                    />
-                  </div>
-                );
-              })()}
+            <SortPicker
+                columns={WORKORDER_COLUMNS}
+                sorts={sorts}
+                onAdd={addSort}
+                onRemove={removeSort}
+                onToggleDirection={toggleDirection}
+                onMove={moveSort}
+                onClear={clearSorts}
+              />
+              <ColumnPicker
+                ref={colPickerRef}
+                columns={colVis.columnDefs}
+                visibleColumns={colVis.visibleColumns}
+                toggleColumn={colVis.toggleColumn}
+                resetVisibility={colVis.resetVisibility}
+                onResetWidths={colWidths.resetWidths}
+              />
             </div>
 
             <div className="controls-right">
@@ -1494,14 +1638,6 @@ function WorkOrderPage() {
                   ⇅ Invoer / Uitvoer rekords
                 </button>
               )}
-              <ColumnPicker
-                ref={colPickerRef}
-                columns={colVis.columnDefs}
-                visibleColumns={colVis.visibleColumns}
-                toggleColumn={colVis.toggleColumn}
-                resetVisibility={colVis.resetVisibility}
-                onResetWidths={colWidths.resetWidths}
-              />
               <button
                 type="button"
                 className="btn-add"
@@ -1531,11 +1667,9 @@ function WorkOrderPage() {
                     key={col.key}
                     col={col}
                     colWidths={colWidths}
-                    className={col.sortKey ? getSortClass(col.sortKey) : ''}
-                    onClick={col.sortKey ? () => handleSort(col.sortKey) : undefined}
                     onContextMenu={(e) => { e.preventDefault(); colPickerRef.current?.openAt(e); }}
                   >
-                    {col.label}{col.sortKey ? getSortIndicator(col.sortKey) : ''}
+                    {col.label}
                   </ResizableTh>
                 ))}
                 <th>Aksies</th>
@@ -1547,7 +1681,7 @@ function WorkOrderPage() {
                   <td colSpan={colVis.visibleColumns.length + 1} style={{ textAlign: "center", padding: "20px" }}>Geen werksopdragte gevind</td>
                 </tr>
               ) : (
-                filteredWorkOrders.map((order) => (
+                paginatedWorkOrders.map((order) => (
                   <tr key={order.jobcard_id} onClick={() => handleEditWorkOrder(order)} style={{ cursor: "pointer" }}>
                     {colVis.visibleColumns.map((col) => (
                       <td key={col.key}>{col.render(order)}</td>
@@ -1567,15 +1701,72 @@ function WorkOrderPage() {
               )}
             </tbody>
           </table>
+      <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={goToPage} totalItems={filteredWorkOrders.length} pageSize={100} />
         </div>
+{showModal && isViewMode && isEditing && (() => {
+  const terrain = terrains.find(t => String(t.location_id) === String(formData.location_id));
+  const building = buildings.find(b => String(b.building_id) === String(formData.building_id));
+  const room = rooms.find(r => String(r.room_id) === String(formData.room_id));
+  const asset = assets.find(a => String(a.asset_id) === String(formData.asset_id));
+  const assignedUser = users.find(u => String(u.user_id) === String(formData.assigned_to));
+  const faultTicket = tickets.find(t => String(t.fault_id) === String(formData.fault_id));
+  const jobImageUrls = (jobImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  const ticketImageUrls = (ticketImages || []).map(img => ({
+    ...img,
+    url: `${apiClient.defaults?.baseURL || ''}/image/${img.image_id}/file`,
+  }));
+  return (
+    <Modal
+      isOpen={true}
+      onClose={handleCloseModal}
+      title={`Werksopdrag #${editingId}`}
+      size="md"
+      headerActions={
+        hasRight('jobs.manage') ? (
+          <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+        ) : null
+      }
+    >
+      <WorkOrderDetailView
+        order={{
+          ...formData,
+          jobcard_id: editingId,
+          job_desc: formData.brief_description || formData.job_desc,
+        }}
+        assignedName={assignedUser ? `${assignedUser.user_name} ${assignedUser.user_surname || ''}`.trim() : null}
+        contractorName={null}
+        terrainName={terrain?.location_name}
+        buildingName={building?.building_name}
+        roomName={room?.room_name}
+        assetName={asset?.asset_name}
+        faultId={formData.fault_id}
+        ticketTitle={faultTicket ? (faultTicket.fault_description || '').split(':')[0]?.trim() : null}
+        ticketImages={ticketImageUrls}
+        jobImages={jobImageUrls}
+      />
+    </Modal>
+  );
+})()}
 {/* MODAL: Werksopdrag-Kaart */}
-      {showModal && (
-        <div className="modal">
+      {showModal && !isViewMode && (
+        <div className="modal" onClick={(e) => { if (e.target === e.currentTarget && isViewMode) handleCloseModal(); }}>
           <div className="modal-content-workorder" style={{ position: "relative" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="modal-header">
                 <h3>Werksopdrag Kaart</h3>
-                {isEditing && (
+                {isViewMode ? (
+                  <div className="mri-job-no">
+                    <input 
+                      type="text" 
+                      className="inp-bold-large"
+                      value={editingId}
+                      readOnly
+                    />
+                  </div>
+                ) : isEditing && (
                   <div className="mri-job-no">
                     <input 
                       type="text" 
@@ -1585,7 +1776,12 @@ function WorkOrderPage() {
                     />
                   </div>
                 )}
-                <span className="close no-print" onClick={handleCloseModal}>&times;</span>
+                <div className="modal-header-actions">
+                  {isEditing && isViewMode && hasRight('jobs.manage') && (
+                    <IoPencil size={20} className="modal-edit-btn" onClick={() => setIsViewMode(false)} title="Wysig" />
+                  )}
+                  <span className="close no-print" onClick={handleCloseModal}>&times;</span>
+                </div>
             </div>
 
             {/* Tab Navbar */}
@@ -1626,6 +1822,7 @@ function WorkOrderPage() {
                   <div className="mri-cell w-50 border-r">
                     <div className="mri-fld"><span>Status *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_status = el}
                         className={invalidFields.job_status ? "field-invalid" : ""}
                         value={formData.job_status}
@@ -1662,8 +1859,9 @@ function WorkOrderPage() {
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Prioriteit *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.job_priority && jobGhostPrio && !isViewMode ? " ghost-active" : ""}`}><span>Prioriteit *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_priority = el}
                         className={invalidFields.job_priority ? "field-invalid" : ""}
                         value={formData.job_priority}
@@ -1671,6 +1869,7 @@ function WorkOrderPage() {
                           setFormData({...formData, job_priority: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.job_priority; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'job_priority')}
                         >
                         <option value="">Kies...</option>
                         <option value="Laag">Laag</option>
@@ -1678,13 +1877,15 @@ function WorkOrderPage() {
                         <option value="Hoog">Hoog</option>
                         <option value="Dringend">Dringend</option>
                       </select>
+                      <GhostSuggestion active={!formData.job_priority && !!jobGhostPrio && !isViewMode} onAccept={() => applyJobSuggestion('job_priority')}>{jobGhostPrio}</GhostSuggestion>
                     </div>
                   </div>
                 </div>
                 <div className="mri-row flex">
                   <div className="mri-cell w-50 border-r">
-                    <div className="mri-fld"><span>Aard *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.nature && jobGhostNature && !isViewMode ? " ghost-active" : ""}`}><span>Aard *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.nature = el}
                         className={invalidFields.nature ? "field-invalid" : ""}
                         value={formData.nature}
@@ -1692,6 +1893,7 @@ function WorkOrderPage() {
                           setFormData({...formData, nature: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.nature; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'nature')}
                       >
                         <option value="">Kies...</option>
                         <option value="Elektries">Elektries</option>
@@ -1700,11 +1902,13 @@ function WorkOrderPage() {
                         <option value="Buite">Buite</option>
                         <option value="Algemeen">Algemeen</option>
                       </select>
+                      <GhostSuggestion active={!formData.nature && !!jobGhostNature && !isViewMode} onAccept={() => applyJobSuggestion('nature')}>{jobGhostNature}</GhostSuggestion>
                     </div>
                   </div>
                   <div className="mri-cell w-50">
-                    <div className="mri-fld"><span>Werksoort *</span>
+                    <div className={`mri-fld ghost-field-wrap${!formData.job_type && jobGhostType && !isViewMode ? " ghost-active" : ""}`}><span>Werksoort *</span>
                       <select
+                        disabled={isViewMode}
                         ref={el => fieldRefs.current.job_type = el}
                         className={invalidFields.job_type ? "field-invalid" : ""}
                         value={formData.job_type}
@@ -1712,6 +1916,7 @@ function WorkOrderPage() {
                           setFormData({...formData, job_type: e.target.value});
                           setInvalidFields(p => { const n = {...p}; delete n.job_type; return n; });
                         }}
+                        onKeyDown={(e) => handleJobGhostTab(e, 'job_type')}
                       >
                         <option value="">Kies...</option>
                         <option value="Onderhoud">Onderhoud</option>
@@ -1719,6 +1924,7 @@ function WorkOrderPage() {
                         <option value="Inspeksie">Inspeksie</option>
                         <option value="Installasie">Installasie</option>
                       </select>
+                      <GhostSuggestion active={!formData.job_type && !!jobGhostType && !isViewMode} onAccept={() => applyJobSuggestion('job_type')}>{jobGhostType}</GhostSuggestion>
                     </div>
                   </div>
                 </div>
@@ -1727,6 +1933,7 @@ function WorkOrderPage() {
                 <div className="mri-fld" style={{ marginBottom: "24px" }}>
                   <span>Werksopdrag Beskrywing *</span>
                   <textarea
+                    disabled={isViewMode}
                     ref={el => fieldRefs.current.brief_description = el}
                     className={`mri-txt-area-large${invalidFields.brief_description ? " field-invalid" : ""}`}
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
@@ -1755,13 +1962,13 @@ function WorkOrderPage() {
                     else if (levelIndex === 2) setFormData(p => ({...p, room_id: "", asset_id: ""}));
                     else if (levelIndex === 3) setFormData(p => ({...p, asset_id: ""}));
                   };
-                  const breadcrumbData = [{ level: -1, name: "Terreine" }];
+                  const breadcrumbData = [];
                   if (formData.location_id) breadcrumbData.push({ level: 0, name: terrains?.find(t => Number(t.location_id) === Number(formData.location_id))?.location_name || formData.location_id });
                   if (formData.building_id) breadcrumbData.push({ level: 1, name: buildings?.find(b => Number(b.building_id) === Number(formData.building_id))?.building_name || formData.building_id });
                   if (formData.room_id) breadcrumbData.push({ level: 2, name: rooms?.find(r => Number(r.room_id) === Number(formData.room_id))?.room_name || formData.room_id });
                   if (formData.asset_id) breadcrumbData.push({ level: 3, name: assets?.find(a => Number(a.asset_id) === Number(formData.asset_id))?.asset_name || formData.asset_id });
                   const breadcrumbBaseStyle = {
-                    border: "none", cursor: "pointer",
+                    border: "none", cursor: isViewMode ? "default" : "pointer",
                     margin: "0",
                     color: "#111827", fontSize: "13px",
                     lineHeight: "1", display: "inline-flex", alignItems: "center",
@@ -1777,6 +1984,7 @@ function WorkOrderPage() {
                               type="button"
                               className="breadcrumb-btn"
                               onClick={() => clearFromLevel(item.level + 1)}
+                              disabled={isViewMode}
                               style={{
                                 ...breadcrumbBaseStyle,
                                 fontWeight: isLast ? 700 : 600,
@@ -1786,6 +1994,9 @@ function WorkOrderPage() {
                           </React.Fragment>
                         );
                       })}
+                      {cascadeCount < 4 && ["Kies Terrein","Kies Gebou","Kies Lokaal","Kies Bate"][cascadeCount] && (
+                        <span className="breadcrumb-pending">/{["Kies Terrein","Kies Gebou","Kies Lokaal","Kies Bate"][cascadeCount]}</span>
+                      )}
                     </div>
                   );
                   const backBtnStyle = {
@@ -1796,7 +2007,7 @@ function WorkOrderPage() {
                    const CascadeControl = ({ children, ...props }) => (
                      <components.Control {...props}>
                        {children}
-                       {cascadeCount > 0 && (
+                       {!isViewMode && cascadeCount > 0 && (
                          <span
                            className="cascade-back-btn"
                            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); clearFromLevel(cascadeCount - 1); }}
@@ -1818,15 +2029,15 @@ function WorkOrderPage() {
                         className="react-select-container"
                         classNamePrefix="react-select"
                         placeholder={
-                          ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
+                          cascadeCount === 0 ? '' : ["Kies Terrein...","Kies Gebou...","Kies Lokaal...","Kies Bate...","Ligging voltooi"][cascadeCount]
                         }
                         isClearable
-                        isDisabled={cascadeCount >= 4}
+                        isDisabled={isViewMode || cascadeCount >= 4}
                         closeMenuOnSelect={false}
                         menuIsOpen={modalCascadeMenu.menuIsOpen}
                         onMenuOpen={modalCascadeMenu.onMenuOpen}
                         onMenuClose={modalCascadeMenu.onMenuClose}
-                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                         options={allLocationOptions}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
@@ -1892,7 +2103,8 @@ function WorkOrderPage() {
                         classNamePrefix="react-select"
                         placeholder="Soek/Kies Foutkaartjie..."
                         isClearable
-                        components={{ Control: CascadeControl, IndicatorsContainer: CascadeIndicatorsContainer, ClearIndicator: NoCascadeClearIndicator }}
+                        isDisabled={isViewMode}
+                        components={{ Control: CascadeControl, IndicatorsContainer: (p) => <CascadeIndicatorsContainer {...p} disabled={isViewMode} />, ClearIndicator: NoCascadeClearIndicator }}
                         styles={{
                           control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                           valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1961,6 +2173,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruiker..."
                       isClearable
+                      isDisabled={isViewMode}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -1989,6 +2202,7 @@ function WorkOrderPage() {
                       classNamePrefix="react-select"
                       placeholder="Kies gebruikers om CC..."
                       isMulti
+                      isDisabled={isViewMode}
                       styles={{
                         control: (base) => ({ ...base, minHeight: '40px', height: '40px', display: 'flex', alignItems: 'center' }),
                         valueContainer: (base) => ({ ...base, padding: '0 12px', display: 'flex', alignItems: 'center' }),
@@ -2125,6 +2339,7 @@ function WorkOrderPage() {
                             <label style={{ fontSize: '11px', fontWeight: 600 }}>Begin-tyd</label>
                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <select size={3} value={tempSchedule.startH}
+                                disabled={isViewMode}
                                 onChange={e => setTempSchedule(p => ({ ...p, startH: e.target.value }))}
                                 style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
                                 {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
@@ -2133,6 +2348,7 @@ function WorkOrderPage() {
                               </select>
                               <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
                               <select size={3} value={`${tempSchedule.startTens}${tempSchedule.startOnes}`}
+                                disabled={isViewMode}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setTempSchedule(p => ({ ...p, startTens: v[0], startOnes: v[1] }));
@@ -2148,6 +2364,7 @@ function WorkOrderPage() {
                             <label style={{ fontSize: '11px', fontWeight: 600 }}>Eind-tyd</label>
                             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                               <select size={3} value={tempSchedule.endH}
+                                disabled={isViewMode}
                                 onChange={e => setTempSchedule(p => ({ ...p, endH: e.target.value }))}
                                 style={{ flex: 1, padding: '2px', border: '1px solid #ccc', borderRadius: '4px', textAlign: 'center', fontFamily: 'inherit', background: '#fff' }}>
                                 {Array.from({length: 24}, (_, i) => String(i).padStart(2, '0')).map(h =>
@@ -2156,6 +2373,7 @@ function WorkOrderPage() {
                               </select>
                               <span style={{ fontWeight: 600, fontSize: '16px' }}>:</span>
                               <select size={3} value={`${tempSchedule.endTens}${tempSchedule.endOnes}`}
+                                disabled={isViewMode}
                                 onChange={e => {
                                   const v = e.target.value;
                                   setTempSchedule(p => ({ ...p, endTens: v[0], endOnes: v[1] }));
@@ -2182,6 +2400,7 @@ function WorkOrderPage() {
                 <div className="mri-cell w-50">
                   <div className="mri-fld"><span>Herhaling</span> 
                     <select 
+                      disabled={isViewMode}
                       value={formData.job_schedule_type}
                       onChange={(e) => setFormData({...formData, job_schedule_type: e.target.value})}
                     >
@@ -2203,7 +2422,7 @@ function WorkOrderPage() {
               <div className="mri-border-box">
                 <div className="mri-fld">
                   <span>Beelde</span>
-                  <input type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
+                  <input disabled={isViewMode} type="file" accept="image/*" multiple onChange={handleImageFilesChange} />
                   <div className="image-preview-grid" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
                     {ticketImages.length > 0 && (
                       <div style={{ width: '100%' }}>
@@ -2233,7 +2452,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(getJobImageUrl(image.image_id))}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleDeleteExistingImage(image.image_id)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleDeleteExistingImage(image.image_id)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                     {selectedImagePreviewUrls.map((url, index) => (
@@ -2245,7 +2464,7 @@ function WorkOrderPage() {
                           style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '4px', cursor: 'zoom-in' }}
                           onClick={() => setActiveImageViewer(url)}
                         />
-                        <button type="button" className="btn-delete" style={{ fontSize: '0.75rem', padding: '2px 6px', marginTop: '0.25rem' }} onClick={() => handleRemoveSelectedPreview(index)}>Verwyder</button>
+                        <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleRemoveSelectedPreview(index)}><IoTrashOutline size={18} /></button>
                       </div>
                     ))}
                   </div>
@@ -2255,6 +2474,7 @@ function WorkOrderPage() {
                 <div className="mri-fld">
                   <span>Kontrakteur Werknotas</span>
                   <textarea 
+                    disabled={isViewMode}
                     className="mri-txt-area-large"
                     style={{ minHeight: "42px", maxHeight: "140px", overflow: "auto", resize: "vertical" }}
                     value={formData.job_notes}
@@ -2270,70 +2490,16 @@ function WorkOrderPage() {
             {activeTab === "kwotasies" && (
               <div className="mri-border-box">
               <div className="quote-form">
-                <h4 className="quote-form-title">Voeg Nuwe Kwotasie By</h4>
+                <h4 className="quote-form-title">Kwotasies</h4>
                 <div className="mri-row">
-                  <div className="mri-cell w-50">
-                    <div className="mri-fld">
-                      <span>Kontrakteur</span>
-                      <select
-                        value={newQuote.contractor_id}
-                        onChange={(e) => setNewQuote({...newQuote, contractor_id: e.target.value})}
-                        className="quote-input"
-                      >
-                        <option value="">Kies Kontrakteur</option>
-                        {users.filter(u => u.role_id === 4).map((user) => (
-                          <option key={user.user_id} value={user.user_id}>
-                            {user.user_name} {user.user_surname}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="mri-fld">
-                      <span>PDF Kwotasie</span>
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={(e) => handleQuotePdfSelect(quoteEditId || "new", e)}
-                        className="quote-input"
-                      />
-                      {(quotePdfFiles[quoteEditId || "new"] || quoteDocuments[quoteEditId]?.[0]) && (
-                        <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                          {quotePdfFiles[quoteEditId || "new"] ? (
-                            <>
-                              <span style={{ color: '#16a34a' }}>✓ {quotePdfFiles[quoteEditId || "new"].name}</span>
-                              {quotePdfPreviewUrls[quoteEditId || "new"] && (
-                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                              )}
-                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId || "new")} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
-                            </>
-                          ) : quoteDocuments[quoteEditId]?.[0] && (
-                            <>
-                              <span style={{ color: '#666' }}>{quoteDocuments[quoteEditId][0].filename}</span>
-                              <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginLeft: '0.5rem' }}>Bekyk</button>
-                              <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quoteEditId)} style={{ marginLeft: '0.5rem' }}>Verwyder</button>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={handleAddQuote}
-                      className="btn-add"
-                    >
-                      {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
-                    </button>
-                    {quoteEditId && (
-                      <button
-                        type="button"
-                        className="btn-add"
-                        style={{ marginLeft: 8, background: '#6c757d' }}
-                        onClick={handleCancelQuoteEdit}
-                      >
-                        Kanselleer Wysiging
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    className="btn-add"
+                    disabled={isViewMode}
+                    onClick={openAddQuote}
+                  >
+                    + Voeg Kwotasie By
+                  </button>
                 </div>
               </div>
 
@@ -2358,15 +2524,12 @@ function WorkOrderPage() {
                             {quoteDocuments[quote.id]?.[0] ? (
                               <>
                                 <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quote.id][0].document_id)}>Bekyk</button>
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : quotePdfFiles[quote.id] ? (
                               <>
-                                <span style={{ fontSize: '0.8rem', color: '#16a34a', marginRight: '0.5rem' }}>{quotePdfFiles[quote.id].name}</span>
-                                {quotePdfPreviewUrls[quote.id] && (
-                                  <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')}>Bekyk</button>
-                                )}
-                                <button type="button" className="btn-delete" onClick={() => handleQuotePdfDelete(quote.id)}>Verwyder</button>
+                                <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quote.id], '_blank')} disabled={!quotePdfPreviewUrls[quote.id]}>Bekyk</button>
+                                <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quote.id)}><IoTrashOutline size={18} /></button>
                               </>
                             ) : (
                               <span style={{ color: '#999', fontSize: '0.8rem' }}>-</span>
@@ -2375,6 +2538,7 @@ function WorkOrderPage() {
                           <td>{quote.createdAt}</td>
                           <td>
                             <input 
+                              disabled={isViewMode}
                               type="radio" 
                               className="selectedQuote"
                               checked={selectedQuoteId === quote.id}
@@ -2393,8 +2557,9 @@ function WorkOrderPage() {
                               type="button"
                               onClick={() => handleDeleteQuote(quote.id)}
                               className="btn-delete"
+                              title="Verwyder"
                             >
-                              Verwyder
+                              <IoTrashOutline size={18} />
                             </button>
                           </td>
                         </tr>
@@ -2405,6 +2570,7 @@ function WorkOrderPage() {
                     <div className="quote-summary">
                       <div>✓ Gekose Kwotasie: {quotes.find(q => q.id === selectedQuoteId)?.contractor_name || 'Geen kontrakteur'}</div>
                       <textarea
+                        disabled={isViewMode}
                         className="quote-reason-textarea"
                         placeholder="Gee 'n rede waarom hierdie kwotasie gekies is"
                         value={quoteSelectionReasons[selectedQuoteId] || ""}
@@ -2422,6 +2588,180 @@ function WorkOrderPage() {
               </div>
             )}
 
+            {showQuoteModal && (
+              <div className="modal" style={{ zIndex: 1200 }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>{quoteEditId ? 'Wysig Kwotasie' : 'Voeg Kwotasie By'}</h3>
+                    <span className="close" onClick={handleCloseQuoteModal}>&times;</span>
+                  </div>
+                  <div className="form-group">
+                    <label>Kontrakteur *</label>
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="contractor_mode"
+                          checked={newQuote.contractor_mode === "existing"}
+                          onChange={() => setNewQuote({ ...newQuote, contractor_mode: "existing", contractor_id: "", contractor_name: "" })}
+                        />
+                        Bestaande kontrakteur
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', cursor: 'pointer' }}>
+                        <input
+                          type="radio"
+                          name="contractor_mode"
+                          checked={newQuote.contractor_mode !== "existing"}
+                          onChange={() => setNewQuote({ ...newQuote, contractor_mode: "new", contractor_id: "", contractor_name: "" })}
+                        />
+                        Nuwe kontrakteur
+                      </label>
+                    </div>
+                    {newQuote.contractor_mode !== "existing" ? (
+                      <input
+                        type="text"
+                        className="quote-input"
+                        placeholder="Tik die kontrakteur se naam"
+                        value={newQuote.contractor_name}
+                        onChange={(e) => setNewQuote({ ...newQuote, contractor_name: e.target.value })}
+                      />
+                    ) : (
+                      <Select
+                        className="react-select-container"
+                        classNamePrefix="react-select"
+                        placeholder="Soek en kies 'n kontrakteur"
+                        isSearchable
+                        isClearable
+                        options={users.filter(u => u.role_id === 4).map((user) => ({
+                          value: user.user_id,
+                          label: user.user_name + " " + user.user_surname
+                        }))}
+                        value={
+                          newQuote.contractor_id
+                            ? (() => {
+                                const u = users.find((x) => x.user_id === Number(newQuote.contractor_id));
+                                return u ? { value: u.user_id, label: u.user_name + " " + u.user_surname } : null;
+                              })()
+                            : null
+                        }
+                        onChange={(selected) => {
+                          const user = selected?.value ? users.find((u) => u.user_id === Number(selected.value)) : null;
+                          setNewQuote({
+                            ...newQuote,
+                            contractor_id: selected?.value ? String(selected.value) : "",
+                            contractor_name: user ? user.user_name + " " + user.user_surname : ""
+                          });
+                        }}
+                        noOptionsMessage={() => "Geen kontrakteurs nie"}
+                      />
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>PDF Kwotasie</label>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={(e) => handleQuotePdfSelect(quoteEditId || "new", e)}
+                      className="quote-input"
+                    />
+                    {(quotePdfFiles[quoteEditId || "new"] || quoteDocuments[quoteEditId]?.[0]) && (
+                      <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                        {quotePdfFiles[quoteEditId || "new"] ? (
+                          <>
+                            <button type="button" className="btn-view" onClick={() => window.open(quotePdfPreviewUrls[quoteEditId || "new"], '_blank')} style={{ marginRight: '0.5rem' }} disabled={!quotePdfPreviewUrls[quoteEditId || "new"]}>Bekyk</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId || "new")}><IoTrashOutline size={18} /></button>
+                          </>
+                        ) : quoteDocuments[quoteEditId]?.[0] && (
+                          <>
+                            <button type="button" className="btn-view" onClick={() => viewQuotePdf(quoteDocuments[quoteEditId][0].document_id)} style={{ marginRight: '0.5rem' }}>Bekyk</button>
+                            <button type="button" className="btn-delete" title="Verwyder" onClick={() => handleQuotePdfDelete(quoteEditId)}><IoTrashOutline size={18} /></button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="modal-footer">
+                    <button className="btn-cancel" onClick={handleCloseQuoteModal}>Kanselleer</button>
+                    <button className="btn-add" onClick={handleAddQuote}>
+                      {quoteEditId ? 'Stoor Wysiging' : 'Voeg By'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showCreateContractorModal && (
+              <div className="modal" style={{ zIndex: 1250 }}>
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h3>Voeg Kontrakteur By</h3>
+                    <span className="close" onClick={handleCloseCreateContractorModal}>&times;</span>
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#555', marginBottom: '1rem' }}>
+                    Die gekose kwotasie het 'n kontrakteur met slegs 'n naam. Skep die gebruiker hier sodat hy by die lys van kontrakteurs gevoeg word.
+                  </p>
+                  <div className="form-group">
+                    <label>Voornaam *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_name ? "field-invalid" : ""}
+                      value={newContractorForm.user_name}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_name: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_name; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Van *</label>
+                    <input
+                      type="text"
+                      className={contractorFormErrors.user_surname ? "field-invalid" : ""}
+                      value={newContractorForm.user_surname}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_surname: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_surname; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>E-pos *</label>
+                    <input
+                      type="email"
+                      className={contractorFormErrors.user_email ? "field-invalid" : ""}
+                      value={newContractorForm.user_email}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_email: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_email; return n; });
+                      }}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Wagwoord *</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      className={contractorFormErrors.user_password ? "field-invalid" : ""}
+                      value={newContractorForm.user_password}
+                      onChange={(e) => {
+                        setNewContractorForm({ ...newContractorForm, user_password: e.target.value });
+                        setContractorFormErrors((p) => { const n = {...p}; delete n.user_password; return n; });
+                      }}
+                    />
+                    <small style={{ color: "#6c757d", fontSize: "12px", display: "block", marginTop: "4px" }}>
+                      Vereistes: ten minste 8 karakters, een hoofletter, een syfer en een simbool.
+                    </small>
+                  </div>
+                  <div className="modal-footer">
+                    <button className="btn-cancel" onClick={handleCloseCreateContractorModal} disabled={isCreatingContractor}>Kanselleer</button>
+                    <button className="btn-add" onClick={handleCreateContractor} disabled={isCreatingContractor}>
+                      {isCreatingContractor ? 'Besig om te skep...' : 'Skep Kontrakteur'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeImageViewer && (
               <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }} onClick={() => setActiveImageViewer(null)}>
                 <div style={{ background: '#fff', borderRadius: '8px', maxWidth: 'min(90vw, 1200px)', maxHeight: '90vh', padding: '2rem', position: 'relative', boxShadow: '0 12px 30px rgba(0,0,0,0.25)' }}>
@@ -2432,6 +2772,7 @@ function WorkOrderPage() {
             )}
 
             {/* Knoppies */}
+            {!isViewMode && (
             <div className="modal-footer no-print">
               <button type="button" className="btn-cancel" onClick={handleCloseModal}>Kanselleer</button>
               <button type="button" className="btn-view" onClick={() => window.print()}>Druk Werksopdrag</button>
@@ -2439,12 +2780,13 @@ function WorkOrderPage() {
                 {isSubmitting ? 'Besig om te stoor...' : 'Stoor Kaart'}
               </button>
             </div>
+            )}
             <AiSuggestPanel
               suggestions={jobSuggestions}
               loading={aiLoading}
               filled={aiFilled}
               error={aiError}
-              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit' }}
+              labels={{ job_type: 'Werksoort', job_priority: 'Prioriteit', nature: 'Aard' }}
               onUse={(key, s) => {
                 if (key === 'job_type') {
                   const af = JOB_TYPE_EN_AF[s.value] || s.value;
@@ -2454,6 +2796,9 @@ function WorkOrderPage() {
                   const af = JOB_PRIO_EN_AF[s.value] || s.value;
                   setFormData(p => ({ ...p, job_priority: af }));
                   setInvalidFields(p => { const n = { ...p }; delete n.job_priority; return n; });
+                } else if (key === 'nature') {
+                  setFormData(p => ({ ...p, nature: String(s.value) }));
+                  setInvalidFields(p => { const n = { ...p }; delete n.nature; return n; });
                 }
               }}
             />
