@@ -43,7 +43,9 @@ except Exception:
     logger.exception("Survival-modelgids kan nie geskep word nie: %s", MODEL_DIR)
 
 _enabled = os.getenv("AI_SURVIVAL_ENABLED", "true").lower() not in ("false", "0", "no")
-_retrain_interval = int(os.getenv("SURVIVAL_RETRAIN_INTERVAL", "900"))
+#: Maandelikse herleiding (30 dae = 2 592 000 s) is genoeg vir die survival-model;
+#: 900s het te gereeld gehardloop. Oorlaai met SURVIVAL_RETRAIN_INTERVAL.
+_retrain_interval = int(os.getenv("SURVIVAL_RETRAIN_INTERVAL", "2592000"))
 
 _model = None
 _model_available = False
