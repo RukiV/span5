@@ -21,6 +21,9 @@ import httpx
 DEFAULT_OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
 DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:e2b-text")
 DEFAULT_TIMEOUT = int(os.environ.get("OLLAMA_TIMEOUT", "180"))
+# Hoe lank Ollama die model in geheue hou ná 'n aanvraag ("0" = onmiddellik
+# aflaai, "-1" = vir altyd, andersins "5m"/"30m"/"1h"). Verhoed koue-laai-treffers.
+DEFAULT_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "30m")
 
 CATEGORIES = ["electrical", "plumbing", "it", "hvac", "furniture", "structural", "other"]
 
@@ -92,10 +95,11 @@ class LlmUnavailable(Exception):
 
 class LlmService:
     def __init__(self, url: str = DEFAULT_OLLAMA_URL, model: str = DEFAULT_MODEL,
-                 timeout: int = DEFAULT_TIMEOUT):
+                 timeout: int = DEFAULT_TIMEOUT, keep_alive: str = DEFAULT_KEEP_ALIVE):
         self.url = url
         self.model = model
         self.timeout = timeout
+        self.keep_alive = keep_alive
 
     def _enabled(self) -> bool:
         return os.environ.get("AI_ENABLED", "true").lower() not in ("false", "0", "no")
@@ -107,6 +111,7 @@ class LlmService:
             "system": system,
             "prompt": prompt,
             "stream": False,
+            "keep_alive": self.keep_alive,
             "options": {"temperature": 0, "num_ctx": 8192, "num_predict": 512, **(options or {})},
         }
         if schema:

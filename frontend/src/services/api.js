@@ -288,6 +288,11 @@ export const jobDraftsAPI = {
   reject: (id, data) => apiClient.post(`/ai/${id}/reject`, data),
 };
 
+// ===== AI STATUS-API =====
+export const aiAPI = {
+  getStatus: () => apiClient.get('/ai/status'),
+};
+
 // ===== DATA-INVOER-API (CSV/XLSX) =====
 export const importAPI = {
   schema: () => apiClient.get('/import/schema'),
@@ -359,6 +364,7 @@ apiClient.calendarEvents = calendarEventsAPI;
 apiClient.roomChecks = roomChecksAPI;
 apiClient.jobDrafts = jobDraftsAPI;
 apiClient.suggest = suggestAPI;
+apiClient.ai = aiAPI;
 
 // Voer apiClient uit vir gebruik in komponente
 export { apiClient };

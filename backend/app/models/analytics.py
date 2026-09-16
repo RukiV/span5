@@ -36,5 +36,6 @@ class AnalyticsResponse(BaseModel):
     summary: str
     metrics: list[Metric]
     insights: list[str]
+    digest: Optional[str] = None
     suggestions: list[Suggestion] = []
     chart: Optional[ChartData] = None

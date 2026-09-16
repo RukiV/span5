@@ -49,6 +49,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/status")
+def ai_status_get(
+    session: Session = Depends(getSession),
+    user: User = Depends(require_right("ai.approve")),
+):
+    """Whether the local AI pipeline (Ollama/Gemma) is enabled for
+    job-drafting. Used by the queue page indicator. Pure config read."""
+    return {"ai_enabled": llm_service._enabled()}
+
+
+
 def _enum_by_name(enum_cls, name: str):
     """Resolve an enum member by NAME ('REPAIR' -> Type.REPAIR). Python's
     Enum(value) matches by value only ('Herstel'), so name lookup is needed."""
