@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import {
@@ -15,6 +15,7 @@ import {
 } from 'chart.js';
 import { authAPI } from "../services/api";
 import { apiClient, assetsAPI, locationAPI, buildingsAPI, roomsAPI } from "../services/api";
+import { predictionsAPI } from "../services/api";
 import { workOrdersAPI, ticketsAPI } from "../services/api";
 import Select, { components } from "react-select";
 import { IoReturnUpBack } from "react-icons/io5";
@@ -82,6 +83,10 @@ function PredictionsPage() {
   const [terrainFilter, setTerrainFilter] = useState("");
   const [buildingFilter, setBuildingFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+
+  // ML-modelstatus: null = status-eindpunt nog nie beskikbaar nie (strook word weggesteek)
+  const [modelStatus, setModelStatus] = useState(null);
+  const [modelBusy, setModelBusy] = useState(false);
 
   // ── Grafieke (geskuif vanaf Paneelbord) ──
   const [summary, setSummary] = useState(null);
@@ -182,6 +187,45 @@ const colPickerRef = useRef(null);
     }
   }, [user]);
 
+  // ML-modelstatus apart gelaai — mislukking (bv. eindpunt nog nie ontplooi)
+  // degradeer net tot geen strook nie, sonder om die bladsy te breek.
+  const fetchModelStatus = useCallback(async () => {
+    try {
+      const res = await predictionsAPI.getModelStatus();
+      setModelStatus(res.data || null);
+    } catch (_) {
+      setModelStatus(null);
+    }
+  }, []);
+  useEffect(() => { fetchModelStatus(); }, [fetchModelStatus]);
+
+  const handleRetrain = async () => {
+    setModelBusy(true);
+    try {
+      await predictionsAPI.retrainModel();
+      showToast({ type: 'success', title: 'Model', message: 'Survival-model is herlaai.' });
+      await fetchModelStatus();
+    } catch (err) {
+      showToast({ type: 'error', title: 'Fout', message: 'Herlaai van model het misluk: ' + (err.response?.data?.detail || err.message) });
+    } finally {
+      setModelBusy(false);
+    }
+  };
+
+  const handleToggleEnabled = async () => {
+    const next = !modelStatus?.enabled;
+    setModelBusy(true);
+    try {
+      await predictionsAPI.setModelEnabled(next);
+      showToast({ type: 'success', title: 'Model', message: next ? 'Model geaktiveer.' : 'Model gedeaktiveer.' });
+      await fetchModelStatus();
+    } catch (err) {
+      showToast({ type: 'error', title: 'Fout', message: 'Verander van modelstatus het misluk: ' + (err.response?.data?.detail || err.message) });
+    } finally {
+      setModelBusy(false);
+    }
+  };
+
   const getPredictionLocationId = (pred) => {
     const asset = assets.find(a => Number(a.asset_id) === Number(pred.asset_id));
     if (!asset || !asset.room_id) return null;
@@ -238,6 +282,25 @@ const colPickerRef = useRef(null);
 
   const mlModelAvailable = filteredPredictions.some((p) => p.survival_model_available);
   const mlRiskCount = mlModelAvailable ? filteredPredictions.filter((p) => p.survival_high_risk).length : '—';
+
+  // Status-skyfie: aktief (groen) / gedeaktiveer (grys) / te min data (amber)
+  const modelChip = (() => {
+    if (!modelStatus) return null;
+    if (modelStatus.available && modelStatus.enabled) {
+      return { cls: 'pred-model-chip--ok', label: 'ML-model aktief' };
+    }
+    if (!modelStatus.enabled) {
+      return { cls: 'pred-model-chip--muted', label: 'Gedeaktiveer' };
+    }
+    return { cls: 'pred-model-chip--warn', label: 'Te min data' };
+  })();
+
+  const modelSubtitle = modelStatus
+    ? [
+        modelStatus.trained_at ? `Oplei: ${formatDate(modelStatus.trained_at)}` : 'Nog nooit opgelei nie',
+        `${modelStatus.assets ?? 0} bates / ${modelStatus.events ?? 0} gebeurtenisse`,
+      ].join(' · ')
+    : '';
 
   // ── Grafieke data-voorbereiding (van Paneelbord) ──
   const summaryData = summary || {};
@@ -395,6 +458,29 @@ const colPickerRef = useRef(null);
     <div className="main">
       <div className="content">
           {error ? <div className="pred-empty-state">{error}</div> : null}
+
+          {/* ML-modelstatus-strook */}
+          {modelChip && (
+            <div className="pred-model-card">
+              <div className="pred-model-info">
+                <span className={`pred-model-chip ${modelChip.cls}`}>{modelChip.label}</span>
+                <span className="pred-model-sub">{modelSubtitle}</span>
+              </div>
+              <div className="pred-model-actions">
+                <button className="btn-add" onClick={handleRetrain} disabled={modelBusy} title="Heroplei die survival-model met jongste data">
+                  Herlaai model
+                </button>
+                <button
+                  className={`pred-model-toggle ${modelStatus?.enabled ? '' : 'pred-model-toggle--on'}`}
+                  onClick={handleToggleEnabled}
+                  disabled={modelBusy}
+                  title={modelStatus?.enabled ? 'Deaktiveer die ML-model' : 'Aktiveer die ML-model'}
+                >
+                  {modelStatus?.enabled ? 'Deaktiveer' : 'Aktiveer'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="controls controls--sticky">
             <div className="controls-left">

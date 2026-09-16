@@ -218,6 +218,12 @@ export const quotesAPI = {
 export const predictionsAPI = {
   getAll: () => apiClient.get('/predictions'),
   getByAsset: (id) => apiClient.get(`/predictions/${id}`),
+  // ML-model status (survival-model): { available, enabled, trained_at, assets, events }
+  getModelStatus: () => apiClient.get('/predictions/model/status'),
+  // Dwing 'n heropleiding van die survival-model
+  retrainModel: () => apiClient.post('/predictions/model/retrain'),
+  // Aktiveer/deaktiveer die model: body { enabled: bool }
+  setModelEnabled: (enabled) => apiClient.post('/predictions/model/enabled', { enabled }),
 };
 
 // Die audit-log is doelbewus LEES-ALLEEN aan die agterkant: audit-rye word net
