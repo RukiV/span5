@@ -205,6 +205,16 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'building',
+            fields: _currentBuildingFields(),
+            labels: const {'building_types': 'Tipes'},
+            onUse: (key, s) {
+              if (key == 'building_types') {
+                _applyBuildingTypes(s.values ?? const []);
+              }
+            },
+          ),
           if (_isCreate) ...[
             InlineSearchableDropdown<Campus>(
               label: "Terrein",
@@ -226,17 +236,6 @@ class _BuildingFormPageState extends State<BuildingFormPage> {
           ),
           const SizedBox(height: 20),
           _buildTypeField(),
-          const SizedBox(height: 16),
-          AiSuggestionsPanel(
-            context: 'building',
-            fields: _currentBuildingFields(),
-            labels: const {'building_types': 'Tipes'},
-            onUse: (key, s) {
-              if (key == 'building_types') {
-                _applyBuildingTypes(s.values ?? const []);
-              }
-            },
-          ),
         ],
       ),
     );

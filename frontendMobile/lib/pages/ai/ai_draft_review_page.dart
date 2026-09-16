@@ -281,6 +281,40 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'draft',
+            fields: {
+              'description': detail.description,
+              'title': _titleController.text,
+              'cleaned_description': _cleanedController.text,
+              'fault_type': _selectedType,
+              'fault_priority': _selectedPriority,
+            },
+            labels: const {
+              'title': 'Titel',
+              'suggested_type': 'Werksoort',
+              'suggested_priority': 'Prioriteit',
+            },
+            onUse: (key, s) {
+              setState(() {
+                switch (key) {
+                  case 'title':
+                    _titleController.text = s.value;
+                    break;
+                  case 'suggested_type':
+                    if (_types.any((t) => t.$1 == s.value)) {
+                      _selectedType = s.value;
+                    }
+                    break;
+                  case 'suggested_priority':
+                    if (_priorities.any((p) => p.$1 == s.value)) {
+                      _selectedPriority = s.value;
+                    }
+                    break;
+                }
+              });
+            },
+          ),
           _buildSectionCard(
             title: "OORSPRONKLIKE BESKRYWING",
             child: Text(
@@ -350,40 +384,6 @@ class _AiDraftReviewPageState extends State<AiDraftReviewPage> {
                 ),
               ],
             ),
-          ),
-          AiSuggestionsPanel(
-            context: 'draft',
-            fields: {
-              'description': detail.description,
-              'title': _titleController.text,
-              'cleaned_description': _cleanedController.text,
-              'fault_type': _selectedType,
-              'fault_priority': _selectedPriority,
-            },
-            labels: const {
-              'title': 'Titel',
-              'suggested_type': 'Werksoort',
-              'suggested_priority': 'Prioriteit',
-            },
-            onUse: (key, s) {
-              setState(() {
-                switch (key) {
-                  case 'title':
-                    _titleController.text = s.value;
-                    break;
-                  case 'suggested_type':
-                    if (_types.any((t) => t.$1 == s.value)) {
-                      _selectedType = s.value;
-                    }
-                    break;
-                  case 'suggested_priority':
-                    if (_priorities.any((p) => p.$1 == s.value)) {
-                      _selectedPriority = s.value;
-                    }
-                    break;
-                }
-              });
-            },
           ),
           _buildSectionCard(
             title: "ONTLOPING",

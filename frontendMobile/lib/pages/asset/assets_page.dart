@@ -146,6 +146,7 @@ class _AssetsPageState extends State<AssetsPage> {
             controller: _searchController,
             hintText: "Soek bates...",
             onChanged: (v) => setState(() {}),
+            bottom: _buildStatusFilterRow(),
             actions: _buildHeaderActions(),
           ),
           Expanded(
@@ -189,21 +190,6 @@ class _AssetsPageState extends State<AssetsPage> {
           }),
         ),
       ),
-      HeaderIconAction(
-        icon: Icons.filter_alt_outlined,
-        tooltip: "Status",
-        activeBadge: _statusFilter != "Almal",
-        onTap: () => showSearchableDialog<String>(
-          context: context,
-          title: "Status",
-          initialValue: _statusFilter,
-          items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
-              .map((s) => InlineSearchableDropdownItem(value: s, label: s))
-              .toList(),
-          onSelected: (val) =>
-              setState(() => _statusFilter = val ?? _statusFilter),
-        ),
-      ),
       if (UserSession.can('assets.manage'))
         HeaderIconAction(
           icon: Icons.settings_outlined,
@@ -221,6 +207,19 @@ class _AssetsPageState extends State<AssetsPage> {
       ],
       ColumnVisibilityButton(controller: _colVis),
     ];
+  }
+
+  /// Inline status-filter in 'n tweede kop-ry (nuwe [InlineSearchableDropdown]
+  /// in plaas van die ou oorvleuel-filter).
+  Widget _buildStatusFilterRow() {
+    return InlineSearchableDropdown<String>(
+      hint: "Status",
+      value: _statusFilter,
+      items: const ["Almal", "Aktief", "Onderhoud", "Afgedank", "Onaktief"]
+          .map((s) => InlineSearchableDropdownItem(value: s, label: s))
+          .toList(),
+      onChanged: (v) => setState(() => _statusFilter = v ?? _statusFilter),
+    );
   }
 
   List<Asset> _visibleAssets(String query) {

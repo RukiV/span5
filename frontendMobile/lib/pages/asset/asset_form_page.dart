@@ -368,6 +368,19 @@ class _AssetFormPageState extends State<AssetFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'asset',
+            fields: _currentAssetFields(),
+            labels: const {
+              'asset_name': 'Naam',
+              'asset_type': 'Tipe',
+              'room': 'Ligging',
+              'asset_brand': 'Handelsmerk',
+              'asset_status': 'Status',
+            },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+            onUse: (key, s) => _applyAssetGhost(key, s),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -570,20 +583,6 @@ class _AssetFormPageState extends State<AssetFormPage> {
                   : null;
             }(),
             onChanged: (v) => setState(() => status = v!),
-          ),
-          const SizedBox(height: 16),
-          AiSuggestionsPanel(
-            context: 'asset',
-            fields: _currentAssetFields(),
-            labels: const {
-              'asset_name': 'Naam',
-              'asset_type': 'Tipe',
-              'room': 'Ligging',
-              'asset_brand': 'Handelsmerk',
-              'asset_status': 'Status',
-            },
-            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
-            onUse: (key, s) => _applyAssetGhost(key, s),
           ),
         ],
       ),

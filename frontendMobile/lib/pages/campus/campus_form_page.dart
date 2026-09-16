@@ -237,6 +237,18 @@ class _CampusFormPageState extends State<CampusFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'location',
+            fields: _currentCampusFields(),
+            labels: const {
+              'location_type': 'Terrein tipe',
+              'location_suburb': 'Voorstad',
+              'location_city': 'Stad',
+              'location_province': 'Provinsie',
+              'location_country': 'Land',
+            },
+            onUse: (key, s) => _applyCampusGhost(key, s),
+          ),
           LabeledFormField(
             label: "Naam",
             controller: _nameController,
@@ -321,19 +333,6 @@ class _CampusFormPageState extends State<CampusFormPage> {
             controller: _countryController,
             showErrorBorder: !_isCreate,
             onChanged: (_) => setState(() {}),
-          ),
-          const SizedBox(height: 16),
-          AiSuggestionsPanel(
-            context: 'location',
-            fields: _currentCampusFields(),
-            labels: const {
-              'location_type': 'Terrein tipe',
-              'location_suburb': 'Voorstad',
-              'location_city': 'Stad',
-              'location_province': 'Provinsie',
-              'location_country': 'Land',
-            },
-            onUse: (key, s) => _applyCampusGhost(key, s),
           ),
         ],
       ),

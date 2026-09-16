@@ -14,8 +14,8 @@ class InlineSearchableDropdownItem<T> {
 
 /// 'n Keuselys met twee modusse:
 /// * **Blaai-modus** (default): 'n Nie-redigeerbare veld wat lyk soos 'n
-///   teksboks. Tik om die lys oop/ toe te maak. 'n Soek-ikoon regs gee
-///   toegang tot soek-modus.
+///   teksboks. Tik om die lys oop/ toe te maak. Sodra die lys oop is, gee 'n
+///   sleutelbord-ikoon regs toegang tot soek-modus.
 /// * **Soek-modus**: 'n Regte [TextField] met sleutelbord vir filtering.
 class InlineSearchableDropdown<T> extends StatefulWidget {
   final String? label;
@@ -28,6 +28,10 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
   final Widget? trailing;
   final bool required;
   final bool error;
+
+  /// Wys die sleutelbord-ikoon (soek-toegang) in blaai-modus. Skakel af vir
+  /// die ligging-kaskade, wat sy eie vloei het.
+  final bool showSearchEntry;
 
   /// Form-valsidasie; `null` = geen valsidasie.
   final String? Function(T?)? validator;
@@ -53,6 +57,7 @@ class InlineSearchableDropdown<T> extends StatefulWidget {
     this.trailing,
     this.required = false,
     this.error = false,
+    this.showSearchEntry = true,
     this.validator,
     this.closeOnSelect = true,
     this.restoreOnBlur = true,
@@ -336,7 +341,8 @@ class _InlineSearchableDropdownState<T>
     );
   }
 
-  /// Blaai-modus: nie-redigeerbare veld met soek-ikoon regs.
+  /// Blaai-modus: nie-redigeerbare veld. Sodra die lys oop is, verskyn 'n
+  /// sleutelbord-ikoon regs wat na soek-modus skakel.
   Widget _buildBrowseField({bool validationError = false}) {
     final displayText = _text.text.isNotEmpty ? _text.text : null;
     final showError = widget.error || validationError;
@@ -372,11 +378,13 @@ class _InlineSearchableDropdownState<T>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (widget.trailing != null) widget.trailing!,
-                      IconButton(
-                        icon: const Icon(Icons.search, size: 20),
-                        onPressed: _enterSearchMode,
-                        visualDensity: VisualDensity.compact,
-                      ),
+                      if (widget.showSearchEntry && _open)
+                        IconButton(
+                          icon: const Icon(Icons.keyboard, size: 20),
+                          tooltip: "Soek",
+                          onPressed: _enterSearchMode,
+                          visualDensity: VisualDensity.compact,
+                        ),
                     ],
                   )
                 : widget.trailing,
@@ -493,198 +501,24 @@ class _InlineSearchableDropdownState<T>
           )
         : _buildField();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (widget.label != null) ...[
-          _buildLabel(),
-          const SizedBox(height: 6),
-        ],
-        control,
-        if (_open && widget.enabled) ...[
-          const SizedBox(height: 6),
-          _buildOptionList(),
-        ],
-      ],
-    );
-  }
-}
-
-// ─── Kompakte oorvleuel-filter ───────────────────────────────────────────────
-
-/// Open 'n soekbare oorvleueling, maar vir kontroles wat hul eie voorkoms
-/// hou — bv. die kompakte filters in 'n blad se kopbalk. Die paneel anker
-/// regs onder die toolbar.
-Future<void> showSearchableDialog<T>({
-  required BuildContext context,
-  required String title,
-  required List<InlineSearchableDropdownItem<T>> items,
-  required ValueChanged<T?> onSelected,
-  T? initialValue,
-}) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  late final OverlayEntry entry;
-  entry = OverlayEntry(
-    builder: (ctx) {
-      final screenWidth = MediaQuery.sizeOf(ctx).width;
-      final width = (screenWidth - 32).clamp(200.0, 360.0);
-      return Stack(
+    return TapRegion(
+      // Enige tik buite die oop keuselys maak dit toe (en verlaat soek-modus).
+      onTapOutside: (_) {
+        if (_open) _closeAll();
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => entry.remove(),
-              child: const SizedBox.expand(),
-            ),
-          ),
-          Align(
-            alignment: Alignment.topRight,
-            child: Padding(
-              padding:
-                  const EdgeInsets.only(top: kToolbarHeight + 4, right: 12),
-              child: _SearchOverlayPanel<T>(
-                title: title,
-                items: items,
-                initialValue: initialValue,
-                width: width,
-                onSelected: (v) {
-                  onSelected(v);
-                  entry.remove();
-                },
-              ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-  overlay.insert(entry);
-  return Future.value();
-}
-
-class _SearchOverlayPanel<T> extends StatefulWidget {
-  final String title;
-  final List<InlineSearchableDropdownItem<T>> items;
-  final T? initialValue;
-  final ValueChanged<T?> onSelected;
-  final double width;
-
-  const _SearchOverlayPanel({
-    required this.title,
-    required this.items,
-    this.initialValue,
-    required this.onSelected,
-    required this.width,
-  });
-
-  @override
-  State<_SearchOverlayPanel<T>> createState() => _SearchOverlayPanelState<T>();
-}
-
-class _SearchOverlayPanelState<T> extends State<_SearchOverlayPanel<T>> {
-  late List<InlineSearchableDropdownItem<T>> filteredItems;
-  final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    filteredItems = widget.items;
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filter(String query) {
-    setState(() {
-      filteredItems = widget.items
-          .where(
-              (item) => item.label.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 4,
-      clipBehavior: Clip.antiAlias,
-      borderRadius: BorderRadius.circular(10),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: widget.width, maxHeight: 320),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
-              child: Text(
-                "Kies ${widget.title}",
-                style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.navy),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: "Soek...",
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            _filter('');
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  isDense: true,
-                ),
-                onChanged: _filter,
-              ),
-            ),
-            Flexible(
-              child: filteredItems.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('Geen opsies nie',
-                          style: TextStyle(color: Colors.grey)),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: filteredItems.length,
-                      itemBuilder: (context, index) {
-                        final item = filteredItems[index];
-                        final isSelected = item.value == widget.initialValue;
-                        return ListTile(
-                          dense: true,
-                          title: Text(
-                            item.label,
-                            style: TextStyle(
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal),
-                          ),
-                          selected: isSelected,
-                          selectedTileColor: AppColors.gold.withAlpha(30),
-                          onTap: () => widget.onSelected(item.value),
-                        );
-                      },
-                    ),
-            ),
+          if (widget.label != null) ...[
+            _buildLabel(),
+            const SizedBox(height: 6),
           ],
-        ),
+          control,
+          if (_open && widget.enabled) ...[
+            const SizedBox(height: 6),
+            _buildOptionList(),
+          ],
+        ],
       ),
     );
   }

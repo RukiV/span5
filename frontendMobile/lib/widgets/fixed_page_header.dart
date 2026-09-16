@@ -10,12 +10,16 @@ class FixedPageHeader extends StatelessWidget {
   final List<Widget>? actions;
   final ValueChanged<String>? onChanged;
 
+  /// Opsionele tweede ry onder die soek-ry (bv. 'n inline status-filter).
+  final Widget? bottom;
+
   const FixedPageHeader({
     super.key,
     required this.controller,
     required this.hintText,
     this.actions,
     this.onChanged,
+    this.bottom,
   });
 
   @override
@@ -23,45 +27,53 @@ class FixedPageHeader extends StatelessWidget {
     return Container(
       color: AppColors.navy,
       padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              onChanged: (v) {
-                onChanged?.call(v);
-              },
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: hintText,
-                hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 150 / 255),
-                    fontSize: 14),
-                prefixIcon: const Icon(Icons.search, color: AppColors.gold),
-                suffixIcon: controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, color: Colors.white70),
-                        onPressed: () {
-                          controller.clear();
-                          onChanged?.call('');
-                        },
-                      )
-                    : null,
-                isDense: true,
-                filled: true,
-                fillColor: Colors.white.withValues(alpha: 30 / 255),
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  onChanged: (v) {
+                    onChanged?.call(v);
+                  },
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 150 / 255),
+                        fontSize: 14),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                    suffixIcon: controller.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: Colors.white70),
+                            onPressed: () {
+                              controller.clear();
+                              onChanged?.call('');
+                            },
+                          )
+                        : null,
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 30 / 255),
+                    contentPadding:
+                        const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              if (actions != null && actions!.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                ...actions!,
+              ],
+            ],
           ),
-          if (actions != null && actions!.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            ...actions!,
+          if (bottom != null) ...[
+            const SizedBox(height: 10),
+            bottom!,
           ],
         ],
       ),

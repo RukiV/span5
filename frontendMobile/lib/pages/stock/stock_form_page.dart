@@ -319,6 +319,17 @@ class _StockFormPageState extends State<StockFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'stock',
+            fields: _currentStockFields(),
+            labels: const {
+              'stock_name': 'Naam',
+              'stock_type': 'Tipe',
+              'stock_brand': 'Handelsmerk',
+            },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+            onUse: (key, s) => _applyStockGhost(key, s),
+          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -428,18 +439,6 @@ class _StockFormPageState extends State<StockFormPage> {
           _buildField(
               "Beskrywing", s?.description ?? "", (v) => description = v,
               maxLines: 3),
-          const SizedBox(height: 16),
-          AiSuggestionsPanel(
-            context: 'stock',
-            fields: _currentStockFields(),
-            labels: const {
-              'stock_name': 'Naam',
-              'stock_type': 'Tipe',
-              'stock_brand': 'Handelsmerk',
-            },
-            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
-            onUse: (key, s) => _applyStockGhost(key, s),
-          ),
         ],
       ),
     );

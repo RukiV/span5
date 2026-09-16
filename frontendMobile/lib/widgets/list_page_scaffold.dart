@@ -40,6 +40,10 @@ class SearchableListScaffold<T> extends StatefulWidget {
   final Widget? floatingActionButton;
   final Color backgroundColor;
 
+  /// Opsionele tweede ry in die kop (onder die soek-ry) — bv. 'n inline
+  /// status-filter wat na die blad se ele filter-staat bind.
+  final Widget? bottom;
+
   /// Reken die tans-versteekte geselekteerde rye uit vir die bulk-verwyder
   /// bevestiging. Die bladsy verskaf 'n suiwer funksie van sy eie filter-staat
   /// plus die soek-query; wanneer dit `null` is word geen waarskuwing gewys nie.
@@ -59,6 +63,7 @@ class SearchableListScaffold<T> extends StatefulWidget {
     this.floatingActionButton,
     this.backgroundColor = AppColors.background,
     this.visibleIdsProvider,
+    this.bottom,
   });
 
   @override
@@ -112,6 +117,7 @@ class _SearchableListScaffoldState<T> extends State<SearchableListScaffold<T>> {
           FixedPageHeader(
             controller: _searchController,
             hintText: widget.searchHint,
+            bottom: widget.bottom,
             actions: [
               ...widget.leadingActions,
               ColumnVisibilityButton(controller: _colVis),

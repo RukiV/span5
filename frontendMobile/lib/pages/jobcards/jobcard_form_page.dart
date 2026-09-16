@@ -997,6 +997,18 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        AiSuggestionsPanel(
+          context: 'job',
+          fields: _currentJobFields(),
+          labels: const {
+            'job_desc': 'Hoofbeskrywing',
+            'job_type': 'Werksoort',
+            'job_priority': 'Prioriteit',
+            'nature': 'Aard',
+          },
+          onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+          onUse: (key, s) => _applyJobGhost(key, s),
+        ),
         Row(
           children: [
             Expanded(
@@ -1058,19 +1070,6 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               _briefController.text.isEmpty && _ghosts['job_desc'] != null,
           ghost: _ghosts['job_desc']?.value,
           onGhostAccept: () => _applyJobGhost('job_desc', _ghosts['job_desc']!),
-        ),
-        const SizedBox(height: 16),
-        AiSuggestionsPanel(
-          context: 'job',
-          fields: _currentJobFields(),
-          labels: const {
-            'job_desc': 'Hoofbeskrywing',
-            'job_type': 'Werksoort',
-            'job_priority': 'Prioriteit',
-            'nature': 'Aard',
-          },
-          onSuggestionsChanged: (s) => setState(() => _ghosts = s),
-          onUse: (key, s) => _applyJobGhost(key, s),
         ),
         const SizedBox(height: 20),
         LocationCascadePicker(

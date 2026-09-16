@@ -506,7 +506,22 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
               const SizedBox(height: 6),
             ],
             if (widget.trailBar != null) ...[
-              widget.trailBar!,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: widget.trailBar!),
+                  // Wanneer die kaskade voltooi is, bied 'n ongedaan-knoppie
+                  // langs die krummelpad 'n vinnige manier om dit te verander.
+                  if (_isComplete)
+                    IconButton(
+                      icon: const Icon(Icons.undo,
+                          size: 20, color: AppColors.navy),
+                      tooltip: "Verander ligging",
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _clearFromLevel(0),
+                    ),
+                ],
+              ),
               SizedBox(height: widget.trailBarSpacing),
             ],
             if (widget.showBreadcrumb) ...[
@@ -523,6 +538,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     value: null,
                     enabled: true,
                     error: widget.error,
+                    showSearchEntry: false,
                     closeOnSelect: false,
                     restoreOnBlur: false,
                     onFocus: () {

@@ -86,7 +86,6 @@ class _NewReportPageState extends State<NewReportPage> {
   static const int _maxPhotos = 3;
   final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
-  bool _isAiCreating = false;
 
   /// Of die vorm tans 'n geskandeerde/opgesoekte bate se gegewens wys. Wys die
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
@@ -295,41 +294,6 @@ class _NewReportPageState extends State<NewReportPage> {
     setState(() => _isOutdoor = false);
   }
 
-  /// Skep 'n AI-konsep vanaf die huidige beskrywingstek. Die gebruiker bly op
-  /// die vorm — die konsep wag daarna in die Voorgestelde-Werksopdragte-goedkeuringsry.
-  Future<void> _handleAiDraft() async {
-    final desc = descController.text.trim();
-    if (desc.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Tik eers 'n beskrywing in om 'n AI-konsep te skep."),
-          backgroundColor: AppColors.warningOrange,
-        ),
-      );
-      return;
-    }
-    setState(() => _isAiCreating = true);
-    final draft = await AiService.createDraft(desc);
-    if (!mounted) return;
-    setState(() => _isAiCreating = false);
-    if (draft == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Kon nie AI-konsep skep nie. Probeer weer."),
-          backgroundColor: AppColors.errorRed,
-        ),
-      );
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-            "AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
-        backgroundColor: AppColors.successGreen,
-      ),
-    );
-  }
-
   /// Kompakte QR-ikoonknoppie wat regs langs die ligging-kieser staan om 'n
   /// lokaal se kode te skandeer — in plaas van die ou vol-breedte knoppie.
   Widget _buildScanRoomIcon() {
@@ -522,15 +486,6 @@ class _NewReportPageState extends State<NewReportPage> {
                 },
               ),
 
-              if (UserSession.can('ai.use'))
-                HeaderIconAction(
-                  icon: Icons.auto_awesome,
-                  tooltip: "AI-konsep",
-                  loading: _isAiCreating,
-                  onTap: _isAiCreating ? null : _handleAiDraft,
-                ),
-              // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
-              // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
               if (UserSession.can('assets.view'))
                 HeaderIconAction(
                   icon: Icons.list_alt_outlined,
@@ -544,13 +499,6 @@ class _NewReportPageState extends State<NewReportPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_buildWrongRoomBanner() != null) ...[
-            const SizedBox(height: 8),
-            _buildWrongRoomBanner()!,
-          ],
-          const SizedBox(height: 8),
-          _buildTitleDescriptionBox(),
-          const SizedBox(height: 20),
           AiSuggestionsPanel(
             context: 'fault',
             fields: _currentFaultFields(),
@@ -563,6 +511,12 @@ class _NewReportPageState extends State<NewReportPage> {
             onSuggestionsChanged: (s) => setState(() => _ghosts = s),
             onUse: _applyFaultGhost,
           ),
+          if (_buildWrongRoomBanner() != null) ...[
+            const SizedBox(height: 8),
+            _buildWrongRoomBanner()!,
+          ],
+          const SizedBox(height: 8),
+          _buildTitleDescriptionBox(),
           const SizedBox(height: 24),
           LocationCascadePicker(
             initialCampusId: _selectedCampusId,

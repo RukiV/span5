@@ -231,6 +231,15 @@ class _RoomFormPageState extends State<RoomFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AiSuggestionsPanel(
+            context: 'room',
+            fields: _currentRoomFields(),
+            labels: const {
+              'room_type': 'Tipe',
+              'room_capacity': 'Kapasiteit',
+            },
+            onUse: (key, s) => _applyRoomGhost(key, s),
+          ),
           LabeledFormField(
             label: "Naam",
             controller: _nameController,
@@ -284,16 +293,6 @@ class _RoomFormPageState extends State<RoomFormPage> {
               if (v == null || v.trim().isEmpty) return null;
               return int.tryParse(v) == null ? "Nie 'n nommer nie" : null;
             },
-          ),
-          const SizedBox(height: 16),
-          AiSuggestionsPanel(
-            context: 'room',
-            fields: _currentRoomFields(),
-            labels: const {
-              'room_type': 'Tipe',
-              'room_capacity': 'Kapasiteit',
-            },
-            onUse: (key, s) => _applyRoomGhost(key, s),
           ),
         ],
       ),

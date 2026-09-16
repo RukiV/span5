@@ -86,6 +86,19 @@ class _ReportsPageState extends State<ReportsPage> {
     return null;
   }
 
+  /// Inline status-filter in 'n tweede kop-ry (nuwe [InlineSearchableDropdown]
+  /// in plaas van die ou oorvleuel-filter).
+  Widget _buildStatusFilterRow() {
+    return InlineSearchableDropdown<String>(
+      hint: "Status",
+      value: _statusFilter,
+      items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
+          .map((s) => InlineSearchableDropdownItem(value: s, label: s))
+          .toList(),
+      onChanged: (v) => setState(() => _statusFilter = v ?? _statusFilter),
+    );
+  }
+
   Future<void> _bulkDeleteFaults(BuildContext context, Set<String> ids) async {
     await runBulkDelete(
       context,
@@ -178,6 +191,7 @@ class _ReportsPageState extends State<ReportsPage> {
             ColumnDef(key: 'timestamp', label: 'Datum', defaultVisible: false),
           ],
           backgroundColor: Colors.white,
+          bottom: _buildStatusFilterRow(),
           leadingActions: [
             HeaderIconAction(
               icon: Icons.place_outlined,
@@ -192,22 +206,6 @@ class _ReportsPageState extends State<ReportsPage> {
                   _selectedCampusId = campusId;
                   _selectedBuildingId = buildingId;
                 }),
-              ),
-            ),
-            HeaderIconAction(
-              icon: Icons.filter_alt_outlined,
-              tooltip: "Status",
-              activeBadge: _statusFilter != "Alles",
-              onTap: () => showSearchableDialog<String>(
-                context: context,
-                title: "Status",
-                initialValue: _statusFilter,
-                items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
-                    .map(
-                        (s) => InlineSearchableDropdownItem(value: s, label: s))
-                    .toList(),
-                onSelected: (val) =>
-                    setState(() => _statusFilter = val ?? _statusFilter),
               ),
             ),
           ],
