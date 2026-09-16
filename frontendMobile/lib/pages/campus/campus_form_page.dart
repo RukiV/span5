@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/app_colors.dart';
 import '../../core/idempotency.dart';
-import '../../core/input_decoration.dart';
 import '../../models/campus.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
+import '../../services/ai_service.dart';
 import '../../widgets/view_edit_scaffold.dart';
+import '../../widgets/labeled_form_field.dart';
+import '../../widgets/ai_suggestions_panel.dart';
 import '../reporting/select_location_page.dart';
 
 class CampusFormPage extends StatefulWidget {
@@ -75,41 +77,16 @@ class _CampusFormPageState extends State<CampusFormPage> {
     super.dispose();
   }
 
-  Widget _buildFieldLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, top: 4.0),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontWeight: FontWeight.bold,
-          color: AppColors.navy,
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label,
-      {bool required = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildFieldLabel(label),
-        TextFormField(
-          controller: controller,
-          style: const TextStyle(fontSize: 14),
-          decoration: appInputDecoration(showErrorBorder: !_isCreate),
-          validator: required ? (v) => v!.isEmpty ? "Vereis" : null : null,
-        ),
-      ],
-    );
-  }
-
   Widget _buildLocationPicker() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildFieldLabel("Ligging op Kaart"),
+        const Text("Ligging op Kaart",
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.navy)),
+        const SizedBox(height: 8),
         InkWell(
           onTap: () async {
             final LatLng? result = await Navigator.push(
@@ -172,8 +149,8 @@ class _CampusFormPageState extends State<CampusFormPage> {
         location: _selectedLocation,
         radius: double.tryParse(_radiusController.text) ?? 110,
       );
-      final success = await CampusService.addCampus(
-          campus, idempotencyKey: _idempotencyKey);
+      final success = await CampusService.addCampus(campus,
+          idempotencyKey: _idempotencyKey);
       if (!mounted) return;
       if (success) {
         _idempotencyKey = Idempotency.generate();
@@ -213,6 +190,37 @@ class _CampusFormPageState extends State<CampusFormPage> {
     }
   }
 
+  /// Die vorm se huidige veldwaardes vir die AI-konteks.
+  Map<String, dynamic> _currentCampusFields() => {
+        'location_name': _nameController.text,
+        'location_type': _typeController.text,
+        'location_streetnum': _streetNumController.text,
+        'location_streetname': _streetNameController.text,
+        'location_suburb': _suburbController.text,
+        'location_city': _cityController.text,
+        'location_province': _provinceController.text,
+        'location_country': _countryController.text,
+      };
+
+  /// Pas 'n AI-voorstel (tipe/voorstad/stad/provinsie/land) toe.
+  void _applyCampusGhost(String key, AiSuggestion s) {
+    final value = s.value;
+    setState(() {
+      switch (key) {
+        case 'location_type':
+          _typeController.text = value;
+        case 'location_suburb':
+          _suburbController.text = value;
+        case 'location_city':
+          _cityController.text = value;
+        case 'location_province':
+          _provinceController.text = value;
+        case 'location_country':
+          _countryController.text = value;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final campus = widget.campus;
@@ -220,65 +228,113 @@ class _CampusFormPageState extends State<CampusFormPage> {
     return ViewEditScaffold(
       alwaysEditable: _isCreate,
       startEditing: widget.startEditing,
-      title: _isCreate ? "Voeg Nuwe Terrein" : (campus?.name ?? ""),
+      title: _isCreate ? "Nuwe Terrein" : (campus?.name ?? ""),
       editingTitle: _isCreate ? null : "Wysig Terrein",
       saveLabel: _isCreate ? "STOOR" : "OPDATEER",
       canEdit: UserSession.can('locations.manage'),
       formKey: _formKey,
       onSave: _save,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildTextField(_nameController, "Naam", required: true),
-          const SizedBox(height: 16),
-          _buildTextField(_typeController, _isCreate ? "Tipe" : "Tipe / Kode",
-              required: true),
-          const SizedBox(height: 16),
-          _buildLocationPicker(),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFieldLabel("Toegelate Radius (meter)"),
-              TextFormField(
-                controller: _radiusController,
-                style: const TextStyle(fontSize: 14),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: appInputDecoration(showErrorBorder: !_isCreate),
-                validator: (v) {
-                  final val = double.tryParse(v ?? "");
-                  return (v == null || v.isEmpty || val == null || val <= 0)
-                      ? "Geldige radius word vereis"
-                      : null;
-                },
-              ),
-            ],
+          LabeledFormField(
+            label: "Naam",
+            controller: _nameController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+            validator: (v) => (v == null || v.trim().isEmpty) ? "Vereis" : null,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: _isCreate ? "Tipe" : "Tipe / Kode",
+            controller: _typeController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+            validator: (v) => (v == null || v.trim().isEmpty) ? "Vereis" : null,
+          ),
+          const SizedBox(height: 20),
+          _buildLocationPicker(),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: "Toegelate Radius (meter)",
+            controller: _radiusController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            showErrorBorder: !_isCreate,
+            validator: (v) {
+              final val = double.tryParse(v ?? "");
+              return (v == null || v.isEmpty || val == null || val <= 0)
+                  ? "Geldige radius word vereis"
+                  : null;
+            },
+          ),
+          const SizedBox(height: 20),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 flex: 2,
-                child:
-                    _buildTextField(_streetNumController, "Nr", required: true),
+                child: LabeledFormField(
+                  label: "Nr",
+                  controller: _streetNumController,
+                  showErrorBorder: !_isCreate,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? "Vereis" : null,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 flex: 5,
-                child: _buildTextField(_streetNameController, "Straatnaam",
-                    required: true),
+                child: LabeledFormField(
+                  label: "Straatnaam",
+                  controller: _streetNameController,
+                  showErrorBorder: !_isCreate,
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? "Vereis" : null,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: "Suburb",
+            controller: _suburbController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: "Stad",
+            controller: _cityController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: "Provinsie",
+            controller: _provinceController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 20),
+          LabeledFormField(
+            label: "Land",
+            controller: _countryController,
+            showErrorBorder: !_isCreate,
+            onChanged: (_) => setState(() {}),
+          ),
           const SizedBox(height: 16),
-          _buildTextField(_suburbController, "Suburb"),
-          const SizedBox(height: 16),
-          _buildTextField(_cityController, "Stad"),
-          const SizedBox(height: 16),
-          _buildTextField(_provinceController, "Provinsie"),
-          const SizedBox(height: 16),
-          _buildTextField(_countryController, "Land"),
+          AiSuggestionsPanel(
+            context: 'location',
+            fields: _currentCampusFields(),
+            labels: const {
+              'location_type': 'Terrein tipe',
+              'location_suburb': 'Voorstad',
+              'location_city': 'Stad',
+              'location_province': 'Provinsie',
+              'location_country': 'Land',
+            },
+            onUse: (key, s) => _applyCampusGhost(key, s),
+          ),
         ],
       ),
     );

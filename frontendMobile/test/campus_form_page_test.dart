@@ -8,13 +8,14 @@ void main() {
     testWidgets('skep-modus: titel, velde en STOOR', (tester) async {
       await pumpForm(tester, const CampusFormPage());
 
-      expect(find.text("Voeg Nuwe Terrein"), findsOneWidget);
+      expect(find.text("Nuwe Terrein"), findsOneWidget);
       expect(find.text("Naam"), findsOneWidget);
       expect(find.text("Tipe"), findsOneWidget);
       expect(find.text("Tipe / Kode"), findsNothing);
       expect(find.text("Toegelate Radius (meter)"), findsOneWidget);
       expect(find.text("Kanselleer"), findsOneWidget);
       expect(find.text("STOOR"), findsOneWidget);
+      expect(find.text("KI Voorstelle"), findsOneWidget);
     });
 
     testWidgets('skep-modus: radius begin by 110', (tester) async {
@@ -26,6 +27,8 @@ void main() {
     testWidgets('skep-modus: leë naam toon "Vereis"', (tester) async {
       await pumpForm(tester, const CampusFormPage());
 
+      await tester.ensureVisible(find.text("STOOR"));
+      await tester.pumpAndSettle();
       await tester.tap(find.text("STOOR"));
       await tester.pumpAndSettle();
 
@@ -55,6 +58,8 @@ void main() {
       await pumpForm(tester, CampusFormPage(campus: sampleCampus()));
 
       await tester.tap(find.byIcon(Icons.edit));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text("OPDATEER"));
       await tester.pumpAndSettle();
       await tester.tap(find.text("OPDATEER"));
       await tester.pumpAndSettle();
