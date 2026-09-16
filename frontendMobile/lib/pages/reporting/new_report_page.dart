@@ -11,7 +11,6 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../core/app_colors.dart';
-import '../../core/idempotency.dart';
 import '../../services/asset_type_service.dart';
 import 'scan_page.dart';
 import 'location_page.dart';
@@ -21,6 +20,7 @@ import '../../services/ai_service.dart';
 import '../../services/image_service.dart';
 import '../../services/camera_service.dart';
 import '../../models/report.dart';
+import '../../models/room.dart';
 import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
@@ -79,11 +79,9 @@ class _NewReportPageState extends State<NewReportPage> {
   /// kieser; word teruggestel wanneer die soekveld skoongemaak word.
   bool _assetResolved = false;
   AssetState? _assetState;
-  String? _idempotencyKey;
   @override
   void initState() {
     super.initState();
-    _idempotencyKey = Idempotency.generate();
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
@@ -160,17 +158,20 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedLocation = null;
       return;
     }
-    final path = CampusService.findRoomPath(roomId);
-    if (path.room != null) {
-      _selectedCampusId = path.campus!.id;
-      _selectedBuildingId = path.building!.id;
-      _selectedRoomId = path.room!.id;
-      selectedCampus = path.campus!.name;
-      selectedBuilding = path.building!.name;
-      selectedLocation = '${path.room!.id}:${path.room!.name}';
-      _pendingRoomId = null;
-      return;
-    }
+    for (final c in CampusService.campusesNotifier.value) {
+      for (final b in c.buildings) {
+        for (final r in b.rooms ?? const <Room>[]) {
+          if (r.id == roomId) {
+            _selectedCampusId = c.id;
+            _selectedBuildingId = b.id;
+            _selectedRoomId = r.id;
+            selectedCampus = c.name;
+            selectedBuilding = b.name;
+            selectedLocation = '${r.id}:${r.name}';
+            _pendingRoomId = null;
+            return;
+          }
+        }
       }
     }
     // Boom nog nie gelaai nie — onthou dit en vul aan sodra Campuses arriveer.
@@ -196,17 +197,22 @@ class _NewReportPageState extends State<NewReportPage> {
 
   /// Stoor die ID's én die naam-vorm wat die stoor-logika verwag.
   void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
-    final path = CampusService.findLocationPath(campusId, buildingId, roomId);
+    final campuses = CampusService.campusesNotifier.value;
+    final campus = campuses.where((c) => c.id == campusId).firstOrNull;
+    final building =
+        campus?.buildings.where((b) => b.id == buildingId).firstOrNull;
+    final room = (building?.rooms ?? const <Room>[])
+        .where((r) => r.id == roomId)
+        .firstOrNull;
 
     setState(() {
       _selectedCampusId = campusId;
       _selectedBuildingId = buildingId;
       _selectedRoomId = roomId;
       _pendingRoomId = null;
-      selectedCampus = path.campus?.name;
-      selectedBuilding = path.building?.name;
-      selectedLocation =
-          path.room == null ? null : '${path.room!.id}:${path.room!.name}';
+      selectedCampus = campus?.name;
+      selectedBuilding = building?.name;
+      selectedLocation = room == null ? null : '${room.id}:${room.name}';
       _locationError = null;
     });
   }
@@ -713,8 +719,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 try {
                   // 1. Skep die kaartjie eers sodat ons sy id het om
                   //    fotos aan te koppel (parent_type 'ticket').
-                  final created = await ReportService.addReport(newReport,
-                      idempotencyKey: _idempotencyKey);
+                  final created = await ReportService.addReport(newReport);
                   if (!mounted) return;
                   if (created == null) {
                     if (context.mounted) {
@@ -767,7 +772,6 @@ class _NewReportPageState extends State<NewReportPage> {
                           backgroundColor: AppColors.successGreen),
                     );
                   }
-                  _idempotencyKey = Idempotency.generate();
                   Navigator.pop(context, true);
                 } catch (e) {
                   if (mounted && context.mounted) {

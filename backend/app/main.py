@@ -90,7 +90,8 @@ async def onStartup():
                 f"interval={auto_draft_scheduler.AI_AUTO_DRAFT_INTERVAL}s "
                 f"(min={auto_draft_scheduler.MIN_AUTO_DRAFT_INTERVAL}s)")
     logger.info(f"Survival retrain loop:    enabled={survival_service.is_enabled()}, "
-                f"interval={os.getenv('SURVIVAL_RETRAIN_INTERVAL', '900')}s")
+                f"interval={os.getenv('SURVIVAL_RETRAIN_INTERVAL', '2592000')}s "
+                f"(maandeliks)")
     logger.info(f"Survival min assets:      {os.getenv('AI_SURVIVAL_MIN_ASSETS', '50')}")
     logger.info(f"Survival min events:      {os.getenv('AI_SURVIVAL_MIN_EVENTS', '80')}")
     logger.info("=" * 60)

@@ -28,6 +28,9 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
       AUTH_SECRET_KEY: ${AUTH_SECRET_KEY:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # Ollama draai op die Windows-gasheer; host.docker.internal word deur
+      # extra_hosts hierbo opgelos (sien reël 22-24).
+      OLLAMA_URL: http://host.docker.internal:11434/api/generate
     depends_on:
       postgres:
         condition: service_healthy

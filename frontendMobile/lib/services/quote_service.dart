@@ -73,4 +73,3 @@ class QuoteService {
     return null;
   }
 }
-}

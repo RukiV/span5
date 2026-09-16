@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/asset.dart';
 import '../core/api_client.dart';
@@ -18,8 +17,6 @@ class AssetService {
   static Future<void> fetchAssets() => _crud.fetch();
 
   // Used by the reporting system to identify an asset from a scanned QR or barcode.
-  static Future<void> fetchAssets() => _crud.fetch();
-
   static Future<Asset?> getAssetBySerialCode(String serialCode) async {
     try {
       final response =
@@ -34,15 +31,6 @@ class AssetService {
   }
 
   // Adds a new asset to the backend and refreshes the local list.
-  static String generateUniqueId(String category, String campus) {
-    final prefix = category.substring(0, min(3, category.length)).toUpperCase();
-    final campusPrefix = campus
-        .substring(0, min(3, campus.length))
-        .toUpperCase();
-    final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(7);
-    return "$prefix-$campusPrefix-$timestamp";
-  }
-
   static Future<bool> addAsset(Asset asset, {String? idempotencyKey}) =>
       _crud.add(asset, idempotencyKey: idempotencyKey);
 
@@ -50,5 +38,4 @@ class AssetService {
       _crud.update(updatedAsset, updatedAsset.id);
 
   static Future<bool> deleteAsset(String id) => _crud.delete(id);
-}
 }
