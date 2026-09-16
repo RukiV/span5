@@ -368,56 +368,91 @@ class _AssetFormPageState extends State<AssetFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextFormField(
-            controller: _nameController,
-            decoration: withSuggestionGhost(
-              appInputDecoration(label: "Naam"),
-              ghost: _ghosts['asset_name']?.value,
-              active: name.isEmpty && _ghosts['asset_name'] != null,
-              onAccept: _ghosts['asset_name'] != null
-                  ? () => _applyAssetGhost('asset_name', _ghosts['asset_name']!)
-                  : null,
-            ),
-            onChanged: (v) {
-              name = v;
-              setState(() {});
-            },
-            validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _serialController,
-            decoration: appInputDecoration(label: "Serienommer").copyWith(
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
-                tooltip: "Skandeer strepie-/QR-kode",
-                onPressed: _scanSerial,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Naam",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _nameController,
+                decoration: withSuggestionGhost(
+                  appInputDecoration(),
+                  ghost: _ghosts['asset_name']?.value,
+                  active: name.isEmpty && _ghosts['asset_name'] != null,
+                  onAccept: _ghosts['asset_name'] != null
+                      ? () =>
+                          _applyAssetGhost('asset_name', _ghosts['asset_name']!)
+                      : null,
+                ),
+                onChanged: (v) {
+                  name = v;
+                  setState(() {});
+                },
+                validator: (v) => (v == null || v.isEmpty) ? "Vereis" : null,
               ),
-            ),
-            inputFormatters: [AssetCodeFormatter()],
-            onChanged: (v) => serialCode = v,
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return "Vereis";
-              if (v.trim().length > 20) return "Maks 20 karakters";
-              return null;
-            },
+            ],
           ),
           const SizedBox(height: 20),
-          TextFormField(
-            controller: _brandController,
-            decoration: withSuggestionGhost(
-              appInputDecoration(label: "Handelsmerk"),
-              ghost: _ghosts['asset_brand']?.value,
-              active: brand.isEmpty && _ghosts['asset_brand'] != null,
-              onAccept: _ghosts['asset_brand'] != null
-                  ? () =>
-                      _applyAssetGhost('asset_brand', _ghosts['asset_brand']!)
-                  : null,
-            ),
-            onChanged: (v) {
-              brand = v;
-              setState(() {});
-            },
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Serienommer",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _serialController,
+                decoration: appInputDecoration().copyWith(
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.qr_code_scanner,
+                        color: AppColors.navy),
+                    tooltip: "Skandeer strepie-/QR-kode",
+                    onPressed: _scanSerial,
+                  ),
+                ),
+                inputFormatters: [AssetCodeFormatter()],
+                onChanged: (v) => serialCode = v,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return "Vereis";
+                  if (v.trim().length > 20) return "Maks 20 karakters";
+                  return null;
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Handelsmerk",
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.navy)),
+              const SizedBox(height: 6),
+              TextFormField(
+                controller: _brandController,
+                decoration: withSuggestionGhost(
+                  appInputDecoration(),
+                  ghost: _ghosts['asset_brand']?.value,
+                  active: brand.isEmpty && _ghosts['asset_brand'] != null,
+                  onAccept: _ghosts['asset_brand'] != null
+                      ? () => _applyAssetGhost(
+                          'asset_brand', _ghosts['asset_brand']!)
+                      : null,
+                ),
+                onChanged: (v) {
+                  brand = v;
+                  setState(() {});
+                },
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           ValueListenableBuilder<List<AssetType>>(
