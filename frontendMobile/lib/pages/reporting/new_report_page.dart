@@ -497,11 +497,6 @@ class _NewReportPageState extends State<NewReportPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Foutkaartjie Nasien",
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: AppColors.navy)),
               if (_buildWrongRoomBanner() != null) ...[
                 const SizedBox(height: 8),
                 _buildWrongRoomBanner()!,
@@ -516,6 +511,7 @@ class _NewReportPageState extends State<NewReportPage> {
                 label: "Waargeneemde Ligging",
                 editing: _assetResolved,
                 showBreadcrumb: false,
+                trailBarSpacing: 2.0,
                 trailBar: LocationBreadcrumbs(
                   path: LocationBreadcrumbs.buildLocationPath(
                     campusId: _selectedCampusId,
