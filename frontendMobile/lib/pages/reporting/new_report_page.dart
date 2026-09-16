@@ -28,6 +28,9 @@ import '../../models/asset.dart';
 import '../../services/asset_service.dart';
 import '../../services/room_service.dart';
 import '../../services/wrong_room_service.dart';
+import '../../widgets/view_edit_scaffold.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../core/suggestion_translations.dart';
 
 class NewReportPage extends StatefulWidget {
   final String? prefillSerialCode;
@@ -71,6 +74,16 @@ class _NewReportPageState extends State<NewReportPage> {
   int? _pendingRoomId;
   String? selectedCategory;
   String? selectedPriority;
+  static const List<String> _faultTypes = [
+    "Onderhoud",
+    "Herstel",
+    "Inspeksie",
+    "Installasie",
+  ];
+  static const List<String> _faultPriorities = ["Laag", "Medium", "Hoog"];
+
+  /// AI-veldvoorstelle ("KI Voorstelle") wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
   static const int _maxPhotos = 3;
   final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
@@ -114,8 +127,45 @@ class _NewReportPageState extends State<NewReportPage> {
     }
   }
 
-  bool _isSubmitting = false;
   Asset? _resolvedAsset;
+
+  /// Die vorm se huidige waardes vir die KI-veldvoorstel-diens ('fault').
+  Map<String, dynamic> _currentFaultFields() => {
+        'title': titleController.text,
+        'description': descController.text,
+        'fault_type': selectedCategory,
+        'fault_priority': selectedPriority,
+      };
+
+  /// Vertaal 'n voorstel se waarde na die vorm se AF-vertoonwaarde (of null).
+  String? _translatedFaultGhost(String key) {
+    final s = _ghosts[key];
+    if (s == null) return null;
+    final v = translateSuggestion(key, s.value);
+    return v.trim().isEmpty ? null : v;
+  }
+
+  /// Pas 'n voorgestelde veldwaarde op die vorm toe.
+  void _applyFaultGhost(String key, AiSuggestion s) {
+    setState(() {
+      switch (key) {
+        case 'title':
+          titleController.text = s.value;
+          break;
+        case 'description':
+          descController.text = s.value;
+          break;
+        case 'fault_type':
+          final v = translateSuggestion('fault_type', s.value);
+          if (_faultTypes.contains(v)) selectedCategory = v;
+          break;
+        case 'fault_priority':
+          final v = translateSuggestion('fault_priority', s.value);
+          if (_faultPriorities.contains(v)) selectedPriority = v;
+          break;
+      }
+    });
+  }
 
   Future<void> _autoFillFromCode(String serialCode) async {
     setState(() => _isAutoFilling = true);
@@ -274,7 +324,8 @@ class _NewReportPageState extends State<NewReportPage> {
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text("AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
+        content: Text(
+            "AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
         backgroundColor: AppColors.successGreen,
       ),
     );
@@ -326,7 +377,9 @@ class _NewReportPageState extends State<NewReportPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isWrongRoom ? "BATE GEVIND IN VERKEERDE LOKAAL" : "BATE VERMIS",
+                  isWrongRoom
+                      ? "BATE GEVIND IN VERKEERDE LOKAAL"
+                      : "BATE VERMIS",
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -343,6 +396,7 @@ class _NewReportPageState extends State<NewReportPage> {
       ),
     );
   }
+
   /// Opskrif & Beskrywing — staan bo-aan die vorm sodat die gebruiker eers die
   /// fout self beskryf en dan die ligging nasien.
   Widget _buildTitleDescriptionBox() {
@@ -378,419 +432,401 @@ class _NewReportPageState extends State<NewReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Nuwe Foutkaartjie",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.navy,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(72),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(15, 0, 15, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: serialController,
-                    onChanged: (_) => setState(() {}),
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) {
-                      final code = serialController.text.trim();
-                      if (code.isNotEmpty) _autoFillFromCode(code);
-                      // Sluit die sleutelbord outomaties wanneer gesoek word.
-                      FocusManager.instance.primaryFocus?.unfocus();
-                    },
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    inputFormatters: [AssetCodeFormatter()],
-                    decoration: InputDecoration(
-                      hintText: "AK-MTXXXXXX",
-                      hintStyle: TextStyle(
-                          color: Colors.white.withValues(alpha: 150 / 255),
-                          fontSize: 14),
-                      prefixIcon:
-                          const Icon(Icons.search, color: AppColors.gold),
-                      suffixIcon: _isAutoFilling
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
-                            )
-                          : serialController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear,
-                                      color: Colors.white70),
-                                  onPressed: () => setState(() {
-                                    serialController.clear();
-                                    _assetResolved = false;
-                                    _assetState = null;
-                                  }),
-                                )
-                              : null,
-                      isDense: true,
-                      filled: true,
-                      fillColor: Colors.white.withValues(alpha: 30 / 255),
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 15),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
-                      ),
+    return ViewEditScaffold(
+      alwaysEditable: true,
+      title: "Nuwe Foutkaartjie",
+      saveLabel: "STUUR FOUTKAARTJIE",
+      saveLetterSpacing: 1,
+      showCancel: false,
+      formKey: _formKey,
+      onSave: _submitReport,
+      headerBottom: PreferredSize(
+        preferredSize: const Size.fromHeight(72),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 0, 15, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: serialController,
+                  onChanged: (_) => setState(() {}),
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) {
+                    final code = serialController.text.trim();
+                    if (code.isNotEmpty) _autoFillFromCode(code);
+                    // Sluit die sleutelbord outomaties wanneer gesoek word.
+                    FocusManager.instance.primaryFocus?.unfocus();
+                  },
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  inputFormatters: [AssetCodeFormatter()],
+                  decoration: InputDecoration(
+                    hintText: "AK-MTXXXXXX",
+                    hintStyle: TextStyle(
+                        color: Colors.white.withValues(alpha: 150 / 255),
+                        fontSize: 14),
+                    prefixIcon: const Icon(Icons.search, color: AppColors.gold),
+                    suffixIcon: _isAutoFilling
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
+                          )
+                        : serialController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear,
+                                    color: Colors.white70),
+                                onPressed: () => setState(() {
+                                  serialController.clear();
+                                  _assetResolved = false;
+                                  _assetState = null;
+                                }),
+                              )
+                            : null,
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 30 / 255),
+                    contentPadding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 15),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                HeaderIconAction(
-                  icon: Icons.search,
-                  tooltip: "Soek getikte kode",
-                  onTap: () {
-                    final code = serialController.text.trim();
-                    if (code.isNotEmpty) _autoFillFromCode(code);
-                    FocusManager.instance.primaryFocus?.unfocus();
-                  },
-                ),
-                HeaderIconAction(
-                  icon: Icons.qr_code_scanner,
-                  tooltip: "Skandeer QR-kode",
-                  onTap: () async {
-                    final String? scannedCode = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const ScanPage()));
-                    if (scannedCode != null) {
-                      final trimmed = scannedCode.trim();
-                      setState(() => serialController.text = trimmed);
-                      await _autoFillFromCode(trimmed);
-                    }
-                  },
-                ),
+              ),
+              const SizedBox(width: 8),
+              HeaderIconAction(
+                icon: Icons.search,
+                tooltip: "Soek getikte kode",
+                onTap: () {
+                  final code = serialController.text.trim();
+                  if (code.isNotEmpty) _autoFillFromCode(code);
+                  FocusManager.instance.primaryFocus?.unfocus();
+                },
+              ),
+              HeaderIconAction(
+                icon: Icons.qr_code_scanner,
+                tooltip: "Skandeer QR-kode",
+                onTap: () async {
+                  final String? scannedCode = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const ScanPage()));
+                  if (scannedCode != null) {
+                    final trimmed = scannedCode.trim();
+                    setState(() => serialController.text = trimmed);
+                    await _autoFillFromCode(trimmed);
+                  }
+                },
+              ),
 
-                if (UserSession.can('ai.use'))
-                  HeaderIconAction(
-                    icon: Icons.auto_awesome,
-                    tooltip: "AI-konsep",
-                    loading: _isAiCreating,
-                    onTap: _isAiCreating ? null : _handleAiDraft,
-                  ),
-                // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
-                // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
-                if (UserSession.can('assets.view'))
-                  HeaderIconAction(
-                    icon: Icons.list_alt_outlined,
-                    tooltip: "Kies uit ligging",
-                    onTap: _pickAssetFromLocation,
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_buildWrongRoomBanner() != null) ...[
-                const SizedBox(height: 8),
-                _buildWrongRoomBanner()!,
-              ],
-              const SizedBox(height: 8),
-              _buildTitleDescriptionBox(),
-              const SizedBox(height: 24),
-              LocationCascadePicker(
-                initialCampusId: _selectedCampusId,
-                initialBuildingId: _selectedBuildingId,
-                initialRoomId: _selectedRoomId,
-                label: "Waargeneemde Ligging",
-                editing: _assetResolved,
-                showBreadcrumb: false,
-                trailBarSpacing: 2.0,
-                trailBar: LocationBreadcrumbs(
-                  path: LocationBreadcrumbs.buildLocationPath(
-                    campusId: _selectedCampusId,
-                    buildingId: _selectedBuildingId,
-                    roomId: _selectedRoomId,
-                  ),
+              if (UserSession.can('ai.use'))
+                HeaderIconAction(
+                  icon: Icons.auto_awesome,
+                  tooltip: "AI-konsep",
+                  loading: _isAiCreating,
+                  onTap: _isAiCreating ? null : _handleAiDraft,
                 ),
-                errorText: _locationError,
-                trailing: _buildScanRoomIcon(),
-                onChanged: _onLocationChanged,
-              ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  const Text("Buite Lokaal:",
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.navy)),
-                  const SizedBox(width: 2),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text("Nee")),
-                      ButtonSegment(value: true, label: Text("Ja")),
-                    ],
-                    selected: {_isOutdoor ?? false},
-                    onSelectionChanged: (s) => setState(() {
-                      _isOutdoor = s.first;
-                      _locationError = null;
-                      // Buite-lokaal = Nee beteken binne: die kaartpunt (en
-                      // sy skermgreep) is nie meer van toepassing nie.
-                      if (_isOutdoor == false) {
-                        _mapLocation = null;
-                        _mapScreenshot = null;
-                      }
-                    }),
-                    showSelectedIcon: false,
-                    style:
-                        const ButtonStyle(visualDensity: VisualDensity.compact),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              InlineSearchableDropdown<String>(
-                label: "Werksoort",
-                hint: "Kies Werksoort",
-                value: selectedCategory,
-                items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
-                    .map((e) => SearchableDropdownItem(value: e, label: e))
-                    .toList(),
-                onChanged: (v) => setState(() => selectedCategory = v),
-              ),
-              if (UserSession.can('faults.view')) ...[
-                const SizedBox(height: 10),
-                InlineSearchableDropdown<String>(
-                  label: "Prioriteit",
-                  hint: "Kies Prioriteit",
-                  value: selectedPriority,
-                  items: ["Laag", "Medium", "Hoog"]
-                      .map((e) => SearchableDropdownItem(value: e, label: e))
-                      .toList(),
-                  onChanged: (v) => setState(() {
-                    if (v != null) selectedPriority = v;
-                  }),
+              // Lys-knoppie net vir FK/Admin ('n asset-leesreg) — studente
+              // sien slegs Soek + QR en kry nie konfidentiële bate-lysse nie.
+              if (UserSession.can('assets.view'))
+                HeaderIconAction(
+                  icon: Icons.list_alt_outlined,
+                  tooltip: "Kies uit ligging",
+                  onTap: _pickAssetFromLocation,
                 ),
-              ],
             ],
           ),
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _submitReport,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                elevation: 2,
-              ),
-              child: const Text("STUUR FOUTKAARTJIE",
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_buildWrongRoomBanner() != null) ...[
+            const SizedBox(height: 8),
+            _buildWrongRoomBanner()!,
+          ],
+          const SizedBox(height: 8),
+          _buildTitleDescriptionBox(),
+          const SizedBox(height: 20),
+          AiSuggestionsPanel(
+            context: 'fault',
+            fields: _currentFaultFields(),
+            labels: const {
+              'title': 'Opskrif',
+              'description': 'Beskrywing',
+              'fault_type': 'Werksoort',
+              'fault_priority': 'Prioriteit',
+            },
+            onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+            onUse: _applyFaultGhost,
           ),
-        ),
+          const SizedBox(height: 24),
+          LocationCascadePicker(
+            initialCampusId: _selectedCampusId,
+            initialBuildingId: _selectedBuildingId,
+            initialRoomId: _selectedRoomId,
+            label: "Waargeneemde Ligging",
+            editing: _assetResolved,
+            showBreadcrumb: false,
+            trailBarSpacing: 2.0,
+            trailBar: LocationBreadcrumbs(
+              path: LocationBreadcrumbs.buildLocationPath(
+                campusId: _selectedCampusId,
+                buildingId: _selectedBuildingId,
+                roomId: _selectedRoomId,
+              ),
+            ),
+            errorText: _locationError,
+            trailing: _buildScanRoomIcon(),
+            onChanged: _onLocationChanged,
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text("Buite Lokaal:",
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.navy)),
+              const SizedBox(width: 2),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text("Nee")),
+                  ButtonSegment(value: true, label: Text("Ja")),
+                ],
+                selected: {_isOutdoor ?? false},
+                onSelectionChanged: (s) => setState(() {
+                  _isOutdoor = s.first;
+                  _locationError = null;
+                  // Buite-lokaal = Nee beteken binne: die kaartpunt (en
+                  // sy skermgreep) is nie meer van toepassing nie.
+                  if (_isOutdoor == false) {
+                    _mapLocation = null;
+                    _mapScreenshot = null;
+                  }
+                }),
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          InlineSearchableDropdown<String>(
+            label: "Werksoort",
+            hint: (selectedCategory == null &&
+                    _translatedFaultGhost('fault_type') != null)
+                ? _translatedFaultGhost('fault_type')!
+                : "Kies Werksoort",
+            value: selectedCategory,
+            items: _faultTypes
+                .map((e) => SearchableDropdownItem(value: e, label: e))
+                .toList(),
+            onChanged: (v) => setState(() => selectedCategory = v),
+          ),
+          if (UserSession.can('faults.view')) ...[
+            const SizedBox(height: 10),
+            InlineSearchableDropdown<String>(
+              label: "Prioriteit",
+              hint: (selectedPriority == null &&
+                      _translatedFaultGhost('fault_priority') != null)
+                  ? _translatedFaultGhost('fault_priority')!
+                  : "Kies Prioriteit",
+              value: selectedPriority,
+              items: _faultPriorities
+                  .map((e) => SearchableDropdownItem(value: e, label: e))
+                  .toList(),
+              onChanged: (v) => setState(() {
+                if (v != null) selectedPriority = v;
+              }),
+            ),
+          ],
+        ],
       ),
     );
   }
 
   Future<void> _submitReport() async {
-    if (_isSubmitting) return;
-    setState(() => _isSubmitting = true);
+    // Die ligging-kieser is nie 'n FormField nie, so die
+    // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
+    // buite enige terrein het reeds 'n spesifieke fout van
+    // _resolveCampusFromPoint — moenie dit oorskryf nie.
+    // (Met die ALLOW_OFF_CAMPUS-dev-vlag is 'n terreinvrye
+    // kaartpunt geldig en word dit hier toegelaat.)
+    final hasPath = selectedLocation != null;
+    final hasCoords = _mapLocation != null;
+    if (hasCoords &&
+        _selectedCampusId == null &&
+        !LocationPage.allowOffCampus) {
+      setState(() => _locationError =
+          "Punt val nie binne 'n terrein nie — kies 'n ander plek");
+      return;
+    }
+    if (_correctingLocation) {
+      if (_isOutdoor == true) {
+        if (!hasPath && !hasCoords && _selectedCampusId == null) {
+          setState(() => _locationError = "Kies 'n ligging (terrein of kaart)");
+          return;
+        }
+      } else if (!hasPath && !hasCoords) {
+        setState(() => _locationError =
+            "Kies 'n volledige ligging of kies 'n ligging op die kaart");
+        return;
+      }
+    } else if (!hasPath && !hasCoords) {
+      // Geen bate is geskandeer (of die ligging is leeg) —
+      // onthul die korreksie-afdeling sodat die gebruiker kan kies.
+      setState(() {
+        _correctingLocation = true;
+        _locationError = "Kies 'n ligging";
+      });
+      return;
+    }
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    int? finalAssetIdInt;
+    String? finalAssetSerialCode;
+    final serial = serialController.text.trim();
+    final Asset? asset =
+        (_resolvedAsset != null && _resolvedAsset!.serialCode == serial)
+            ? _resolvedAsset
+            : (serial.isNotEmpty
+                ? await AssetService.getAssetBySerialCode(serial)
+                : null);
+    if (serial.isNotEmpty && asset == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content:
+                  Text("Kon nie bate met kode vind nie — kontroleer die kode"),
+              backgroundColor: AppColors.errorRed),
+        );
+      }
+      return;
+    }
+    if (asset != null) {
+      finalAssetIdInt = int.tryParse(asset.id);
+      finalAssetSerialCode = asset.serialCode;
+    }
+
+    final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
+
+    final String roomId =
+        selectedLocation != null ? selectedLocation!.split(":").first : "";
+
+    int? resolvedLocationId;
+    int? resolvedBuildingId;
+    if (selectedCampus != null) {
+      final campus = CampusService.getCampusByName(selectedCampus!);
+      if (campus != null) {
+        resolvedLocationId = campus.id;
+        if (selectedBuilding != null) {
+          final building = campus.buildings
+              .where((b) => b.name == selectedBuilding)
+              .firstOrNull;
+          resolvedBuildingId = building?.id;
+        }
+      }
+    }
+
+    final newReport = Report(
+      id: "0",
+      assetId: finalAssetId,
+      assetSerialCode: finalAssetSerialCode,
+      location: roomId,
+      title: titleController.text.trim(),
+      description: descController.text.trim(),
+      category: selectedCategory ?? "Onderhoud",
+      priority: UserSession.can('faults.view')
+          ? (selectedPriority ?? "Medium")
+          : "Laag",
+      phase: "Ontvang",
+      user: UserSession.userId.toString(),
+      timestamp: DateTime.now(),
+      locationId: resolvedLocationId,
+      buildingId: resolvedBuildingId,
+      latitude: _mapLocation?.latitude,
+      longitude: _mapLocation?.longitude,
+      isOutdoor: _isOutdoor ?? false,
+      rawStatus: null,
+    );
+
     try {
-                // Die ligging-kieser is nie 'n FormField nie, so die
-                // ligging word hier afsonderlik nagegaan. 'n Kaartpunt
-                // buite enige terrein het reeds 'n spesifieke fout van
-                // _resolveCampusFromPoint — moenie dit oorskryf nie.
-                // (Met die ALLOW_OFF_CAMPUS-dev-vlag is 'n terreinvrye
-                // kaartpunt geldig en word dit hier toegelaat.)
-                final hasPath = selectedLocation != null;
-                final hasCoords = _mapLocation != null;
-                if (hasCoords &&
-                    _selectedCampusId == null &&
-                    !LocationPage.allowOffCampus) {
-                  setState(() => _locationError =
-                      "Punt val nie binne 'n terrein nie — kies 'n ander plek");
-                  return;
-                }
-                if (_correctingLocation) {
-                  if (_isOutdoor == true) {
-                    if (!hasPath && !hasCoords && _selectedCampusId == null) {
-                      setState(() => _locationError =
-                          "Kies 'n ligging (terrein of kaart)");
-                      return;
-                    }
-                  } else if (!hasPath && !hasCoords) {
-                    setState(() => _locationError =
-                        "Kies 'n volledige ligging of kies 'n ligging op die kaart");
-                    return;
-                  }
-                } else if (!hasPath && !hasCoords) {
-                  // Geen bate is geskandeer (of die ligging is leeg) —
-                  // onthul die korreksie-afdeling sodat die gebruiker kan kies.
-                  setState(() {
-                    _correctingLocation = true;
-                    _locationError = "Kies 'n ligging";
-                  });
-                  return;
-                }
-                if (!_formKey.currentState!.validate()) {
-                  return;
-                }
+      // 1. Skep die kaartjie eers sodat ons sy id het om
+      //    fotos aan te koppel (parent_type 'ticket').
+      final created = await ReportService.addReport(newReport);
+      if (!mounted) return;
+      if (created == null) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text("Fout met stoor. Probeer weer."),
+                backgroundColor: AppColors.errorRed),
+          );
+        }
+        return;
+      }
 
-                int? finalAssetIdInt;
-                String? finalAssetSerialCode;
-                final serial = serialController.text.trim();
-                final Asset? asset = (_resolvedAsset != null &&
-                        _resolvedAsset!.serialCode == serial)
-                    ? _resolvedAsset
-                    : (serial.isNotEmpty
-                        ? await AssetService.getAssetBySerialCode(serial)
-                        : null);
-                if (serial.isNotEmpty && asset == null) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Kon nie bate met kode vind nie — kontroleer die kode"),
-                        backgroundColor: AppColors.errorRed),
-                    );
-                  }
-                  return;
-                }
-                if (asset != null) {
-                  finalAssetIdInt = int.tryParse(asset.id);
-                  finalAssetSerialCode = asset.serialCode;
-                }
+      // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
+      final faultId = int.tryParse(created.id);
+      int failedUploads = 0;
+      if (faultId != null) {
+        // Kaart-skermgreep word as 'n ekstra kaartjiefoto gelaai.
+        if (_mapScreenshot != null) {
+          final screenshotId = await ImageService.uploadImageBytes(
+            _mapScreenshot!,
+            parentId: faultId,
+            parentType: 'ticket',
+            filename: 'kaart_$faultId.png',
+          );
+          if (screenshotId == null) failedUploads++;
+        }
+        for (final photo in _photoFiles) {
+          final imageId = await ImageService.uploadImage(
+            photo,
+            parentId: faultId,
+            parentType: 'ticket',
+          );
+          if (imageId == null) failedUploads++;
+        }
+      }
 
-                final String finalAssetId = finalAssetIdInt?.toString() ?? "0";
-
-                final String roomId = selectedLocation != null
-                    ? selectedLocation!.split(":").first
-                    : "";
-
-                int? resolvedLocationId;
-                int? resolvedBuildingId;
-                if (selectedCampus != null) {
-                  final campus = CampusService.getCampusByName(selectedCampus!);
-                  if (campus != null) {
-                    resolvedLocationId = campus.id;
-                    if (selectedBuilding != null) {
-                      final building = campus.buildings
-                          .where((b) => b.name == selectedBuilding)
-                          .firstOrNull;
-                      resolvedBuildingId = building?.id;
-                    }
-                  }
-                }
-
-                final newReport = Report(
-                  id: "0",
-                  assetId: finalAssetId,
-                  assetSerialCode: finalAssetSerialCode,
-                  location: roomId,
-                  title: titleController.text.trim(),
-                  description: descController.text.trim(),
-                  category: selectedCategory ?? "Onderhoud",
-                  priority: UserSession.can('faults.view')
-                      ? (selectedPriority ?? "Medium")
-                      : "Laag",
-                  phase: "Ontvang",
-                  user: UserSession.userId.toString(),
-                  timestamp: DateTime.now(),
-                  locationId: resolvedLocationId,
-                  buildingId: resolvedBuildingId,
-                  latitude: _mapLocation?.latitude,
-                  longitude: _mapLocation?.longitude,
-                  isOutdoor: _isOutdoor ?? false,
-                  rawStatus: null,
-                );
-
-                try {
-                  // 1. Skep die kaartjie eers sodat ons sy id het om
-                  //    fotos aan te koppel (parent_type 'ticket').
-                  final created = await ReportService.addReport(newReport);
-                  if (!mounted) return;
-                  if (created == null) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Fout met stoor. Probeer weer."),
-                            backgroundColor: AppColors.errorRed),
-                      );
-                    }
-                    return;
-                  }
-
-                  // 2. Laai elke foto op, gekoppel aan die nuwe kaartjie.
-                  final faultId = int.tryParse(created.id);
-                  int failedUploads = 0;
-                  if (faultId != null) {
-                    // Kaart-skermgreep word as 'n ekstra kaartjiefoto gelaai.
-                    if (_mapScreenshot != null) {
-                      final screenshotId = await ImageService.uploadImageBytes(
-                        _mapScreenshot!,
-                        parentId: faultId,
-                        parentType: 'ticket',
-                        filename: 'kaart_$faultId.png',
-                      );
-                      if (screenshotId == null) failedUploads++;
-                    }
-                    for (final photo in _photoFiles) {
-                      final imageId = await ImageService.uploadImage(
-                        photo,
-                        parentId: faultId,
-                        parentType: 'ticket',
-                      );
-                      if (imageId == null) failedUploads++;
-                    }
-                  }
-
-                  if (!mounted || !context.mounted) return;
-                  if (failedUploads > 0) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            "Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
-                        backgroundColor: AppColors.warningOrange,
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text("Foutkaartjie suksesvol gestuur!"),
-                          backgroundColor: AppColors.successGreen),
-                    );
-                  }
-                  Navigator.pop(context, true);
-                } catch (e) {
-                  if (mounted && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text("Netwerkfout: $e"),
-                          backgroundColor: AppColors.errorRed),
-                    );
-                  }
-                }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (!mounted || !context.mounted) return;
+      if (failedUploads > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                "Kaartjie gestoor, maar $failedUploads foto('s) kon nie oplaai nie."),
+            backgroundColor: AppColors.warningOrange,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Foutkaartjie suksesvol gestuur!"),
+              backgroundColor: AppColors.successGreen),
+        );
+      }
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (mounted && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text("Netwerkfout: $e"),
+              backgroundColor: AppColors.errorRed),
+        );
+      }
     }
   }
+
   Future<void> _pickMapLocation() async {
     final result = await Navigator.push<Map<String, dynamic>>(
       context,

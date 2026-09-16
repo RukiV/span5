@@ -24,6 +24,9 @@ class ViewEditScaffold extends StatefulWidget {
     this.showSaveSpinner = true,
     this.saveLetterSpacing = 1.1,
     this.showCancel = true,
+    this.headerBottom,
+    this.bodyHeader,
+    this.saveEnabled = true,
   });
 
   final String title;
@@ -42,6 +45,18 @@ class ViewEditScaffold extends StatefulWidget {
   final Widget child;
   final Future<void> Function() onSave;
   final Widget? deleteButton;
+
+  /// Opsionele inhoud onder die appbar-titelber (bv. 'n soekveld + aksie-ry),
+  /// soos die AppBar se [AppBar.bottom].
+  final PreferredSizeWidget? headerBottom;
+
+  /// Opsionele vaste band tussen die appbar en die blaaiende vorminhoud
+  /// (bv. 'n tab-rooster wat bo die vorm vas bly).
+  final Widget? bodyHeader;
+
+  /// Wanneer onwaar word die STOOR-knoppie gedeaktiveer (bv. terwyl
+  /// bykomende data nog laai), sonder om die spinner-logika hier te verander.
+  final bool saveEnabled;
 
   @override
   State<ViewEditScaffold> createState() => _ViewEditScaffoldState();
@@ -85,6 +100,7 @@ class _ViewEditScaffoldState extends State<ViewEditScaffold> {
         ),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
+        bottom: widget.headerBottom,
         actions: [
           if (!widget.alwaysEditable && !_editing && widget.canEdit)
             IconButton(
@@ -94,88 +110,98 @@ class _ViewEditScaffoldState extends State<ViewEditScaffold> {
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Form(
-            key: widget.formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                IgnorePointer(
-                  ignoring: !_active,
-                  child: Opacity(
-                    opacity: _active ? 1 : 0.6,
-                    child: widget.child,
+      body: Column(
+        children: [
+          if (widget.bodyHeader != null) widget.bodyHeader!,
+          Expanded(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: widget.formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      IgnorePointer(
+                        ignoring: !_active,
+                        child: Opacity(
+                          opacity: _active ? 1 : 0.6,
+                          child: widget.child,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      if (_active) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed:
+                                (!widget.saveEnabled || _saving) ? null : _save,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: widget.showSaveSpinner && _saving
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2))
+                                : Text(
+                                    widget.saveLabel,
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing:
+                                            widget.saveLetterSpacing),
+                                  ),
+                          ),
+                        ),
+                        if (widget.showCancel) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("Kanselleer",
+                                  style: TextStyle(
+                                      color: Colors.grey,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ] else
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text("KLAAR",
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.1)),
+                          ),
+                        ),
+                      if (widget.deleteButton != null) ...[
+                        const SizedBox(height: 12),
+                        widget.deleteButton!,
+                      ],
+                      const SizedBox(height: 20),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 32),
-                if (_active) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _saving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: widget.showSaveSpinner && _saving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2))
-                          : Text(
-                              widget.saveLabel,
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: widget.saveLetterSpacing),
-                            ),
-                    ),
-                  ),
-                  if (widget.showCancel) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Kanselleer",
-                            style: TextStyle(
-                                color: Colors.grey,
-                                fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ] else
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text("KLAAR",
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, letterSpacing: 1.1)),
-                    ),
-                  ),
-                if (widget.deleteButton != null) ...[
-                  const SizedBox(height: 12),
-                  widget.deleteButton!,
-                ],
-                const SizedBox(height: 20),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

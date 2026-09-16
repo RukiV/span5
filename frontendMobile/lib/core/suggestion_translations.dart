@@ -30,4 +30,15 @@ const Map<String, Map<String, String>> _translations = {
     'MEDIUM': 'Normal',
     'LOW': 'Laag',
   },
+  'fault_type': {
+    'MAINTENANCE': 'Onderhoud',
+    'REPAIR': 'Herstel',
+    'INSPECTION': 'Inspeksie',
+    'INSTALLATION': 'Installasie',
+  },
+  'fault_priority': {
+    'LOW': 'Laag',
+    'MEDIUM': 'Medium',
+    'HIGH': 'Hoog',
+  },
 };
