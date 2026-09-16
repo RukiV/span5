@@ -19,7 +19,9 @@ if not DATABASE_URL:
         f"{os.getenv('DB_NAME', 'facility_db')}"
     )
 
-engine = create_engine(DATABASE_URL, echo=True)
+# echo is af by verstek — SQLAlchemy-eier vir elke query verdrink die logs en
+# vertraag die API. Sit SQL_ECHO=1 in die omgewing as jy query's wil sien.
+engine = create_engine(DATABASE_URL, echo=os.getenv("SQL_ECHO", "").lower() in ("1", "true", "yes"))
 
 
 def createDBandTables():
