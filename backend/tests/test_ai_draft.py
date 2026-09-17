@@ -371,3 +371,29 @@ def test_long_llm_output_is_clamped_not_500(client, engine, headers_for, monkeyp
     data = resp.json()
     assert len(data["cleaned_description"]) <= 2000
     assert len(data["work_instruction"]) <= 2000
+# ---------------------------------------------------------------------------
+# AI status endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_ai_status_anonymous_401(client):
+    assert client.get(f"{API}/status").status_code == 401
+
+
+def test_ai_status_fk_returns_enabled(client, engine, headers_for, monkeypatch):
+    monkeypatch.setenv("AI_ENABLED", "true")
+    resp = client.get(f"{API}/status", headers=headers_for("fk"))
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ai_enabled": True}
+
+
+def test_ai_status_fk_returns_disabled(client, engine, headers_for, monkeypatch):
+    monkeypatch.setenv("AI_ENABLED", "false")
+    resp = client.get(f"{API}/status", headers=headers_for("fk"))
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ai_enabled": False}
+
+
+def test_ai_status_contractor_no_access(client, engine, headers_for):
+    resp = client.get(f"{API}/status", headers=headers_for("contractor"))
+    assert resp.status_code == 403

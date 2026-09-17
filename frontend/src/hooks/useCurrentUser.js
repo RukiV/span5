@@ -10,7 +10,7 @@
  *  const { user, rights, hasRight, isAdmin, loading, error } = useCurrentUser();
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { apiClient } from '../services/api';
 
 export const useCurrentUser = () => {
@@ -41,7 +41,9 @@ export const useCurrentUser = () => {
 
   // Regte-lys vanaf /auth/me (enkele bron van waarheid vir toegang)
   const rights = user?.rights || [];
-  const hasRight = (right) => rights.includes(right);
+  // useCallback: stabiele identiteit sodat useEffect-deps (bv. in DashboardPage
+  // se kalender-effek) nie op elke render verander en 'n oneindige herlaai-lus skep nie.
+  const hasRight = useCallback((right) => rights.includes(right), [rights]);
 
   // Behou vir agteruit-verenigbaarheid; verkies hasRight('users.manage')
   const isAdmin = user?.role_id === 3;

@@ -10,8 +10,12 @@
     <application
         android:label="FBS"
         android:name="${applicationName}"
+<<<<<<< HEAD
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false">
+=======
+        android:icon="@mipmap/ic_launcher">
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -63,4 +67,8 @@
             <data android:mimeType="text/plain"/>
         </intent>
     </queries>
+<<<<<<< HEAD
 </manifest>
+=======
+</manifest>
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba

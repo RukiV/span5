@@ -27,10 +27,13 @@ import '../../services/wrong_room_service.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/searchable_dropdown.dart' show SearchableDropdownItem;
+<<<<<<< HEAD
 import '../../widgets/ai_suggestions_panel.dart';
 import '../../widgets/mobile_ghost_overlay.dart';
 import '../../core/suggestion_translations.dart';
 import '../../services/ai_service.dart';
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 import '../../widgets/app_snack_bar.dart';
 
 /// 'n Tydelike kwotasie-draft in die vorm — word eers aan die backend gestoor
@@ -556,9 +559,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   late String _nature;
   late String _scheduleType;
 
+<<<<<<< HEAD
   /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
   Map<String, AiSuggestion> _ghosts = {};
 
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
@@ -928,6 +934,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
 
   // ===== Tabel 1: Besonderhede =====
 
+<<<<<<< HEAD
   Map<String, String> _currentJobFields() => {
         'job_desc': _briefController.text,
         'job_type': _workType,
@@ -979,6 +986,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
     return SuggestionAcceptCheck(onTap: () => _applyJobGhost(key, s));
   }
 
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
   Widget _buildBesonderhedeTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -990,15 +999,20 @@ class _JobcardFormPageState extends State<JobcardFormPage>
               Expanded(child: _buildDropdown("Status", _status, _statuses, _onStatusSelected,
                   required: true, error: !_statuses.contains(_status))),
               const SizedBox(width: 12),
+<<<<<<< HEAD
               Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities,
                   (v) => setState(() => _priority = v!),
                   trailing: _ghostTrailing('job_priority', currentValue: _priority, items: _priorities))),
+=======
+              Expanded(child: _buildDropdown("Prioriteit", _priority, _priorities, (v) => setState(() => _priority = v!))),
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
             ],
           ),
           const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
+<<<<<<< HEAD
                 child: () {
                   final werkGhost = _translatedDropdownGhost('job_type');
                   return _buildDropdown(
@@ -1046,6 +1060,19 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             onSuggestionsChanged: (s) => setState(() => _ghosts = s),
             onUse: (key, s) => _applyJobGhost(key, s),
           ),
+=======
+                child: _buildDropdown(
+                  "Werksoort", _workType, _workTypes, (v) => setState(() => _workType = v!),
+                  required: true, error: _workType.isEmpty,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: _buildDropdown("Aard", _nature, _natures, (v) => setState(() => _nature = v!))),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildTextField("Hoofbeskrywing", _briefController),
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
           const SizedBox(height: 20),
           LocationCascadePicker(
             label: "Ligging",
@@ -2075,8 +2102,12 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2));
   }
 
+<<<<<<< HEAD
   Widget _buildTextField(String label, TextEditingController controller,
       {int maxLines = 1, String? ghost, bool ghostActive = false, VoidCallback? onGhostAccept}) {
+=======
+  Widget _buildTextField(String label, TextEditingController controller, {int maxLines = 1}) {
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2085,6 +2116,7 @@ class _JobcardFormPageState extends State<JobcardFormPage>
         TextFormField(
           controller: controller,
           maxLines: maxLines,
+<<<<<<< HEAD
           onChanged: (_) => setState(() {}),
           decoration: withSuggestionGhost(
             InputDecoration(
@@ -2096,6 +2128,13 @@ class _JobcardFormPageState extends State<JobcardFormPage>
             ghost: ghost,
             active: ghostActive,
             onAccept: onGhostAccept ?? () {},
+=======
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
           ),
         ),
       ],
@@ -2138,16 +2177,26 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   }
 
   Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged,
+<<<<<<< HEAD
       {bool required = false, bool error = false, String? hintOverride, Widget? trailing}) {
     return InlineSearchableDropdown<String>(
       label: label,
       hint: hintOverride ?? "Kies $label",
+=======
+      {bool required = false, bool error = false}) {
+    return InlineSearchableDropdown<String>(
+      label: label,
+      hint: "Kies $label",
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
       value: value,
       items: items.map((e) => SearchableDropdownItem(value: e, label: e)).toList(),
       onChanged: onChanged,
       required: required,
       error: error,
+<<<<<<< HEAD
       trailing: trailing,
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
     );
   }
 

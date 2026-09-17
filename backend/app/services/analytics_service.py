@@ -1,8 +1,57 @@
 import json
+import logging as _lg
+from collections import Counter
 from sqlmodel import Session, select, func
 from datetime import datetime, timezone
 
 from ..models.analytics import AnalyticsResponse, Metric, ChartData, ChartDataset, Suggestion
+
+
+def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
+    """Optional AI prose layer: short Afrikaans ops summary from computed aggregates.
+
+    Numbers in, prose out — the prompt only carries the already-computed
+    metrics/insights, so the hallucination surface is near-zero. When the LLM
+    is unavailable (AI_ENABLED=false / Ollama down / garbage output) returns
+    None so the caller keeps the rule-based summary.
+    """
+    try:
+        from ..services.llm_service import llm_service, LlmUnavailable  # local import (lazy)
+
+        if not llm_service._enabled():
+            return None
+
+        metrics_block = "\n".join(
+            f"- {m.label}: {m.value}" for m in (response.metrics or [])
+        )
+        insights_block = "\n".join(response.insights or [])
+        prompt = (
+            f"Page: {page}\n"
+            f"Metrics:\n{metrics_block or '(none)'}\n"
+            f"Rule insights:\n{insights_block or '(none)'}\n"
+            "Skryf 'n bondige maar insiggewende Afrikaans-bedryfsopsomming van "
+            "2-3 sinne as JSON {\"digest\": \"<string>\"} — noem die belangrikste "
+            "syfers en status-afbrekings; gebruik slegs die gegewe getalle, moenie "
+            "getalle versin nie."
+        )
+        raw = llm_service._generate(
+            "Jy is 'n fasiliteitsbestuur-assistent. Gee slegs 'n kort Afrikaans opsaamfasering van die cijfers.",
+            prompt,
+            {"type": "object", "properties": {"digest": {"type": "string"}}, "required": ["digest"]},
+            {"temperature": 0.3, "num_predict": 220},
+        )
+        text = (raw.get("response") or "").strip()
+        parsed = llm_service._parse_json(text)
+        if isinstance(parsed, dict) and isinstance(parsed.get("digest"), str) and parsed["digest"].strip():
+            return parsed["digest"].strip()[:400]
+    except LlmUnavailable:
+        _lg.debug("Ops digest skipped (LLM unavailable): %s", page)
+    except Exception as e:
+        _lg.debug("Ops digest failed: %s", e)
+    return None
+
+
+
 
 
 # ─── Fallback (rule-based, no AI) ─────────────────────────────
@@ -84,36 +133,42 @@ def _fallback_suggestions(page: str, context: dict) -> list[Suggestion]:
 def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsResponse:
     if page == "dashboard":
         total = context.get("assets", 0)
-        open_faults = context.get("open_faults", 0)
-        work_orders = context.get("work_orders", 0)
+        active_faults = context.get("active_faults", 0)
+        active_jobs = context.get("active_jobs", 0)
         stock_items = context.get("stock_items", 0)
         rooms = context.get("rooms", 0)
         buildings = context.get("buildings", 0)
+        faults_by_status = context.get("faults_by_status", {})
+        jobs_by_status = context.get("jobs_by_status", {})
 
         suggestions = _fallback_suggestions(page, context)
         all_insights = [
-            f"Daar is {total} bates, {open_faults} oop foutkaartjies, en {work_orders} werksopdragte.",
+            f"Daar is {total} bates, {active_faults} onopgeloste foutkaartjies, en {active_jobs} aktiewe werksopdragte.",
         ]
-        if open_faults > 0:
-            all_insights.append(f"{open_faults} foutkaartjies wag nog vir aandag.")
+        if active_faults > 0 and faults_by_status:
+            fault_breakdown = ", ".join(f"{c} {s}" for s, c in faults_by_status.items() if s != "Gesluit")
+            all_insights.append(f"Onopgeloste foute per status: {fault_breakdown}.")
+        if active_jobs > 0 and jobs_by_status:
+            job_breakdown = ", ".join(f"{c} {s}" for s, c in jobs_by_status.items() if s not in ("Voltooid", "Gekanselleer"))
+            all_insights.append(f"Aktiewe werksopdragte per status: {job_breakdown}.")
         if stock_items > 0:
             all_insights.append(f"{stock_items} voorraaditems word tans bestuur.")
         all_insights.append(f"Die fasiliteit het {rooms} lokale oor {buildings} geboue.")
 
         return AnalyticsResponse(
-            summary=f"Oorsig van {total} bates, {open_faults} oop foute, {work_orders} werksopdragte.",
+            summary=f"Oorsig van {total} bates, {active_faults} onopgeloste foute, {active_jobs} aktiewe werksopdragte.",
             metrics=[
                 Metric(label="Totale Bates", value=str(total)),
-                Metric(label="Oop Foute", value=str(open_faults)),
-                Metric(label="Werksopdragte", value=str(work_orders)),
+                Metric(label="Onopgeloste Foute", value=str(active_faults)),
+                Metric(label="Aktiewe Werksopdragte", value=str(active_jobs)),
                 Metric(label="Voorraaditems", value=str(stock_items)),
             ],
             insights=all_insights,
             suggestions=suggestions,
             chart=ChartData(
                 type="bar",
-                labels=["Bates", "Oop Foute", "Werksopdragte", "Voorraad"],
-                datasets=[ChartDataset(label="Aantal", data=[total, open_faults, work_orders, stock_items], backgroundColor=["#935e28", "#b8863c", "#d4a357", "#e8c49a"])],
+                labels=["Bates", "Onopgeloste Foute", "Aktiewe Werksopdragte", "Voorraad"],
+                datasets=[ChartDataset(label="Aantal", data=[total, active_faults, active_jobs, stock_items], backgroundColor=["#935e28", "#b8863c", "#d4a357", "#e8c49a"])],
             ),
         )
 
@@ -407,7 +462,11 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
 
 def generate_insights(page: str, session, date_from: datetime = None, date_to: datetime = None) -> AnalyticsResponse:
     context = _gather_context(page, session, date_from, date_to)
-    return _fallback_insights(page, context, session)
+    response = _fallback_insights(page, context, session)
+    digest = _llm_ops_digest(response, page)
+    if digest is not None:
+        response.digest = digest
+    return response
 
 
 # ─── Suggestion execution ────────────────────────────────────
@@ -582,8 +641,13 @@ def _gather_context(page: str, session,
         all_assets = session.exec(select(Asset)).all()
         ctx["assets"] = len(all_assets)
         faults = session.exec(select(Faultcard)).all()
-        ctx["open_faults"] = sum(1 for f in faults if _enum_val(f.fault_status) in ("Oop", "oop"))
-        ctx["work_orders"] = len(session.exec(select(Jobcard)).all())
+        # "Onopgelos" = enigiets behalwe Gesluit; geslote foute is afgehandel.
+        ctx["active_faults"] = sum(1 for f in faults if _enum_val(f.fault_status) != "Gesluit")
+        ctx["faults_by_status"] = dict(sorted(Counter(_enum_val(f.fault_status) for f in faults).items(), key=lambda kv: (-kv[1], kv[0])))
+        jobs = session.exec(select(Jobcard)).all()
+        # "Aktief" = enigiets behalwe Voltooid/Gekanselleer.
+        ctx["active_jobs"] = sum(1 for j in jobs if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer"))
+        ctx["jobs_by_status"] = dict(sorted(Counter(_enum_val(j.job_status) for j in jobs).items(), key=lambda kv: (-kv[1], kv[0])))
         ctx["stock_items"] = len(session.exec(select(Stock)).all())
         ctx["rooms"] = len(session.exec(select(Room)).all())
         ctx["buildings"] = len(session.exec(select(Building)).all())

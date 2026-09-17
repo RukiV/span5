@@ -17,6 +17,7 @@ from app.models.jobdraft import JobDraft
 from app.models.user import User
 from app.services import survival_service
 from app.services.analytics_service import generate_insights
+from app.services.llm_service import llm_service, LlmUnavailable
 
 
 def _seed_assets(engine, total: int = 2) -> None:
@@ -151,3 +152,101 @@ def test_ai_charts_scope_key():
     assert _scope_key(fk) == "fk:7"
     assert _scope_key(type("U", (), {"role_id": 1, "location_id": 7})()) == "all"
     assert _scope_key(None) == "all"
+
+
+# ---------------------------------------------------------------------------
+# weekly ops digest (AI_PLAN #2) — prose layer inside generate_insights
+# ---------------------------------------------------------------------------
+
+
+def test_weekly_ops_digest_llm_active(engine, seeded, monkeypatch):
+    """When the LLM is available, digest is in its own field; summary stays rule-based."""
+    monkeypatch.setattr(llm_service, "_enabled", lambda: True)
+    monkeypatch.setattr(
+        llm_service,
+        "_generate",
+        lambda system, prompt, schema, options=None: {
+            "response": '{"digest": "Langtermyn-opsomming: alles loop glad nie."}'
+        },
+    )
+
+    with Session(engine) as session:
+        resp = generate_insights("dashboard", session)
+
+    assert isinstance(resp, AnalyticsResponse)
+    assert resp.digest == "Langtermyn-opsomming: alles loop glad nie."
+    # summary stays rule-based (not replaced by digest); seeded: 1 WAIT-fout + 1 WAIT-werksopdrag
+    assert resp.summary == "Oorsig van 0 bates, 1 onopgeloste foute, 1 aktiewe werksopdragte."
+    # metrics/insights unchanged from rule-based computation
+    assert [m.label for m in resp.metrics] == ["Totale Bates", "Onopgeloste Foute", "Aktiewe Werksopdragte", "Voorraaditems"]
+    assert len(resp.insights) >= 1
+
+
+def test_weekly_ops_digest_fallback_when_llm_down(engine, seeded, monkeypatch):
+    """When the LLM is unavailable, digest is None and summary stays rule-based."""
+    monkeypatch.setattr(
+        llm_service,
+        "_generate",
+        lambda system, prompt, schema, options=None: (_ for _ in ()).throw(
+            LlmUnavailable("ollama down")
+        ),
+    )
+
+    with Session(engine) as session:
+        resp = generate_insights("dashboard", session)
+
+    assert isinstance(resp, AnalyticsResponse)
+    assert resp.digest is None
+    assert resp.summary  # non-empty rule summary
+    assert any(m.label == "Totale Bates" for m in resp.metrics)
+    assert "Oorsig van" in resp.summary or "bates" in resp.summary
+
+
+def test_weekly_ops_digest_disabled_when_ai_off(engine, seeded, monkeypatch):
+    """AI_ENABLED=false → digest is None, rule summary used."""
+    monkeypatch.setattr(llm_service, "_enabled", lambda: False)
+
+    with Session(engine) as session:
+        resp = generate_insights("dashboard", session)
+
+    assert isinstance(resp, AnalyticsResponse)
+    assert resp.digest is None
+    assert resp.summary  # non-empty rule summary
+    assert "Oorsig van" in resp.summary or "bates" in resp.summary
+
+
+def test_weekly_ops_digest_excludes_closed_and_completed(engine, seeded, monkeypatch):
+    """"Onopgelos/Aktief" = alles behalwe Gesluit-foute en Voltooid/Gekanselleer-werksopdragte."""
+    monkeypatch.setattr(llm_service, "_enabled", lambda: False)
+
+    from app.models.enums import FaultStatus, JobStatus
+    from app.models.fault import Faultcard
+    from app.models.job import Jobcard
+
+    with Session(engine) as session:
+        # Nie-getel: Gesluit + Voltooid + Gekanselleer.
+        session.add(Faultcard(
+            fault_description="geslote fout",
+            fault_status=FaultStatus.CLOSED,
+            user_id=seeded["ids"]["student"],
+        ))
+        session.add(Jobcard(
+            job_desc="voltooide werksopdrag",
+            job_status=JobStatus.COMPLETED,
+            contractor_id=seeded["ids"]["contractor"],
+        ))
+        session.add(Jobcard(
+            job_desc="gekanselleerde werksopdrag",
+            job_status=JobStatus.CANCELLED,
+            contractor_id=seeded["ids"]["contractor"],
+        ))
+        session.commit()
+        # Seeded bly 1 WAIT-fout + 1 WAIT-werksopdrag getel; bogenoemde is uitgesluit.
+        resp = generate_insights("dashboard", session)
+
+    assert resp.summary == "Oorsig van 0 bates, 1 onopgeloste foute, 1 aktiewe werksopdragte."
+    # Status-afbreking in insigte sluit Gesluit/Voltooid/Gekanselleer uit.
+    fault_insight = next(i for i in resp.insights if i.startswith("Onopgeloste foute per status"))
+    assert "Gesluit" not in fault_insight
+    job_insight = next(i for i in resp.insights if i.startswith("Aktiewe werksopdragte per status"))
+    assert "Voltooid" not in job_insight and "Gekanselleer" not in job_insight

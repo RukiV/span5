@@ -118,6 +118,7 @@ const DashboardPage = () => {
   const [allFaults, setAllFaults] = useState([]);
   const [activityItems, setActivityItems] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [opsDigest, setOpsDigest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [executing, setExecuting] = useState({});
@@ -130,6 +131,9 @@ const DashboardPage = () => {
   // ── Kalender toestand ──
   const { instance } = useMsal();
   const canManage = hasRight('calendar.manage');
+  // Stabiele boolean (nie die `hasRight`-funksie nie) vir useEffect-deps — die
+  // funksie-identiteit verander elke render en veroorsaak 'n herlaai-lus.
+  const canViewCalendar = hasRight('calendar.view');
   const [events, setEvents] = useState([]);
   const [calendarError, setCalendarError] = useState(null);
   const [hasMsToken, setHasMsToken] = useState(false);
@@ -197,6 +201,9 @@ const DashboardPage = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      // Let op: die AI-bedryfsopsomming (digest) word BEWUSTELIK buite die
+      // Promise.all gehou — 'n koue Gemma kan 5-30s vat, en die kernpaneelbord
+      // moet nie daarvoor wag nie. Die digest verskyn sodra dit gereed is.
       const [summaryRes, workOrdersResponse, auditResponse, faultsResponse] = await Promise.all([
         Promise.resolve(apiClient.get('/analytics/dashboard-summary')).catch((e) => {
           console.warn('dashboard-summary failed, using fallback', e?.response?.status);
@@ -206,6 +213,13 @@ const DashboardPage = () => {
         Promise.resolve(auditsAPI.getAll()).catch(() => ({ data: [] })),
         Promise.resolve(ticketsAPI.getAll()).catch(() => ({ data: [] })),
       ]);
+
+      analyticsAPI.getInsights('dashboard')
+        .then((r) => {
+          const digest = r.data?.digest ?? null;
+          if (digest) setOpsDigest(digest);
+        })
+        .catch(() => {});
 
       if (summaryRes?.data) {
         setSummary(summaryRes.data);
@@ -466,7 +480,7 @@ const DashboardPage = () => {
   };
 
   useEffect(() => {
-    if (!hasRight('calendar.view')) return;
+    if (!canViewCalendar) return;
     let mounted = true;
     (async () => {
       try {
@@ -493,7 +507,7 @@ const DashboardPage = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [selectedDate, viewMode, hasRight]);
+  }, [selectedDate, viewMode, canViewCalendar]);
 
   const getCalendarViewRange = () => {
     const start = new Date(selectedDate);
@@ -877,6 +891,13 @@ const DashboardPage = () => {
             </div>
           </Link>
         </div>
+
+        {opsDigest && (
+          <div className="ops-digest" style={{ marginBottom: '20px', padding: '12px 16px', background: '#f5f0e6', borderRadius: '6px', borderLeft: '4px solid #935e28' }}>
+            <h4 style={{ margin: '0 0 4px', color: '#935e28' }}>📋 Bedryfsopsomming</h4>
+            <p style={{ margin: 0 }}>{opsDigest}</p>
+          </div>
+        )}
 
         {/* ── RY 3: Kalender (geskuif vanaf Kalender-blad) ── */}
         {hasRight('calendar.view') && (

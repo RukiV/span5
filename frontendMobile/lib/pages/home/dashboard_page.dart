@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/asset_service.dart';
+import '../../models/asset.dart';
 import '../../services/jobcard_service.dart';
 import '../../models/user_session.dart';
 import 'calendar_page.dart';
@@ -79,9 +80,9 @@ class _DashboardPageState extends State<DashboardPage> {
             _buildSectionHeader("Opsomming"),
             const SizedBox(height: 12),
 
-            // Vier kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae,
-            // Totale Bates). Terwyl die eerste laai nog besig is, wys 'n klein
-            // spinner in plaas van 'n misleidende "0".
+            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae).
+            // Terwyl die eerste laai nog besig is, wys 'n klein spinner in plaas
+            // van 'n misleidende "0".
             AnimatedBuilder(
               animation: Listenable.merge([
                 ReportService.reportsNotifier,
@@ -91,12 +92,11 @@ class _DashboardPageState extends State<DashboardPage> {
                 final reports = ReportService.reportsNotifier.value;
                 final reportsBusy =
                     reports.isEmpty && ReportService.isLoadingNotifier.value;
-                final nuwe =
-                    reports.where((r) => r.phase == "Ontvang").length;
+                final nuwe = reports.where((r) => r.phase == "Ontvang").length;
 
                 return LayoutBuilder(
                   builder: (context, constraints) {
-                    double cardWidth = (constraints.maxWidth - 24) / 4;
+                    double cardWidth = (constraints.maxWidth - 20) / 3;
                     return Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -139,29 +139,30 @@ class _DashboardPageState extends State<DashboardPage> {
                           "Verslae",
                           cardWidth,
                         ),
-                        AnimatedBuilder(
-                          animation: Listenable.merge([
-                            AssetService.assetsNotifier,
-                            AssetService.isLoadingNotifier,
-                          ]),
-                          builder: (context, _) {
-                            final assets = AssetService.assetsNotifier.value;
-                            final busy = assets.isEmpty &&
-                                AssetService.isLoadingNotifier.value;
-                            return _buildMiniStatCard(
-                              context,
-                              "Totale Bates",
-                              busy ? null : assets.length.toString(),
-                              "",
-                              AppColors.navy,
-                              "Bates",
-                              cardWidth,
-                            );
-                          },
-                        ),
                       ],
                     );
                   },
+                );
+              },
+            ),
+
+            const SizedBox(height: 30),
+
+            // Seksie: Bates
+            _buildSectionHeader("Bates"),
+            const SizedBox(height: 12),
+
+            ValueListenableBuilder<List<Asset>>(
+              valueListenable: AssetService.assetsNotifier,
+              builder: (context, assets, _) {
+                // Totale Bates Kaart
+                return _buildWideStatCard(
+                  context,
+                  "Totale Bates",
+                  assets.length.toString(),
+                  "",
+                  AppColors.navy,
+                  "Bates",
                 );
               },
             ),
@@ -249,5 +250,60 @@ Widget _buildMiniStatCard(BuildContext context, String title, String? value,
       ),
     ),
   );
-}
+  Widget _buildWideStatCard(BuildContext context, String title, String value,
+      String trend, Color color, String targetTitle) {
+    return InkWell(
+      onTap: () => widget.onTabRequested?.call(targetTitle),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey)),
+                const SizedBox(height: 4),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy)),
+              ],
+            ),
+            if (trend.isEmpty)
+              const SizedBox.shrink()
+            else
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                    color: AppColors.successGreen.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Text(trend,
+                    style: const TextStyle(
+                        color: AppColors.successGreen,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              )
+          ],
+        ),
+      ),
+    );
+  }
 }

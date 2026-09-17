@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../reporting/reporting_page.dart';
-import '../asset/asset_page.dart';
-import '../stock/stock_page.dart';
-import '../campus/campus_management_page.dart';
-import '../rooms/manage_rooms_page.dart';
-import '../building/buildings_list_page.dart';
-import '../jobcards/job_cards_page.dart';
+import '../reporting/reports_page.dart';
+import '../asset/assets_page.dart';
+import '../stock/stocks_page.dart';
+import '../campus/campuses_page.dart';
+import '../rooms/rooms_page.dart';
+import '../building/buildings_page.dart';
+import '../jobcards/jobcards_page.dart';
 import 'dashboard_page.dart';
 import 'voorspellings_page.dart';
 import 'works_assignments_page.dart';
@@ -155,14 +155,14 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Voorraad',
         'icon': Icons.construction_outlined,
-        'page': const StockPage(),
+'page': const StocksPage()
       });
     }
     if (can('rooms.view')) {
       facilitiesChildren.add({
         'title': 'Lokale',
         'icon': Icons.room_outlined,
-        'page': ManageRoomsPage(
+'page': RoomsPage(
           initialBuilding: _pendingBuilding,
           onRoomSelected: (room) {
             setState(() {
@@ -184,7 +184,7 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Geboue',
         'icon': Icons.business_outlined,
-        'page': BuildingsListPage(
+'page': BuildingsPage(
           initialCampus: _pendingCampus,
           onBuildingSelected: (building) {
             setState(() {
@@ -206,7 +206,7 @@ class _HomePageState extends State<HomePage> {
       facilitiesChildren.add({
         'title': 'Terreine',
         'icon': Icons.map_outlined,
-        'page': CampusManagementPage(onCampusSelected: (campus) {
+'page': CampusesPage(onCampusSelected: (campus) {
           setState(() {
             _navStack.add(_currentFrame());
             _selectedTitle = 'Geboue';
@@ -236,13 +236,13 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Foutkaartjies',
         'icon': Icons.report_gmailerrorred_outlined,
-        'page': const ReportingPage(),
+'page': const ReportsPage()
       });
     }
 
-    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportingPage).
+    // Voorgestelde Werksopdragte is nou 'n tab binne Foutkaartjies (sien ReportsPage).
     // Werksopdragte — Admin/FK sien alle take (WorksAssignmentsPage); kontrakteurs
-    // sien net hul eie toegewysde take (JobCardsPage). 'n Gebruiker het net een
+    // sien net hul eie toegewysde take (JobcardsPage). 'n Gebruiker het net een
     // van hierdie regte, so net die toepaslike inskrywing verskyn.
     if (can('jobs.manage') || can('jobs.view')) {
       menu.add({
@@ -254,7 +254,7 @@ class _HomePageState extends State<HomePage> {
       menu.add({
         'title': 'Werksopdragte',
         'icon': Icons.engineering_outlined,
-        'page': const JobCardsPage(),
+'page': const JobcardsPage()
       });
     }
 

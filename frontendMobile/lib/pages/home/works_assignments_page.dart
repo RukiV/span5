@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../widgets/fixed_page_header.dart';
-import '../../widgets/filter_button.dart';
-import '../../widgets/filter_utils.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
 import '../../core/app_colors.dart';
@@ -10,9 +8,6 @@ import '../../models/user_session.dart';
 import '../../services/jobcard_service.dart';
 import '../../services/campus_service.dart';
 import '../../models/jobcard.dart';
-import '../../widgets/sort_utils.dart';
-import '../../widgets/sort_button.dart';
-import '../../widgets/column_visibility.dart';
 import '../../widgets/selection_manager.dart';
 import '../jobcards/jobcard_detail_page.dart';
 import '../jobcards/jobcard_form_page.dart';
@@ -31,6 +26,7 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+<<<<<<< HEAD
   String _columnFilter = 'all';
   final MultiSortController _sortCtrl =
       MultiSortController('works-assignments', ['description', 'type', 'status']);
@@ -43,28 +39,17 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   bool _filterOpen = false;
   bool _sortOpen = false;
   final FilterController _filterCtrl = FilterController('works-assignments');
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 
   @override
   void initState() {
     super.initState();
-    _sortCtrl.initialize().then((_) {
-      if (mounted) setState(() {});
-    });
-    _filterCtrl.initialize().then((_) {
-      if (!mounted) return;
-      _selectedCampusId = _filterCtrl.campusId;
-      _selectedBuildingId = _filterCtrl.buildingId;
-      _selectedRoomId = _filterCtrl.roomId;
-      _searchController.text = _filterCtrl.search;
-      _columnFilter = _filterCtrl.columnKey;
-      setState(() {});
-    });
     CampusService.campusesNotifier.addListener(_onCampusesChanged);
     if (CampusService.campusesNotifier.value.isEmpty) {
       CampusService.fetchCampuses();
     }
     _searchController.addListener(() {
-      _filterCtrl.setSearch(_searchController.text);
       setState(() {
         _query = _searchController.text.toLowerCase();
       });
@@ -153,6 +138,7 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
+<<<<<<< HEAD
               FilterButton(
                 controller: _filterCtrl,
                 selected: _filterOpen,
@@ -284,6 +270,35 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                       ),
                     );
                   }
+=======
+            ],
+          ),
+          Expanded(
+            child: ValueListenableBuilder<List<Jobcard>>(
+              valueListenable: JobcardService.jobcardsNotifier,
+              builder: (context, jobcards, child) {
+                final filtered = jobcards.where((job) {
+                  if (_selectedCampusId != null &&
+                      job.locationId != _selectedCampusId) {
+                    return false;
+                  }
+                  if (_selectedBuildingId != null &&
+                      job.buildingId != _selectedBuildingId) {
+                    return false;
+                  }
+                  if (_selectedRoomId != null &&
+                      job.roomId != _selectedRoomId) {
+                    return false;
+                  }
+                  if (_query.isNotEmpty &&
+                      !job.description.toLowerCase().contains(_query) &&
+                      !(job.type?.toLowerCase().contains(_query) ?? false) &&
+                      !job.status.toLowerCase().contains(_query)) {
+                    return false;
+                  }
+                  return true;
+                }).toList();
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 
                   return RefreshIndicator(
                     onRefresh: () => JobcardService.fetchJobs(),
@@ -364,8 +379,93 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                       },
                     ),
                   );
+<<<<<<< HEAD
                 },
               ),
+=======
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () => JobcardService.fetchJobs(),
+                  color: AppColors.refreshSpinner,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final job = filtered[index];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        color: _selection.isSelected(job.id)
+                            ? AppColors.lavender
+                            : null,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+leading: _selection.isSelecting
+                              ? Checkbox(
+                                  value: _selection.isSelected(job.id),
+                                  onChanged: (_) => setState(
+                                      () => _selection.toggle(job.id)),
+                                )
+                              : CircleAvatar(
+                                  backgroundColor:
+                                      jobStatusColor(job.status)
+                                          .withValues(alpha: 0.2),
+                                  child: Icon(Icons.assignment,
+                                      color: jobStatusColor(job.status)),
+                                ),
+                          title: Text(
+                            job.description,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.navy),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (job.type != null)
+                                Text(job.type!,
+                                    style: const TextStyle(fontSize: 12)),
+                              const SizedBox(height: 4),
+                              _buildStatusBadge(job.status),
+                            ],
+                          ),
+                          trailing: const Icon(Icons.chevron_right,
+                              color: AppColors.gold),
+                          onTap: () async {
+                            if (_selection.isSelecting) {
+                              setState(() => _selection.toggle(job.id));
+                              return;
+                            }
+                            final changed = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    JobcardDetailPage(job: job),
+                              ),
+                            );
+                            if (changed == true) {
+                              await JobcardService.fetchJobs();
+                            }
+                          },
+                          onLongPress: () {
+                            if (!_canManage) return;
+                            setState(() {
+                              _selection.enter();
+                              _selection.toggle(job.id);
+                            });
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
             ),
           ),
         ],
@@ -373,6 +473,7 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
     );
   }
 
+<<<<<<< HEAD
   void _closePanels() {
     if (_filterOpen || _sortOpen) {
       setState(() {
@@ -382,6 +483,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
     }
   }
 
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
   Widget _buildStatusBadge(String status) {
     final color = jobStatusColor(status);
     return Container(
@@ -427,4 +530,8 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
       );
     }
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
