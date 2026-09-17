@@ -3,6 +3,7 @@ import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/status_badge.dart';
 import '../../widgets/header_action_button.dart';
 import '../../widgets/location_filter_sheet.dart';
+import '../../widgets/status_filter_sheet.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/campus_service.dart';
@@ -86,16 +87,28 @@ class _ReportsPageState extends State<ReportsPage> {
     return null;
   }
 
-  /// Inline status-filter in 'n tweede kop-ry (nuwe [InlineSearchableDropdown]
-  /// in plaas van die ou oorvleuel-filter).
+  /// Status-filter-knoppie in die tweede kop-ry — oop 'n afgly-paneel
+  /// ([showStatusFilterSheet]) in plaas van 'n tydensige inline keuser.
   Widget _buildStatusFilterRow() {
-    return InlineSearchableDropdown<String>(
-      hint: "Status",
-      value: _statusFilter,
-      items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
-          .map((s) => InlineSearchableDropdownItem(value: s, label: s))
-          .toList(),
-      onChanged: (v) => setState(() => _statusFilter = v ?? _statusFilter),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        HeaderIconAction(
+          icon: Icons.filter_alt_outlined,
+          tooltip: "Status",
+          activeBadge: _statusFilter != "Alles",
+          onTap: () => showStatusFilterSheet<String>(
+            context: context,
+            title: "Status",
+            selected: _statusFilter,
+            items: const ["Alles", "Ontvang", "Besig", "Voltooi", "Geweier"]
+                .map((s) => InlineSearchableDropdownItem(value: s, label: s))
+                .toList(),
+            onSelected: (v) =>
+                setState(() => _statusFilter = v ?? _statusFilter),
+          ),
+        ),
+      ],
     );
   }
 
