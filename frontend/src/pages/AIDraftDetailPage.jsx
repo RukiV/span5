@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../services/api";
+import { invalidateOpsDigestCache } from "../services/opsDigestCache";
 import { useToast } from '../components/Toast/useToast';
 import InfoTip, { JOB_TYPE_HELP } from "../components/InfoTip";
 import '../styles/App.css';
@@ -64,6 +65,8 @@ function AIDraftDetailPage() {
       };
       await apiClient.jobDrafts.approve(id, payload);
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep goedgekeur' });
+      window.dispatchEvent(new Event('digest-refresh'));
+      invalidateOpsDigestCache();
       navigate('/ai-drafts');
     } catch (error) {
       console.error("Error approving draft:", error);
@@ -91,6 +94,8 @@ function AIDraftDetailPage() {
     try {
       await apiClient.jobDrafts.reject(id, { reason: rejectReason.trim() });
       showToast({ type: 'success', title: 'Slaag', message: 'Konsep is afgewys' });
+      window.dispatchEvent(new Event('digest-refresh'));
+      invalidateOpsDigestCache();
       navigate('/ai-drafts');
     } catch (error) {
       console.error("Error rejecting draft:", error);

@@ -57,3 +57,58 @@ test('clicking Nuwe Foutkaartjie opens modal with form fields', async () => {
     expect(screen.getByText('Stoor')).toBeInTheDocument();
   });
 });
+
+test('filters out Gesluit tickets when ?status=open is in the URL', async () => {
+  const TicketPage = require('../pages/TicketPage').default;
+  const { apiClient } = require('../services/api');
+  apiClient.tickets.getAll.mockResolvedValue({
+    data: [
+      { fault_id: 1, fault_description: 'Oop fout lekkasie', fault_priority: 'Hoog', fault_status: 'Oop', fault_type: 'Herstel', fault_reportdatetime: '2025-01-01T08:00:00' },
+      { fault_id: 2, fault_description: 'Gesluit fout klaargehandel', fault_priority: 'Laag', fault_status: 'Gesluit', fault_type: 'Herstel', fault_reportdatetime: '2025-01-02T08:00:00' },
+    ],
+  });
+  render(<MemoryRouter initialEntries={['/fault-tickets?status=open']}><TicketPage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(screen.getByText('Oop fout lekkasie')).toBeInTheDocument();
+    expect(screen.queryByText('Gesluit fout klaargehandel')).not.toBeInTheDocument();
+    expect(screen.getByText('Gefiltreer: Oop foute')).toBeInTheDocument();
+  });
+});
+
+test('keeps only Hoog/HIGH priority tickets when ?priority=Hoog is in the URL', async () => {
+  const TicketPage = require('../pages/TicketPage').default;
+  const { apiClient } = require('../services/api');
+  apiClient.tickets.getAll.mockResolvedValue({
+    data: [
+      { fault_id: 1, fault_description: 'Hoog prio fout een', fault_priority: 'Hoog', fault_status: 'Oop', fault_type: 'Herstel', fault_reportdatetime: '2025-01-01T08:00:00' },
+      { fault_id: 2, fault_description: 'HIGH prio fout twee', fault_priority: 'HIGH', fault_status: 'Oop', fault_type: 'Herstel', fault_reportdatetime: '2025-01-02T08:00:00' },
+      { fault_id: 3, fault_description: 'Laag prio fout drie', fault_priority: 'Laag', fault_status: 'Oop', fault_type: 'Herstel', fault_reportdatetime: '2025-01-03T08:00:00' },
+    ],
+  });
+  render(<MemoryRouter initialEntries={['/fault-tickets?priority=Hoog']}><TicketPage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(screen.getByText('Hoog prio fout een')).toBeInTheDocument();
+    expect(screen.getByText('HIGH prio fout twee')).toBeInTheDocument();
+    expect(screen.queryByText('Laag prio fout drie')).not.toBeInTheDocument();
+    expect(screen.getByText('Gefiltreer: Hoë-prioriteit foute')).toBeInTheDocument();
+  });
+});
+
+test('chip clears the URL filter when × is clicked', async () => {
+  const TicketPage = require('../pages/TicketPage').default;
+  const { apiClient } = require('../services/api');
+  apiClient.tickets.getAll.mockResolvedValue({
+    data: [
+      { fault_id: 3, fault_description: 'Laag prio fout drie', fault_priority: 'Laag', fault_status: 'Oop', fault_type: 'Herstel', fault_reportdatetime: '2025-01-03T08:00:00' },
+    ],
+  });
+  render(<MemoryRouter initialEntries={['/fault-tickets?priority=Hoog']}><TicketPage /></MemoryRouter>);
+  await screen.findByText('Gefiltreer: Hoë-prioriteit foute');
+  // Laag-prioriteit fout bly weggesteek solank die filter aktief is
+  expect(screen.queryByText('Laag prio fout drie')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Verwyder filter' }));
+  await waitFor(() => {
+    expect(screen.queryByText('Gefiltreer: Hoë-prioriteit foute')).not.toBeInTheDocument();
+    expect(screen.getByText('Laag prio fout drie')).toBeInTheDocument();
+  });
+});

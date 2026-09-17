@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Select from "react-select";
 import { IoTrashOutline, IoPencil } from "react-icons/io5";
 import { renderBreadcrumb, CascadeControl, CascadeIndicatorsContainer, NoCascadeClearIndicator } from "../components/controlHelpers";
@@ -26,8 +26,10 @@ import GhostSuggestion from "../components/GhostSuggestion";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { invalidateOpsDigestCache } from "../services/opsDigestCache";
 import Modal from '../components/Modal/Modal';
 import TicketDetailView from '../components/DetailView/TicketDetailView';
+import FilterChip from '../components/FilterChip';
 import '../components/DetailView/DetailView.css';
 
 
@@ -36,6 +38,7 @@ function TicketPage() {
   const { confirm, dialog } = useConfirmDialog();
   const { user, hasRight } = useCurrentUser();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const MAX_TICKET_IMAGES = 3;
   const [showImportWizard, setShowImportWizard] = useState(false);
   
@@ -380,6 +383,8 @@ function TicketPage() {
       }
       handleCloseModal();
       fetchTickets();
+      window.dispatchEvent(new Event('digest-refresh'));
+      invalidateOpsDigestCache();
     } catch (error) {
       console.error("Error saving ticket:", error);
       const errorDetail = error.response?.data?.detail;
@@ -479,8 +484,22 @@ function TicketPage() {
     return translations[category] || category || "-";
   };
 
+  // Aktiewe URL-filters (vanaf die paneelbord se KPI-kaarte)
+  const statusFilterParam = (searchParams.get('status') || '').trim().toLowerCase();
+  const priorityFilterParam = (searchParams.get('priority') || '').trim().toLowerCase();
+  const HIGH_PRIORITY_SET = new Set(['hoog', 'high', 'dringend']);
+  const isPriorityFilterActive = HIGH_PRIORITY_SET.has(priorityFilterParam);
+  const clearUrlParam = (param) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete(param);
+    setSearchParams(next);
+  };
+
   const filteredTickets = applySort([...tickets]
     .filter((ticket) => {
+      // Pre-filter: URL-parameters (status/priority) word EERSTE toegepas
+      if (statusFilterParam === 'open' && COMPLETED_STATUSES.includes(String(ticket.fault_status || '').toLowerCase())) return false;
+      if (isPriorityFilterActive && !HIGH_PRIORITY_SET.has(String(ticket.fault_priority || '').toLowerCase())) return false;
       if (terrainFilter && String(ticket.location_id) !== String(terrainFilter)) return false;
       if (buildingFilter && String(ticket.building_id) !== String(buildingFilter)) return false;
       if (roomFilter && String(ticket.room_id) !== String(roomFilter)) return false;
@@ -521,7 +540,7 @@ function TicketPage() {
     },
   );
     const { currentPage, totalPages, paginatedData: paginatedTickets, goToPage } = usePagination(filteredTickets, 100);
-  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, showCompleted, terrainFilter, buildingFilter, roomFilter, sorts, goToPage]);
+  useEffect(() => { goToPage(1); }, [searchTerm, filterColumn, showCompleted, terrainFilter, buildingFilter, roomFilter, searchParams, sorts, goToPage]);
   const allSelected = paginatedTickets.length > 0 && paginatedTickets.every((x) => selectedIds.includes(x.fault_id));
   const toggleAll = () => {
     if (allSelected) {
@@ -654,6 +673,17 @@ function TicketPage() {
               )}
             </div>
           </div>
+
+          {(statusFilterParam === 'open' || isPriorityFilterActive) && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+              {statusFilterParam === 'open' && (
+                <FilterChip label="Gefiltreer: Oop foute" onClear={() => clearUrlParam('status')} />
+              )}
+              {isPriorityFilterActive && (
+                <FilterChip label="Gefiltreer: Hoë-prioriteit foute" onClear={() => clearUrlParam('priority')} />
+              )}
+            </div>
+          )}
 
           <table className="standard-table">
             <thead>

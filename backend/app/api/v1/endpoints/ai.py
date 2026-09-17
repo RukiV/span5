@@ -286,13 +286,21 @@ def createDraft(
 @router.get("", response_model=List[JobDraftRead])
 def listDrafts(
     status_filter: Optional[str] = "draft",
+    source_filter: Optional[str] = None,
     session: Session = Depends(getSession),
     user: User = Depends(require_right("ai.approve")),
 ):
-    """FK/Admin approval queue."""
+    """FK/Admin approval queue.
+
+    ``status_filter`` limits by review status (``draft`` | ``approved`` |
+    ``rejected``) and ``source_filter`` by trigger origin (``manual`` =
+    FK/Admin free text, ``auto`` = generated from analytical data).
+    """
     stmt = select(JobDraft).order_by(JobDraft.created_at.desc())
     if status_filter:
         stmt = stmt.where(JobDraft.status == status_filter)
+    if source_filter:
+        stmt = stmt.where(JobDraft.source == source_filter)
     drafts = session.exec(stmt).all()
     names = _name_map(session, drafts)
     out: List[JobDraftRead] = []

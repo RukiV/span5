@@ -1,5 +1,6 @@
 import json
 import logging as _lg
+import re
 from collections import Counter
 from sqlmodel import Session, select, func
 from datetime import datetime, timezone
@@ -7,10 +8,42 @@ from datetime import datetime, timezone
 from ..models.analytics import AnalyticsResponse, Metric, ChartData, ChartDataset, Suggestion
 
 
-def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
-    """Optional AI prose layer: short Afrikaans ops summary from computed aggregates.
+def _normalize_digest_bullets(raw) -> list[str] | None:
+    """Normalize the LLM ops digest into a clean bullet list.
 
-    Numbers in, prose out — the prompt only carries the already-computed
+    Accepts the parsed JSON dict (expected) or a plain string (LLM ignored the
+    schema). Lists are cleaned in place; strings are split on newlines first.
+    Strips leading bullet markers and whitespace per entry, caps the list at
+    5 bullets, truncates each bullet to 120 chars. Returns None when nothing
+    valid remains.
+    """
+    if isinstance(raw, dict):
+        value = raw.get("digest")
+    else:
+        value = raw
+    if isinstance(value, list):
+        entries = value
+    elif isinstance(value, str) and value.strip():
+        entries = value.split("\n")
+    else:
+        entries = []
+    marker_re = re.compile(r"^\s*(?:[-•*]|\d+[.)])\s+")
+    bullets = []
+    for entry in entries:
+        if not isinstance(entry, str):
+            continue
+        cleaned = marker_re.sub("", entry.strip()).strip()
+        if cleaned:
+            bullets.append(cleaned[:120])
+        if len(bullets) >= 5:
+            break
+    return bullets if bullets else None
+
+
+def _llm_ops_digest(response: AnalyticsResponse, page: str) -> list[str] | None:
+    """Optional AI bullet layer: short Afrikaans ops bullet points from computed aggregates.
+
+    Numbers in, bullets out — the prompt only carries the already-computed
     metrics/insights, so the hallucination surface is near-zero. When the LLM
     is unavailable (AI_ENABLED=false / Ollama down / garbage output) returns
     None so the caller keeps the rule-based summary.
@@ -29,21 +62,26 @@ def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
             f"Page: {page}\n"
             f"Metrics:\n{metrics_block or '(none)'}\n"
             f"Rule insights:\n{insights_block or '(none)'}\n"
-            "Skryf 'n bondige maar insiggewende Afrikaans-bedryfsopsomming van "
-            "2-3 sinne as JSON {\"digest\": \"<string>\"} — noem die belangrikste "
-            "syfers en status-afbrekings; gebruik slegs die gegewe getalle, moenie "
-            "getalle versin nie."
+            "Skryf 'n bondige Afrikaans-bedryfsopsomming van 3-5 kort-punte as JSON "
+            "{\"digest\": [\"<string>\", ...]} — die digest moet 'n array van kort "
+            "punt-bullets wees. Fokus op wat vandag aandag benodig: "
+            "oortydige werksopdragte, kritieke voorraad-items, agterstallige "
+            "onderhoud, en hoë-prioriteit foute. Noem spesifieke syfers en, waar "
+            "moontlik, voorraad-itemname."
         )
         raw = llm_service._generate(
-            "Jy is 'n fasiliteitsbestuur-assistent. Gee slegs 'n kort Afrikaans opsaamfasering van die cijfers.",
+            "Jy is 'n fasiliteitsbestuur-assistent vir 'n fasiliteitkoordineerder. "
+            "Gee 'n bondige Afrikaans-opsomming van wat vandag aandag nodig het: "
+            "oortydige werksopdragte, kritieke voorraad, agterstallige onderhoud, "
+            "en hoë-prioriteit foute. Noem spesifieke syfers. Gee die digest as 'n "
+            "array van 3-5 kort-punte.",
             prompt,
-            {"type": "object", "properties": {"digest": {"type": "string"}}, "required": ["digest"]},
-            {"temperature": 0.3, "num_predict": 220},
+            {"type": "object", "properties": {"digest": {"type": "array", "items": {"type": "string"}}}, "required": ["digest"]},
+            {"temperature": 0.3, "num_predict": 300},
         )
         text = (raw.get("response") or "").strip()
         parsed = llm_service._parse_json(text)
-        if isinstance(parsed, dict) and isinstance(parsed.get("digest"), str) and parsed["digest"].strip():
-            return parsed["digest"].strip()[:400]
+        return _normalize_digest_bullets(parsed)
     except LlmUnavailable:
         _lg.debug("Ops digest skipped (LLM unavailable): %s", page)
     except Exception as e:
@@ -130,7 +168,7 @@ def _fallback_suggestions(page: str, context: dict) -> list[Suggestion]:
     return suggestions
 
 
-def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsResponse:
+def _fallback_insights(page: str, context: dict, session=None, user=None) -> AnalyticsResponse:
     if page == "dashboard":
         total = context.get("assets", 0)
         active_faults = context.get("active_faults", 0)
@@ -140,8 +178,17 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
         buildings = context.get("buildings", 0)
         faults_by_status = context.get("faults_by_status", {})
         jobs_by_status = context.get("jobs_by_status", {})
+        open_faults = context.get("open_faults", active_faults)
+        high_priority_faults = context.get("high_priority_faults", 0)
+        high_priority_jobs = context.get("high_priority_jobs", 0)
+        auto_drafts = context.get("auto_drafts", 0)
+        is_fk_scoped = context.get("is_fk_scoped", False)
+        location_name = context.get("location_name", "")
 
         suggestions = _fallback_suggestions(page, context)
+        overdue_jobs = context.get("overdue_jobs", 0)
+        critical_stock_count = context.get("critical_stock_count", 0)
+        maintenance_overdue = context.get("maintenance_overdue", 0)
         all_insights = [
             f"Daar is {total} bates, {active_faults} onopgeloste foutkaartjies, en {active_jobs} aktiewe werksopdragte.",
         ]
@@ -154,14 +201,51 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
         if stock_items > 0:
             all_insights.append(f"{stock_items} voorraaditems word tans bestuur.")
         all_insights.append(f"Die fasiliteit het {rooms} lokale oor {buildings} geboue.")
+        if open_faults + high_priority_faults + high_priority_jobs + auto_drafts > 0:
+            all_insights.append(
+                f"{open_faults} oop foutkaartjies, {high_priority_faults} hoë-prioriteit, "
+                f"{high_priority_jobs} hoë-prioriteit werksopdragte aktief, {auto_drafts} Gemma-auto-konsepte."
+            )
+        if overdue_jobs > 0:
+            all_insights.append(f"{overdue_jobs} werksopdragte is oor hul skedule.")
+        if critical_stock_count > 0:
+            names_str = ", ".join(context.get("critical_stock_names", [])[:3])
+            all_insights.append(f"{critical_stock_count} voorraaditems is onder minimum: {names_str}.")
+        if maintenance_overdue > 0:
+            all_insights.append(f"{maintenance_overdue} bates het agterstallige onderhoud.")
+
+        if is_fk_scoped and location_name:
+            summary = (
+                f"Oorsig vir {location_name}: {total} bates, {active_faults} onopgeloste foute, "
+                f"{active_jobs} aktiewe werksopdragte."
+            )
+        else:
+            summary = f"Oorsig van {total} bates, {active_faults} onopgeloste foute, {active_jobs} aktiewe werksopdragte."
+        # Voeg bykomstige syfers by opsomming wanneer > 0.
+        extras = []
+        if overdue_jobs > 0:
+            extras.append(f"{overdue_jobs} oortydig")
+        if critical_stock_count > 0:
+            extras.append(f"{critical_stock_count} kritieke voorraad")
+        if maintenance_overdue > 0:
+            extras.append(f"{maintenance_overdue} agterstallige onderhoud")
+        if extras:
+            summary += " — " + ", ".join(extras) + "."
 
         return AnalyticsResponse(
-            summary=f"Oorsig van {total} bates, {active_faults} onopgeloste foute, {active_jobs} aktiewe werksopdragte.",
+            summary=summary,
             metrics=[
                 Metric(label="Totale Bates", value=str(total)),
                 Metric(label="Onopgeloste Foute", value=str(active_faults)),
                 Metric(label="Aktiewe Werksopdragte", value=str(active_jobs)),
                 Metric(label="Voorraaditems", value=str(stock_items)),
+                Metric(label="Oop Foutkaartjies", value=str(open_faults)),
+                Metric(label="Hoë-prioriteit Foute", value=str(high_priority_faults)),
+                Metric(label="Hoë-prioriteit Werksopdragte", value=str(high_priority_jobs)),
+                Metric(label="Gemma Auto-konsepte", value=str(auto_drafts)),
+                Metric(label="Oortydige Werksopdragte", value=str(overdue_jobs)),
+                Metric(label="Kritieke Voorraad Items", value=str(critical_stock_count)),
+                Metric(label="Onderhoud Agterstallig", value=str(maintenance_overdue)),
             ],
             insights=all_insights,
             suggestions=suggestions,
@@ -460,9 +544,9 @@ def _fallback_insights(page: str, context: dict, session=None) -> AnalyticsRespo
 # ─── Public entry point ──────────────────────────────────────
 
 
-def generate_insights(page: str, session, date_from: datetime = None, date_to: datetime = None) -> AnalyticsResponse:
-    context = _gather_context(page, session, date_from, date_to)
-    response = _fallback_insights(page, context, session)
+def generate_insights(page: str, session, date_from: datetime = None, date_to: datetime = None, user=None) -> AnalyticsResponse:
+    context = _gather_context(page, session, date_from, date_to, user=user)
+    response = _fallback_insights(page, context, session, user=user)
     digest = _llm_ops_digest(response, page)
     if digest is not None:
         response.digest = digest
@@ -518,11 +602,151 @@ def _execute_suggestion(suggestion: Suggestion, session, user_id: int) -> dict:
     return {"success": False, "message": f"Onbekende suggestion tipe: {typ}"}
 
 
+# ─── FK kampus scoping (single source of truth) ──────────────
+
+
+def _build_fk_scope(session, user) -> dict:
+    """Compute the FK campus scope for a user — one definition used by both
+    ``get_dashboard_summary`` and ``_gather_context``.
+
+    Returns a dict with ``is_fk_scoped`` (True only for an FK whose
+    ``location_id`` is set), ``allowed_building_ids``, ``allowed_room_ids``
+    (None = unscoped) and ``user_location_id``.
+    """
+    from ..models.location import Building, Room
+    from ..auth.rights_catalog import ROLE_FK
+
+    user_location_id = getattr(user, "location_id", None) if user else None
+    is_fk_scoped = bool(user and getattr(user, "role_id", None) == ROLE_FK and user_location_id)
+    allowed_building_ids = None
+    allowed_room_ids = None
+    if is_fk_scoped:
+        buildings = session.exec(select(Building).where(Building.location_id == user_location_id)).all()
+        allowed_building_ids = {b.building_id for b in buildings}
+        rooms = session.exec(select(Room)).all()
+        allowed_room_ids = {r.room_id for r in rooms if r.building_id in allowed_building_ids}
+
+    return {
+        "is_fk_scoped": is_fk_scoped,
+        "allowed_building_ids": allowed_building_ids,
+        "allowed_room_ids": allowed_room_ids,
+        "user_location_id": user_location_id,
+    }
+
+
+def _in_scope_fault(session, scope: dict, f) -> bool:
+    """True when a faultcard belongs to the (possibly FK-scoped) campus."""
+    if not scope["is_fk_scoped"]:
+        return True
+    user_location_id = scope["user_location_id"]
+    allowed_building_ids = scope["allowed_building_ids"]
+    allowed_room_ids = scope["allowed_room_ids"]
+    if getattr(f, "location_id", None) == user_location_id:
+        return True
+    if getattr(f, "building_id", None) in allowed_building_ids:
+        return True
+    if getattr(f, "room_id", None) in allowed_room_ids:
+        return True
+    if getattr(f, "asset_id", None):
+        from ..models.asset import Asset
+
+        asset = session.get(Asset, f.asset_id)
+        if asset and asset.room_id in allowed_room_ids:
+            return True
+    return False
+
+
+def _in_scope_job(session, scope: dict, j) -> bool:
+    """True when a jobcard belongs to the (possibly FK-scoped) campus."""
+    if not scope["is_fk_scoped"]:
+        return True
+    user_location_id = scope["user_location_id"]
+    allowed_building_ids = scope["allowed_building_ids"]
+    allowed_room_ids = scope["allowed_room_ids"]
+    if getattr(j, "location_id", None) == user_location_id:
+        return True
+    if getattr(j, "building_id", None) in allowed_building_ids:
+        return True
+    if getattr(j, "room_id", None) in allowed_room_ids:
+        return True
+    if getattr(j, "asset_id", None):
+        from ..models.asset import Asset
+
+        asset = session.get(Asset, j.asset_id)
+        if asset and asset.room_id in allowed_room_ids:
+            return True
+    return False
+
+
+def _in_scope_asset(session, scope: dict, a) -> bool:
+    """True when an asset belongs to the (possibly FK-scoped) campus."""
+    if not scope["is_fk_scoped"]:
+        return True
+    return a.room_id in scope["allowed_room_ids"]
+
+
+def _in_scope_stock(session, scope: dict, s) -> bool:
+    """True when a stock item belongs to the (possibly FK-scoped) campus."""
+    if not scope["is_fk_scoped"]:
+        return True
+    return s.room_id in scope["allowed_room_ids"]
+
+
+def _in_scope_draft(session, scope: dict, draft) -> bool:
+    """True when a JobDraft targets the (possibly FK-scoped) campus.
+
+    Campus resolution mirrors ``_in_scope_fault``: direct ``location_id`` /
+    ``building_id`` / ``room_id`` fields when present, else via the resolved
+    asset/room or the raw candidate id JSON lists.
+    """
+    if not scope["is_fk_scoped"]:
+        return True
+    user_location_id = scope["user_location_id"]
+    allowed_building_ids = scope["allowed_building_ids"]
+    allowed_room_ids = scope["allowed_room_ids"]
+    if getattr(draft, "location_id", None) == user_location_id:
+        return True
+    if getattr(draft, "building_id", None) in allowed_building_ids:
+        return True
+    if getattr(draft, "room_id", None) in allowed_room_ids:
+        return True
+
+    from ..models.asset import Asset
+
+    resolved_asset_id = getattr(draft, "resolved_asset_id", None)
+    if resolved_asset_id:
+        asset = session.get(Asset, resolved_asset_id)
+        if asset and asset.room_id in allowed_room_ids:
+            return True
+
+    resolved_room_id = getattr(draft, "resolved_room_id", None)
+    if resolved_room_id and resolved_room_id in allowed_room_ids:
+        return True
+
+    try:
+        asset_ids = json.loads(getattr(draft, "asset_ids", "[]") or "[]")
+        for aid in asset_ids:
+            asset = session.get(Asset, int(aid))
+            if asset and asset.room_id in allowed_room_ids:
+                return True
+    except (ValueError, TypeError):
+        pass
+
+    try:
+        room_ids = json.loads(getattr(draft, "room_ids", "[]") or "[]")
+        for rid in room_ids:
+            if int(rid) in allowed_room_ids:
+                return True
+    except (ValueError, TypeError):
+        pass
+    return False
+
+
 # ─── Context gathering ───────────────────────────────────────
 
 
 def _gather_context(page: str, session,
-                    date_from: datetime = None, date_to: datetime = None) -> dict:
+                    date_from: datetime = None, date_to: datetime = None, user=None) -> dict:
     from ..models.asset import Asset
     from ..models.stock import Stock
     from ..models.fault import Faultcard
@@ -638,21 +862,98 @@ def _gather_context(page: str, session,
         ctx["raw_terrains"] = _serialize_records(terrains)
 
     elif page == "dashboard":
+        scope = _build_fk_scope(session, user)
         all_assets = session.exec(select(Asset)).all()
+        all_assets = [a for a in all_assets if _in_scope_asset(session, scope, a)]
         ctx["assets"] = len(all_assets)
-        faults = session.exec(select(Faultcard)).all()
+        all_faults = session.exec(select(Faultcard)).all()
+        faults = [f for f in all_faults if _in_scope_fault(session, scope, f)]
         # "Onopgelos" = enigiets behalwe Gesluit; geslote foute is afgehandel.
         ctx["active_faults"] = sum(1 for f in faults if _enum_val(f.fault_status) != "Gesluit")
         ctx["faults_by_status"] = dict(sorted(Counter(_enum_val(f.fault_status) for f in faults).items(), key=lambda kv: (-kv[1], kv[0])))
-        jobs = session.exec(select(Jobcard)).all()
+        all_jobs = session.exec(select(Jobcard)).all()
+        jobs = [j for j in all_jobs if _in_scope_job(session, scope, j)]
         # "Aktief" = enigiets behalwe Voltooid/Gekanselleer.
         ctx["active_jobs"] = sum(1 for j in jobs if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer"))
         ctx["jobs_by_status"] = dict(sorted(Counter(_enum_val(j.job_status) for j in jobs).items(), key=lambda kv: (-kv[1], kv[0])))
-        ctx["stock_items"] = len(session.exec(select(Stock)).all())
-        ctx["rooms"] = len(session.exec(select(Room)).all())
-        ctx["buildings"] = len(session.exec(select(Building)).all())
+        all_stocks = session.exec(select(Stock)).all()
+        stocks = [s for s in all_stocks if _in_scope_stock(session, scope, s)]
+        ctx["stock_items"] = len(stocks)
+        all_rooms = session.exec(select(Room)).all()
+        if scope["is_fk_scoped"]:
+            all_rooms = [r for r in all_rooms if r.room_id in scope["allowed_room_ids"]]
+        ctx["rooms"] = len(all_rooms)
+        all_buildings = session.exec(select(Building)).all()
+        if scope["is_fk_scoped"]:
+            all_buildings = [b for b in all_buildings if b.building_id in scope["allowed_building_ids"]]
+        ctx["buildings"] = len(all_buildings)
         ctx["raw_assets"] = _serialize_records(all_assets, limit=10)
         ctx["raw_faults"] = _serialize_records(faults, limit=10)
+        ctx["raw_jobs"] = _serialize_records(jobs, limit=10)
+        ctx["raw_stock"] = _serialize_records(stocks, limit=10)
+        # ── Nuwe FK-scoped KPIs (dieselde definisies as get_dashboard_summary) ──
+        ctx["open_faults"] = sum(1 for f in faults if _enum_val(f.fault_status) != "Gesluit")
+        ctx["high_priority_faults"] = sum(
+            1 for f in faults
+            if _enum_val(f.fault_status) != "Gesluit"
+            and _enum_val(f.fault_priority).upper() in ("HOOG", "HIGH")
+        )
+        high_job_priorities = ("HOOG", "DRINGEND", "HIGH", "URGENT")
+        ctx["high_priority_jobs"] = sum(
+            1 for j in jobs
+            if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer")
+            and _enum_val(j.job_priority).upper() in high_job_priorities
+        )
+        from ..models.jobdraft import JobDraft
+
+        all_drafts = session.exec(select(JobDraft)).all()
+        drafts = [d for d in all_drafts if _in_scope_draft(session, scope, d)]
+        ctx["auto_drafts"] = sum(1 for d in drafts if d.source == "auto" and d.status == "draft")
+        ctx["raw_drafts"] = _serialize_records(drafts, limit=10)
+        ctx["is_fk_scoped"] = scope["is_fk_scoped"]
+        if scope["is_fk_scoped"] and scope["user_location_id"]:
+            loc = session.get(Location, scope["user_location_id"])
+            ctx["location_name"] = loc.location_name if loc else ""
+        else:
+            ctx["location_name"] = ""
+
+        # ── Ops-dashboard bykomstige konteks ──
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Oortydige werksopdragte: nie voltooid/gekanselleer nie,
+        # geskeduleerde einddatum verby.
+        ctx["overdue_jobs"] = sum(
+            1 for j in jobs
+            if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer")
+            and j.job_scheduled_end_datetime is not None
+            and j.job_scheduled_end_datetime < now
+        )
+
+        # Kritieke voorraad: voorraad onder minimum.
+        critical = [
+            s for s in stocks
+            if s.stock_amount is not None
+            and s.stock_minimum is not None
+            and s.stock_amount > 0
+            and s.stock_minimum > 0
+            and s.stock_amount < s.stock_minimum
+        ]
+        ctx["critical_stock_count"] = len(critical)
+        ctx["critical_stock_names"] = [s.stock_name for s in critical[:5]]
+
+        # Agterstallige onderhoud: voorspellings met maintenance_overdue.
+        from ..services.prediction_service import PredictionService
+
+        preds = PredictionService().getPredictions(session)
+        asset_map = {a.asset_id: a for a in all_assets}
+
+        def _pred_in_scope(p):
+            a = asset_map.get(p.asset_id)
+            return a is not None and _in_scope_asset(session, scope, a)
+
+        ctx["maintenance_overdue"] = sum(
+            1 for p in preds if p.maintenance_overdue and _pred_in_scope(p)
+        )
 
     elif page == "users":
         users = session.exec(select(User)).all()
@@ -742,63 +1043,20 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
     two_days_ago = now - timedelta(days=2)
     thirty_days_ago = now - timedelta(days=30)
 
-    # ── FK scoping ──
-    allowed_building_ids = None
-    allowed_room_ids = None
-    user_location_id = getattr(user, "location_id", None) if user else None
-    is_fk_scoped = user and getattr(user, "role_id", None) == ROLE_FK and user_location_id is not None
+    # ── FK scoping (gedeelde definisie met _gather_context) ──
+    scope = _build_fk_scope(session, user)
+    is_fk_scoped = scope["is_fk_scoped"]
+    user_location_id = scope["user_location_id"]
+    allowed_room_ids = scope["allowed_room_ids"]
     if is_fk_scoped:
         buildings = session.exec(select(Building).where(Building.location_id == user_location_id)).all()
-        allowed_building_ids = {b.building_id for b in buildings}
         rooms = session.exec(select(Room)).all()
-        allowed_room_ids = {r.room_id for r in rooms if r.building_id in allowed_building_ids}
     else:
         buildings = session.exec(select(Building)).all()
         rooms = session.exec(select(Room)).all()
 
     building_map = {b.building_id: b.building_name for b in buildings}
     room_map = {r.room_id: (r.room_name, r.building_id) for r in rooms}
-
-    def _in_scope_fault(f):
-        if not is_fk_scoped:
-            return True
-        if f.location_id == user_location_id:
-            return True
-        if f.building_id in allowed_building_ids:
-            return True
-        if f.room_id in allowed_room_ids:
-            return True
-        # also check via asset if present
-        if f.asset_id:
-            asset = session.get(Asset, f.asset_id)
-            if asset and asset.room_id in allowed_room_ids:
-                return True
-        return False
-
-    def _in_scope_job(j):
-        if not is_fk_scoped:
-            return True
-        if j.location_id == user_location_id:
-            return True
-        if j.building_id in allowed_building_ids:
-            return True
-        if j.room_id in allowed_room_ids:
-            return True
-        if j.asset_id:
-            asset = session.get(Asset, j.asset_id)
-            if asset and asset.room_id in allowed_room_ids:
-                return True
-        return False
-
-    def _in_scope_asset(a):
-        if not is_fk_scoped:
-            return True
-        return a.room_id in allowed_room_ids
-
-    def _in_scope_stock(s):
-        if not is_fk_scoped:
-            return True
-        return s.room_id in allowed_room_ids
 
     # ── Predictions (rules + ML) ──
     try:
@@ -807,7 +1065,7 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
             filtered = []
             for p in preds:
                 a = session.get(Asset, p.asset_id)
-                if a and _in_scope_asset(a):
+                if a and _in_scope_asset(session, scope, a):
                     filtered.append(p)
             preds = filtered
     except Exception:
@@ -853,7 +1111,7 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
 
     # ── Faults actionable ──
     faults = session.exec(select(Faultcard)).all()
-    faults = [f for f in faults if _in_scope_fault(f)]
+    faults = [f for f in faults if _in_scope_fault(session, scope, f)]
     # unassigned high priority >2 days old and still open
     open_statuses = {"Oop", "Wag", "Bevestig", "Besig"}
     unassigned_high = 0
@@ -891,7 +1149,7 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
 
     # trend last 8 weeks: faults created per week, jobs completed per week
     jobs = session.exec(select(Jobcard)).all()
-    jobs = [j for j in jobs if _in_scope_job(j)]
+    jobs = [j for j in jobs if _in_scope_job(session, scope, j)]
     # overdue jobs
     overdue_jobs = 0
     for j in jobs:
@@ -920,7 +1178,7 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
 
     # stock critical
     stocks = session.exec(select(Stock)).all()
-    stocks = [s for s in stocks if _in_scope_stock(s)]
+    stocks = [s for s in stocks if _in_scope_stock(session, scope, s)]
     critical_stock = sum(1 for s in stocks if s.stock_amount is not None and s.stock_minimum is not None and s.stock_amount < s.stock_minimum)
     # top low stock
     low_sorted = sorted(
@@ -943,17 +1201,6 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
     pending = sum(status_counts.get(s, 0) for s in ("Oop", "Wag", "Geskeduleer", "Besig"))
     completed = status_counts.get("Voltooid", 0)
 
-    # ── 9 AI visuals — gegenereer elke keer as AI-statistiek run (via chart_ai_service, LLM waar beskikbaar) ──
-    ai_charts = {}
-    try:
-        from .chart_ai_service import generate_all_charts
-
-        ai_charts = generate_all_charts(session, user)
-    except Exception as e:
-        import logging as _lg
-
-        _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
-        ai_charts = {}
     # ── 9 AI visuals — only generated on the voorspellings page (via ?include_ai_charts=true) ──
     ai_charts = {}
     if include_ai_charts:
@@ -967,6 +1214,23 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
             _lg.getLogger(__name__).warning("AI charts generering misluk, gaan voort sonder: %s", e)
             ai_charts = {}
 
+    # ── Nuwe FK-scoped KPIs (dieselde definisies as _gather_context dashboard) ──
+    open_faults = sum(1 for f in faults if _enum_val(f.fault_status) != "Gesluit")
+    high_priority_faults = sum(
+        1 for f in faults
+        if _enum_val(f.fault_status) != "Gesluit"
+        and _enum_val(f.fault_priority).upper() in ("HOOG", "HIGH")
+    )
+    high_priority_jobs = sum(
+        1 for j in jobs
+        if _enum_val(j.job_status) not in ("Voltooid", "Gekanselleer")
+        and _enum_val(j.job_priority).upper() in ("HOOG", "DRINGEND", "HIGH", "URGENT")
+    )
+    from ..models.jobdraft import JobDraft
+
+    all_drafts = session.exec(select(JobDraft)).all()
+    auto_drafts = sum(1 for d in all_drafts if d.source == "auto" and d.status == "draft" and _in_scope_draft(session, scope, d))
+
     return {
         "kpis": {
             "overdue_maintenance": overdue_maintenance,
@@ -977,6 +1241,10 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
             "high_risk": high_risk,
             "pending_jobs": pending,
             "completed_jobs": completed,
+            "open_faults": open_faults,
+            "high_priority_faults": high_priority_faults,
+            "high_priority_jobs": high_priority_jobs,
+            "auto_drafts": auto_drafts,
         },
         "risk_distribution": {"veilig": veilig, "monitor": monitor, "vervang": vervang},
         "faults_per_building": faults_per_building,

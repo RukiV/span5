@@ -35,7 +35,7 @@ def get_ai_charts(
 def get_insights(
     req: AnalyticsRequest,
     session: Session = Depends(getSession),
-    _user: User = Depends(require_right("analytics.view")),
+    user: User = Depends(require_right("analytics.view")),
 ):
     date_from = None
     date_to = None
@@ -43,7 +43,7 @@ def get_insights(
         date_from = datetime.fromisoformat(req.date_from)
     if req.date_to:
         date_to = datetime.fromisoformat(req.date_to)
-    return generate_insights(req.page, session, date_from, date_to)
+    return generate_insights(req.page, session, date_from, date_to, user=user)
 
 
 @router.post("/analytics/suggestions/execute")

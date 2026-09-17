@@ -64,7 +64,7 @@ test('calls getAll with draft status filter by default', async () => {
   const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
   render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
   await waitFor(() => {
-    expect(apiClient.jobDrafts.getAll).toHaveBeenCalledWith({ status_filter: 'draft' });
+    expect(apiClient.jobDrafts.getAll).toHaveBeenCalledWith({ status_filter: 'draft', source_filter: '' });
   });
 });
 
@@ -83,4 +83,37 @@ test('AI indicator is absent while loading', async () => {
   render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
   expect(screen.queryByText('AI: Aktief')).not.toBeInTheDocument();
   expect(screen.queryByText('AI: Inaktief')).not.toBeInTheDocument();
+});
+
+test('initialises source filter from URL (?source=auto) and fetches with source_filter=auto', async () => {
+  const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
+  render(<MemoryRouter initialEntries={['/ai-drafts?source=auto']}><AIDraftQueuePage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(apiClient.jobDrafts.getAll).toHaveBeenCalledWith({ status_filter: 'draft', source_filter: 'auto' });
+  });
+  expect(await screen.findByText('Gefiltreer: Outomaties')).toBeInTheDocument();
+});
+
+test('Bron dropdown sets source filter and refetches with source_filter=auto', async () => {
+  const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
+  render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
+  await screen.findByText('+ Nuwe Voorgestelde Werksopdrag');
+
+  // Maak die Bron-keuselys oop (laaste react-select op die blad)
+  const selects = document.querySelectorAll('.react-select-container');
+  const bronControl = selects[selects.length - 1].querySelector('.react-select__control');
+  fireEvent.mouseDown(bronControl);
+
+  // Kies "Outomaties" uit die oop keuselys (slegs in die opgeskorte menu, nie die tabel nie)
+  await waitFor(() => {
+    expect(document.querySelector('.react-select__menu')).toBeInTheDocument();
+  });
+  const option = Array.from(document.querySelectorAll('.react-select__option'))
+    .find((el) => el.textContent.trim() === 'Outomaties');
+  fireEvent.click(option);
+
+  await waitFor(() => {
+    expect(apiClient.jobDrafts.getAll).toHaveBeenCalledWith({ status_filter: 'draft', source_filter: 'auto' });
+  });
+  expect(await screen.findByText('Gefiltreer: Outomaties')).toBeInTheDocument();
 });
