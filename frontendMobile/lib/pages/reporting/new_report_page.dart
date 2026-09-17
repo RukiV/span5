@@ -86,6 +86,7 @@ class _NewReportPageState extends State<NewReportPage> {
   static const int _maxPhotos = 3;
   final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
+  bool _isAiCreating = false;
 
   /// Of die vorm tans 'n geskandeerde/opgesoekte bate se gegewens wys. Wys die
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
@@ -294,6 +295,41 @@ class _NewReportPageState extends State<NewReportPage> {
     setState(() => _isOutdoor = false);
   }
 
+  /// Skep 'n AI-konsep vanaf die huidige beskrywingstek. Die gebruiker bly op
+  /// die vorm — die konsep wag daarna in die Voorgestelde-Werksopdragte-goedkeuringsry.
+  Future<void> _handleAiDraft() async {
+    final desc = descController.text.trim();
+    if (desc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Tik eers 'n beskrywing in om 'n AI-konsep te skep."),
+          backgroundColor: AppColors.warningOrange,
+        ),
+      );
+      return;
+    }
+    setState(() => _isAiCreating = true);
+    final draft = await AiService.createDraft(desc);
+    if (!mounted) return;
+    setState(() => _isAiCreating = false);
+    if (draft == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Kon nie AI-konsep skep nie. Probeer weer."),
+          backgroundColor: AppColors.errorRed,
+        ),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            "AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
+        backgroundColor: AppColors.successGreen,
+      ),
+    );
+  }
+
   /// Kompakte QR-ikoonknoppie wat regs langs die ligging-kieser staan om 'n
   /// lokaal se kode te skandeer — in plaas van die ou vol-breedte knoppie.
   Widget _buildScanRoomIcon() {
@@ -486,11 +522,12 @@ class _NewReportPageState extends State<NewReportPage> {
                 },
               ),
 
-              if (UserSession.can('assets.view'))
+              if (UserSession.can('ai.use'))
                 HeaderIconAction(
-                  icon: Icons.list_alt_outlined,
-                  tooltip: "Kies uit ligging",
-                  onTap: _pickAssetFromLocation,
+                  icon: Icons.auto_awesome,
+                  tooltip: "AI-konsep",
+                  loading: _isAiCreating,
+                  onTap: _isAiCreating ? null : _handleAiDraft,
                 ),
             ],
           ),
@@ -842,139 +879,6 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedCampus = resolved.name;
       _locationError = null;
     });
-  }
-
-  /// "Bate identifiseer uit plek uit": lys die bates wat in die waargeneemde
-  /// lokaal geregistreer is, sodat die bate gekies kan word sonder om te
-  /// skandeer. Slegs vir gebruikers met 'n asset-leesreg (studente mag nie
-  /// konfidentiële bate-lysse sien nie).
-  Future<void> _pickAssetFromLocation() async {
-    final roomId = int.tryParse(selectedLocation?.split(':').first ?? '');
-    if (roomId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Kies eers 'n waargeneemde ligging (lokaal)"),
-            backgroundColor: AppColors.warningOrange),
-      );
-      return;
-    }
-    if (AssetService.assetsNotifier.value.isEmpty) {
-      await AssetService.fetchAssets();
-    }
-    if (!mounted) return;
-    final assets = AssetService.assetsNotifier.value
-        .where((a) => a.location == '$roomId')
-        .toList();
-    if (assets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text("Geen bates geregistreer in hierdie lokaal nie"),
-            backgroundColor: AppColors.warningOrange),
-      );
-      return;
-    }
-    final search = ValueNotifier<String>('');
-    final asset = await showModalBottomSheet<Asset>(
-      context: context,
-      backgroundColor: Colors.white,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (context) => ValueListenableBuilder<String>(
-        valueListenable: search,
-        builder: (context, query, _) {
-          final q = query.trim().toLowerCase();
-          final filtered = q.isEmpty
-              ? assets
-              : assets
-                  .where((a) =>
-                      a.serialCode.toLowerCase().contains(q) ||
-                      a.name.toLowerCase().contains(q))
-                  .toList();
-          return DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.6,
-            maxChildSize: 0.95,
-            builder: (context, scrollController) => Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("Kies 'n bate uit hierdie lokaal",
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.navy)),
-                      const SizedBox(height: 12),
-                      TextField(
-                        autofocus: true,
-                        onChanged: (v) => search.value = v,
-                        decoration: InputDecoration(
-                          hintText: "Soek serial of naam...",
-                          hintStyle:
-                              TextStyle(color: Colors.grey[500], fontSize: 14),
-                          prefixIcon: const Icon(Icons.search,
-                              size: 20, color: AppColors.navy),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(
-                                color: AppColors.gold, width: 2),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: filtered.isEmpty
-                      ? const Center(
-                          child: Text("Geen bates pas by jou soektog nie",
-                              style: TextStyle(color: Colors.grey)),
-                        )
-                      : ListView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, i) {
-                            final a = filtered[i];
-                            return ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.qr_code_2,
-                                  color: AppColors.gold),
-                              title: Text(a.serialCode,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14)),
-                              subtitle: Text(a.name),
-                              onTap: () => Navigator.pop(context, a),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-    search.dispose();
-    if (asset == null || !mounted) return;
-    setState(() => serialController.text = asset.serialCode);
-    await _autoFillFromCode(asset.serialCode);
   }
 
   /// Voeg 'n foto by: laat die gebruiker eers kies of hy die kamera of die
