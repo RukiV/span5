@@ -16,10 +16,18 @@ class ColumnDef {
 
 /// Manages which columns are shown/hidden.
 class ColumnVisibilityController extends ChangeNotifier {
+  final String? storageKey;
   final List<ColumnDef> _allColumns;
   final Set<String> _hidden = {};
 
-  ColumnVisibilityController(this._allColumns) {
+  ColumnVisibilityController([
+    Object? storageKeyOrColumns,
+    List<ColumnDef>? columns,
+  ])  : storageKey =
+            storageKeyOrColumns is String ? storageKeyOrColumns : null,
+        _allColumns = storageKeyOrColumns is String
+            ? columns ?? const <ColumnDef>[]
+            : (storageKeyOrColumns as List<ColumnDef>?) ?? const <ColumnDef>[] {
     // Start with all default-visible columns shown
     for (final col in _allColumns) {
       if (!col.defaultVisible) _hidden.add(col.key);
@@ -57,9 +65,13 @@ class ColumnVisibilityController extends ChangeNotifier {
 class ColumnVisibilityButton extends StatefulWidget {
   final ColumnVisibilityController controller;
 
+  /// When true, only the icon is shown to save header space.
+  final bool iconOnly;
+
   const ColumnVisibilityButton({
     super.key,
     required this.controller,
+    this.iconOnly = false,
   });
 
   @override
@@ -133,28 +145,75 @@ class _ColumnVisibilityButtonState extends State<ColumnVisibilityButton> {
   @override
   Widget build(BuildContext context) {
     final hidden = widget.controller.hiddenCount;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        IconButton(
-          key: _buttonKey,
-          tooltip: 'Wys kolomme',
-          icon: const Icon(Icons.view_column, color: Colors.white, size: 20),
-          style: IconButton.styleFrom(
-            backgroundColor: Colors.white.withValues(alpha: 30 / 255),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+    if (widget.iconOnly) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            key: _buttonKey,
+            tooltip: 'Wys kolomme',
+            icon: const Icon(Icons.view_column, color: Colors.white, size: 20),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 30 / 255),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
+            onPressed: _showPopup,
           ),
-          onPressed: _showPopup,
+          if (hidden > 0)
+            Positioned(
+              right: -4,
+              top: -4,
+              child: CountBadge(hidden),
+            ),
+        ],
+      );
+    }
+    return InkWell(
+      key: _buttonKey,
+      onTap: _showPopup,
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 30 / 255),
+          borderRadius: BorderRadius.circular(30),
         ),
-        if (hidden > 0)
-          Positioned(
-            right: -4,
-            top: -4,
-            child: CountBadge(hidden),
-          ),
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.view_column, color: Colors.white, size: 16),
+            const SizedBox(width: 4),
+            const Text(
+              'Kolomme',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (hidden > 0) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF935E28),
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                ),
+                child: Text(
+                  '$hidden',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

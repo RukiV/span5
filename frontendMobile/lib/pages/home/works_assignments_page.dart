@@ -26,6 +26,21 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
   int? _selectedCampusId;
   int? _selectedBuildingId;
   int? _selectedRoomId;
+<<<<<<< HEAD
+  String _columnFilter = 'all';
+  final MultiSortController _sortCtrl =
+      MultiSortController('works-assignments', ['description', 'type', 'status']);
+  final ColumnVisibilityController _colVis =
+      ColumnVisibilityController('works-assignments', [
+    const ColumnDef(key: 'description', label: 'Beskrywing'),
+    const ColumnDef(key: 'type', label: 'Tipe', defaultVisible: false),
+    const ColumnDef(key: 'status', label: 'Status'),
+  ]);
+  bool _filterOpen = false;
+  bool _sortOpen = false;
+  final FilterController _filterCtrl = FilterController('works-assignments');
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 
   @override
   void initState() {
@@ -123,6 +138,139 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }),
                 ),
               ),
+<<<<<<< HEAD
+              FilterButton(
+                controller: _filterCtrl,
+                selected: _filterOpen,
+                onPressed: () => setState(() {
+                  _filterOpen = !_filterOpen;
+                  _sortOpen = false;
+                }),
+              ),
+              SortButton(
+                controller: _sortCtrl,
+                selected: _sortOpen,
+                onPressed: () => setState(() {
+                  _sortOpen = !_sortOpen;
+                  _filterOpen = false;
+                }),
+              ),
+              ColumnVisibilityButton(controller: _colVis, iconOnly: true),
+            ],
+          ),
+          if (_filterOpen)
+            FilterPanel(
+              controller: _filterCtrl,
+              depth: LocationDepth.room,
+              searchController: _searchController,
+              searchHint: "Soek werksopdragte...",
+              initialCampusId: _selectedCampusId,
+              initialBuildingId: _selectedBuildingId,
+              initialRoomId: _selectedRoomId,
+              onLocationChanged: (campusId, buildingId, roomId) =>
+                  setState(() {
+                _selectedCampusId = campusId;
+                _selectedBuildingId = buildingId;
+                _selectedRoomId = roomId;
+              }),
+              columnItems: [
+                const SearchableDropdownItem(
+                    value: 'all', label: 'Alle kolomme'),
+                ..._colVis.allColumns.map((c) => SearchableDropdownItem(
+                    value: c.key, label: c.label)),
+              ],
+              columnValue: _columnFilter,
+              onColumnChanged: (v) => setState(() => _columnFilter = v),
+              onReset: () => setState(() {
+                _selectedCampusId = null;
+                _selectedBuildingId = null;
+                _selectedRoomId = null;
+                _columnFilter = 'all';
+              }),
+              onClose: () => setState(() => _filterOpen = false),
+            ),
+          if (_sortOpen)
+            SortPanel(
+              controller: _sortCtrl,
+              columns: _colVis.allColumns,
+              onChanged: () => setState(() {}),
+            ),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: ValueListenableBuilder<List<Jobcard>>(
+                valueListenable: JobcardService.jobcardsNotifier,
+                builder: (context, jobcards, child) {
+                  final filtered = _sortCtrl.apply(
+                    jobcards.where((job) {
+                      if (_selectedCampusId != null &&
+                          job.locationId != _selectedCampusId) {
+                        return false;
+                      }
+                      if (_selectedBuildingId != null &&
+                          job.buildingId != _selectedBuildingId) {
+                        return false;
+                      }
+                      if (_selectedRoomId != null &&
+                          job.roomId != _selectedRoomId) {
+                        return false;
+                      }
+                      if (_query.isNotEmpty) {
+                        final searchable = _columnFilter == 'all'
+                            ? [
+                                job.description,
+                                job.type ?? '',
+                                job.status,
+                                job.id.toString(),
+                                job.fullDescription,
+                              ].join(' ')
+                            : switch (_columnFilter) {
+                                'description' => job.description,
+                                'type' => job.type ?? '',
+                                'status' => job.status,
+                                _ => '',
+                              };
+                        if (!searchable.toLowerCase().contains(_query)) {
+                          return false;
+                        }
+                      }
+                      return true;
+                    }).toList(),
+                    (job, key) {
+                      switch (key) {
+                        case 'description':
+                          return job.description.toLowerCase();
+                        case 'type':
+                          return (job.type ?? '').toLowerCase();
+                        case 'status':
+                          return job.status.toLowerCase();
+                        default:
+                          return '';
+                      }
+                    },
+                  );
+
+                  if (filtered.isEmpty) {
+                    return RefreshIndicator(
+                      onRefresh: () => JobcardService.fetchJobs(),
+                      color: AppColors.refreshSpinner,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.3),
+                          const Center(
+                            child: Text(
+                              "Geen werksopdragte beskikbaar nie.",
+                              style: TextStyle(color: Colors.grey),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+=======
             ],
           ),
           Expanded(
@@ -150,25 +298,91 @@ class _WorksAssignmentsPageState extends State<WorksAssignmentsPage> {
                   }
                   return true;
                 }).toList();
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 
-                if (filtered.isEmpty) {
                   return RefreshIndicator(
                     onRefresh: () => JobcardService.fetchJobs(),
                     color: AppColors.refreshSpinner,
-                    child: ListView(
+                    child: ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.3),
-                        const Center(
-                          child: Text(
-                            "Geen werksopdragte beskikbaar nie.",
-                            style: TextStyle(color: Colors.grey),
+                      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 90.0),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final job = filtered[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 2,
+                          color: _selection.isSelected(job.id)
+                              ? AppColors.lavender
+                              : null,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            leading: _selection.isSelecting
+                                ? Checkbox(
+                                    value: _selection.isSelected(job.id),
+                                    onChanged: (_) => setState(
+                                        () => _selection.toggle(job.id)),
+                                  )
+                                : CircleAvatar(
+                                    backgroundColor:
+                                        jobStatusColor(job.status)
+                                            .withValues(alpha: 0.2),
+                                    child: Icon(Icons.assignment,
+                                        color: jobStatusColor(job.status)),
+                                  ),
+                            title: Text(
+                              job.description,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.navy),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (job.type != null)
+                                  Text(job.type!,
+                                      style: const TextStyle(fontSize: 12)),
+                                const SizedBox(height: 4),
+                                _buildStatusBadge(job.status),
+                              ],
+                            ),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.gold),
+                            onTap: () async {
+                              if (_selection.isSelecting) {
+                                setState(() => _selection.toggle(job.id));
+                                return;
+                              }
+                              final changed = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      JobcardDetailPage(job: job),
+                                ),
+                              );
+                              if (changed == true) {
+                                await JobcardService.fetchJobs();
+                              }
+                            },
+                            onLongPress: () {
+                              if (!_canManage) return;
+                              setState(() {
+                                _selection.enter();
+                                _selection.toggle(job.id);
+                              });
+                            },
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   );
+<<<<<<< HEAD
+                },
+              ),
+=======
                 }
 
                 return RefreshIndicator(
@@ -251,6 +465,7 @@ leading: _selection.isSelecting
                   ),
                 );
               },
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
             ),
           ),
         ],
@@ -258,6 +473,18 @@ leading: _selection.isSelecting
     );
   }
 
+<<<<<<< HEAD
+  void _closePanels() {
+    if (_filterOpen || _sortOpen) {
+      setState(() {
+        _filterOpen = false;
+        _sortOpen = false;
+      });
+    }
+  }
+
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
   Widget _buildStatusBadge(String status) {
     final color = jobStatusColor(status);
     return Container(
@@ -303,4 +530,8 @@ leading: _selection.isSelecting
       );
     }
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba

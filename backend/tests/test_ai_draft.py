@@ -371,8 +371,6 @@ def test_long_llm_output_is_clamped_not_500(client, engine, headers_for, monkeyp
     data = resp.json()
     assert len(data["cleaned_description"]) <= 2000
     assert len(data["work_instruction"]) <= 2000
-
-
 # ---------------------------------------------------------------------------
 # AI status endpoint
 # ---------------------------------------------------------------------------

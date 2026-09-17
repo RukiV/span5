@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../models/asset.dart';
 import '../core/api_client.dart';
@@ -12,6 +13,8 @@ class AssetService {
   );
 
   static ValueNotifier<List<Asset>> get assetsNotifier => _crud.itemsNotifier;
+
+  static ValueNotifier<bool> get isLoadingNotifier => _crud.isLoadingNotifier;
 
   // Fetches all assets from the backend.
   static Future<void> fetchAssets() => _crud.fetch();
@@ -31,6 +34,15 @@ class AssetService {
   }
 
   // Adds a new asset to the backend and refreshes the local list.
+  static String generateUniqueId(String category, String campus) {
+    final prefix = category.substring(0, min(3, category.length)).toUpperCase();
+    final campusPrefix = campus
+        .substring(0, min(3, campus.length))
+        .toUpperCase();
+    final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(7);
+    return "$prefix-$campusPrefix-$timestamp";
+  }
+
   static Future<bool> addAsset(Asset asset, {String? idempotencyKey}) =>
       _crud.add(asset, idempotencyKey: idempotencyKey);
 

@@ -1,7 +1,6 @@
 # Normalise all text files to LF in the repository.
 # Working-tree line endings are handled per-clone via core.autocrlf.
 * text=auto eol=lf
-* text=auto
 
 # Binary files: never apply line-ending conversion.
 *.png binary

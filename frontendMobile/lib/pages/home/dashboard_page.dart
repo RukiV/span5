@@ -4,10 +4,8 @@ import 'package:intl/intl.dart';
 import '../../core/app_colors.dart';
 import '../../services/report_service.dart';
 import '../../services/asset_service.dart';
-import '../../services/jobcard_service.dart';
-import '../../models/report.dart';
 import '../../models/asset.dart';
-import '../../models/jobcard.dart';
+import '../../services/jobcard_service.dart';
 import '../../models/user_session.dart';
 import 'calendar_page.dart';
 
@@ -78,14 +76,22 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 25),
 
-            // Seksie: Rapportering Opsomming
-            _buildSectionHeader("Rapportering"),
+            // Seksie: Opsomming — al die KPI-kaarte in een ry (baie kompak)
+            _buildSectionHeader("Opsomming"),
             const SizedBox(height: 12),
 
-            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae)
-            ValueListenableBuilder<List<Report>>(
-              valueListenable: ReportService.reportsNotifier,
-              builder: (context, reports, _) {
+            // Drie kaarte langs mekaar (Foutkaartjies, Werksopdragte, Verslae).
+            // Terwyl die eerste laai nog besig is, wys 'n klein spinner in plaas
+            // van 'n misleidende "0".
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                ReportService.reportsNotifier,
+                ReportService.isLoadingNotifier,
+              ]),
+              builder: (context, _) {
+                final reports = ReportService.reportsNotifier.value;
+                final reportsBusy =
+                    reports.isEmpty && ReportService.isLoadingNotifier.value;
                 final nuwe = reports.where((r) => r.phase == "Ontvang").length;
 
                 return LayoutBuilder(
@@ -97,20 +103,26 @@ class _DashboardPageState extends State<DashboardPage> {
                         _buildMiniStatCard(
                           context,
                           "Foutkaartjies",
-                          nuwe.toString(),
+                          reportsBusy ? null : nuwe.toString(),
                           "",
                           AppColors.gold,
                           "Foutkaartjies",
                           cardWidth,
                         ),
-                        ValueListenableBuilder<List<Jobcard>>(
-                          valueListenable:
-                              JobcardService.jobcardsNotifier,
-                          builder: (context, jobcards, _) {
+                        AnimatedBuilder(
+                          animation: Listenable.merge([
+                            JobcardService.jobcardsNotifier,
+                            JobcardService.isLoadingNotifier,
+                          ]),
+                          builder: (context, _) {
+                            final jobcards =
+                                JobcardService.jobcardsNotifier.value;
+                            final busy = jobcards.isEmpty &&
+                                JobcardService.isLoadingNotifier.value;
                             return _buildMiniStatCard(
                               context,
                               "Werksopdragte",
-                              jobcards.length.toString(),
+                              busy ? null : jobcards.length.toString(),
                               "",
                               AppColors.successGreen,
                               "Werksopdragte",
@@ -121,10 +133,10 @@ class _DashboardPageState extends State<DashboardPage> {
                         _buildMiniStatCard(
                           context,
                           "Verslae",
-                          reports.length.toString(),
+                          reportsBusy ? null : reports.length.toString(),
                           "",
                           AppColors.infoBlue,
-                          "Foutkaartjies",
+                          "Verslae",
                           cardWidth,
                         ),
                       ],
@@ -179,58 +191,65 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _buildMiniStatCard(BuildContext context, String title, String value,
-      String trend, Color color, String targetTitle, double width) {
-    return InkWell(
-      onTap: () => widget.onTabRequested?.call(targetTitle),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: width,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2))
-          ],
-          border: Border(bottom: BorderSide(color: color, width: 3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey),
-                maxLines: 1),
-            const SizedBox(height: 4),
+Widget _buildMiniStatCard(BuildContext context, String title, String? value,
+    String trend, Color color, String targetTitle, double width) {
+  return InkWell(
+    onTap: () => widget.onTabRequested?.call(targetTitle),
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2))
+        ],
+        border: Border(bottom: BorderSide(color: color, width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          if (value != null)
             Text(value,
                 style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.navy)),
-            if (trend.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                trend,
-                style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    color: trend.contains('+')
-                        ? AppColors.successGreen
-                        : AppColors.errorRed),
-              ),
-            ],
+                    color: AppColors.navy))
+          else
+            const SizedBox(
+              height: 16,
+              width: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.navy),
+            ),
+          if (trend.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              trend,
+              style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.bold,
+                  color: trend.contains('+')
+                      ? AppColors.successGreen
+                      : AppColors.errorRed),
+            ),
           ],
-        ),
+        ],
       ),
-    );
-  }
-
+    ),
+  );
   Widget _buildWideStatCard(BuildContext context, String title, String value,
       String trend, Color color, String targetTitle) {
     return InkWell(

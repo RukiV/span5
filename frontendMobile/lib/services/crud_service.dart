@@ -38,6 +38,8 @@ class CrudService<T> {
 
   ValueNotifier<List<T>> get itemsNotifier => _manager.notifier;
 
+  ValueNotifier<bool> get isLoadingNotifier => _manager.loadingNotifier;
+
   Future<void> fetch() => _manager.fetch();
 
   Future<bool> add(T item, {String? idempotencyKey}) async {

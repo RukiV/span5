@@ -7,6 +7,12 @@ import 'outlook_service.dart';
 
 /// Keep a non-null fallback for calendar slots; delegates the naive wall-clock
 /// parse to the shared helper.
+DateTime parseUtcDatetime(String? value) {
+  if (value == null || value.isEmpty) return DateTime.now();
+  final hasOffset = RegExp(r'[zZ]$|[+-]\d{2}:?\d{2}$').hasMatch(value);
+  return DateTime.parse(hasOffset ? value : '${value}Z').toLocal();
+}
+
 DateTime calendarDatetimeOrNow(String? value) {
   return parseWallClockDatetime(value) ?? DateTime.now();
 }
@@ -85,31 +91,73 @@ class CalendarService {
   static final ValueNotifier<List<CalendarEvent>> eventsNotifier =
       ValueNotifier(_events);
 
+  // Kas vir die laaste suksesvolle laai: herbesoek die Paneelbord binne 60s
+  // doen nie weer al die web-ooreenkomste (plaaslik + Outlook/Graph) nie.
+  static const Duration _cacheWindow = Duration(seconds: 60);
+  static DateTime? _cachedAt;
+  static DateTime? _cachedStart;
+  static DateTime? _cachedEnd;
+
   static Future<void> fetchEvents(DateTime start, DateTime end) async {
+    final now = DateTime.now();
+    if (_cachedAt != null &&
+        now.difference(_cachedAt!) < _cacheWindow &&
+        !start.isBefore(_cachedStart!) &&
+        !end.isAfter(_cachedEnd!)) {
+      return;
+    }
+
     try {
-      final response = await ApiClient().client.get(
-        '/calendar/events',
-        queryParameters: {
-          'start': start.toIso8601String(),
-          'end': end.toIso8601String(),
-        },
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = response.data;
-        final local = data.map((j) => CalendarEvent.fromJson(j)).toList();
+      // Begin albei versoeke gelyktydig sodat die (dikwels stadiger) Outlook-/
+      // Graph-aanroep nie ná die plaaslike een hoef te wag nie.
+      final localFuture = _loadLocalEvents(start, end);
+      final outlookFuture = _loadOutlookEvents(start, end);
 
-        // Voeg die gebruiker se Outlook-kalender by (dieselfde as die web se
-        // CalendarPage wat die twee lyste saamvoeg).
-        final outlook = await OutlookService.instance
-            .fetchCalendarView(start, end)
-            .then((raw) => raw.map((j) => CalendarEvent.fromJson(j)).toList());
+      // Wys die plaaslike gebeure dadelik; Outlook verskyn sodra hy inkom.
+      final local = await localFuture;
+      _events
+        ..clear()
+        ..addAll(local);
+      eventsNotifier.value = List.from(_events);
 
-        _events.clear();
-        _events.addAll([...local, ...outlook]);
-        eventsNotifier.value = List.from(_events);
-      }
+      final outlook = await outlookFuture;
+      _events
+        ..clear()
+        ..addAll([...local, ...outlook]);
+      eventsNotifier.value = List.from(_events);
+
+      _cachedAt = now;
+      _cachedStart = start;
+      _cachedEnd = end;
     } catch (e) {
       debugPrint("Fout met laai van kalender events: $e");
+    }
+  }
+
+  static Future<List<CalendarEvent>> _loadLocalEvents(
+      DateTime start, DateTime end) async {
+    final response = await ApiClient().client.get(
+      '/calendar/events',
+      queryParameters: {
+        'start': start.toIso8601String(),
+        'end': end.toIso8601String(),
+      },
+    );
+    if (response.statusCode == 200) {
+      final List<dynamic> data = response.data;
+      return data.map((j) => CalendarEvent.fromJson(j)).toList();
+    }
+    throw Exception('Unexpected calendar events response');
+  }
+
+  static Future<List<CalendarEvent>> _loadOutlookEvents(
+      DateTime start, DateTime end) async {
+    try {
+      final raw = await OutlookService.instance.fetchCalendarView(start, end);
+      return raw.map((j) => CalendarEvent.fromJson(j)).toList();
+    } catch (e) {
+      debugPrint("Fout met laai van Outlook events: $e");
+      return const [];
     }
   }
 

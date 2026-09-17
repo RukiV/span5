@@ -38,6 +38,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   http_mock_adapter: ^0.6.1
+<<<<<<< HEAD
+  flutter_secure_storage_platform_interface: ^1.1.2
+
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 flutter:
   uses-material-design: true
 
@@ -46,4 +51,8 @@ flutter:
 
   assets:
     - .env
+<<<<<<< HEAD
     - assets/images/
+=======
+    - assets/images/
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba

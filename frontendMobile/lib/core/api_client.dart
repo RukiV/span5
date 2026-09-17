@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_session.dart';
+import '../widgets/filter_utils.dart';
+import '../widgets/sort_utils.dart';
 import 'navigation.dart';
 
 /// API-pad wat agter die bediener-oorsprong aangeheg word (bv. /api/v1).
@@ -16,11 +18,12 @@ const apiPath = '/api/v1';
 /// - HTTP client is a singleton so there is exactly one point of configuration.
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
+  static const _authTokenKey = 'auth_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _retriedOnceKey = 'retried_once';
 
   late final Dio _dio;
-  final _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage;
 
   /// Huidige in-vlug /auth/refresh-aanroep sodat gelyktydige 401's nie elk hul
   /// eie verversing begin nie (single-flight).
@@ -31,7 +34,19 @@ class ApiClient {
 
   factory ApiClient() => _instance;
 
-  ApiClient._internal() {
+  ApiClient._internal() : _storage = const FlutterSecureStorage() {
+    _dio = _buildDio();
+  }
+
+  /// Toetse-slegs konstruktor: laat 'n fake secure-kas en/of 'n gemokte Dio
+  /// inspuit sodat die token- en sessie-logika sonder 'n toestel getoets kan word.
+  @visibleForTesting
+  ApiClient.forTesting({FlutterSecureStorage? storage, Dio? dio})
+      : _storage = storage ?? const FlutterSecureStorage() {
+    _dio = dio ?? _buildDio();
+  }
+
+  Dio _buildDio() {
     // Valbak-URL. Opstart lees die gestoorde bediener-URL (eerste-launch/
     // instellings) en pas dit asynchronies toe via setBaseUrl() sodat 'n enkele
     // APK met enige bediener (LAN-IP, tunnel-URL of domein) kan verbind.
@@ -40,7 +55,7 @@ class ApiClient {
     final baseUrl = dartDefineUrl.isNotEmpty
         ? dartDefineUrl
         : dotenv.get('API_URL', fallback: 'http://192.168.3.13:8000/api/v1');
-    _dio = Dio(
+    final dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 15),
@@ -53,7 +68,7 @@ class ApiClient {
       ),
     );
 
-    _dio.interceptors.add(
+    dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final token = await _storage.read(key: 'auth_token');
@@ -63,14 +78,16 @@ class ApiClient {
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          debugPrint("API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
+          debugPrint(
+              "API ERROR [${e.response?.statusCode}] at ${e.requestOptions.path}");
 
           if (e.response?.statusCode == 401) {
             // Stawingsbande is nie sessie-uitgewys nie: 'n mislukte aanmelding
             // of 'n mislukte verversing moet nie dieselfde
             // "sessie skoongemaak en na /" afhandeling kry as 'n vervalle sessie nie.
             final path = e.requestOptions.path;
-            if (path.endsWith('/auth/login') || path.endsWith('/auth/refresh')) {
+            if (path.endsWith('/auth/login') ||
+                path.endsWith('/auth/refresh')) {
               return handler.next(e);
             }
 
@@ -86,7 +103,8 @@ class ApiClient {
             if (e.requestOptions.extra[_retriedOnceKey] == true) {
               await clearToken();
               UserSession.clear();
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+              navigatorKey.currentState
+                  ?.pushNamedAndRemoveUntil('/', (route) => false);
               return handler.next(e);
             }
 
@@ -97,18 +115,77 @@ class ApiClient {
                 final response = await _retry(e.requestOptions);
                 return handler.resolve(response);
               } catch (retryError) {
-                return handler.next(retryError is DioException ? retryError : e);
+                return handler
+                    .next(retryError is DioException ? retryError : e);
               }
             } else {
               await clearToken();
               UserSession.clear();
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
+              navigatorKey.currentState
+                  ?.pushNamedAndRemoveUntil('/', (route) => false);
             }
           }
           return handler.next(e);
         },
       ),
     );
+    return dio;
+  }
+
+  /// 'n Kaal Dio sonder interseptors en sonder outomatiese Authorization-kop,
+  /// sodat sessie-herstel/-verfrissing nie dubbel-refresh of na-login-navigasie
+  /// veroorsaak nie. Dit deel die adapter van [_dio] sodat toetse (en alternatiewe
+  /// netwerk-aanpassings) dieselfde vervoerlaag gebruik.
+  Dio _bareDio() => Dio(
+        BaseOptions(
+          baseUrl: _dio.options.baseUrl,
+          connectTimeout: _dio.options.connectTimeout,
+          receiveTimeout: _dio.options.receiveTimeout,
+        ),
+      )..httpClientAdapter = _dio.httpClientAdapter;
+
+  /// Probeer die gestoorde sessie op app-opstart herstel:
+  /// - geen gestoorde token -> geen sessie om te herstel nie;
+  /// - geldige token -> laai die profiel en stel die [UserSession];
+  /// - verstreke access-token -> verfris eers met die refresh_token.
+  /// 'n Netwerkfout (bediener onbereikbaar) keer [false] terug sonder om die
+  /// sessie uit te vee — die gebruiker verloor nie sy aanmelding omdat hy
+  /// buite bereik is nie.
+  Future<bool> restoreSession() async {
+    final token = await _storage.read(key: _authTokenKey);
+    if (token == null || token.isEmpty) return false;
+
+    final restoreDio = _bareDio();
+
+    Future<bool> fetchProfile(String tk) async {
+      try {
+        final response = await restoreDio.get(
+          '/auth/me',
+          options: Options(headers: {'Authorization': 'Bearer $tk'}),
+        );
+        if (response.statusCode != 200) return false;
+        UserSession.initialize(response.data);
+        ApiClient.authNotifier.value = true;
+        return true;
+      } on DioException catch (e) {
+        if (e.response?.statusCode == 401) return false;
+        rethrow;
+      }
+    }
+
+    try {
+      if (await fetchProfile(token)) return true;
+
+      // Token is verstreke/ongeldig — probeer een keer met die refresh_token.
+      if (await _refreshSession()) {
+        final newToken = await _storage.read(key: _authTokenKey);
+        if (newToken != null && await fetchProfile(newToken)) return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Session restore failed: $e");
+      return false;
+    }
   }
 
   /// Attempts to refresh the session using the /auth/refresh endpoint.
@@ -198,9 +275,8 @@ class ApiClient {
   Future<void> setBaseUrl(String url) async {
     final normalized = url.trim().replaceAll(RegExp(r'/+$'), '');
     if (normalized.isEmpty) return;
-    _dio.options.baseUrl = normalized.endsWith(apiPath)
-        ? normalized
-        : '$normalized$apiPath';
+    _dio.options.baseUrl =
+        normalized.endsWith(apiPath) ? normalized : '$normalized$apiPath';
     await _storage.write(key: 'server_url', value: _dio.options.baseUrl);
   }
 
@@ -210,8 +286,11 @@ class ApiClient {
   }
 
   /// Stores the authentication token securely.
-  Future<void> saveToken(String token) async {
+  Future<void> saveToken(String token, {String? refreshToken}) async {
     await _storage.write(key: 'auth_token', value: token);
+    if (refreshToken != null) {
+      await saveRefreshToken(refreshToken);
+    }
     ApiClient.authNotifier.value = true;
   }
 
@@ -224,6 +303,10 @@ class ApiClient {
   Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
     await _storage.delete(key: _refreshTokenKey);
+    // Gebruikersspesifieke voorkeure (sorteervoorkeure) saam uitvee sodat die
+    // volgende gebruiker nie die vorige s'n oorerf nie (G1).
+    await MultiSortController.clearAll();
+    await FilterController.clearAll();
     ApiClient.authNotifier.value = false;
   }
 }

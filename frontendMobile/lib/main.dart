@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'services/notification_service.dart' as svc;
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
+import 'pages/reporting/location_page.dart';
 import 'pages/settings/server_config_page.dart';
 import 'core/app_colors.dart';
 import 'core/api_client.dart';
@@ -191,6 +192,12 @@ class MyApp extends StatelessWidget {
           case '/home':
             page = const HomePage();
             break;
+          case '/setup':
+            page = const ServerConfigPage(firstLaunch: true);
+            break;
+          case '/location':
+            page = const LocationPage();
+            break;
           default:
             page = const StartupGate();
         }
@@ -243,8 +250,22 @@ class _StartupGateState extends State<StartupGate> {
   Future<void> _check() async {
     final storedUrl = await ApiClient.getStoredServerUrl();
     if (!mounted) return;
+    final needsSetup = storedUrl == null || storedUrl.isEmpty;
+
+    if (!needsSetup) {
+      // Herstel die gestoorde sessie (indien enige) sodat die gebruiker nie
+      // weer moet aanmeld net omdat hy die app oopmaak nie.
+      final hasSession = await ApiClient().restoreSession();
+      if (!mounted) return;
+
+      if (hasSession) {
+        Navigator.of(context).pushReplacementNamed('/home');
+        return;
+      }
+    }
+
     setState(() {
-      _needsSetup = storedUrl == null || storedUrl.isEmpty;
+      _needsSetup = needsSetup;
       _ready = true;
     });
   }

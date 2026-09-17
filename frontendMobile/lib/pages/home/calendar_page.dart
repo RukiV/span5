@@ -7,8 +7,14 @@ import '../../core/idempotency.dart';
 import '../../services/calendar_service.dart';
 import '../../services/outlook_service.dart';
 import '../../services/outlook_token_manager.dart';
+<<<<<<< HEAD
+import '../../widgets/sort_utils.dart';
+import '../../widgets/sort_button.dart';
+import '../../widgets/column_visibility.dart';
+=======
 import '../../core/datetime_utils.dart';
 import '../../widgets/detail_row.dart';
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -367,12 +373,15 @@ class _CalendarPageState extends State<CalendarPage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DetailRow(
-                icon: Icons.access_time,
-                value: formatDateTime(event.startDatetime),
-                padding: const EdgeInsets.only(bottom: 6)),
+            _detailRow(Icons.access_time, _detailDateTime(event.startDatetime)),
             if (event.endDatetime != null &&
                 !isSameDay(event.startDatetime, event.endDatetime!))
+<<<<<<< HEAD
+              _detailRow(Icons.event_available,
+                  "tot ${_detailDateTime(event.endDatetime!)}"),
+            if (event.location != null && event.location!.isNotEmpty)
+              _detailRow(Icons.location_on, event.location!),
+=======
               DetailRow(
                   icon: Icons.event_available,
                   value: "tot ${formatDateTime(event.endDatetime!)}",
@@ -382,6 +391,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   icon: Icons.location_on,
                   value: event.location!,
                   padding: const EdgeInsets.only(bottom: 6)),
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
             if (event.description != null && event.description!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -483,6 +493,27 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+<<<<<<< HEAD
+  Widget _detailRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.gold),
+          const SizedBox(width: 6),
+          Expanded(
+              child: Text(text, style: const TextStyle(color: Colors.black54))),
+        ],
+      ),
+    );
+  }
+
+  String _detailDateTime(DateTime dt) =>
+      "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} "
+      "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
+
+=======
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
   String _eventTimeLabel(CalendarEvent event) {
     final start = event.startDatetime;
     final startTime =
@@ -599,12 +630,32 @@ class _CalendarPageState extends State<CalendarPage> {
                           fontWeight: FontWeight.bold, color: AppColors.navy),
                     ),
                   ),
+<<<<<<< HEAD
+                  SortButton(
+                    controller: _sortCtrl,
+                    selected: _sortOpen,
+                    onPressed: () => setState(() => _sortOpen = !_sortOpen),
+                  ),
+                  const SizedBox(width: 8),
+                  ColumnVisibilityButton(controller: _colVis),
+                ],
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closePanels,
+              child: SizedBox(
+                height: 300,
+                child: _buildEventList(),
+              ),
+=======
                 ],
               ),
             ),
             SizedBox(
               height: 300,
               child: _buildEventList(),
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
             ),
           ],
         ),
@@ -613,7 +664,22 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Widget _buildEventList() {
+<<<<<<< HEAD
+    final events = _sortCtrl.apply(_getEventsForDay(_selectedDay!), (e, key) {
+      switch (key) {
+        case 'title':
+          return e.title.toLowerCase();
+        case 'time':
+          return e.startDatetime;
+        case 'location':
+          return (e.location ?? '').toLowerCase();
+        default:
+          return '';
+      }
+    });
+=======
     final events = _getEventsForDay(_selectedDay!);
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba
     if (events.isEmpty) {
       return Center(
         child: Column(
@@ -689,4 +755,8 @@ class _CalendarPageState extends State<CalendarPage> {
       },
     );
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> c416b3684e10e43bbc26b61693e1855df80ae7ba

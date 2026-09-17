@@ -869,10 +869,6 @@ const DashboardPage = () => {
               <Link to="/stock" className="dash-link-btn">Bestuur voorraad →</Link>
             )}
           </div>
-        </div>
-
-        {/* ── RY 1: Sekondêre risiko-KPI's — net skakels (aksie irrelevant) ── */}
-        <div className="stats-grid" style={{ marginBottom: '20px' }}>
           <Link to="/predictions" className="stat-card" style={{ borderLeft: '4px solid #b91c1c', textDecoration: 'none', color: 'inherit' }}>
             <div style={{ flex: 1 }}>
               <h4>ML Hoë Risiko (&gt;50% 12md)</h4>

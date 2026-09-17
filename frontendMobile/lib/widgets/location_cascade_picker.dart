@@ -449,6 +449,23 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
     );
   }
 
+  /// Terug-knoppie soos die web se `cascade-back-btn`: bruin knoppie heel
+  /// regs in die veld wat een vlak teruggaan.
+  Widget _buildBackButton() {
+    return GestureDetector(
+      onTap: () => _clearFromLevel(_filledLevels - 1),
+      child: Container(
+        margin: const EdgeInsets.only(left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFF935E28),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: const Icon(Icons.arrow_back, size: 18, color: Colors.white),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<List<Campus>>(
@@ -512,6 +529,10 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     error: widget.error,
                     closeOnSelect: false,
                     restoreOnBlur: false,
+                    showClear: _filledLevels > 0,
+                    onClear: () => _clearFromLevel(0),
+                    browseSuffixAction:
+                        _filledLevels > 0 ? _buildBackButton() : null,
                     onFocus: () {
                       // "Tik om te verander": 'n voltooide kaskade spring terug
                       // na vlak 0 sodat die hele pad oor gekies kan word.

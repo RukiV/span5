@@ -13,6 +13,9 @@ class HeaderIconAction extends StatelessWidget {
   /// Wys 'n klein goue kolletjie wanneer 'n filter aktief is.
   final bool activeBadge;
 
+  /// Tellenkies wat bo-aan die hoekie verskyn (bv. versteekte kolomme).
+  final int? badgeCount;
+
   /// Vervang die ikoon met 'n spinner en deaktiveer die knoppie (bv. tydens
   /// 'n AI-versoek) sodat die gebruiker weet dié aksie is besig.
   final bool loading;
@@ -24,6 +27,7 @@ class HeaderIconAction extends StatelessWidget {
     this.onTap,
     this.iconColor = Colors.white,
     this.activeBadge = false,
+    this.badgeCount,
     this.loading = false,
   });
 

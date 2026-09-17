@@ -24,12 +24,14 @@ on that campus are counted (same helper as get_dashboard_summary).
 
 import json
 import logging
+import threading
 from collections import Counter, defaultdict
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlmodel import Session, select
 
+from ..auth.rights_catalog import ROLE_FK
 from ..models.asset import Asset, Assettype
 from ..models.fault import Faultcard
 from ..models.job import Jobcard
@@ -502,3 +504,55 @@ def generate_all_charts(session: Session, user: Optional[User] = None) -> dict:
     }
 
     return charts
+
+
+# ---------------------------------------------------------------------------
+# 24-uur migrasie-cache vir AI-grafieke.  Elke gedefinieerde "scope"
+# (all / fk:<location_id>) cache die resultaat van generate_all_charts
+# vir 24 uur sodat hierdie taak nie by elke PANEELBORD-laai herbereken
+# word nie.  'n Nuwe generasie word eers gedoen as die kas verstryk
+# (of wanneer force_refresh=True gestuur word).
+# ---------------------------------------------------------------------------
+
+_AI_CHART_CACHE_TTL = timedelta(hours=24)
+_ai_chart_cache: dict[str, tuple[datetime, dict]] = {}   # key -> (generated_at, charts)
+_ai_chart_locks: dict[str, threading.RLock] = {}
+
+
+def _scope_key(user: Optional[User]) -> str:
+    if (
+        user is not None
+        and getattr(user, "role_id", None) == ROLE_FK
+        and getattr(user, "location_id", None) is not None
+    ):
+        return f"fk:{user.location_id}"
+    return "all"
+
+
+def get_ai_charts(
+    session: Session,
+    user: Optional[User] = None,
+    force_refresh: bool = False,
+) -> dict:
+    """Return cached AI charts; regenerate only once per 24 hours or on force."""
+    key = _scope_key(user)
+    now = datetime.utcnow()
+
+    entry = _ai_chart_cache.get(key)
+    if not force_refresh and entry is not None:
+        generated_at, cached = entry
+        if now - generated_at < _AI_CHART_CACHE_TTL:
+            return cached
+
+    lock = _ai_chart_locks.setdefault(key, threading.RLock())
+    with lock:
+        # Hertoets ná die slot – 'n ander draad moes reeds gegenereer het.
+        entry = _ai_chart_cache.get(key)
+        if not force_refresh and entry is not None:
+            generated_at, cached = entry
+            if datetime.utcnow() - generated_at < _AI_CHART_CACHE_TTL:
+                return cached
+
+        charts = generate_all_charts(session, user)
+        _ai_chart_cache[key] = (datetime.utcnow(), charts)
+        return charts

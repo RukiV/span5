@@ -4,6 +4,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../widgets/searchable_dropdown.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/location_cascade_picker.dart';
+import '../../widgets/ai_suggestions_panel.dart';
+import '../../widgets/mobile_ghost_overlay.dart';
+import '../../core/suggestion_translations.dart';
 import '../../widgets/header_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -73,6 +76,45 @@ class _NewReportPageState extends State<NewReportPage> {
   final List<File> _photoFiles = [];
   bool _isAutoFilling = false;
   bool _isAiCreating = false;
+
+  static const _faultTypes = ["Onderhoud", "Herstel", "Inspeksie", "Installasie"];
+  static const _faultPriorities = ["Laag", "Medium", "Hoog"];
+
+  /// AI-voorstelle (spookteks) wat tans op die vorm van toepassing is.
+  Map<String, AiSuggestion> _ghosts = {};
+
+  Map<String, String> _currentFaultFields() => {
+        'description': descController.text,
+        'title': titleController.text,
+        'fault_type': selectedCategory ?? '',
+        'fault_priority': selectedPriority ?? '',
+      };
+
+  void _applyFaultGhost(String key, AiSuggestion s) {
+    switch (key) {
+      case 'fault_type':
+        final v = translateSuggestion('fault_type', s.value);
+        selectedCategory = _faultTypes.contains(v) ? v : s.value;
+        break;
+      case 'fault_priority':
+        final v = translateSuggestion('fault_priority', s.value);
+        selectedPriority = _faultPriorities.contains(v) ? v : s.value;
+        break;
+    }
+    setState(() {});
+  }
+
+  String? _faultGhostHint(String key, String current) {
+    final s = _ghosts[key];
+    if (s == null || !current.isEmpty) return null;
+    return translateSuggestion(key, s.value);
+  }
+
+  Widget? _faultGhostTrailing(String key, String current) {
+    final s = _ghosts[key];
+    if (s == null || !current.isEmpty) return null;
+    return SuggestionAcceptCheck(onTap: () => _applyFaultGhost(key, s));
+  }
 
   /// Of die vorm tans 'n geskandeerde/opgesoekte bate se gegewens wys. Wys die
   /// "Verander Foutkaartjie?"-knoppie en die wysig-inskiet op die ligging-
@@ -158,21 +200,16 @@ class _NewReportPageState extends State<NewReportPage> {
       selectedLocation = null;
       return;
     }
-    for (final c in CampusService.campusesNotifier.value) {
-      for (final b in c.buildings) {
-        for (final r in b.rooms ?? const <Room>[]) {
-          if (r.id == roomId) {
-            _selectedCampusId = c.id;
-            _selectedBuildingId = b.id;
-            _selectedRoomId = r.id;
-            selectedCampus = c.name;
-            selectedBuilding = b.name;
-            selectedLocation = '${r.id}:${r.name}';
-            _pendingRoomId = null;
-            return;
-          }
-        }
-      }
+final path = CampusService.findRoomPath(roomId);
+    if (path.room != null) {
+      _selectedCampusId = path.campus!.id;
+      _selectedBuildingId = path.building!.id;
+      _selectedRoomId = path.room!.id;
+      selectedCampus = path.campus!.name;
+      selectedBuilding = path.building!.name;
+      selectedLocation = '${path.room!.id}:${path.room!.name}';
+      _pendingRoomId = null;
+      return;
     }
     // Boom nog nie gelaai nie — onthou dit en vul aan sodra Campuses arriveer.
     _pendingRoomId = roomId;
@@ -348,6 +385,7 @@ class _NewReportPageState extends State<NewReportPage> {
       titleController: titleController,
       descController: descController,
       photoFiles: _photoFiles,
+      onTextChanged: () => setState(() {}),
       onAddPhoto: _pickPhoto,
       onPickMap: () {
         setState(() => _isOutdoor = true);
@@ -555,27 +593,40 @@ class _NewReportPageState extends State<NewReportPage> {
               const SizedBox(height: 10),
               InlineSearchableDropdown<String>(
                 label: "Werksoort",
-                hint: "Kies Werksoort",
+                hint: _faultGhostHint('fault_type', selectedCategory ?? "") ?? "Kies Werksoort",
                 value: selectedCategory,
-                items: ["Onderhoud", "Herstel", "Inspeksie", "Installasie"]
+                items: _faultTypes
                     .map((e) => SearchableDropdownItem(value: e, label: e))
                     .toList(),
+                trailing: _faultGhostTrailing('fault_type', selectedCategory ?? ""),
                 onChanged: (v) => setState(() => selectedCategory = v),
               ),
               if (UserSession.can('faults.view')) ...[
                 const SizedBox(height: 10),
                 InlineSearchableDropdown<String>(
                   label: "Prioriteit",
-                  hint: "Kies Prioriteit",
+                  hint: _faultGhostHint('fault_priority', selectedPriority ?? "") ?? "Kies Prioriteit",
                   value: selectedPriority,
-                  items: ["Laag", "Medium", "Hoog"]
+                  items: _faultPriorities
                       .map((e) => SearchableDropdownItem(value: e, label: e))
                       .toList(),
+                  trailing: _faultGhostTrailing('fault_priority', selectedPriority ?? ""),
                   onChanged: (v) => setState(() {
                     if (v != null) selectedPriority = v;
                   }),
                 ),
               ],
+              const SizedBox(height: 16),
+              AiSuggestionsPanel(
+                context: 'fault',
+                fields: _currentFaultFields(),
+                labels: const {
+                  'fault_type': 'Werksoort',
+                  'fault_priority': 'Prioriteit',
+                },
+                onSuggestionsChanged: (s) => setState(() => _ghosts = s),
+                onUse: (key, s) => _applyFaultGhost(key, s),
+              ),
             ],
           ),
         ),
@@ -1045,6 +1096,10 @@ class _TitleDescriptionBox extends StatefulWidget {
   final String? Function(String?)? titleValidator;
   final String? Function(String?)? descValidator;
 
+  /// Word by elke sleutel in die opskrif/beskrywing geroep sodat die ouer die
+  /// AI-veldvoorstelle kan bywerk terwyl getik word.
+  final VoidCallback? onTextChanged;
+
   const _TitleDescriptionBox({
     required this.titleController,
     required this.descController,
@@ -1054,6 +1109,7 @@ class _TitleDescriptionBox extends StatefulWidget {
     this.onRemovePhoto,
     this.titleValidator,
     this.descValidator,
+    this.onTextChanged,
   });
 
   @override
@@ -1117,6 +1173,7 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.sentences,
                 onFieldSubmitted: (_) => _descFocus.requestFocus(),
+                onChanged: (_) => widget.onTextChanged?.call(),
                 validator: widget.titleValidator,
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
@@ -1137,6 +1194,7 @@ class _TitleDescriptionBoxState extends State<_TitleDescriptionBox> {
                     maxLines: 3,
                     minLines: 3,
                     textCapitalization: TextCapitalization.sentences,
+                    onChanged: (_) => widget.onTextChanged?.call(),
                     validator: widget.descValidator,
                     style: const TextStyle(fontSize: 14),
                     decoration: InputDecoration(

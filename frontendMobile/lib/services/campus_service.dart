@@ -19,9 +19,15 @@ class CampusService {
   static String? get lastError => _manager.lastError;
 
   static Future<List<Campus>> _load() async {
-    final locResponse = await ApiClient().client.get('/location');
-    final buildingResponse = await ApiClient().client.get('/building');
-    final roomResponse = await ApiClient().client.get('/rooms');
+    // Haal die drie lyste gelyktydig, nie agtereenvolgens nie.
+    final results = await Future.wait([
+      ApiClient().client.get('/location'),
+      ApiClient().client.get('/building'),
+      ApiClient().client.get('/rooms'),
+    ]);
+    final locResponse = results[0];
+    final buildingResponse = results[1];
+    final roomResponse = results[2];
 
     if (locResponse.statusCode == 200 &&
         buildingResponse.statusCode == 200 &&
@@ -30,20 +36,33 @@ class CampusService {
       final List<dynamic> buildingData = buildingResponse.data;
       final List<dynamic> roomData = roomResponse.data;
 
+      // Bou indekskaarte in een deurloop (O(n)) in plaas van geneste
+      // .where()-loops (O(n²)) — vinniger op die hoof-isolaat met baie lokale.
+      final buildingsByLocation = <int, List<Building>>{};
+      final roomsByBuilding = <int, List<Room>>{};
+      for (final bJson in buildingData) {
+        final bId = bJson['building_id'] as int?;
+        final locId = bJson['location_id'] as int?;
+        if (bId == null || locId == null) continue;
+        buildingsByLocation.putIfAbsent(locId, () => []).add(
+            Building.fromJson(bJson));
+        roomsByBuilding.putIfAbsent(bId, () => []);
+      }
+      for (final rJson in roomData) {
+        final bId = rJson['building_id'] as int?;
+        if (bId == null) continue;
+        roomsByBuilding.putIfAbsent(bId, () => []).add(Room.fromJson(rJson));
+      }
+
       final campuses = <Campus>[];
+      for (final locJson in locData) {
+        final locId = locJson['location_id'] as int?;
+        if (locId == null) continue;
 
-      for (var locJson in locData) {
-        int locId = locJson['location_id'];
-
-        List<Building> locationBuildings =
-            buildingData.where((b) => b['location_id'] == locId).map((bJson) {
-          int bId = bJson['building_id'];
-          List<Room> buildingRooms = roomData
-              .where((r) => r['building_id'] == bId)
-              .map((r) => Room.fromJson(r))
-              .toList();
-          return Building.fromJson(bJson).copyWith(rooms: buildingRooms);
-        }).toList();
+        final locationBuildings =
+            (buildingsByLocation[locId] ?? const <Building>[])
+                .map((b) => b.copyWith(rooms: roomsByBuilding[b.id] ?? const []))
+                .toList();
 
         campuses.add(
             Campus.fromJson(locJson).copyWith(buildings: locationBuildings));
