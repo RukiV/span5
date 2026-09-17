@@ -17,6 +17,7 @@ jest.mock('../services/api', () => ({
     jobDrafts: {
       getAll: jest.fn(), getById: jest.fn(), create: jest.fn(), approve: jest.fn(), reject: jest.fn(),
     },
+    ai: { getStatus: jest.fn() },
   },
 }));
 jest.mock('../hooks/useCurrentUser', () => ({ useCurrentUser: () => ({ user: { user_id: 1 } }) }));
@@ -32,6 +33,7 @@ beforeEach(() => {
       { draft_id: 2, title: 'Onderhoud pyp', description: 'Pyp lek in toilet', suggested_type: 'MAINTENANCE', suggested_priority: 'MEDIUM', ai_status: 'degraded', source: 'manual', status: 'draft', created_at: '2025-07-02T14:30:00' },
     ],
   });
+  apiClient.ai.getStatus.mockResolvedValue({ data: { ai_enabled: true } });
 });
 
 test('renders AI draft queue with Afrikaans title and draft rows', async () => {
@@ -64,4 +66,21 @@ test('calls getAll with draft status filter by default', async () => {
   await waitFor(() => {
     expect(apiClient.jobDrafts.getAll).toHaveBeenCalledWith({ status_filter: 'draft' });
   });
+});
+
+test('renders AI status indicator (Aktief)', async () => {
+  const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
+  render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
+  await waitFor(() => {
+    expect(screen.getByText('AI: Aktief')).toBeInTheDocument();
+  });
+  expect(apiClient.ai.getStatus).toHaveBeenCalled();
+});
+
+test('AI indicator is absent while loading', async () => {
+  apiClient.ai.getStatus.mockImplementationOnce(() => new Promise(() => {})); // never resolves
+  const AIDraftQueuePage = require('../pages/AIDraftQueuePage').default;
+  render(<MemoryRouter><AIDraftQueuePage /></MemoryRouter>);
+  expect(screen.queryByText('AI: Aktief')).not.toBeInTheDocument();
+  expect(screen.queryByText('AI: Inaktief')).not.toBeInTheDocument();
 });

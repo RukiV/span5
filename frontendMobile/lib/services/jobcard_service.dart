@@ -134,4 +134,3 @@ class JobcardService {
     return false;
   }
 }
-}

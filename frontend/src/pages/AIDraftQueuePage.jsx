@@ -29,7 +29,6 @@ const DRAFT_COLUMNS = [
   },
   { key: 'type', label: 'Tipe', render: (d) => d.suggested_type || '-', sortKey: 'type', defaultVisible: true },
   { key: 'priority', label: 'Prioriteit', render: (d) => d.suggested_priority || '-', sortKey: 'priority', defaultVisible: true },
-  { key: 'ai', label: 'AI Status', render: (d) => getAiStatusBadge(d.ai_status), sortKey: 'ai', defaultVisible: true },
   { key: 'source', label: 'Bron', render: (d) => getSourceLabel(d.source), sortKey: 'source', defaultVisible: true },
   { key: 'date', label: 'Datum', render: (d) => formatDate(d.created_at), sortKey: 'date', defaultVisible: true },
 ];
@@ -37,16 +36,6 @@ const DRAFT_COLUMNS = [
 function formatDate(dateStr) {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('af-ZA', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function getAiStatusBadge(aiStatus) {
-  if (aiStatus === 'ok') {
-    return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: '#d4edda', color: '#155724' }}>OK</span>;
-  }
-  if (aiStatus === 'degraded') {
-    return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: '#fff3cd', color: '#856404' }}>Afgemaal</span>;
-  }
-  return <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold', backgroundColor: '#e9ecef', color: '#333' }}>{aiStatus || '-'}</span>;
 }
 
 function getSourceLabel(source) {
@@ -63,6 +52,13 @@ function AIDraftQueuePage() {
   const [drafts, setDrafts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("draft");
+  const [aiActive, setAiActive] = useState(null);
+
+  useEffect(() => {
+    apiClient.ai.getStatus()
+      .then((r) => setAiActive(r.data?.ai_enabled ?? false))
+      .catch(() => setAiActive(false));
+  }, []);
 
   const { sorts, addSort, removeSort, toggleDirection, moveSort, clearSorts, applySort } = useColumnSort({
     columns: DRAFT_COLUMNS,
@@ -97,7 +93,6 @@ function AIDraftQueuePage() {
       case 'asset': return String(d.resolved_asset_name || '');
       case 'type': return String(d.suggested_type || '');
       case 'priority': return String(d.suggested_priority || '');
-      case 'ai': return String(d.ai_status || '');
       case 'source': return String(d.source || '');
       case 'date': return d.created_at ? new Date(d.created_at).getTime() : 0;
       default: return '';
@@ -113,6 +108,18 @@ function AIDraftQueuePage() {
   return (
     <div className="main">
       <div className="content">
+        {aiActive !== null && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            marginBottom: '0.5rem', padding: '4px 10px', borderRadius: '4px',
+            fontSize: '12px', fontWeight: 'bold',
+            backgroundColor: aiActive ? '#d4edda' : '#f8d7da',
+            color: aiActive ? '#155724' : '#721c24',
+          }}>
+            <span style={{ fontSize: '10px' }}>{aiActive ? '🟢' : '🔴'}</span>
+            AI: {aiActive ? 'Aktief' : 'Inaktief'}
+          </div>
+        )}
         <div className="controls controls--sticky controls--with-tabs">
           <div className="controls-left">
             <Select className="react-select-container" classNamePrefix="react-select" value={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }].find((option) => option.value === statusFilter)} onChange={(selected) => setStatusFilter(selected?.value || "")} options={[{ value: "", label: "Alle" }, { value: "draft", label: "Konsepte" }, { value: "approved", label: "Goedgekeur" }, { value: "rejected", label: "Afgewys" }]} isSearchable={false} />

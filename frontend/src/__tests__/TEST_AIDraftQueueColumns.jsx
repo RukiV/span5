@@ -15,6 +15,7 @@ jest.mock('../services/api', () => ({
       getAll: jest.fn(), getById: jest.fn(), create: jest.fn(), approve: jest.fn(), reject: jest.fn(),
     },
     suggest: { suggest: jest.fn() },
+    ai: { getStatus: jest.fn().mockResolvedValue({ data: { ai_enabled: true } }) },
   },
 }));
 jest.mock('../components/Toast/useToast', () => ({ useToast: () => ({ showToast: jest.fn() }) }));
@@ -23,6 +24,7 @@ const { apiClient } = require('../services/api');
 
 beforeEach(() => {
   jest.clearAllMocks();
+  apiClient.ai.getStatus.mockResolvedValue({ data: { ai_enabled: true } });
   apiClient.jobDrafts.getAll.mockResolvedValue({
     data: [
       { draft_id: 1, title: 'Gebroke venster', suggested_type: 'REPAIR', suggested_priority: 'HIGH', ai_status: 'ok', source: 'auto', status: 'draft', created_at: '2026-07-01T10:00:00', resolved_room_name: 'Lesinglokaal A', building_name: 'Blok L', resolved_asset_name: 'Projektor PLA-1' },
@@ -52,4 +54,22 @@ test('ID-kolom is by verstek weggesteek', async () => {
   await waitFor(() => expect(screen.getByText('Projektor PLA-1')).toBeInTheDocument());
   const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
   expect(headers).not.toContain('ID');
+});
+
+test('AI Status kolom is verwyder', async () => {
+  renderPage();
+  await waitFor(() => expect(screen.getByText('Projektor PLA-1')).toBeInTheDocument());
+  const headers = Array.from(document.querySelectorAll('th')).map((th) => th.textContent);
+  expect(headers).not.toContain('AI Status');
+});
+
+test('AI indikator wys Aktief wanneer AI aan is', async () => {
+  renderPage();
+  await waitFor(() => expect(screen.getByText('AI: Aktief')).toBeInTheDocument());
+});
+
+test('AI indikator wys Inaktief wanneer AI af is', async () => {
+  apiClient.ai.getStatus.mockResolvedValueOnce({ data: { ai_enabled: false } });
+  renderPage();
+  await waitFor(() => expect(screen.getByText('AI: Inaktief')).toBeInTheDocument());
 });

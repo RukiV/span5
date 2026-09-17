@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_session.dart';
-import '../widgets/filter_utils.dart';
-import '../widgets/sort_utils.dart';
 import 'navigation.dart';
 
 /// API-pad wat agter die bediener-oorsprong aangeheg word (bv. /api/v1).
@@ -226,10 +224,6 @@ class ApiClient {
   Future<void> clearToken() async {
     await _storage.delete(key: 'auth_token');
     await _storage.delete(key: _refreshTokenKey);
-    // Gebruikersspesifieke voorkeure (sorteervoorkeure) saam uitvee sodat die
-    // volgende gebruiker nie die vorige s'n oorerf nie (G1).
-    await MultiSortController.clearAll();
-    await FilterController.clearAll();
     ApiClient.authNotifier.value = false;
   }
 }

@@ -6,6 +6,7 @@ import '../../models/stock.dart';
 import '../../models/user_session.dart';
 import '../../services/campus_service.dart';
 import '../../services/stock_service.dart';
+import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/confirm_delete.dart';
@@ -118,6 +119,18 @@ class _StockFormPageState extends State<StockFormPage> {
       _roomId = roomId;
       if (roomId != null) _locationError = null;
     });
+  }
+
+  Widget _breadcrumbs() {
+    if (_campusId == null) return const SizedBox.shrink();
+
+    final campus = CampusService.campusesNotifier.value
+        .where((c) => c.id == _campusId)
+        .firstOrNull;
+    if (campus == null) return const SizedBox.shrink();
+
+    return LocationBreadcrumbs(path: LocationBreadcrumbs.buildLocationPath(
+        campusId: _campusId, buildingId: _buildingId, roomId: _roomId));
   }
 
   Widget _buildField(String label, String initial, Function(String) onSet,
@@ -247,6 +260,7 @@ class _StockFormPageState extends State<StockFormPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _breadcrumbs(),
           Row(
             children: [
               Expanded(
@@ -294,6 +308,7 @@ class _StockFormPageState extends State<StockFormPage> {
           ),
           const SizedBox(height: 20),
           LocationCascadePicker(
+            label: "Ligging *",
             initialCampusId: _campusId,
             initialBuildingId: _buildingId,
             initialRoomId: _roomId,

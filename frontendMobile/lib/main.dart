@@ -7,7 +7,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'services/notification_service.dart' as svc;
 import 'pages/auth/login_page.dart';
 import 'pages/home/home_page.dart';
-import 'pages/reporting/location_page.dart';
 import 'pages/settings/server_config_page.dart';
 import 'core/app_colors.dart';
 import 'core/api_client.dart';
@@ -47,7 +46,6 @@ Future<void> _initFirebase() async {
       alert: true,
       badge: true,
       sound: true,
-      alert: true, badge: true, sound: true,
     );
     debugPrint('FCM permission: ${notifSettings.authorizationStatus}');
 
@@ -74,10 +72,6 @@ Future<void> _initFirebase() async {
             android: AndroidNotificationDetails(
               'fbs_channel',
               'FBS Kennisgewings',
-          0, title, body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'fbs_channel', 'FBS Kennisgewings',
               importance: Importance.high,
               priority: Priority.high,
             ),
@@ -119,7 +113,6 @@ void main() async {
   } catch (e) {
     debugPrint(
         "Warning: .env file not found. Using hardcoded defaults or environment variables.");
-    debugPrint("Warning: .env file not found. Using hardcoded defaults or environment variables.");
   }
   _initFirebase();
 
@@ -168,7 +161,6 @@ class MyApp extends StatelessWidget {
             foregroundColor: AppColors.white,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             textStyle: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
@@ -199,16 +191,6 @@ class MyApp extends StatelessWidget {
           case '/home':
             page = const HomePage();
             break;
-          case '/setup':
-            page = const ServerConfigPage(firstLaunch: true);
-            break;
-          case '/home':
-            page = const HomePage();
-            break;
-          case '/location':
-            final args = settings.arguments as Map<String, dynamic>?;
-            page = LocationPage(autoConfirm: args?['autoConfirm'] ?? false);
-            break;
           default:
             page = const StartupGate();
         }
@@ -224,7 +206,6 @@ class MyApp extends StatelessWidget {
 
             var tween =
                 Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
 
             return FadeTransition(
               opacity: animation.drive(tween),
@@ -264,28 +245,6 @@ class _StartupGateState extends State<StartupGate> {
     if (!mounted) return;
     setState(() {
       _needsSetup = storedUrl == null || storedUrl.isEmpty;
-
-    var needsSetup = storedUrl == null || storedUrl.isEmpty;
-
-    if (!needsSetup) {
-      // Herstel die gestoorde sessie (indien enige) sodat die gebruiker nie
-      // weer moet aanmeld net omdat hy die app oopmaak nie.
-      final hasSession = await ApiClient().restoreSession();
-      if (!mounted) return;
-
-      setState(() {
-        _needsSetup = needsSetup;
-        _ready = true;
-      });
-
-      if (hasSession) {
-        Navigator.of(context).pushReplacementNamed('/home');
-        return;
-      }
-    }
-
-    setState(() {
-      _needsSetup = needsSetup;
       _ready = true;
     });
   }
