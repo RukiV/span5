@@ -234,6 +234,7 @@ class _CampusFormPageState extends State<CampusFormPage> {
       canEdit: UserSession.can('locations.manage'),
       formKey: _formKey,
       onSave: _save,
+      showCancel: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
