@@ -8,14 +8,13 @@ import '../../services/campus_service.dart';
 import '../../services/report_service.dart';
 import '../../services/camera_service.dart';
 import '../../services/image_service.dart';
-import '../../services/room_service.dart';
 import '../../models/report.dart';
 import '../../models/room.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
-import 'scan_page.dart';
 import 'location_page.dart';
+import 'room_scan.dart';
 
 class EditReportPage extends StatefulWidget {
   final Report report;
@@ -228,26 +227,8 @@ class _EditReportPageState extends State<EditReportPage> {
   /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
   /// outomaties in as 'n alternatief vir die handmatige kieser.
   Future<void> _scanRoom() async {
-    final String? scannedCode = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ScanPage(isLocation: true),
-      ),
-    );
-    if (scannedCode == null || !mounted) return;
-
-    final room = await RoomService.getRoomByCode(scannedCode.trim());
-    if (!mounted) return;
-    if (room == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Geen lokaal gevind met hierdie kode nie"),
-          backgroundColor: AppColors.warningOrange,
-        ),
-      );
-      return;
-    }
-
+    final room = await scanLocationToRoom(context);
+    if (!mounted || room == null) return;
     _onLocationChanged(room.locationId, room.buildingId, room.id);
   }
 
@@ -392,19 +373,7 @@ class _EditReportPageState extends State<EditReportPage> {
                       initialCampusId: _initialCampusId,
                       initialBuildingId: _initialBuildingId,
                       initialRoomId: _initialRoomId,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner,
-                            color: AppColors.navy),
-                        tooltip: "Skandeer Lokaal",
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.grey[100],
-                          side: BorderSide(color: Colors.grey[300]!),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.all(10),
-                        ),
-                        onPressed: _scanRoom,
-                      ),
+                      trailing: buildScanRoomIconButton(_scanRoom),
                       onChanged: _onLocationChanged,
                     ),
                     const SizedBox(height: 20),

@@ -24,6 +24,7 @@ import '../../services/outlook_service.dart';
 import '../../services/report_service.dart';
 import '../../services/user_service.dart';
 import '../../services/wrong_room_service.dart';
+import '../reporting/room_scan.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/inline_searchable_dropdown.dart';
@@ -610,6 +611,23 @@ class _JobcardFormPageState extends State<JobcardFormPage>
   int? _selectedContractorId;
   final List<int> _ccUserIds = [];
 
+  void _onLocationChanged(int? campusId, int? buildingId, int? roomId) {
+    setState(() {
+      _selectedCampusId = campusId;
+      _selectedBuildingId = buildingId;
+      _selectedRoomId = roomId;
+      _selectedAssetId = null;
+    });
+  }
+
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final room = await scanLocationToRoom(context);
+    if (!mounted || room == null) return;
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
+  }
+
   final List<_QuoteDraft> _quotes = [];
   int? _selectedQuoteTempId;
   int _quoteCounter = 0;
@@ -1086,12 +1104,8 @@ class _JobcardFormPageState extends State<JobcardFormPage>
           initialCampusId: _selectedCampusId,
           initialBuildingId: _selectedBuildingId,
           initialRoomId: _selectedRoomId,
-          onChanged: (campusId, buildingId, roomId) => setState(() {
-            _selectedCampusId = campusId;
-            _selectedBuildingId = buildingId;
-            _selectedRoomId = roomId;
-            _selectedAssetId = null;
-          }),
+          trailing: buildScanRoomIconButton(_scanRoom),
+          onChanged: _onLocationChanged,
         ),
         const SizedBox(height: 14),
         _buildAssetDropdown(),

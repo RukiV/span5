@@ -19,6 +19,7 @@ import '../../widgets/ghost_overlay.dart';
 import '../../core/suggestion_translations.dart';
 import '../../services/ai_service.dart';
 import '../reporting/scan_page.dart';
+import '../reporting/room_scan.dart';
 
 class AssetFormPage extends StatefulWidget {
   final Asset? asset;
@@ -270,6 +271,14 @@ class _AssetFormPageState extends State<AssetFormPage> {
           path.room == null ? null : '${path.room!.id}:${path.room!.name}';
       if (path.room != null) _locationError = null;
     });
+  }
+
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final room = await scanLocationToRoom(context);
+    if (!mounted || room == null) return;
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
   }
 
   Widget _breadcrumbs() {
@@ -524,6 +533,7 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 initialRoomId:
                     _appliedLocation?.$3 ?? (_isCreate ? null : _initialRoomId),
                 errorText: _locationError,
+                trailing: buildScanRoomIconButton(_scanRoom),
                 onChanged: _onLocationChanged,
               ),
               if (selectedLocation == null && _ghosts['room'] != null) ...[

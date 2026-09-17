@@ -15,6 +15,7 @@ import '../../core/asset_code_formatter.dart';
 import '../../services/asset_type_service.dart';
 import 'scan_page.dart';
 import 'location_page.dart';
+import 'room_scan.dart';
 
 import '../../services/report_service.dart';
 import '../../services/ai_service.dart';
@@ -25,7 +26,6 @@ import '../../models/room.dart';
 import '../../models/campus.dart';
 import '../../models/asset.dart';
 import '../../services/asset_service.dart';
-import '../../services/room_service.dart';
 import '../../services/wrong_room_service.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/ai_suggestions_panel.dart';
@@ -271,26 +271,8 @@ class _NewReportPageState extends State<NewReportPage> {
   /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
   /// outomaties in as 'n alternatief vir die handmatige kieser.
   Future<void> _scanRoom() async {
-    final String? scannedCode = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const ScanPage(isLocation: true),
-      ),
-    );
-    if (scannedCode == null || !mounted) return;
-
-    final room = await RoomService.getRoomByCode(scannedCode.trim());
-    if (!mounted) return;
-    if (room == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Geen lokaal gevind met hierdie kode nie"),
-          backgroundColor: AppColors.warningOrange,
-        ),
-      );
-      return;
-    }
-
+    final room = await scanLocationToRoom(context);
+    if (!mounted || room == null) return;
     _onLocationChanged(room.locationId, room.buildingId, room.id);
     setState(() => _isOutdoor = false);
   }
@@ -327,22 +309,6 @@ class _NewReportPageState extends State<NewReportPage> {
             "AI-konsep geskep — wag op goedkeuring in Voorgestelde Werksopdragte."),
         backgroundColor: AppColors.successGreen,
       ),
-    );
-  }
-
-  /// Kompakte QR-ikoonknoppie wat regs langs die ligging-kieser staan om 'n
-  /// lokaal se kode te skandeer — in plaas van die ou vol-breedte knoppie.
-  Widget _buildScanRoomIcon() {
-    return IconButton(
-      icon: const Icon(Icons.qr_code_scanner, color: AppColors.navy),
-      tooltip: "Skandeer Lokaal",
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.grey[100],
-        side: BorderSide(color: Colors.grey[300]!),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        padding: const EdgeInsets.all(10),
-      ),
-      onPressed: _scanRoom,
     );
   }
 
@@ -571,7 +537,7 @@ class _NewReportPageState extends State<NewReportPage> {
               ),
             ),
             errorText: _locationError,
-            trailing: _buildScanRoomIcon(),
+            trailing: buildScanRoomIconButton(_scanRoom),
             onChanged: _onLocationChanged,
           ),
           const SizedBox(height: 4),

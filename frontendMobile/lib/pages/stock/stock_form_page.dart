@@ -10,6 +10,7 @@ import '../../widgets/location_breadcrumbs.dart';
 import '../../widgets/location_cascade_picker.dart';
 import '../../widgets/view_edit_scaffold.dart';
 import '../../widgets/confirm_delete.dart';
+import '../reporting/room_scan.dart';
 import '../../widgets/ai_suggestions_panel.dart';
 import '../../widgets/ghost_overlay.dart';
 import '../../services/ai_service.dart';
@@ -135,6 +136,14 @@ class _StockFormPageState extends State<StockFormPage> {
       _roomId = roomId;
       if (roomId != null) _locationError = null;
     });
+  }
+
+  /// Scan 'n lokaal se QR-kode en vul die volle terrein/gebou/lokaal-pad
+  /// outomaties in as 'n alternatief vir die handmatige kieser.
+  Future<void> _scanRoom() async {
+    final room = await scanLocationToRoom(context);
+    if (!mounted || room == null) return;
+    _onLocationChanged(room.locationId, room.buildingId, room.id);
   }
 
   /// Die vorm se huidige veldwaardes vir die AI-konteks.
@@ -433,6 +442,7 @@ class _StockFormPageState extends State<StockFormPage> {
             initialBuildingId: _buildingId,
             initialRoomId: _roomId,
             errorText: _locationError,
+            trailing: buildScanRoomIconButton(_scanRoom),
             onChanged: _onLocationChanged,
           ),
           const SizedBox(height: 20),

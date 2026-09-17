@@ -510,16 +510,15 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: widget.trailBar!),
-                  // Wanneer die kaskade voltooi is, bied 'n ongedaan-knoppie
-                  // langs die krummelpad 'n vinnige manier om dit te verander.
-                  if (_isComplete)
-                    IconButton(
-                      icon: const Icon(Icons.undo,
-                          size: 20, color: AppColors.navy),
-                      tooltip: "Verander ligging",
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => _clearFromLevel(0),
-                    ),
+                  // 'n Ongedaan-knoppie langs die krummelpad bied 'n vinnige
+                  // manier om die ligging te verander.
+                  IconButton(
+                    icon: const Icon(Icons.undo,
+                        size: 20, color: AppColors.navy),
+                    tooltip: "Verander ligging",
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _clearFromLevel(0),
+                  ),
                 ],
               ),
               SizedBox(height: widget.trailBarSpacing),
@@ -538,7 +537,7 @@ class _LocationCascadePickerState extends State<LocationCascadePicker> {
                     value: null,
                     enabled: true,
                     error: widget.error,
-                    showSearchEntry: false,
+                    showSearchEntry: true,
                     closeOnSelect: false,
                     restoreOnBlur: false,
                     onFocus: () {
