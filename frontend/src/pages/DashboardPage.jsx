@@ -262,7 +262,7 @@ const DashboardPage = () => {
         setOpsDigest(digest);
         try {
           const todayKey = new Date().toISOString().slice(0, 10);
-          localStorage.setItem('dashboard_digest_' + todayKey, digest);
+          localStorage.setItem('dashboard_digest_v2_' + todayKey, JSON.stringify(digest));
         } catch (e) {
           // localStorage kan onbeskikbaar wees; caching is beste-poging.
         }
@@ -275,9 +275,18 @@ const DashboardPage = () => {
   useEffect(() => {
     fetchSummary();
     const todayKey = new Date().toISOString().slice(0, 10);
-    const cached = localStorage.getItem('dashboard_digest_' + todayKey);
+    const cached = localStorage.getItem('dashboard_digest_v2_' + todayKey);
     if (cached) {
-      setOpsDigest(cached);
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length) {
+          setOpsDigest(parsed);
+        } else {
+          fetchDigest();
+        }
+      } catch (e) {
+        fetchDigest();
+      }
     } else {
       fetchDigest();
     }
@@ -788,10 +797,14 @@ const DashboardPage = () => {
           </Link>
         </div>
 
-        {opsDigest && (
+        {opsDigest?.length > 0 && (
           <div className="ops-digest" style={{ marginBottom: '20px', padding: '12px 16px', background: '#f5f0e6', borderRadius: '6px', borderLeft: '4px solid #935e28' }}>
             <h4 style={{ margin: '0 0 4px', color: '#935e28' }}>📋 Bedryfsopsomming</h4>
-            <p style={{ margin: 0 }}>{opsDigest}</p>
+            <ul className="ap-insights">
+              {opsDigest.map((point, i) => (
+                <li key={i}>{point}</li>
+              ))}
+            </ul>
           </div>
         )}
 

@@ -1,5 +1,6 @@
 import json
 import logging as _lg
+import re
 from collections import Counter
 from sqlmodel import Session, select, func
 from datetime import datetime, timezone
@@ -7,10 +8,42 @@ from datetime import datetime, timezone
 from ..models.analytics import AnalyticsResponse, Metric, ChartData, ChartDataset, Suggestion
 
 
-def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
-    """Optional AI prose layer: short Afrikaans ops summary from computed aggregates.
+def _normalize_digest_bullets(raw) -> list[str] | None:
+    """Normalize the LLM ops digest into a clean bullet list.
 
-    Numbers in, prose out — the prompt only carries the already-computed
+    Accepts the parsed JSON dict (expected) or a plain string (LLM ignored the
+    schema). Lists are cleaned in place; strings are split on newlines first.
+    Strips leading bullet markers and whitespace per entry, caps the list at
+    5 bullets, truncates each bullet to 120 chars. Returns None when nothing
+    valid remains.
+    """
+    if isinstance(raw, dict):
+        value = raw.get("digest")
+    else:
+        value = raw
+    if isinstance(value, list):
+        entries = value
+    elif isinstance(value, str) and value.strip():
+        entries = value.split("\n")
+    else:
+        entries = []
+    marker_re = re.compile(r"^\s*(?:[-•*]|\d+[.)])\s+")
+    bullets = []
+    for entry in entries:
+        if not isinstance(entry, str):
+            continue
+        cleaned = marker_re.sub("", entry.strip()).strip()
+        if cleaned:
+            bullets.append(cleaned[:120])
+        if len(bullets) >= 5:
+            break
+    return bullets if bullets else None
+
+
+def _llm_ops_digest(response: AnalyticsResponse, page: str) -> list[str] | None:
+    """Optional AI bullet layer: short Afrikaans ops bullet points from computed aggregates.
+
+    Numbers in, bullets out — the prompt only carries the already-computed
     metrics/insights, so the hallucination surface is near-zero. When the LLM
     is unavailable (AI_ENABLED=false / Ollama down / garbage output) returns
     None so the caller keeps the rule-based summary.
@@ -29,8 +62,9 @@ def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
             f"Page: {page}\n"
             f"Metrics:\n{metrics_block or '(none)'}\n"
             f"Rule insights:\n{insights_block or '(none)'}\n"
-            "Skryf 'n bondige Afrikaans-bedryfsopsomming van 3-5 sinne as JSON "
-            "{\"digest\": \"<string>\"} — fokus op wat vandag aandag benodig: "
+            "Skryf 'n bondige Afrikaans-bedryfsopsomming van 3-5 kort-punte as JSON "
+            "{\"digest\": [\"<string>\", ...]} — die digest moet 'n array van kort "
+            "punt-bullets wees. Fokus op wat vandag aandag benodig: "
             "oortydige werksopdragte, kritieke voorraad-items, agterstallige "
             "onderhoud, en hoë-prioriteit foute. Noem spesifieke syfers en, waar "
             "moontlik, voorraad-itemname."
@@ -39,15 +73,15 @@ def _llm_ops_digest(response: AnalyticsResponse, page: str) -> str | None:
             "Jy is 'n fasiliteitsbestuur-assistent vir 'n fasiliteitkoordineerder. "
             "Gee 'n bondige Afrikaans-opsomming van wat vandag aandag nodig het: "
             "oortydige werksopdragte, kritieke voorraad, agterstallige onderhoud, "
-            "en hoë-prioriteit foute. Noem spesifieke syfers. 3-5 sinne.",
+            "en hoë-prioriteit foute. Noem spesifieke syfers. Gee die digest as 'n "
+            "array van 3-5 kort-punte.",
             prompt,
-            {"type": "object", "properties": {"digest": {"type": "string"}}, "required": ["digest"]},
+            {"type": "object", "properties": {"digest": {"type": "array", "items": {"type": "string"}}}, "required": ["digest"]},
             {"temperature": 0.3, "num_predict": 300},
         )
         text = (raw.get("response") or "").strip()
         parsed = llm_service._parse_json(text)
-        if isinstance(parsed, dict) and isinstance(parsed.get("digest"), str) and parsed["digest"].strip():
-            return parsed["digest"].strip()[:400]
+        return _normalize_digest_bullets(parsed)
     except LlmUnavailable:
         _lg.debug("Ops digest skipped (LLM unavailable): %s", page)
     except Exception as e:

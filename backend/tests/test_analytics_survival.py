@@ -123,7 +123,7 @@ def test_weekly_ops_digest_llm_active(engine, seeded, monkeypatch):
         llm_service,
         "_generate",
         lambda system, prompt, schema, options=None: {
-            "response": '{"digest": "Langtermyn-opsomming: alles loop glad nie."}'
+            "response": '{"digest": ["Punt een", "Punt twee"]}'
         },
     )
 
@@ -131,7 +131,7 @@ def test_weekly_ops_digest_llm_active(engine, seeded, monkeypatch):
         resp = generate_insights("dashboard", session)
 
     assert isinstance(resp, AnalyticsResponse)
-    assert resp.digest == "Langtermyn-opsomming: alles loop glad nie."
+    assert resp.digest == ["Punt een", "Punt twee"]
     # summary stays rule-based (not replaced by digest); seeded: 1 WAIT-fout + 1 WAIT-werksopdrag
     assert resp.summary == "Oorsig van 0 bates, 1 onopgeloste foute, 1 aktiewe werksopdragte."
     # metrics now include the four new KPIs alongside the originals
