@@ -908,7 +908,7 @@ def _gather_context(page: str, session,
 
         all_drafts = session.exec(select(JobDraft)).all()
         drafts = [d for d in all_drafts if _in_scope_draft(session, scope, d)]
-        ctx["auto_drafts"] = sum(1 for d in drafts if d.source == "auto")
+        ctx["auto_drafts"] = sum(1 for d in drafts if d.source == "auto" and d.status == "draft")
         ctx["raw_drafts"] = _serialize_records(drafts, limit=10)
         ctx["is_fk_scoped"] = scope["is_fk_scoped"]
         if scope["is_fk_scoped"] and scope["user_location_id"]:
@@ -1229,7 +1229,7 @@ def get_dashboard_summary(session, user=None, include_ai_charts: bool = False) -
     from ..models.jobdraft import JobDraft
 
     all_drafts = session.exec(select(JobDraft)).all()
-    auto_drafts = sum(1 for d in all_drafts if d.source == "auto" and _in_scope_draft(session, scope, d))
+    auto_drafts = sum(1 for d in all_drafts if d.source == "auto" and d.status == "draft" and _in_scope_draft(session, scope, d))
 
     return {
         "kpis": {

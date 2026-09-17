@@ -26,6 +26,7 @@ import GhostSuggestion from "../components/GhostSuggestion";
 import ImportExportModal from "../components/DataTransfer/ImportExportModal";
 import useCascadeMenu from "../hooks/useCascadeMenu";
 import { getDeleteErrorMessage, confirmCascade, batchDelete } from "../utils/deleteUtils";
+import { invalidateOpsDigestCache } from "../services/opsDigestCache";
 import Modal from '../components/Modal/Modal';
 import TicketDetailView from '../components/DetailView/TicketDetailView';
 import FilterChip from '../components/FilterChip';
@@ -383,6 +384,7 @@ function TicketPage() {
       handleCloseModal();
       fetchTickets();
       window.dispatchEvent(new Event('digest-refresh'));
+      invalidateOpsDigestCache();
     } catch (error) {
       console.error("Error saving ticket:", error);
       const errorDetail = error.response?.data?.detail;

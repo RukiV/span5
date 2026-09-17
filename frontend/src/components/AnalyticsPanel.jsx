@@ -13,6 +13,7 @@ import {
 import { IoStatsChartOutline, IoBulbOutline, IoRocketOutline, IoCalendarOutline, IoRefreshOutline } from 'react-icons/io5';
 import '../styles/AnalyticsPanel.css';
 import { analyticsAPI } from '../services/analyticsAPI';
+import { invalidateOpsDigestCache } from '../services/opsDigestCache';
 import { useAnalytics } from '../context/AnalyticsContext';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
@@ -115,6 +116,7 @@ function AnalyticsPanel() {
     try {
       const res = await analyticsAPI.executeSuggestion(suggestion);
       setExecuteMsg({ type: 'success', text: res.data?.message || 'Aksie uitgevoer' });
+      invalidateOpsDigestCache();
       fetchInsights();
     } catch {
       setExecuteMsg({ type: 'error', text: 'Kon nie aksie uitvoer nie' });

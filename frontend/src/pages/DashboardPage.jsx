@@ -12,6 +12,7 @@ import { loginRequest } from '../services/msalConfig';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useToast } from '../components/Toast/useToast';
 import { useConfirmDialog } from '../components/Modal/useConfirmDialog';
+import { readOpsDigestCache, writeOpsDigestCache, invalidateOpsDigestCache } from '../services/opsDigestCache';
 
 const formatDateInput = (date) => {
   const year = date.getFullYear();
@@ -260,12 +261,7 @@ const DashboardPage = () => {
       const digest = r.data?.digest ?? null;
       if (digest) {
         setOpsDigest(digest);
-        try {
-          const todayKey = new Date().toISOString().slice(0, 10);
-          localStorage.setItem('dashboard_digest_v2_' + todayKey, JSON.stringify(digest));
-        } catch (e) {
-          // localStorage kan onbeskikbaar wees; caching is beste-poging.
-        }
+        writeOpsDigestCache(digest);
       }
     } catch (e) {
       // digest is best-effort — mislukking is nie kritiek nie.
@@ -274,19 +270,9 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchSummary();
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const cached = localStorage.getItem('dashboard_digest_v2_' + todayKey);
+    const cached = readOpsDigestCache();
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length) {
-          setOpsDigest(parsed);
-        } else {
-          fetchDigest();
-        }
-      } catch (e) {
-        fetchDigest();
-      }
+      setOpsDigest(cached);
     } else {
       fetchDigest();
     }
@@ -300,7 +286,7 @@ const DashboardPage = () => {
   // Luister na 'digest-refresh' — ander blaaie stuur dit ná mutasies sodat
   // die opsomming (en sy daaglikse cache) onmiddellik verfris word.
   useEffect(() => {
-    const handler = () => fetchDigest();
+    const handler = () => { invalidateOpsDigestCache(); fetchDigest(); };
     window.addEventListener('digest-refresh', handler);
     return () => window.removeEventListener('digest-refresh', handler);
   }, [fetchDigest]);

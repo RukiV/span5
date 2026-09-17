@@ -31,6 +31,7 @@ import useCascadeMenu from "../hooks/useCascadeMenu";
 import Modal from '../components/Modal/Modal';
 import WorkOrderDetailView from '../components/DetailView/WorkOrderDetailView';
 import FilterChip from '../components/FilterChip';
+import { invalidateOpsDigestCache } from '../services/opsDigestCache';
 import '../components/DetailView/DetailView.css';
 
 function WorkOrderPage() {
@@ -1087,6 +1088,7 @@ function WorkOrderPage() {
       handleCloseModal();
       fetchWorkOrders();
       window.dispatchEvent(new Event('digest-refresh'));
+      invalidateOpsDigestCache();
     } catch (error) {
       console.error("Fout by besparing:", error);
       showToast({ type: 'error', title: 'Fout tydens besparing. Probeer asseblief weer.' });
